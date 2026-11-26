@@ -54,10 +54,10 @@ internal sealed partial class ProgramFunctions(TirModule module)
             throw new ArgumentException($"{method} appears twice among the program's methods.", nameof(method));
         }
 
-        if (!method.IsStatic)
+        if (!method.IsStatic && !ValueTypes.IsStructInstanceMethod(method))
         {
             throw LoweringErrors.In(method, $"instance methods are not supported yet ({SupportedSubset.Milestone} " +
-                "compiles static methods only)");
+                "compiles static methods and the methods of structs)");
         }
 
         if (method.GenericParameters.Count > 0 || method.DeclaringType.GenericParameters.Count > 0)
@@ -77,6 +77,12 @@ internal sealed partial class ProgramFunctions(TirModule module)
         var returnType = LoweringErrors.MapType(method, method.ReturnType, "it returns");
 
         var parameters = new List<(string Name, TirType Type)>();
+        var self = ThisParameter(method);
+        if (self is { } thisParameter)
+        {
+            parameters.Add(thisParameter);
+        }
+
         var leftOut = new HashSet<int>();
         foreach (var parameter in method.Parameters)
         {
@@ -101,6 +107,11 @@ internal sealed partial class ProgramFunctions(TirModule module)
         var function = module.AddFunction(method.DisplayName, returnType, parameters);
         var arguments = new List<LoweredArgument>();
         var next = 0;
+        if (self is { } thisArgument)
+        {
+            arguments.Add(new LoweredArgument(thisArgument.Name, ValueTypes.ThisType(method), function.Parameters[next++]));
+        }
+
         foreach (var parameter in method.Parameters)
         {
             var tir = leftOut.Contains(parameter.Index) ? null : function.Parameters[next++];
@@ -134,8 +145,9 @@ internal sealed partial class ProgramFunctions(TirModule module)
                     $"the call to {definition} is not supported: it passes the string[] the entry point leaves out");
             }
 
-            return new CallTarget(callee.Function, definition.Signature.ParameterTypes, definition.ReturnType,
-                definition.ToString());
+            // a struct method's this comes first
+            return new CallTarget(callee.Function, [.. callee.Arguments.Select(argument => argument.Type)],
+                definition.ReturnType, definition.ToString());
         }
 
         if (KnownExternals.TryMap(reference, out var external))

@@ -52,6 +52,11 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
         $"{FailuresHint}; using, lock and foreach over a collection make a try/finally too.");
     public static readonly Unsupported Addresses = new("taking addresses (ref, out, struct methods)", false, ReferencesHint);
     public static readonly Unsupported References = new("references and pointers (ref, out, in, *)", true, ReferencesHint);
+    public static readonly Unsupported UnsafeCode = new("unsafe code (pointers, &x, sizeof, fixed)", false,
+        "For now, use ref parameters, ref locals and structs.");
+    public static readonly Unsupported ExplicitLayout = new("structs with an explicit layout (LayoutKind.Explicit)", true,
+        "For now, leave out [StructLayout(LayoutKind.Explicit)] and [FieldOffset].");
+    public static readonly Unsupported RefFields = new("ref fields", true, "For now, keep references in parameters and locals.");
     public static readonly Unsupported Delegates = new("delegates, lambdas and function pointers", true,
         "For now, call methods directly.");
     public static readonly Unsupported TypeHandles = new("typeof and type handles", true, "For now, leave them out.");
@@ -121,7 +126,8 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
             IlOpCode.Localloc => Stackalloc,
             IlOpCode.Ldfld or IlOpCode.Ldflda or IlOpCode.Stfld => Fields,
             IlOpCode.Ldsflda => Addresses,
-            IlOpCode.Initobj or IlOpCode.Ldobj or IlOpCode.Stobj or IlOpCode.Cpobj or IlOpCode.Sizeof => Structs,
+            IlOpCode.Initobj or IlOpCode.Ldobj or IlOpCode.Stobj or IlOpCode.Cpobj => Structs,
+            IlOpCode.Sizeof => UnsafeCode,
             IlOpCode.Ldc_R4 or IlOpCode.Ldc_R8 or IlOpCode.Conv_R4 or IlOpCode.Conv_R8 or IlOpCode.Conv_R_Un
                 or IlOpCode.Ckfinite => FloatingPoint,
             IlOpCode.Throw or IlOpCode.Rethrow or IlOpCode.Leave or IlOpCode.Leave_S or IlOpCode.Endfinally

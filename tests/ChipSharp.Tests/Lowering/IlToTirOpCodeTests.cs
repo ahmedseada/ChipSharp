@@ -167,6 +167,7 @@ public sealed partial class IlToTirOpCodeTests : IDisposable
         {
             var program = new OpCodeProgram();
             program.AddStaticFields();
+            program.AddStructsAndReferences();
             program.AddArithmetic();
             program.AddConversions();
             program.AddComparisonsAndBranches();
@@ -586,6 +587,202 @@ public sealed partial class IlToTirOpCodeTests : IDisposable
                 il.Emit(OpCodes.Ldsfld, ticks);
                 il.Emit(OpCodes.Ret);
             }, [[], []]);
+        }
+
+        /// <summary>
+        /// A struct Pair { int A; long B; } with a constructor and a method, and the instructions on structs and
+        /// references: fields, addresses, initobj, ldobj, stobj, cpobj, newobj, and ldind and stind of every width.
+        /// </summary>
+        private void AddStructsAndReferences()
+        {
+            var pair = Assembly.Struct("Pair");
+            var a = pair.DefineField("A", typeof(int), FieldAttributes.Public);
+            var b = pair.DefineField("B", typeof(long), FieldAttributes.Public);
+            var constructor = pair.DefineConstructor(MethodAttributes.Public, CallingConventions.Standard,
+                [typeof(int), typeof(long)]);
+            var body = constructor.GetILGenerator();
+            body.Emit(OpCodes.Ldarg_0);
+            body.Emit(OpCodes.Ldarg_1);
+            body.Emit(OpCodes.Stfld, a);
+            body.Emit(OpCodes.Ldarg_0);
+            body.Emit(OpCodes.Ldarg_2);
+            body.Emit(OpCodes.Stfld, b);
+            body.Emit(OpCodes.Ret);
+            var sum = pair.DefineMethod("Sum", MethodAttributes.Public, typeof(long), []);
+            body = sum.GetILGenerator();
+            body.Emit(OpCodes.Ldarg_0);
+            body.Emit(OpCodes.Ldfld, a);
+            body.Emit(OpCodes.Conv_I8);
+            body.Emit(OpCodes.Ldarg_0);
+            body.Emit(OpCodes.Ldfld, b);
+            body.Emit(OpCodes.Add);
+            body.Emit(OpCodes.Ret);
+
+            // initobj, stfld through a local's address (short and long ldloca), ldflda, ldfld of a value and of an address
+            Add("StructFields", typeof(int), [typeof(int), typeof(int)], il =>
+            {
+                il.DeclareLocal(pair);
+                il.Emit(OpCodes.Ldloca_S, (byte)0);
+                il.Emit(OpCodes.Initobj, pair);
+                il.Emit(OpCodes.Ldloca_S, (byte)0);
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Stfld, a);
+                il.Emit(OpCodes.Ldloca, (short)0);
+                il.Emit(OpCodes.Ldflda, b);
+                il.Emit(OpCodes.Ldarg_1);
+                il.Emit(OpCodes.Conv_I8);
+                il.Emit(OpCodes.Stind_I8);
+                il.Emit(OpCodes.Ldloc_0);
+                il.Emit(OpCodes.Ldfld, a);
+                il.Emit(OpCodes.Ldloca_S, (byte)0);
+                il.Emit(OpCodes.Ldfld, b);
+                il.Emit(OpCodes.Conv_I4);
+                il.Emit(OpCodes.Sub);
+                il.Emit(OpCodes.Ret);
+            }, [50, 8], [-3, 4]);
+
+            // newobj makes a Pair, a call runs its method on the local's address
+            Add("NewStruct", typeof(long), [typeof(int), typeof(int)], il =>
+            {
+                il.DeclareLocal(pair);
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Ldarg_1);
+                il.Emit(OpCodes.Conv_I8);
+                il.Emit(OpCodes.Newobj, constructor);
+                il.Emit(OpCodes.Stloc_0);
+                il.Emit(OpCodes.Ldloca_S, (byte)0);
+                il.Emit(OpCodes.Call, sum);
+                il.Emit(OpCodes.Ret);
+            }, [7, 3_000_000], [-1, -1]);
+
+            // ldobj and stobj copy V_0 to V_1; changing V_0 leaves V_1 as it was; cpobj copies V_1 back to V_0
+            Add("CopyStruct", typeof(int), [typeof(int)], il =>
+            {
+                il.DeclareLocal(pair);
+                il.DeclareLocal(pair);
+                il.Emit(OpCodes.Ldloca_S, (byte)0);
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Ldc_I8, 7L);
+                il.Emit(OpCodes.Call, constructor);
+                il.Emit(OpCodes.Ldloca_S, (byte)1);
+                il.Emit(OpCodes.Ldloca_S, (byte)0);
+                il.Emit(OpCodes.Ldobj, pair);
+                il.Emit(OpCodes.Stobj, pair);
+                il.Emit(OpCodes.Ldloca_S, (byte)0);
+                il.Emit(OpCodes.Ldc_I4, 100);
+                il.Emit(OpCodes.Stfld, a);
+                il.Emit(OpCodes.Ldloca_S, (byte)1);
+                il.Emit(OpCodes.Ldfld, a);
+                il.Emit(OpCodes.Ldloca_S, (byte)0);
+                il.Emit(OpCodes.Ldfld, a);
+                il.Emit(OpCodes.Ldloca_S, (byte)0);
+                il.Emit(OpCodes.Ldloca_S, (byte)1);
+                il.Emit(OpCodes.Cpobj, pair);
+                il.Emit(OpCodes.Ldloca_S, (byte)0);
+                il.Emit(OpCodes.Ldfld, a);
+                il.Emit(OpCodes.Mul);
+                il.Emit(OpCodes.Add);
+                il.Emit(OpCodes.Ret);
+            }, [5]);
+
+            // stind and ldind of every width through locals' addresses: narrowed, then sign- or zero-extended back
+            Add("Indirect", typeof(long), [typeof(int)], il =>
+            {
+                Type[] types =
+                [
+                    typeof(sbyte), typeof(byte), typeof(short), typeof(ushort), typeof(int), typeof(uint), typeof(long),
+                    typeof(nint), typeof(bool),
+                ];
+                foreach (var type in types)
+                {
+                    il.DeclareLocal(type);
+                }
+
+                (OpCode Store, OpCode Load, OpCode Widen)[] accesses =
+                [
+                    (OpCodes.Stind_I1, OpCodes.Ldind_I1, OpCodes.Conv_I8), (OpCodes.Stind_I1, OpCodes.Ldind_U1, OpCodes.Conv_U8),
+                    (OpCodes.Stind_I2, OpCodes.Ldind_I2, OpCodes.Conv_I8), (OpCodes.Stind_I2, OpCodes.Ldind_U2, OpCodes.Conv_U8),
+                    (OpCodes.Stind_I4, OpCodes.Ldind_I4, OpCodes.Conv_I8), (OpCodes.Stind_I4, OpCodes.Ldind_U4, OpCodes.Conv_U8),
+                    (OpCodes.Stind_I8, OpCodes.Ldind_I8, OpCodes.Nop), (OpCodes.Stind_I, OpCodes.Ldind_I, OpCodes.Conv_I8),
+                    (OpCodes.Stind_I1, OpCodes.Ldind_U1, OpCodes.Conv_U8),
+                ];
+                for (var i = 0; i < accesses.Length; i++)
+                {
+                    il.Emit(OpCodes.Ldloca_S, (byte)i);
+                    il.Emit(OpCodes.Ldarg_0);
+                    if (types[i] == typeof(long))
+                    {
+                        il.Emit(OpCodes.Conv_I8);
+                    }
+                    else if (types[i] == typeof(nint))
+                    {
+                        il.Emit(OpCodes.Conv_I);
+                    }
+                    else if (types[i] == typeof(bool))
+                    {
+                        // a bool is 0 or 1
+                        il.Emit(OpCodes.Ldc_I4_0);
+                        il.Emit(OpCodes.Cgt_Un);
+                    }
+
+                    il.Emit(accesses[i].Store);
+                }
+
+                il.Emit(OpCodes.Ldc_I8, 0L);
+                for (var i = 0; i < accesses.Length; i++)
+                {
+                    il.Emit(OpCodes.Ldloca_S, (byte)i);
+                    il.Emit(accesses[i].Load);
+                    il.Emit(accesses[i].Widen);
+                    il.Emit(OpCodes.Ldc_I8, 1L << (4 * i));
+                    il.Emit(OpCodes.Mul);
+                    il.Emit(OpCodes.Add);
+                }
+
+                il.Emit(OpCodes.Ret);
+            }, [200], [-1], [0x12345]);
+
+            // ldarga (short and long) hands the arguments to a method that swaps them through their references
+            var swap = Assembly.Method("Swap", typeof(void), [typeof(int).MakeByRefType(), typeof(int).MakeByRefType()], il =>
+            {
+                il.DeclareLocal(typeof(int));
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Ldind_I4);
+                il.Emit(OpCodes.Stloc_0);
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Ldarg_1);
+                il.Emit(OpCodes.Ldind_I4);
+                il.Emit(OpCodes.Stind_I4);
+                il.Emit(OpCodes.Ldarg_1);
+                il.Emit(OpCodes.Ldloc_0);
+                il.Emit(OpCodes.Stind_I4);
+                il.Emit(OpCodes.Ret);
+            });
+            Add("SwapArguments", typeof(int), [typeof(int), typeof(int)], il =>
+            {
+                il.Emit(OpCodes.Ldarga_S, (byte)0);
+                il.Emit(OpCodes.Ldarga, (short)1);
+                il.Emit(OpCodes.Call, swap);
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Ldc_I4_S, (sbyte)10);
+                il.Emit(OpCodes.Mul);
+                il.Emit(OpCodes.Ldarg_1);
+                il.Emit(OpCodes.Add);
+                il.Emit(OpCodes.Ret);
+            }, [1, 2]);
+
+            // ldsflda: a static Pair's field, written and read through its address
+            var stored = Assembly.Field("stored", pair);
+            Add("StaticAddress", typeof(int), [typeof(int)], il =>
+            {
+                il.Emit(OpCodes.Ldsflda, stored);
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Stfld, a);
+                il.Emit(OpCodes.Ldsflda, stored);
+                il.Emit(OpCodes.Ldflda, a);
+                il.Emit(OpCodes.Ldind_I4);
+                il.Emit(OpCodes.Ret);
+            }, [-42]);
         }
 
         /// <summary>Main: each call, its result printed with the WriteLine for its type.</summary>

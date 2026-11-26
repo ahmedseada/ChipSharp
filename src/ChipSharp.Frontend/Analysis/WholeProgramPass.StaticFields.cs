@@ -5,14 +5,15 @@ namespace ChipSharp.Frontend.Analysis;
 public static partial class WholeProgramPass
 {
     /// <summary>
-    /// Why M0 cannot compile the static field that <paramref name="instruction"/> (an <c>ldsfld</c> or <c>stsfld</c>)
-    /// reads or writes, or null, also for any other instruction. M0 compiles the static fields of the program's own
-    /// types that are not generic, of the types <see cref="SupportedSubset.TryMapType"/> has; a field of another type
-    /// is that type's problem, e.g. text strings for a <c>static string</c>.
+    /// Why M0 cannot compile the static field that <paramref name="instruction"/> (an <c>ldsfld</c>, <c>stsfld</c> or
+    /// <c>ldsflda</c>) reads, writes or takes the address of, or null, also for any other instruction. M0 compiles the
+    /// static fields of the program's own types that are not generic, of the types <see cref="ValueTypes.TryMapType"/>
+    /// has; a field of another type is that type's problem, e.g. text strings for a <c>static string</c>.
     /// </summary>
     private static Unsupported? ForStaticField(IlInstruction instruction)
     {
-        if (instruction is not { OpCode: IlOpCode.Ldsfld or IlOpCode.Stsfld, Operand: IlFieldOperand { Field: var reference } })
+        if (instruction is not
+            { OpCode: IlOpCode.Ldsfld or IlOpCode.Stsfld or IlOpCode.Ldsflda, Operand: IlFieldOperand { Field: var reference } })
         {
             return null;
         }
@@ -37,8 +38,6 @@ public static partial class WholeProgramPass
             return null;
         }
 
-        var type = StaticFields.Type(field);
-        var unsupported = Unsupported.ForType(type, field.DeclaringType.Assembly) ?? Unsupported.GenericTypes;
-        return unsupported == Unsupported.OtherType ? Unsupported.TypeNamed(CSharpNames.Type(type)) : unsupported;
+        return ForAnyType(StaticFields.Type(field), field.DeclaringType.Assembly) ?? Unsupported.GenericTypes;
     }
 }

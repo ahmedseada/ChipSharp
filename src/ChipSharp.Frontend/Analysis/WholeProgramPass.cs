@@ -47,7 +47,8 @@ public static partial class WholeProgramPass
     }
 
     /// <summary>
-    /// The entry point, then every method of the assembly it reaches through <c>call</c>, each once, in the order
+    /// The entry point, then every method of the assembly it reaches through <c>call</c> (and through <c>newobj</c> of a
+    /// struct, which calls the struct's constructor; see <see cref="ValueTypes.CalledMethod"/>), each once, in the order
     /// they are first called when the methods are scanned in this same order, instruction by instruction. The type
     /// initializers each method makes run (see <see cref="StaticInitialization"/>) come before the methods it calls.
     /// </summary>
@@ -67,8 +68,7 @@ public static partial class WholeProgramPass
 
             foreach (var instruction in methods[i].Body?.Instructions ?? [])
             {
-                if (instruction is { OpCode: IlOpCode.Call, Operand: IlMethodOperand { Method.Definition: { } callee } }
-                    && found.Add(callee))
+                if (ValueTypes.CalledMethod(instruction) is { } callee && found.Add(callee))
                 {
                     methods.Add(callee);
                 }
@@ -81,16 +81,9 @@ public static partial class WholeProgramPass
     /// <summary>Adds a problem to <paramref name="problems"/> for every place in <paramref name="method"/> that M0 cannot compile.</summary>
     private static void CheckMethod(IlMethod method, List<Problem> problems)
     {
-        Unsupported? ForType(IlType type)
-        {
-            if (SupportedSubset.TryMapType(type, out _) || StackArrays.TryMapType(type, out _))
-            {
-                return null;
-            }
-
-            var unsupported = Unsupported.ForType(type, method.Assembly);
-            return unsupported == Unsupported.OtherType ? Unsupported.TypeNamed(CSharpNames.Type(type, method)) : unsupported;
-        }
+        // bool, whole numbers, structs, enums and references (ForAnyType), or an array on the stack
+        Unsupported? ForType(IlType type) =>
+            StackArrays.TryMapType(type, out _) ? null : ForAnyType(type, method.Assembly, method);
 
         void CheckSignature(IlType type, string what)
         {
@@ -100,9 +93,9 @@ public static partial class WholeProgramPass
             }
         }
 
-        if (!method.IsStatic)
+        if (!method.IsStatic && ForInstanceMethod(method) is { } instance)
         {
-            problems.Add(Problem.InMethod(method, Unsupported.InstanceMethods));
+            problems.Add(Problem.InMethod(method, instance));
         }
 
         if (method.GenericParameters.Count > 0)
@@ -166,9 +159,10 @@ public static partial class WholeProgramPass
         var arrays = ArrayEscapeAnalysis.Check(method);
         foreach (var instruction in body.Instructions)
         {
+            // what the array escape analysis found for this instruction, else the struct/reference rules, else the rest
             var unsupported = arrays.TryGetValue(instruction, out var array)
                 ? array
-                : ForInstruction(instruction, argsArgument, interpolations);
+                : ForStructOrReference(method, instruction) ?? ForInstruction(instruction, argsArgument, interpolations);
             if (unsupported is not null)
             {
                 problems.Add(Problem.At(method, instruction, unsupported));
@@ -187,14 +181,14 @@ public static partial class WholeProgramPass
             return Unsupported.Arguments;
         }
 
+        if (instruction is { OpCode: IlOpCode.Ldloca or IlOpCode.Ldloca_S, LocalIndex: { } local }
+            && interpolations.Contains(local))
+        {
+            return Unsupported.StringInterpolation;
+        }
+
         if (!SupportedSubset.OpCodes.Contains(instruction.OpCode))
         {
-            if (instruction is { OpCode: IlOpCode.Ldloca or IlOpCode.Ldloca_S, LocalIndex: { } local }
-                && interpolations.Contains(local))
-            {
-                return Unsupported.StringInterpolation;
-            }
-
             var unsupported = Unsupported.ForInstruction(instruction.OpCode);
             return unsupported == Unsupported.OtherInstruction ? Unsupported.InstructionNamed(instruction.Name) : unsupported;
         }

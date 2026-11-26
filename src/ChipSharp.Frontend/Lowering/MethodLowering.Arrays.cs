@@ -229,11 +229,5 @@ internal sealed partial class MethodLowering
             : throw Error($"{_instruction.Name} needs an array, but the evaluation stack has {LoweringErrors.StackTypeName(array.Type)}");
     }
 
-    private TirValue PopAddress()
-    {
-        var address = Pop();
-        return address.Type == TirType.Ptr
-            ? address
-            : throw Error($"{_instruction.Name} needs an address, but the evaluation stack has {LoweringErrors.StackTypeName(address.Type)}");
-    }
+    // PopAddress (an element's address off the stack) is shared with the struct code, in MethodLowering.Structs.cs.
 }

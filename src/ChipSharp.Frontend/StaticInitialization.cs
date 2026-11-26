@@ -94,15 +94,15 @@ internal static class StaticInitialization
 
     /// <summary>
     /// The type whose initializer <paramref name="instruction"/> makes run, or null: the type of the static field it
-    /// reads, writes or takes the address of, or the type of the method of the program it calls when that type has a
-    /// static constructor.
+    /// reads, writes or takes the address of, or the type of the method of the program it calls (a struct's constructor
+    /// too, through <c>newobj</c>) when that type has a static constructor.
     /// </summary>
     private static IlTypeDefinition? UsedType(IlInstruction instruction) => instruction switch
     {
         { OpCode: IlOpCode.Ldsfld or IlOpCode.Stsfld or IlOpCode.Ldsflda, Operand: IlFieldOperand { Field.Definition: { } field } } =>
             field.DeclaringType,
-        { OpCode: IlOpCode.Call, Operand: IlMethodOperand { Method.Definition: { } callee } }
-            when HasStaticConstructor(callee.DeclaringType) => callee.DeclaringType,
+        _ when ValueTypes.CalledMethod(instruction) is { } callee && HasStaticConstructor(callee.DeclaringType) =>
+            callee.DeclaringType,
         _ => null,
     };
 
@@ -152,8 +152,7 @@ internal static class StaticInitialization
                     types.Add(type);
                 }
 
-                if (instruction is { OpCode: IlOpCode.Call, Operand: IlMethodOperand { Method.Definition: { } callee } }
-                    && program.Contains(callee))
+                if (ValueTypes.CalledMethod(instruction) is { } callee && program.Contains(callee))
                 {
                     Run(callee, isStart: false);
                 }

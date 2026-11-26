@@ -63,6 +63,9 @@ public sealed class SampleProgramTests : IDisposable
     public Task StaticFields() => PrintsWhatDotnetPrints();
 
     [HostFact]
+    public Task Structs() => PrintsWhatDotnetPrints();
+
+    [HostFact]
     public Task Unsigned() => PrintsWhatDotnetPrints();
 
     [HostFact]

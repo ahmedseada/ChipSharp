@@ -6,6 +6,7 @@
 //   chipsharp_start                      the program's entry point: runs chipsharp_entry, exits with its result
 //   ChipSharp_Runtime_WriteLine...       Console.WriteLine for each type, written like .NET on Windows ("\r\n");
 //                                        floats and doubles as text come from chipsharp_float_text.c
+// memcpy, memmove and memset (which LLVM calls to copy and clear large structs and arrays) are in chipsharp_memory.c.
 
 typedef void *HANDLE;
 typedef unsigned long DWORD;
