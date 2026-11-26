@@ -1,4 +1,5 @@
 using ChipSharp.Ir;
+using ChipSharp.Tests.Host;
 using ChipSharp.Tests.Tir;
 
 namespace ChipSharp.Tests.Llvm;
@@ -19,7 +20,7 @@ public sealed class LlvmProgramTests : IDisposable
         }
     }
 
-    [Fact]
+    [HostFact]
     public async Task Square_of_42_prints_1764()
     {
         var result = await LlvmTools.BuildAndRunAsync(LlvmSamples.SquareProgram(), _scratch);
@@ -28,7 +29,7 @@ public sealed class LlvmProgramTests : IDisposable
         Assert.Equal("1764\r\n", result.Output);
     }
 
-    [Fact]
+    [HostFact]
     public async Task Max_takes_the_branch_that_stores_the_larger_value()
     {
         var program = new TestProgram("Max");
@@ -43,7 +44,7 @@ public sealed class LlvmProgramTests : IDisposable
         Assert.Equal("7\r\n9\r\n-5\r\n", result.Output);
     }
 
-    [Fact]
+    [HostFact]
     public async Task Loops_sum_1_to_100_through_slots_and_count_from_the_first_block()
     {
         // int sum = 0; for (int i = 1; i <= 100; i++) sum += i; Console.WriteLine(sum); Console.WriteLine(CountTo(7));
@@ -79,7 +80,7 @@ public sealed class LlvmProgramTests : IDisposable
         Assert.Equal("5050\r\n7\r\n", result.Output);
     }
 
-    [Fact]
+    [HostFact]
     public async Task Signed_and_unsigned_operations_differ_as_in_CSharp()
     {
         var program = new TestProgram("Signs");
@@ -104,7 +105,7 @@ public sealed class LlvmProgramTests : IDisposable
         Assert.Equal("-3\r\n2147483644\r\n-1\r\n1\r\n-4\r\n2147483644\r\nTrue\r\nFalse\r\n-1\r\n255\r\n", result.Output);
     }
 
-    [Fact]
+    [HostFact]
     public async Task Long_values_keep_all_64_bits()
     {
         var program = new TestProgram("Longs");
@@ -125,7 +126,7 @@ public sealed class LlvmProgramTests : IDisposable
             "-1\r\n4294967295\r\n5\r\n", result.Output);
     }
 
-    [Fact]
+    [HostFact]
     public async Task Floats_compute_convert_and_compare_like_CSharp()
     {
         var program = new TestProgram("Floats");
@@ -151,7 +152,7 @@ public sealed class LlvmProgramTests : IDisposable
         Assert.Equal("6\r\n11\r\n2147483647\r\n-4\r\nTrue\r\nFalse\r\nTrue\r\n2\r\n", result.Output);
     }
 
-    [Fact]
+    [HostFact]
     public async Task The_int_that_Main_returns_is_the_exit_code()
     {
         var module = new TirModule("Exit");
