@@ -50,13 +50,14 @@ public sealed class IlToTirErrorTests
         emitted.Method("F", typeof(void), [], il =>
         {
             il.DeclareLocal(typeof(int));
-            il.DeclareLocal(typeof(object));
+            il.DeclareLocal(typeof(char));
             il.Emit(OpCodes.Ret);
         });
 
         var error = Assert.Throws<ChipSharpException>(() => Lower(emitted.Read(), "Program.F"));
 
-        Assert.Equal("Emitted.dll: Program.F(): local V_1 has type object, which is not supported yet " +
+        // (an object is a ref now, for the heap, though the whole-program pass does not let a program have one yet)
+        Assert.Equal("Emitted.dll: Program.F(): local V_1 has type char, which is not supported yet " +
             "(ChipSharp compiles bool, whole numbers, float, double and fixed text (string)).", error.Message);
     }
 

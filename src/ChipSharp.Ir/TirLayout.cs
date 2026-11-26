@@ -7,7 +7,7 @@ namespace ChipSharp.Ir;
 /// struct field, worked out from the target's pointer size (4 or 8 bytes). Everything is naturally aligned, as C
 /// lays it out on the targets ChipSharp supports (x86-64, ARM's AAPCS, RISC-V):
 /// <list type="bullet">
-/// <item>bool and i8 take 1 byte, i16 2, i32 and f32 4, i64 and f64 8, nint and ptr the pointer size; each is
+/// <item>bool and i8 take 1 byte, i16 2, i32 and f32 4, i64 and f64 8, nint, ptr and ref the pointer size; each is
 /// aligned to its size.</item>
 /// <item>A struct puts each field, in order, at the first offset its alignment allows; it is aligned like its most
 /// aligned field, and its size is rounded up to that alignment (so the fields of an array of it stay aligned).</item>
@@ -15,6 +15,13 @@ namespace ChipSharp.Ir;
 /// </list>
 /// The llvm code generator writes struct and array types that LLVM lays out the same way, and takes the alignment
 /// of every load, store, slot and global from here.
+/// <para>
+/// An object on the heap is laid out as its class's object type says (see <see cref="TirTypeDescriptor"/>): a struct
+/// whose first field is the header, the address of the type descriptor. An array object is the header, its length
+/// (an i32) at <see cref="ArrayLengthOffset"/>, then its elements from <see cref="ArrayDataOffset"/> on: 8 bytes in
+/// with 4-byte pointers, 16 with 8-byte ones, so that the elements of every type are aligned (the heap gives every
+/// object an address that is a multiple of 8).
+/// </para>
 /// </summary>
 public sealed class TirLayout
 {
@@ -32,8 +39,17 @@ public sealed class TirLayout
         PointerSize = pointerSize;
     }
 
-    /// <summary>The size of a pointer, an nint and a ptr, in bytes.</summary>
+    /// <summary>The size of a pointer, an nint, a ptr and a ref, in bytes.</summary>
     public int PointerSize { get; }
+
+    /// <summary>Where the length (an i32) of an array object is: right after its header, at the pointer size.</summary>
+    public int ArrayLengthOffset => PointerSize;
+
+    /// <summary>
+    /// Where element 0 of an array object is: after its header and its length, rounded up to 8 (8 with 4-byte pointers,
+    /// 16 with 8-byte ones), whatever the element type.
+    /// </summary>
+    public int ArrayDataOffset => (PointerSize + 4 + 7) / 8 * 8;
 
     /// <summary>How many bytes a value of the type takes in memory, padding included (e.g. 8 for <c>{ i8, i32 }</c>).</summary>
     public long SizeOf(TirType type)
@@ -75,6 +91,47 @@ public sealed class TirLayout
         return Of(structType).Offsets;
     }
 
+    /// <summary>
+    /// Where the refs in a value of <paramref name="type"/> are, in bytes from its start, in order: each field of type
+    /// ref, also inside structs and arrays (a <c>[3 x ref]</c> has three). What the garbage collector reads in an object
+    /// (see <see cref="TirTypeDescriptor"/>) and in a global. Empty for a type without refs, e.g. any number or ptr.
+    /// </summary>
+    public IReadOnlyList<long> ReferenceOffsets(TirType type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        var offsets = new List<long>();
+        AddReferenceOffsets(type, 0, offsets);
+        return offsets;
+    }
+
+    private void AddReferenceOffsets(TirType type, long start, List<long> offsets)
+    {
+        switch (type)
+        {
+            case { Kind: TirTypeKind.Ref }:
+                offsets.Add(start);
+                break;
+
+            case TirStructType structType:
+                var fieldOffsets = Of(structType).Offsets;
+                for (var i = 0; i < fieldOffsets.Count; i++)
+                {
+                    AddReferenceOffsets(structType.Fields[i].Type, start + fieldOffsets[i], offsets);
+                }
+
+                break;
+
+            case TirArrayType array when ReferenceOffsets(array.Element) is { Count: > 0 } inElement:
+                var size = SizeOf(array.Element);
+                for (var i = 0; i < array.Count; i++)
+                {
+                    offsets.AddRange(inElement.Select(offset => start + i * size + offset));
+                }
+
+                break;
+        }
+    }
+
     private StructLayout Of(TirStructType structType) => _structs.GetOrAdd(structType, Compute);
 
     private StructLayout Compute(TirStructType structType) => Checked(structType, () =>
@@ -99,7 +156,7 @@ public sealed class TirLayout
         TirTypeKind.I16 => 2,
         TirTypeKind.I32 or TirTypeKind.F32 => 4,
         TirTypeKind.I64 or TirTypeKind.F64 => 8,
-        TirTypeKind.NativeInt or TirTypeKind.Ptr => PointerSize,
+        TirTypeKind.NativeInt or TirTypeKind.Ptr or TirTypeKind.Ref => PointerSize,
         TirTypeKind.Void => throw new TirException("void has no size: nothing of type void is ever in memory."),
         _ => throw new TirException($"The layout does not know the type {type}."),
     };

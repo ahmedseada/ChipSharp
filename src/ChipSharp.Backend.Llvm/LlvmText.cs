@@ -41,7 +41,7 @@ internal static class LlvmText
     {
         TirTypeKind.Bool => "false",
         TirTypeKind.F32 or TirTypeKind.F64 => Float(0.0),
-        TirTypeKind.Ptr => "null",
+        TirTypeKind.Ptr or TirTypeKind.Ref => "null",
         TirTypeKind.Struct or TirTypeKind.Array => "zeroinitializer",
         _ => "0",
     };

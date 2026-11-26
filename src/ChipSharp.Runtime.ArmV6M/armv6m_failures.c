@@ -9,8 +9,13 @@
 //   ChipSharp_Runtime_IndexOutOfRange    an array index outside the array (IndexOutOfRangeException)
 //   ChipSharp_Runtime_TimeSpan...        a TimeSpan too long, or NaN given to one (ChipSharp.Library's System.TimeSpan)
 //   ChipSharp_Runtime_NegateOverflow     the negative of the smallest value, e.g. -TimeSpan.MinValue
+//   ChipSharp_Runtime_NullReference      a field, element or method of null (NullReferenceException)
+//   ChipSharp_Runtime_OutOfMemory        an object that does not fit in the heap (OutOfMemoryException)
+//   ChipSharp_Runtime_Overflow           an array of a negative length (OverflowException)
+//   ChipSharp_Runtime_HeapInInterrupt    an interrupt handler that makes an object, which it never may
 //
-// The ones besides IndexOutOfRange are the methods of ChipSharp.Library.Runtime, which says when each happens.
+// The TimeSpan ones and NegateOverflow are the methods of ChipSharp.Library.Runtime, which says when each happens; the
+// others are the code generator's and the heap's (chipsharp_heap.c, armv6m_heap.c).
 
 __attribute__((noreturn)) static void fail(void)
 {
@@ -28,3 +33,7 @@ __attribute__((weak, noreturn)) void ChipSharp_Runtime_TimeSpanNaNFactor(void) {
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_TimeSpanNaNDivisor(void) { fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_TimeSpanDurationOverflow(void) { fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_NegateOverflow(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_NullReference(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_OutOfMemory(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_Overflow(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_HeapInInterrupt(void) { fail(); }

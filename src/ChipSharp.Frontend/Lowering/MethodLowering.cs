@@ -179,6 +179,10 @@ internal sealed partial class MethodLowering
                 LowerArrayInstruction(instruction);
                 break;
 
+            case var _ when IsObjectInstruction(instruction):
+                LowerObjectInstruction(instruction);
+                break;
+
             case IlOpCode.Nop:
                 break;
 
@@ -453,12 +457,12 @@ internal sealed partial class MethodLowering
 
     /// <summary>
     /// brtrue and brfalse: a bool is tested as it is, any other value is compared with zero, a string (or a reference)
-    /// with null.
+    /// and an object with null.
     /// </summary>
     private void BranchOnValue(bool jumpWhenTrue)
     {
         var value = PopValue();
-        if (value.Type == TirType.Ptr)
+        if (value.Type.IsAddress)
         {
             BranchOnAddress(value, jumpWhenTrue);
             return;

@@ -8,8 +8,13 @@
 //   ChipSharp_Runtime_TimeSpan...        a TimeSpan too long, or NaN given to one (ChipSharp.Library's System.TimeSpan:
 //                                        OverflowException, ArgumentOutOfRangeException, ArgumentException)
 //   ChipSharp_Runtime_NegateOverflow     the negative of the smallest value, e.g. -TimeSpan.MinValue (OverflowException)
+//   ChipSharp_Runtime_NullReference      a field, element or method of null (NullReferenceException)
+//   ChipSharp_Runtime_OutOfMemory        an object that does not fit in the heap, even after a collection
+//                                        (OutOfMemoryException)
+//   ChipSharp_Runtime_Overflow           an array of a negative length (OverflowException)
 //
-// The ones besides IndexOutOfRange are the methods of ChipSharp.Library.Runtime, which says when each happens.
+// IndexOutOfRange, NullReference, OutOfMemory and Overflow are the code generator's and the heap's (chipsharp_heap.c);
+// the others are the methods of ChipSharp.Library.Runtime, which says when each happens.
 
 #define UNHANDLED "Unhandled exception. "
 #define TIMESPAN_TOO_LONG "TimeSpan overflowed because the duration is too long."
@@ -93,5 +98,25 @@ __declspec(noreturn) void ChipSharp_Runtime_NegateOverflow(void)
 {
     static const char message[] =
         UNHANDLED "System.OverflowException: Negating the minimum value of a twos complement number is invalid.\r\n";
+    fail(message, (DWORD)(sizeof message - 1));
+}
+
+__declspec(noreturn) void ChipSharp_Runtime_NullReference(void)
+{
+    static const char message[] =
+        UNHANDLED "System.NullReferenceException: Object reference not set to an instance of an object.\r\n";
+    fail(message, (DWORD)(sizeof message - 1));
+}
+
+__declspec(noreturn) void ChipSharp_Runtime_OutOfMemory(void)
+{
+    static const char message[] =
+        UNHANDLED "System.OutOfMemoryException: Exception of type 'System.OutOfMemoryException' was thrown.\r\n";
+    fail(message, (DWORD)(sizeof message - 1));
+}
+
+__declspec(noreturn) void ChipSharp_Runtime_Overflow(void)
+{
+    static const char message[] = UNHANDLED "System.OverflowException: Arithmetic operation resulted in an overflow.\r\n";
     fail(message, (DWORD)(sizeof message - 1));
 }

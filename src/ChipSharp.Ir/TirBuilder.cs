@@ -46,7 +46,7 @@ public sealed class TirBuilder(TirBlock block)
 
     public TirStore Store(TirSlot slot, TirValue value) => Block.Append(new TirStore(slot, value));
 
-    /// <summary>A value of <paramref name="type"/> with every byte zero: a null ptr, a struct or array of zeros, 0.</summary>
+    /// <summary>A value of <paramref name="type"/> with every byte zero: a null ptr or ref, a struct or array of zeros, 0.</summary>
     public TirZero Zero(TirType type) => Block.Append(new TirZero(type));
 
     /// <summary>How many bytes <paramref name="type"/> takes on the target, an i32 the code generator fills in.</summary>
@@ -66,7 +66,10 @@ public sealed class TirBuilder(TirBlock block)
     public TirPointerStore Store(TirValue address, TirValue value, bool isVolatile = false) =>
         Block.Append(new TirPointerStore(address, value, isVolatile));
 
-    /// <summary>The address of field number <paramref name="fieldIndex"/> of the struct at <paramref name="address"/>.</summary>
+    /// <summary>
+    /// The address of field number <paramref name="fieldIndex"/> of the struct at <paramref name="address"/> (a ptr), or
+    /// of the object <paramref name="address"/> (a ref) of a class whose object type is <paramref name="structType"/>.
+    /// </summary>
     public TirFieldAddress FieldAddress(TirValue address, TirStructType structType, int fieldIndex) =>
         Block.Append(new TirFieldAddress(address, structType, fieldIndex));
 
@@ -91,6 +94,27 @@ public sealed class TirBuilder(TirBlock block)
 
     /// <summary>A number (an integer) as an address.</summary>
     public TirIntToPtr IntToPtr(TirValue value) => Block.Append(new TirIntToPtr(value));
+
+    /// <summary>A new object of the class <paramref name="type"/> (a ref): zeroed, its header set.</summary>
+    public TirNewObject NewObject(TirTypeDescriptor type) => Block.Append(new TirNewObject(type));
+
+    /// <summary>A new array object of the array type <paramref name="type"/> with <paramref name="length"/> (an i32) zeroed elements.</summary>
+    public TirNewArray NewArray(TirTypeDescriptor type, TirValue length) => Block.Append(new TirNewArray(type, length));
+
+    /// <summary>Stops the program with .NET's NullReferenceException message when <paramref name="reference"/> (a ref) is null.</summary>
+    public TirNullCheck NullCheck(TirValue reference) => Block.Append(new TirNullCheck(reference));
+
+    /// <summary>The length (an i32) of the array object <paramref name="array"/>.</summary>
+    public TirArrayLength ArrayLength(TirValue array) => Block.Append(new TirArrayLength(array));
+
+    /// <summary>The address of element 0 of the array object <paramref name="array"/>, whose elements are <paramref name="elementType"/>.</summary>
+    public TirArrayData ArrayData(TirValue array, TirType elementType) => Block.Append(new TirArrayData(array, elementType));
+
+    /// <summary>The header of the object <paramref name="reference"/>: the address of its type descriptor.</summary>
+    public TirTypeOf TypeOf(TirValue reference) => Block.Append(new TirTypeOf(reference));
+
+    /// <summary>The address of the type descriptor <paramref name="type"/>.</summary>
+    public TirTypeAddress AddressOf(TirTypeDescriptor type) => Block.Append(new TirTypeAddress(type));
 
     public TirCall Call(TirFunction callee, params IEnumerable<TirValue> arguments) =>
         Block.Append(new TirCall(callee, arguments));

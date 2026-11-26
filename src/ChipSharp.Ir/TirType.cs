@@ -23,6 +23,9 @@ public enum TirTypeKind
 
     /// <summary>A <see cref="TirArrayType"/>.</summary>
     Array,
+
+    /// <summary>A reference to an object on the heap: <see cref="TirType.Ref"/>.</summary>
+    Ref,
 }
 
 /// <summary>
@@ -80,6 +83,17 @@ public class TirType : IEquatable<TirType>
     /// </summary>
     public static TirType Ptr { get; } = new(TirTypeKind.Ptr, "ptr");
 
+    /// <summary>
+    /// A reference to an object on the heap (C#'s classes, arrays on the heap, later strings and boxes), or null: the
+    /// address of the object's header (see <see cref="TirTypeDescriptor"/>), as wide as a pointer. Unlike a ptr, the
+    /// garbage collector follows it: a ref is what keeps an object alive, so it is never made from a number and never
+    /// turned into one. Made by <see cref="TirNewObject"/> and <see cref="TirNewArray"/>; null is <c>zero ref</c>.
+    /// The fields of an object are reached with <see cref="TirFieldAddress"/> on the ref, the elements of an array
+    /// with <see cref="TirArrayData"/>; two refs compare for equality (eq, ne) and as unsigned numbers (C# writes
+    /// <c>x != null</c> as an unsigned "greater than null").
+    /// </summary>
+    public static TirType Ref { get; } = new(TirTypeKind.Ref, "ref");
+
     public TirTypeKind Kind { get; }
 
     /// <summary>The name the printer writes, e.g. "i32", "nint", "Program.Point" or "[4 x i32]".</summary>
@@ -91,6 +105,9 @@ public class TirType : IEquatable<TirType>
 
     /// <summary>True for f32 and f64.</summary>
     public bool IsFloat => Kind is TirTypeKind.F32 or TirTypeKind.F64;
+
+    /// <summary>True for ptr and ref: addresses, which no arithmetic works on.</summary>
+    public bool IsAddress => Kind is TirTypeKind.Ptr or TirTypeKind.Ref;
 
     /// <summary>True for structs and arrays: values that live in memory and that no arithmetic works on.</summary>
     public bool IsAggregate => Kind is TirTypeKind.Struct or TirTypeKind.Array;

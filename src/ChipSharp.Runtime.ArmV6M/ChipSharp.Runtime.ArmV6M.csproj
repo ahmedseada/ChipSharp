@@ -10,6 +10,9 @@
     <EmbeddedResource Include="armv6m_divmod.S" LogicalName="armv6m_divmod.S" />
     <EmbeddedResource Include="armv6m_float_compare.c" LogicalName="armv6m_float_compare.c" />
     <EmbeddedResource Include="armv6m_failures.c" LogicalName="armv6m_failures.c" />
+    <!-- objects, the allocator and the garbage collector, shared with the other runtimes; and what they need from the chip -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_heap.c" LogicalName="chipsharp_heap.c" />
+    <EmbeddedResource Include="armv6m_heap.c" LogicalName="armv6m_heap.c" />
     <!-- fmod, square roots, Math.Min and the like, shared with the other runtimes -->
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_math.c" LogicalName="chipsharp_float_math.c" />
     <!-- float arithmetic in software: LLVM's compiler-rt builtins (llvmorg-23.1.6, compiler-rt/lib/builtins), unchanged;

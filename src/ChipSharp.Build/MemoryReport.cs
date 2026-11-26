@@ -14,8 +14,9 @@ public sealed record RegionUse(string Region, ulong Used, ulong Size);
 /// <summary>
 /// How big a built program is, as <c>chipsharp build</c> reports it (<see cref="Text"/>). For a chip it is read from the
 /// linked .elf: the flash the program takes (its code, constants and the starting values of its variables: the bytes it
-/// loads into the region "link.code" names) and the RAM (its variables, in the region "link.data" names), and the stack
-/// "link.stack" keeps at the end of the RAM. For a PC it is the size of the program's file.
+/// loads into the region "link.code" names) and the RAM (its variables, in the region "link.data" names), the heap the
+/// linker script keeps after them (<see cref="Heap"/>, the target's "heap" capability) and the stack "link.stack" keeps
+/// at the end of the RAM. For a PC it is the size of the program's file.
 /// </summary>
 /// <param name="FileName">The linked program's file name, e.g. Blink.elf or Square.exe.</param>
 /// <param name="FileSize">The size of that file.</param>
@@ -24,14 +25,19 @@ public sealed record RegionUse(string Region, ulong Used, ulong Size);
 /// <param name="Stack">The RAM kept for the stack, after the variables.</param>
 public sealed record MemoryReport(string FileName, ulong FileSize, RegionUse? Code, RegionUse? Data, ulong Stack)
 {
+    /// <summary>The RAM the linked program keeps for the heap, between its variables and the stack; 0 for none (and on a PC).</summary>
+    public ulong Heap { get; init; }
+
     /// <summary>
-    /// "flash 6.2 KB of 2048 KB (0.3%), RAM 1.1 KB of 264 KB (stack 8 KB reserved)" for a chip; "Square.exe: 5.5 KB"
-    /// for a PC.
+    /// "flash 6.2 KB of 2048 KB (0.3%), RAM 1.1 KB + heap 224 KB of 264 KB (stack 8 KB reserved)" for a chip (without
+    /// "+ heap" when it has none); "Square.exe: 5.5 KB" for a PC.
     /// </summary>
     public string Text => Code is null || Data is null
         ? $"{FileName}: {MemorySize.Text(FileSize)}"
         : string.Create(CultureInfo.InvariantCulture,
-            $"{Of(Code)} ({100.0 * Code.Used / Code.Size:0.0}%), {Of(Data)}") +
+            $"{Of(Code)} ({100.0 * Code.Used / Code.Size:0.0}%), {MemorySize.RegionName(Data.Region)} " +
+            $"{MemorySize.Text(Data.Used)}{(Heap > 0 ? $" + heap {MemorySize.Text(Heap)}" : "")} of " +
+            $"{MemorySize.Text(Data.Size)}") +
           (Stack > 0 ? $" (stack {MemorySize.Text(Stack)} reserved)" : "");
 
     public override string ToString() => Text;
@@ -70,7 +76,13 @@ public sealed record MemoryReport(string FileName, ulong FileSize, RegionUse? Co
         return new MemoryReport(fileName, fileSize,
             new RegionUse(code.Name, Used(loaded, code.Region), code.Region.Size),
             new RegionUse(data.Name, Used(variables, data.Region), data.Region.Size),
-            StackSize(target));
+            StackSize(target))
+        {
+            Heap = elf.Symbols.TryGetValue("__chipsharp_heap_start", out var heapStart)
+                && elf.Symbols.TryGetValue("__chipsharp_heap_end", out var heapEnd) && heapEnd > heapStart
+                    ? heapEnd - heapStart
+                    : 0,
+        };
     }
 
     /// <summary>"flash 6.2 KB of 2048 KB", "RAM 8 bytes of 264 KB".</summary>

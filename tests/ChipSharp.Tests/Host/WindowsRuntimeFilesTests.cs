@@ -26,13 +26,14 @@ public sealed class WindowsRuntimeFilesTests
     private delegate IntPtr Copy(IntPtr target, IntPtr source, nuint count);
 
     [Fact]
-    public void The_runtime_is_the_entry_point_the_console_the_float_text_and_math_then_the_failures_the_memory_functions_and_the_stack_probe()
+    public void The_runtime_is_the_entry_point_the_console_the_float_text_and_math_then_the_failures_the_memory_functions_the_stack_probe_and_the_heap()
     {
         var files = new WindowsX64Runtime().Startup(Targets.Load("host")).Files;
 
         Assert.Equal(
             ["chipsharp_runtime.c", "chipsharp_console.c", "chipsharp_float_text.c", "chipsharp_float_math.c",
-                "chipsharp_failures.c", "chipsharp_memory.c", "chipsharp_chkstk.S"],
+                "chipsharp_failures.c", "chipsharp_memory.c", "chipsharp_chkstk.S", "chipsharp_heap.c",
+                "chipsharp_heap_windows.c", "chipsharp_heap_size.c"],
             files.Select(f => f.FileName));
         Assert.All(files, file => Assert.DoesNotContain("#include", file.Content));
         Assert.Contains("void ChipSharp_Runtime_IndexOutOfRange(void)", files[4].Content);

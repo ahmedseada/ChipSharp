@@ -17,7 +17,11 @@ namespace ChipSharp.Ir;
 /// (<c>global i32 @Program.counter = 5</c>, <c>constant [2 x i8] @&lt;text 0&gt; = c"A\00"</c>) before its
 /// functions. Memory at an address is written in brackets: <c>%1 = load i32 [%0]</c>,
 /// <c>store volatile i32 [%0], %1</c>. An exported function says its symbol after its signature:
-/// <c>function void &lt;Interrupt timer&gt;() export chipsharp_isr_irq1</c>.
+/// <c>function void &lt;Interrupt timer&gt;() export chipsharp_isr_irq1</c>. The type descriptors of objects on the
+/// heap come after the globals: <c>type Program.Node = class Program.Node : System.Object</c> (its object type, then
+/// its base, its virtual methods <c>virtual [Program.Node.Run]</c> and its interfaces <c>Program.IRun [Program.Node.Run]</c>),
+/// <c>type int[] = array of i32</c>, <c>type Program.IRun = interface</c>; instructions name them:
+/// <c>%0 = newobject Program.Node</c>, <c>%2 = newarray int[], %1</c>.
 /// </summary>
 public static class TirPrinter
 {
@@ -33,7 +37,7 @@ public static class TirPrinter
         }
 
         var structs = module.FindStructTypes();
-        if (structs.Count > 0 || module.Globals.Count > 0)
+        if (structs.Count > 0 || module.Globals.Count > 0 || module.TypeDescriptors.Count > 0)
         {
             text.Append('\n');
         }
@@ -46,6 +50,11 @@ public static class TirPrinter
         foreach (var global in module.Globals)
         {
             text.Append(GlobalText(global)).Append('\n');
+        }
+
+        foreach (var type in module.TypeDescriptors)
+        {
+            text.Append(TypeText(type)).Append('\n');
         }
 
         foreach (var function in module.Functions)
@@ -94,6 +103,13 @@ public static class TirPrinter
             TirElementAddress e => $"elementaddr {e.ElementType} {names.Of(e.Address)}, {names.Of(e.Index)}",
             TirPtrToInt p => $"ptrtoint {p.Address.Type} {names.Of(p.Address)} to {p.Type}",
             TirIntToPtr p => $"inttoptr {p.Value.Type} {names.Of(p.Value)} to {p.Type}",
+            TirNewObject n => $"newobject {n.TypeDescriptor}",
+            TirNewArray n => $"newarray {n.TypeDescriptor}, {names.Of(n.Length)}",
+            TirNullCheck n => $"nullcheck {names.Of(n.Reference)}",
+            TirArrayLength l => $"arraylength {names.Of(l.Array)}",
+            TirArrayData d => $"arraydata {d.ElementType} {names.Of(d.Array)}",
+            TirTypeOf t => $"typeof {names.Of(t.Reference)}",
+            TirTypeAddress a => $"typeaddr {a.TypeDescriptor}",
             TirCall c => $"call {c.Type} {c.Callee.Name}({string.Join(", ", c.Arguments.Select(names.Of))})",
             TirReturn { Value: null } => "return",
             TirReturn r => $"return {names.Of(r.Value!)}",
@@ -188,6 +204,55 @@ public static class TirPrinter
         { InitialValue: { } initial } => $"global {global.Type} {global} = {ConstantText(initial)}",
         _ => $"global {global.Type} {global}",
     };
+
+    /// <summary>
+    /// <c>type Program.Node = class Program.Node : System.Object virtual [Program.Node.Run] Program.IRun [Program.Node.Run]</c>,
+    /// <c>type Program.Node[] = array of ref Program.Node</c>, <c>type Program.IRun = interface</c>; an empty slot of a
+    /// method table prints as <c>-</c>.
+    /// </summary>
+    private static string TypeText(TirTypeDescriptor type)
+    {
+        static string Methods(IEnumerable<TirFunction?> methods) =>
+            $"[{string.Join(", ", methods.Select(method => method?.Name ?? "-"))}]";
+
+        var text = new StringBuilder($"type {type.Name} = ");
+        switch (type.Kind)
+        {
+            case TirTypeDescriptorKind.Class:
+                text.Append("class ").Append(type.ObjectType!.Name);
+                if (type.Base is { } baseType)
+                {
+                    text.Append(" : ").Append(baseType.Name);
+                }
+
+                if (type.VirtualMethods.Count > 0)
+                {
+                    text.Append(" virtual ").Append(Methods(type.VirtualMethods));
+                }
+
+                foreach (var implemented in type.Interfaces)
+                {
+                    text.Append(' ').Append(implemented.Interface.Name).Append(' ').Append(Methods(implemented.Methods));
+                }
+
+                break;
+
+            case TirTypeDescriptorKind.Array:
+                text.Append("array of ").Append(type.ElementType);
+                if (type.ElementDescriptor is { } element)
+                {
+                    text.Append(' ').Append(element.Name);
+                }
+
+                break;
+
+            default:
+                text.Append("interface");
+                break;
+        }
+
+        return text.ToString();
+    }
 
     /// <summary>Bytes as <c>c"..."</c>: printable ASCII as it is, any other byte (and " and \) as \XX in hex.</summary>
     private static string BytesText(IReadOnlyList<byte> data)

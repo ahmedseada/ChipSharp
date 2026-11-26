@@ -9,6 +9,9 @@ namespace ChipSharp.Backend.Llvm;
 /// Writes one defined function as an LLVM <c>define</c>. Its local names are stable: parameters are <c>%p.name</c>,
 /// slots <c>%s.name</c>, temporaries <c>%t0</c>, <c>%t1</c>, ... in block order, and blocks keep their TIR names
 /// (made LLVM-safe like symbols). The first block, <c>allocas</c>, holds the slots and jumps to the TIR entry block.
+/// A <c>nullcheck</c> ends an LLVM block in the middle of a TIR block: it branches to <c>null_reference</c>, one block at
+/// the end of the function that calls the runtime's <see cref="LlvmHeap.NullReferenceSymbol"/>, or goes on in a block
+/// of its own, <c>not_null</c>, <c>not_null_2</c>, ...
 /// </summary>
 internal sealed class LlvmFunctionWriter
 {
@@ -16,6 +19,7 @@ internal sealed class LlvmFunctionWriter
     private readonly LlvmTypes _types;
     private readonly IReadOnlyDictionary<TirFunction, string> _symbols;
     private readonly IReadOnlyDictionary<TirGlobal, string> _globals;
+    private readonly IReadOnlyDictionary<TirTypeDescriptor, string> _typeDescriptors;
     private readonly StringBuilder _text;
 
     /// <summary>The declarations of the LLVM intrinsics the function calls, which the module writes once.</summary>
@@ -31,13 +35,18 @@ internal sealed class LlvmFunctionWriter
     private readonly Dictionary<TirBlock, string> _labels = [];
     private int _nextTemporary;
 
+    /// <summary>The label of the block that stops the program with NullReferenceException; null until a nullcheck needs it.</summary>
+    private string? _nullReference;
+
     public LlvmFunctionWriter(TirFunction function, LlvmTypes types, IReadOnlyDictionary<TirFunction, string> symbols,
-        IReadOnlyDictionary<TirGlobal, string> globals, StringBuilder text, ISet<string> declarations)
+        IReadOnlyDictionary<TirGlobal, string> globals, IReadOnlyDictionary<TirTypeDescriptor, string> typeDescriptors,
+        StringBuilder text, ISet<string> declarations)
     {
         _function = function;
         _types = types;
         _symbols = symbols;
         _globals = globals;
+        _typeDescriptors = typeDescriptors;
         _text = text;
         _declarations = declarations;
     }
@@ -89,6 +98,13 @@ internal sealed class LlvmFunctionWriter
             {
                 Write(instruction);
             }
+        }
+
+        if (_nullReference is not null)
+        {
+            _text.Append('\n').Append(_nullReference).Append(":\n");
+            Line($"call void @{LlvmHeap.NullReferenceSymbol}()");
+            Line("unreachable");
         }
 
         _text.Append("}\n");
@@ -176,6 +192,39 @@ internal sealed class LlvmFunctionWriter
                 Define(toPointer, $"inttoptr {Typed(toPointer.Value)} to ptr");
                 break;
 
+            case TirNewObject allocation:
+                _declarations.Add(LlvmHeap.Declaration(LlvmHeap.NewObjectSymbol, _types));
+                Define(allocation, $"call ptr @{LlvmHeap.NewObjectSymbol}(ptr {Descriptor(allocation.TypeDescriptor)})");
+                break;
+
+            case TirNewArray allocation:
+                _declarations.Add(LlvmHeap.Declaration(LlvmHeap.NewArraySymbol, _types));
+                Define(allocation, $"call ptr @{LlvmHeap.NewArraySymbol}(ptr {Descriptor(allocation.TypeDescriptor)}, " +
+                    $"{Typed(allocation.Length)})");
+                break;
+
+            case TirNullCheck check:
+                NullCheck(check);
+                break;
+
+            case TirArrayLength length:
+                var lengthAddress = Temporary();
+                Line($"{lengthAddress} = getelementptr i8, {Typed(length.Array)}, i32 {_types.Layout.ArrayLengthOffset}");
+                Define(length, $"load i32, ptr {lengthAddress}, align 4");
+                break;
+
+            case TirArrayData data:
+                Define(data, $"getelementptr i8, {Typed(data.Array)}, i32 {_types.Layout.ArrayDataOffset}");
+                break;
+
+            case TirTypeOf typeOf:
+                Define(typeOf, $"load ptr, {Typed(typeOf.Reference)}, align {_types.Layout.PointerSize}");
+                break;
+
+            case TirTypeAddress address:
+                _values[address] = Descriptor(address.TypeDescriptor);
+                break;
+
             case TirCall call:
                 // TODO: no signext/zeroext on arguments yet. Calls between ChipSharp functions do not need them,
                 // and the runtime's functions take i32 and i64 only; a C function taking a bool, i8 or i16 would.
@@ -253,9 +302,30 @@ internal sealed class LlvmFunctionWriter
     /// <summary>Writes "%tN = <paramref name="body"/>" and remembers %tN as the instruction's value.</summary>
     private void Define(TirInstruction instruction, string body)
     {
-        var name = "%" + Unique("t" + _nextTemporary++.ToString(CultureInfo.InvariantCulture));
+        var name = Temporary();
         _values[instruction] = name;
         Line($"{name} = {body}");
+    }
+
+    /// <summary>The next temporary's name, %tN, for a value that is not a TIR instruction's.</summary>
+    private string Temporary() => "%" + Unique("t" + _nextTemporary++.ToString(CultureInfo.InvariantCulture));
+
+    /// <summary>A type descriptor's address as an operand, e.g. <c>@type.Program_Node</c>.</summary>
+    private string Descriptor(TirTypeDescriptor type) => "@" + _typeDescriptors[type];
+
+    /// <summary>
+    /// nullcheck: a branch to the function's <c>null_reference</c> block when the ref is null, else on into a block of its
+    /// own, where the rest of the TIR block goes.
+    /// </summary>
+    private void NullCheck(TirNullCheck check)
+    {
+        _nullReference ??= Unique("null_reference");
+        _declarations.Add(LlvmHeap.Declaration(LlvmHeap.NullReferenceSymbol, _types));
+        var isNull = Temporary();
+        var notNull = Unique("not_null");
+        Line($"{isNull} = icmp eq {Typed(check.Reference)}, null");
+        Line($"br i1 {isNull}, label %{_nullReference}, label %{notNull}");
+        _text.Append('\n').Append(notNull).Append(":\n");
     }
 
     private static string Volatile(bool isVolatile) => isVolatile ? "volatile " : "";

@@ -9,7 +9,8 @@ namespace ChipSharp.Toolchain.Clang;
 /// In the code region (flash): the "link.head" sections, the vector table (section .vectors), code and read-only
 /// data, and the initial values of .data. In the data region (RAM): .data, .bss, and the stack at the end, which the
 /// script makes a memory region of its own (<see cref="StackRegion"/>, "link.stack" bytes long), so that the variables
-/// cannot take its room.
+/// cannot take its room. A target with a heap has the heap (<see cref="HeapRegion"/>, its "heap" capability's bytes)
+/// between the variables and the stack, a region of its own too.
 /// </summary>
 /// <remarks>
 /// The script defines these symbols for the runtime's start-up code, all word-aligned:
@@ -18,6 +19,8 @@ namespace ChipSharp.Toolchain.Clang;
 /// <item><term>__chipsharp_data_load</term><description>where .data's initial values are in flash</description></item>
 /// <item><term>__chipsharp_bss_start, __chipsharp_bss_end</term><description>.bss, which starts at zero</description></item>
 /// <item><term>__chipsharp_stack_top</term><description>the end of RAM, where the stack starts</description></item>
+/// <item><term>__chipsharp_heap_start, __chipsharp_heap_end</term><description>the heap, for a target with
+/// one</description></item>
 /// </list>
 /// The link fails, saying why, when a head section is not exactly its size; when the program does not fit, ld.lld says
 /// by how much each region overflowed (see <see cref="MemoryOverflow"/>).
@@ -30,15 +33,20 @@ internal static class LinkerScript
     public const string BssStart = "__chipsharp_bss_start";
     public const string BssEnd = "__chipsharp_bss_end";
     public const string StackTop = "__chipsharp_stack_top";
+    public const string HeapStart = "__chipsharp_heap_start";
+    public const string HeapEnd = "__chipsharp_heap_end";
 
     /// <summary>The memory region of the stack: the last "link.stack" bytes of the data region.</summary>
     public const string StackRegion = "stack";
 
+    /// <summary>The memory region of the heap: the "heap" capability's bytes of the data region, right before the stack.</summary>
+    public const string HeapRegion = "heap";
+
     public static string Write(TargetDescription target, ChipSettings settings)
     {
         var (code, data) = (settings.Code.Name, settings.Data.Name);
-        var stack = settings.StackSize;
-        var variables = settings.Data.Region.Size - stack; // ChipSettings checks that the stack fits
+        var (stack, heap) = (settings.StackSize, settings.HeapSize);
+        var variables = settings.Data.Region.Size - stack - heap; // ChipSettings checks that the stack and the heap fit
         var text = new StringBuilder();
         void Line(string line = "") => text.Append(line).Append('\n');
 
@@ -56,10 +64,17 @@ internal static class LinkerScript
             Line($"  {data} (rwx) : ORIGIN = {Hex(settings.Data.Region.Origin)}, LENGTH = {Hex(variables)}");
         }
 
+        if (heap > 0)
+        {
+            Line($"  /* the heap (capabilities.heap), between the variables and the stack */");
+            Line($"  {HeapRegion} (rw) : ORIGIN = {Hex(settings.Data.Region.Origin + variables)}, LENGTH = {Hex(heap)}");
+        }
+
         if (stack > 0)
         {
             Line($"  /* the end of {data}, kept for the stack (link.stack) */");
-            Line($"  {StackRegion} (rw) : ORIGIN = {Hex(settings.Data.Region.Origin + variables)}, LENGTH = {Hex(stack)}");
+            Line($"  {StackRegion} (rw) : ORIGIN = {Hex(settings.Data.Region.Origin + variables + heap)}, " +
+                $"LENGTH = {Hex(stack)}");
         }
 
         Line("}");
@@ -115,6 +130,14 @@ internal static class LinkerScript
         Line($"    {BssEnd} = .;");
         Line($"  }} > {data}");
         Line();
+        if (heap > 0)
+        {
+            Line($"  /* the heap: the objects the program makes, and the garbage collector's marks */");
+            Line($"  {HeapStart} = ORIGIN({HeapRegion});");
+            Line($"  {HeapEnd} = ORIGIN({HeapRegion}) + LENGTH({HeapRegion});");
+            Line();
+        }
+
         Line($"  /* the stack grows down from the end of {data} */");
         var top = stack > 0 ? StackRegion : data;
         Line($"  {StackTop} = ORIGIN({top}) + LENGTH({top});");

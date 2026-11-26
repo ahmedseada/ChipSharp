@@ -1,8 +1,8 @@
 namespace ChipSharp.Ir;
 
 /// <summary>
-/// <c>%0 = zero Program.Point</c>: the value of a type with every byte zero: 0, false, 0.0, a null ptr, or a struct
-/// or array of zeros. C#'s <c>default</c>; stored through an address, IL's <c>initobj</c>. Any type but void.
+/// <c>%0 = zero Program.Point</c>: the value of a type with every byte zero: 0, false, 0.0, a null ptr or ref, or a
+/// struct or array of zeros. C#'s <c>default</c>; stored through an address, IL's <c>initobj</c>. Any type but void.
 /// </summary>
 public sealed class TirZero : TirInstruction
 {
@@ -118,7 +118,9 @@ public sealed class TirPointerStore : TirInstruction
 
 /// <summary>
 /// <c>%1 = fieldaddr Program.Point %0, Y</c>: the address of a field of a struct, from the address of the struct
-/// (a ptr): the struct's address plus the field's offset (see <see cref="TirLayout"/>).
+/// (a ptr): the struct's address plus the field's offset (see <see cref="TirLayout"/>). From an object (a ref, not
+/// null), the struct is the object type of its class, or of a base class of it (see <see cref="TirTypeDescriptor"/>),
+/// and the field one of its fields; the header is field 0.
 /// </summary>
 public sealed class TirFieldAddress : TirInstruction
 {
@@ -131,7 +133,7 @@ public sealed class TirFieldAddress : TirInstruction
         FieldIndex = fieldIndex;
     }
 
-    /// <summary>The address of the struct: a ptr.</summary>
+    /// <summary>The address of the struct: a ptr, or a ref to an object whose class's object type is the struct.</summary>
     public TirValue Address { get; }
 
     public TirStructType StructType { get; }

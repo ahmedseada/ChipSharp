@@ -43,14 +43,16 @@ public sealed class MemoryReportTests : IDisposable
         var flash = new[] { ".boot2", ".vectors", ".text", ".ARM.exidx", ".data" }.Sum(name => (long)Section(name).Size);
         Assert.Equal(new RegionUse("flash", (ulong)flash, 2 << 20), report.Code);
         Assert.Equal((ulong)(elf.Symbols["__chipsharp_data_load"] + Section(".data").Size - FlashStart), report.Code!.Used);
-        // RAM: the variables, .data then .bss; the stack is kept apart, at the end
+        // RAM: the variables, .data then .bss; the heap and the stack are kept apart, at the end
         Assert.Equal(new RegionUse("ram", Section(".data").Size + Section(".bss").Size, 264 << 10), report.Data);
         Assert.Equal((ulong)(elf.Symbols["__chipsharp_bss_end"] - RamStart), report.Data!.Used);
         Assert.Equal(8UL << 10, report.Stack);
+        Assert.Equal(224UL << 10, report.Heap);
+        Assert.Equal(224UL << 10, (ulong)(elf.Symbols["__chipsharp_heap_end"] - elf.Symbols["__chipsharp_heap_start"]));
         Assert.Equal(("PicoBlink.elf", (ulong)new FileInfo(program.Elf).Length), (report.FileName, report.FileSize));
         Assert.Equal(string.Create(CultureInfo.InvariantCulture,
             $"flash {MemorySize.Text((ulong)flash)} of 2048 KB ({100.0 * flash / (2 << 20):0.0}%), " +
-            $"RAM {MemorySize.Text(report.Data.Used)} of 264 KB (stack 8 KB reserved)"), report.Text);
+            $"RAM {MemorySize.Text(report.Data.Used)} + heap 224 KB of 264 KB (stack 8 KB reserved)"), report.Text);
     }
 
     [Fact]

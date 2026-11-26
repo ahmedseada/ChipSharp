@@ -385,9 +385,9 @@ public sealed class TirMemoryVerifierTests
         Assert.Equal(
         [
             "Function 'Program.F', block 'entry', '%0 = eq Program.Point %a, %a': " +
-                "eq works on integers, floats, bool and ptr, not on Program.Point.",
+                "eq works on integers, floats, bool, ptr and ref, not on Program.Point.",
             "Function 'Program.F', block 'entry', '%1 = ugt [10 x i32] %b, %b': " +
-                "ugt works on integers, floats and ptr, not on [10 x i32].",
+                "ugt works on integers, floats, ptr and ref, not on [10 x i32].",
         ], TirVerifier.FindErrors(_module));
     }
 
@@ -413,7 +413,7 @@ public sealed class TirMemoryVerifierTests
         b.Compare(TirCompareOp.LtUnsigned, f.Parameters[0], f.Parameters[0]);
         b.Return();
 
-        AssertError("Function 'Program.F', block 'entry', '%0 = ult bool %p, %p': ult works on integers, floats and ptr, not on bool.");
+        AssertError("Function 'Program.F', block 'entry', '%0 = ult bool %p, %p': ult works on integers, floats, ptr and ref, not on bool.");
     }
 
     // ---- references ----
