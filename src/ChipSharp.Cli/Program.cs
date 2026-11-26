@@ -1,18 +1,25 @@
-// chipsharp: the command line. For now it knows the target files, reads IL and checks programs:
+// chipsharp: the command line. It builds programs, and shows what they go through on the way:
 //
+//   chipsharp build <assembly.dll>   compiles the program for a target; prints the file it wrote (.exe, .uf2, ...)
+//   chipsharp check <assembly.dll>   whether M0 can compile the program, and the methods it uses
+//   chipsharp tir <assembly.dll>     the program's TIR, after the whole-program pass and the translation
+//   chipsharp il <assembly.dll>      the IL of every method, ildasm style
 //   chipsharp targets list           every target
 //   chipsharp targets show <name>    one target, with everything it inherits merged in
-//   chipsharp il <assembly.dll>      the IL of every method, ildasm style
-//   chipsharp check <assembly.dll>   whether M0 can compile the program, and the methods it uses
 //
-// Options: --targets <folder>  (default: $env:CHIPSHARP_TARGETS, then the targets folder next to chipsharp.exe)
-//          --method <name>     with il: only the methods with this display name, e.g. Program.Main
+// Options: -t, --target <name>    with build: the target to build for (default: host)
+//          -o, --output <folder>  with build: where to write the program (default: chipsharp-output\<target>)
+//          --keep                 with build: also write the program's TIR and generated code (.ll) there
+//          --method <name>        with il and tir: only the methods with this display name, e.g. Program.Main
+//          --targets <folder>     (default: $env:CHIPSHARP_TARGETS, then the targets folder next to chipsharp.exe)
 
 using System.Globalization;
 using ChipSharp.Abstractions;
+using ChipSharp.Build;
 using ChipSharp.Frontend;
 using ChipSharp.Frontend.Analysis;
 using ChipSharp.Frontend.Il;
+using ChipSharp.Ir;
 using ChipSharp.Targets;
 
 try
@@ -22,9 +29,51 @@ try
         ?? Environment.GetEnvironmentVariable(TargetLoader.EnvironmentVariable)
         ?? Path.Combine(AppContext.BaseDirectory, "targets");
     var methodName = TakeOption(rest, "--method");
+    var target = TakeOption(rest, "--target", "-t");
+    var output = TakeOption(rest, "--output", "-o");
+    var keep = TakeFlag(rest, "--keep");
 
     switch (rest)
     {
+        case ["build", var path]:
+        {
+            var result = ChipSharpBuilder.Build(path, new BuildOptions
+            {
+                Target = target ?? BuildOptions.DefaultTarget,
+                TargetsFolder = folder,
+                OutputFolder = output,
+                KeepIntermediates = keep,
+            });
+            Console.WriteLine(result.OutputPath);
+            foreach (var file in result.IntermediatePaths)
+            {
+                Console.WriteLine(file);
+            }
+
+            return 0;
+        }
+
+        case ["tir", var path]:
+        {
+            var module = ChipSharpBuilder.Translate(path);
+            if (methodName is null)
+            {
+                Console.Write(TirPrinter.Print(module));
+                return 0;
+            }
+
+            var functions = module.Functions.Where(f => string.Equals(f.Name, methodName, StringComparison.Ordinal)).ToList();
+            if (functions.Count == 0)
+            {
+                throw new ChipSharpException(IlAssembly.Load(path).FindMethods(methodName).Count > 0
+                    ? $"'{methodName}' is in {path} but not in the program: the entry point never calls it, so it is not compiled."
+                    : $"{path} has no method named '{methodName}' (write it as Type.Method, e.g. Program.Main).");
+            }
+
+            Console.Write(string.Join("\n", functions.Select(TirPrinter.Print)));
+            return 0;
+        }
+
         case ["targets", "list"]:
         {
             foreach (var targetName in new TargetLoader(folder).Names)
@@ -79,13 +128,19 @@ try
         {
             Console.WriteLine("""
                 usage:
+                  chipsharp build <assembly.dll> [-t|--target <name>] [-o|--output <folder>] [--keep]
+                  chipsharp check <assembly.dll>
+                  chipsharp tir <assembly.dll> [--method <name>]
+                  chipsharp il <assembly.dll> [--method <name>]
                   chipsharp targets list
                   chipsharp targets show <name>
-                  chipsharp il <assembly.dll> [--method <name>]
-                  chipsharp check <assembly.dll>
                 options:
-                  --targets <folder>   where the target files are (or set CHIPSHARP_TARGETS)
-                  --method <name>      il: only the methods with this display name, e.g. Program.Main
+                  -t, --target <name>     build: the target to build for (default: host)
+                  -o, --output <folder>   build: where to write the program (default: chipsharp-output\<target>)
+                  --keep                  build: also write the program's TIR (.tir) and generated code (.ll) there
+                  --method <name>         tir, il: only the methods with this display name, e.g. Program.Main
+                  --targets <folder>      where the target files are (or set CHIPSHARP_TARGETS)
+                build finds LLVM's clang in its install folder or on the PATH, or set CHIPSHARP_LLVM_BIN to its bin folder.
                 """);
             return 2;
         }
@@ -97,9 +152,10 @@ catch (ChipSharpException e)
     return 1;
 }
 
-static string? TakeOption(List<string> args, string option)
+// Removes an option and its value from args; names are its spellings, e.g. --target and -t.
+static string? TakeOption(List<string> args, params string[] names)
 {
-    var i = args.FindIndex(a => string.Equals(a, option, StringComparison.OrdinalIgnoreCase));
+    var i = args.FindIndex(a => names.Contains(a, StringComparer.OrdinalIgnoreCase));
     if (i < 0)
     {
         return null;
@@ -107,13 +163,17 @@ static string? TakeOption(List<string> args, string option)
 
     if (i == args.Count - 1)
     {
-        throw new ChipSharpException($"{option} needs a value.");
+        throw new ChipSharpException($"{args[i]} needs a value.");
     }
 
     var value = args[i + 1];
     args.RemoveRange(i, 2);
     return value;
 }
+
+// Removes an option that takes no value, e.g. --keep, from args; true when it was there.
+static bool TakeFlag(List<string> args, string name) =>
+    args.RemoveAll(a => string.Equals(a, name, StringComparison.OrdinalIgnoreCase)) > 0;
 
 static void Print(TargetDescription t)
 {
