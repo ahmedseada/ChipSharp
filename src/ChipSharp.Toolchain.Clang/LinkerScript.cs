@@ -7,7 +7,9 @@ namespace ChipSharp.Toolchain.Clang;
 /// <summary>
 /// Writes the ld.lld linker script for a chip program from the target's memory regions and "link" settings.
 /// In the code region (flash): the "link.head" sections, the vector table (section .vectors), code and read-only
-/// data, and the initial values of .data. In the data region (RAM): .data, .bss, and the stack at the end.
+/// data, and the initial values of .data. In the data region (RAM): .data, .bss, and the stack at the end, which the
+/// script makes a memory region of its own (<see cref="StackRegion"/>, "link.stack" bytes long), so that the variables
+/// cannot take its room.
 /// </summary>
 /// <remarks>
 /// The script defines these symbols for the runtime's start-up code, all word-aligned:
@@ -17,7 +19,8 @@ namespace ChipSharp.Toolchain.Clang;
 /// <item><term>__chipsharp_bss_start, __chipsharp_bss_end</term><description>.bss, which starts at zero</description></item>
 /// <item><term>__chipsharp_stack_top</term><description>the end of RAM, where the stack starts</description></item>
 /// </list>
-/// The link fails, saying why, when a head section is not exactly its size or the stack would not fit.
+/// The link fails, saying why, when a head section is not exactly its size; when the program does not fit, ld.lld says
+/// by how much each region overflowed (see <see cref="MemoryOverflow"/>).
 /// </remarks>
 internal static class LinkerScript
 {
@@ -28,9 +31,14 @@ internal static class LinkerScript
     public const string BssEnd = "__chipsharp_bss_end";
     public const string StackTop = "__chipsharp_stack_top";
 
+    /// <summary>The memory region of the stack: the last "link.stack" bytes of the data region.</summary>
+    public const string StackRegion = "stack";
+
     public static string Write(TargetDescription target, ChipSettings settings)
     {
         var (code, data) = (settings.Code.Name, settings.Data.Name);
+        var stack = settings.StackSize;
+        var variables = settings.Data.Region.Size - stack; // ChipSettings checks that the stack fits
         var text = new StringBuilder();
         void Line(string line = "") => text.Append(line).Append('\n');
 
@@ -41,10 +49,17 @@ internal static class LinkerScript
         Line();
         Line("MEMORY");
         Line("{");
-        Line($"  {code} (rx) : ORIGIN = {Hex(settings.Code.Region.Origin)}, LENGTH = {Hex(settings.Code.Region.Size)}");
+        var codeLength = data == code ? variables : settings.Code.Region.Size;
+        Line($"  {code} (rx) : ORIGIN = {Hex(settings.Code.Region.Origin)}, LENGTH = {Hex(codeLength)}");
         if (data != code)
         {
-            Line($"  {data} (rwx) : ORIGIN = {Hex(settings.Data.Region.Origin)}, LENGTH = {Hex(settings.Data.Region.Size)}");
+            Line($"  {data} (rwx) : ORIGIN = {Hex(settings.Data.Region.Origin)}, LENGTH = {Hex(variables)}");
+        }
+
+        if (stack > 0)
+        {
+            Line($"  /* the end of {data}, kept for the stack (link.stack) */");
+            Line($"  {StackRegion} (rw) : ORIGIN = {Hex(settings.Data.Region.Origin + variables)}, LENGTH = {Hex(stack)}");
         }
 
         Line("}");
@@ -101,9 +116,8 @@ internal static class LinkerScript
         Line($"  }} > {data}");
         Line();
         Line($"  /* the stack grows down from the end of {data} */");
-        Line($"  {StackTop} = ORIGIN({data}) + LENGTH({data});");
-        Line($"  ASSERT({BssEnd} + {Hex(settings.StackSize)} <= {StackTop}, \"Target {target.Name}: the program's " +
-            $"variables leave less than {settings.StackSize} bytes of {data} for the stack (link.stack).\")");
+        var top = stack > 0 ? StackRegion : data;
+        Line($"  {StackTop} = ORIGIN({top}) + LENGTH({top});");
         Line("}");
         return text.ToString();
     }

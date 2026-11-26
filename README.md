@@ -187,6 +187,32 @@ cannot wait (`Timing.Delay...`): `chipsharp check` says where. The target file s
 (`"interrupts"` in `rp2040.json`); a PC has none, so such a program does not build for `host`. The simulator changes an
 input pin at a set time with `--input 15=high@100ms`.
 
+### What a target allows, and what a program takes
+
+A target file's `"capabilities"` say what a program may use on it: `"heap"`, the most RAM the heap may take (objects,
+text built while the program runs, collections: M3), or `false` for none; and `"console"`, whether `Console.Write` has
+somewhere to go. The PC has a 256 MB heap and its console; the Pico a 224 KB heap (264 KB of RAM less 8 KB of stack and
+32 KB for static fields) and UART0; a new chip inherits `armv6m`'s: neither, until its file says so.
+`chipsharp check -t <target>` and `build` judge the program for that chip, so on one without a heap a class is not
+"for M3" but out of reach:
+
+```
+creating objects (new ...) needs a heap, and the target 'tiny' (2 KB RAM) has no heap: 1 place in Program.Main() (IL_0000). Use structs and static methods.
+Console.Write and Console.WriteLine need a console, and the target 'tiny' has none: 1 place in Program.Main() (IL_000a). Show what the program does another way, e.g. on a pin with ChipSharp.Hardware.Pin.
+```
+
+`chipsharp build` ends with what the program takes of the chip, read from the linked `.elf`: flash for its code,
+constants and the starting values of its variables, RAM for its variables, with the stack (`"link.stack"`) kept at the
+end of the RAM. For `examples/pico-blink`:
+
+```
+flash 1.1 KB of 2048 KB (0.1%), RAM 8 bytes of 264 KB (stack 8 KB reserved)
+```
+
+A program that does not fit stops with both sizes instead of the linker's words: `PicoBlink does not fit in target
+'tiny-flash': its code, constants and the starting values of its variables need 1.1 KB of flash, 664 bytes more than the
+target's 512 bytes.` For `host`, `build` gives the size of the `.exe`.
+
 ## Roadmap
 
 | Milestone | Goal |

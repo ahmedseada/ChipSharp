@@ -49,6 +49,19 @@ public sealed class TargetDescription
     /// <summary>What the hardware can do, e.g. hwDivide = false, atomics = none.</summary>
     public IReadOnlyDictionary<string, string> Capabilities { get; init; } = new Dictionary<string, string>();
 
+    /// <summary>
+    /// The most memory the program's heap may take, from the capability "heap" (e.g. "224K"): where objects, text built
+    /// while the program runs and collections live (M3). Null when the target has no heap ("heap": false, or not given):
+    /// a program for it uses structs, static fields and arrays on the stack.
+    /// </summary>
+    public ulong? HeapSize { get; init; }
+
+    /// <summary>True when the target has a heap (see <see cref="HeapSize"/>).</summary>
+    public bool HasHeap => HeapSize is not null;
+
+    /// <summary>True when Console.Write and Console.WriteLine have somewhere to go: the capability "console" is true.</summary>
+    public bool HasConsole => HasCapability("console");
+
     /// <summary>The whole merged target file.</summary>
     public required JsonObject Settings { get; init; }
 

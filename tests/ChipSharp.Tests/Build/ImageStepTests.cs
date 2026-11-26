@@ -15,7 +15,7 @@ public sealed class ImageStepTests : IDisposable
     private const string Board = """
         {
           "backend": "llvm", "toolchain": "list-ld", "runtime": "fake-m0", "image": "fake",
-          "triple": "thumbv6m-none-eabi", "pointerSize": 4, "endian": "little"
+          "triple": "thumbv6m-none-eabi", "pointerSize": 4, "endian": "little", "capabilities": { "console": true }
         }
         """;
 

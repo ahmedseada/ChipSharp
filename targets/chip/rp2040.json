@@ -26,6 +26,9 @@
   "capabilities": {
     // fast float routines in the boot ROM; not used: they treat subnormal numbers as zero, so results would differ
     // from .NET's (the armv6m runtime links compiler-rt's exact ones instead)
-    "romFloat": true
+    "romFloat": true,
+    // the heap's budget: of the 264K of RAM, 8K is the stack (link.stack) and 32K is left for static fields
+    "heap": "224K",
+    "console": true       // Console.Write and Console.WriteLine go to UART0 (GPIO 0, 115200 baud)
   }
 }

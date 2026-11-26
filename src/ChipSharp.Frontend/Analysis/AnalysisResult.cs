@@ -33,10 +33,17 @@ public sealed class AnalysisResult
     public IReadOnlyList<InterruptHandler> InterruptHandlers { get; internal init; } = [];
 
     /// <summary>
-    /// Every problem, one per place: method by method in the order of <see cref="Methods"/>, then the places that
-    /// break a rule of interrupt handlers.
+    /// Every problem, one per place: method by method in the order of <see cref="Methods"/>, then the calls of Console
+    /// on a target without a console (see <see cref="TargetRules"/>), then the places that break a rule of interrupt
+    /// handlers.
     /// </summary>
     public IReadOnlyList<Problem> Problems { get; }
+
+    /// <summary>
+    /// The target the details must be asked for, when its rules (<see cref="TargetRules"/>) found problems: the command
+    /// the <see cref="Summary"/> ends with names it (-t), so that the details say what the summary says.
+    /// </summary>
+    internal string? DetailsTarget { get; init; }
 
     /// <summary>The problems by feature, in the order each feature first appears in <see cref="Problems"/>.</summary>
     public IReadOnlyList<ProblemGroup> Groups { get; }
@@ -61,7 +68,8 @@ public sealed class AnalysisResult
     public string Summary => IsSupported ? "" : Message(
         Groups.Select(group => group.Line),
         LibraryCalls.Summary,
-        $"For every place, run: chipsharp check {Quoted(Assembly.FilePath)} --details");
+        $"For every place, run: chipsharp check {Quoted(Assembly.FilePath)}" +
+        $"{(DetailsTarget is null ? "" : $" -t {Quoted(DetailsTarget)}")} --details");
 
     /// <summary>
     /// The heading of <see cref="Summary"/>, then every problem on a line of its own (<see cref="Problem.Line"/>), then

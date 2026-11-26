@@ -34,7 +34,9 @@ public static partial class WholeProgramPass
 
     /// <summary>
     /// Like <see cref="Check(IlAssembly)"/>, for <paramref name="target"/>: interrupt handlers must name an event the
-    /// target has an interrupt for (none on a PC). Null checks them against ChipSharp.Hardware's events instead.
+    /// target has an interrupt for (none on a PC), and the program may use only what the target has (see
+    /// <see cref="TargetRules"/>: a heap, a console). Null checks the handlers against ChipSharp.Hardware's events
+    /// instead, and the rest for any target.
     /// </summary>
     /// <exception cref="ChipSharpException">The assembly has no entry point, or the target's "interrupts" are not well formed.</exception>
     public static AnalysisResult Check(IlAssembly assembly, TargetDescription? target)
@@ -53,9 +55,14 @@ public static partial class WholeProgramPass
             CheckMethod(method, problems);
         }
 
+        var forTarget = TargetRules.Apply(target, methods, problems);
         CheckHandlers(entryPoint, methods, handlers, interruptProblems);
         problems.AddRange(interruptProblems);
-        return new AnalysisResult(assembly, methods, problems) { InterruptHandlers = handlers };
+        return new AnalysisResult(assembly, methods, problems)
+        {
+            InterruptHandlers = handlers,
+            DetailsTarget = forTarget ? target!.Name : null,
+        };
     }
 
     /// <summary>

@@ -50,8 +50,13 @@ public sealed class ExampleProjectTests : IDisposable
             Path.Combine(_scratch, "pico"));
 
         Assert.True(exitCode == 0, error);
-        var uf2 = printed.Trim();
+        var lines = printed.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        var uf2 = lines[0];
         Assert.Equal(Path.GetFileNameWithoutExtension(project) + ".uf2", Path.GetFileName(uf2));
+        Assert.Matches(
+            @"^flash \d+(\.\d)? KB of 2048 KB \(\d+\.\d%\), RAM \d+(\.\d)? (bytes?|KB) of 264 KB \(stack 8 KB reserved\)$",
+            lines[1]);
+        Assert.Equal(2, lines.Length);
 
         var run = await Rp2040Simulator.RunAsync(uf2, Milliseconds, Button);
 

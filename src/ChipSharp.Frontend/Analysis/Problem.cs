@@ -9,10 +9,13 @@ namespace ChipSharp.Frontend.Analysis;
 /// </summary>
 public sealed class Problem
 {
+    private readonly string _where;
+
     private Problem(IlMethod method, PlaceKind kind, string where, string place, int? offset, Unsupported unsupported)
     {
         Method = method;
         Kind = kind;
+        _where = where;
         Place = place;
         Offset = offset;
         Unsupported = unsupported;
@@ -58,6 +61,9 @@ public sealed class Problem
     internal Unsupported Unsupported { get; }
 
     public override string ToString() => Line;
+
+    /// <summary>The same place, with another feature: what the target says about it (see <see cref="TargetRules"/>).</summary>
+    internal Problem With(Unsupported unsupported) => new(Method, Kind, _where, Place, Offset, unsupported);
 
     /// <summary>The method itself: "Counter.Next(int): instance methods of classes arrive with M3 (the heap) ...".</summary>
     internal static Problem InMethod(IlMethod method, Unsupported unsupported) =>

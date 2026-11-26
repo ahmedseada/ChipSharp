@@ -54,12 +54,13 @@ public sealed class PicoLinkTests : IDisposable
 
         Assert.Contains("ENTRY(chipsharp_reset)", script);
         Assert.Contains("flash (rx) : ORIGIN = 0x10000000, LENGTH = 0x200000", script);
-        Assert.Contains("ram (rwx) : ORIGIN = 0x20000000, LENGTH = 0x42000", script);
+        // the stack is the last 8 KB of RAM, a region of its own: the variables get the rest
+        Assert.Contains("ram (rwx) : ORIGIN = 0x20000000, LENGTH = 0x40000", script);
+        Assert.Contains("stack (rw) : ORIGIN = 0x20040000, LENGTH = 0x2000", script);
         Assert.Contains("ASSERT(SIZEOF(.boot2) == 0x100,", script);
         Assert.Contains(".vectors : ALIGN(0x100)", script);
         Assert.Contains("} > ram AT > flash", script);
-        Assert.Contains("__chipsharp_stack_top = ORIGIN(ram) + LENGTH(ram);", script);
-        Assert.Contains("ASSERT(__chipsharp_bss_end + 0x2000 <= __chipsharp_stack_top,", script);
+        Assert.Contains("__chipsharp_stack_top = ORIGIN(stack) + LENGTH(stack);", script);
         Assert.True(script.IndexOf(".boot2 :", StringComparison.Ordinal) < script.IndexOf(".vectors :", StringComparison.Ordinal));
         Assert.True(script.IndexOf(".vectors :", StringComparison.Ordinal) < script.IndexOf(".text :", StringComparison.Ordinal));
     }
@@ -144,13 +145,27 @@ public sealed class PicoLinkTests : IDisposable
     }
 
     [PicoFact]
-    public void A_program_whose_variables_leave_too_little_stack_fails_the_link_with_the_reason()
+    public void A_program_whose_variables_leave_too_little_stack_fails_the_link_with_both_sizes()
     {
         var target = WithSettings(PicoBuild.Pico, settings => settings["link"]!["stack"] = "264K");
 
         var error = Assert.Throws<ChipSharpException>(() => PicoBuild.Build(PicoBuild.BlinkSource, "PicoBlink", _scratch, target));
 
-        Assert.Contains("the program's variables leave less than 270336 bytes of ram for the stack (link.stack)", error.Message);
+        // the blink's variables are the delay's 8 bytes
+        Assert.Equal("PicoBlink does not fit in target 'pico': its variables (8 bytes) and the stack (264 KB, " +
+            "link.stack) need 264.0 KB of RAM, 8 bytes more than the target's 264 KB. Make the program smaller, or build " +
+            "it for a chip with more memory.", error.Message);
+    }
+
+    [Fact]
+    public void A_stack_bigger_than_the_RAM_is_an_error_of_the_target()
+    {
+        var target = WithSettings(Targets.Load("pico"), settings => settings["link"]!["stack"] = "300K");
+
+        var error = Assert.Throws<ChipSharpException>(() => ChipSettings.Read(target));
+
+        Assert.Equal("Target 'pico': 'link.stack' is 300 KB, more than the 264 KB of ram ('link.data') it is kept in.",
+            error.Message);
     }
 
     /// <summary>A copy of <paramref name="target"/> with some settings changed.</summary>

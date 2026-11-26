@@ -1,3 +1,4 @@
+using ChipSharp.Abstractions;
 using ChipSharp.Tests.Analysis;
 using ChipSharp.Tests.Host;
 using ChipSharp.Tests.Lowering;
@@ -31,7 +32,7 @@ public sealed class BuildCliTests : IDisposable
             Assert.Equal("", error);
             Assert.Equal(0, exitCode);
             var program = Path.Combine(output, name + ".exe");
-            Assert.Equal(program + Environment.NewLine, printed);
+            Assert.Equal([program, HostSize(program)], Lines(printed));
             var run = await HostRun.RunAsync(program, [], _scratch);
             Assert.Equal(0, run.ExitCode);
             Assert.Equal(Samples.ExpectedOutput(name), run.Output);
@@ -48,11 +49,9 @@ public sealed class BuildCliTests : IDisposable
 
         Assert.Equal("", error);
         Assert.Equal(0, exitCode);
-        Assert.Equal(
-            [Path.Combine(output, "Gcd.exe"), Path.Combine(output, "Gcd.tir"), Path.Combine(output, "Gcd.ll")],
-            printed.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries));
-        Assert.All(printed.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries),
-            path => Assert.True(File.Exists(path), path));
+        var files = new[] { Path.Combine(output, "Gcd.exe"), Path.Combine(output, "Gcd.tir"), Path.Combine(output, "Gcd.ll") };
+        Assert.Equal([.. files, HostSize(files[0])], Lines(printed));
+        Assert.All(files, path => Assert.True(File.Exists(path), path));
     }
 
     [HostFact]
@@ -65,7 +64,7 @@ public sealed class BuildCliTests : IDisposable
         Assert.Equal("", error);
         Assert.Equal(0, exitCode);
         var program = Path.Combine(_scratch, "chipsharp-output", "host", "Square.exe");
-        Assert.Equal(program + Environment.NewLine, printed);
+        Assert.Equal([program, HostSize(program)], Lines(printed));
         Assert.Equal(Samples.ExpectedOutput("Square"), (await HostRun.RunAsync(program, [], _scratch)).Output);
     }
 
@@ -201,6 +200,13 @@ public sealed class BuildCliTests : IDisposable
         Assert.Equal($"error: {dll} has no method named 'Program.Cube' (write it as Type.Method, e.g. Program.Main).",
             error.TrimEnd());
     }
+
+    /// <summary>The lines build printed.</summary>
+    internal static string[] Lines(string printed) => printed.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+
+    /// <summary>The line build ends with for a PC program: its file and its size, e.g. "Square.exe: 5.5 KB".</summary>
+    private static string HostSize(string program) =>
+        $"{Path.GetFileName(program)}: {MemorySize.Text((ulong)new FileInfo(program).Length)}";
 
     [Fact]
     public async Task The_usage_shows_build_and_tir()
