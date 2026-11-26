@@ -39,6 +39,8 @@ public static partial class WholeProgramPass
             IlByRefType reference when ObjectTypes.TryMapType(reference.ElementType, assembly, out _) =>
                 Unsupported.ObjectReferences,
             IlByRefType reference => ForAnyType(reference.ElementType, assembly, method),
+            var plain when Spans.IsSpan(plain, out var element, out _) => Unsupported.ForSpan(element, assembly),
+            var plain when Unsupported.IsCollectionExpression(plain) => Unsupported.SpanCollectionExpressions,
             var plain when ValueTypes.Definition(plain, assembly) is { } definition => ForStruct(definition),
             _ => null,
         };

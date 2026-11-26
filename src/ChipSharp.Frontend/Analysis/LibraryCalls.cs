@@ -8,10 +8,17 @@ namespace ChipSharp.Frontend.Analysis;
 /// </summary>
 internal static class LibraryCalls
 {
-    /// <summary>Every library method a program can call: the .NET ones first, then ChipSharp's own.</summary>
+    /// <summary>The most names a line of <see cref="Summary"/> lists for one type; <see cref="Details"/> has every one.</summary>
+    private const int MostNames = 20;
+
+    /// <summary>
+    /// Every library method a program can call: the .NET ones first (with the members of spans ChipSharp compiles
+    /// itself, <see cref="Spans.Members"/>), then ChipSharp's own.
+    /// </summary>
     private static readonly string[] Known =
     [
         .. KnownExternals.All.Select(function => function.LibraryMethod).Concat(LibrarySubstitutes.Members)
+            .Concat(Spans.Members)
             .OrderBy(method => method.StartsWith("ChipSharp.", StringComparison.Ordinal)),
     ];
 
@@ -139,7 +146,13 @@ internal static class LibraryCalls
         }
 
         var names = list.Where(method => !IsConstructor(method) && !method.IsProperty && !IsOperator(method))
-            .Select(method => method.Name).Distinct();
+            .Select(method => method.Name).Distinct().ToList();
+        if (names.Count > MostNames)
+        {
+            // a type of many methods (BinaryPrimitives): the first ones, and how many there are
+            names = [.. names.Take(MostNames), $"... ({names.Count} in all)"];
+        }
+
         return string.Join(", ", kinds.Count == 0 ? names : names.Append($"its {And(kinds)}"));
     }
 

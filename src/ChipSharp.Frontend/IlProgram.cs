@@ -49,6 +49,13 @@ public sealed class IlProgram
     public IReadOnlyList<InterruptHandler> InterruptHandlers { get; init; } = [];
 
     /// <summary>
+    /// True when the target reads and writes values at any address (its capability "unalignedAccess"; true when the
+    /// program is not for one target): else MemoryMarshal.Cast checks that the span it gives starts where its elements
+    /// may be (see <see cref="Spans"/>).
+    /// </summary>
+    public bool UnalignedAccess { get; init; } = true;
+
+    /// <summary>
     /// The type initializers among <see cref="Methods"/> (static field initializers and static constructors), in the
     /// order the program runs them when it starts, before the entry point (see <see cref="StaticInitialization"/>):
     /// those of the types the entry point uses, then those of the types only the interrupt handlers use.

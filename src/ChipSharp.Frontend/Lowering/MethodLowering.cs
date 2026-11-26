@@ -142,7 +142,7 @@ internal sealed partial class MethodLowering
 
     /// <summary>
     /// Rejects a body with exception handling, printed text that is not supported, or an instruction outside
-    /// <see cref="SupportedSubset"/> (but those of printed text).
+    /// <see cref="SupportedSubset"/> (but those of printed text and of spans).
     /// </summary>
     private void CheckSupported()
     {
@@ -158,13 +158,14 @@ internal sealed partial class MethodLowering
         }
 
         CheckPrintedText();
-        if (_body.Instructions.FirstOrDefault(i => !SupportedSubset.OpCodes.Contains(i.OpCode) && !IsPrintedText(i))
-            is { } unsupported)
+        if (_body.Instructions.FirstOrDefault(i => !SupportedSubset.OpCodes.Contains(i.OpCode) && !IsPrintedText(i)
+            && !IsSpanInstruction(i)) is { } unsupported)
         {
             throw Unsupported(unsupported);
         }
 
         CheckArrays();
+        CheckSpans();
     }
 
     private void Lower(IlInstruction instruction)
@@ -176,6 +177,10 @@ internal sealed partial class MethodLowering
 
         switch (instruction.OpCode)
         {
+            case var _ when IsSpanInstruction(instruction):
+                LowerSpanInstruction(instruction);
+                break;
+
             case var _ when IsArrayInstruction(instruction):
                 LowerArrayInstruction(instruction);
                 break;

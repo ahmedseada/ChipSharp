@@ -13,13 +13,21 @@
 //   ChipSharp_Runtime_NullReference      a field, element or method of null (NullReferenceException)
 //   ChipSharp_Runtime_OutOfMemory        an object that does not fit in the heap, even after a collection
 //                                        (OutOfMemoryException)
-//   ChipSharp_Runtime_Overflow           an array of a negative length (OverflowException)
+//   ChipSharp_Runtime_Overflow           an array of a negative length, a span of more bytes than an int counts
+//                                        (OverflowException)
 //   ChipSharp_Runtime_HeapInInterrupt    an interrupt handler that makes an object, which it never may: the heap may be
 //                                        in the middle of an allocation or a collection when the interrupt comes
+//   ChipSharp_Runtime_ArgumentOutOfRange a span's start or length outside it: a slice, new Span<T>(array, start, length)
+//                                        (ArgumentOutOfRangeException)
+//   ChipSharp_Runtime_LengthOutOfRange   MemoryMarshal.Read and Write (BinaryPrimitives too) on too few bytes
+//                                        (ArgumentOutOfRangeException, parameter 'length')
+//   ChipSharp_Runtime_DestinationTooShort  a span's CopyTo a shorter one (ArgumentException)
+//   ChipSharp_Runtime_DataMisaligned     MemoryMarshal.Cast to elements this chip cannot read where the span starts
+//                                        (DataMisalignedException)
 //
-// IndexOutOfRange, NullReference, OutOfMemory, Overflow and HeapInInterrupt are the code generator's and the heap's
-// (chipsharp_heap.c, armv6m_heap.c); the others are the methods of ChipSharp.Library.Runtime, which says when each
-// happens.
+// IndexOutOfRange, NullReference, OutOfMemory, Overflow, HeapInInterrupt and the span ones are the code generator's
+// and the heap's (chipsharp_heap.c, armv6m_heap.c); the others are the methods of ChipSharp.Library.Runtime, which says
+// when each happens.
 
 #define UNHANDLED "Unhandled exception. "
 #define TIMESPAN_TOO_LONG "TimeSpan overflowed because the duration is too long."
@@ -105,6 +113,36 @@ __attribute__((noreturn)) void ChipSharp_Runtime_OutOfMemory(void)
 __attribute__((noreturn)) void ChipSharp_Runtime_Overflow(void)
 {
     static const char message[] = UNHANDLED "System.OverflowException: Arithmetic operation resulted in an overflow.\r\n";
+    fail(message, sizeof message - 1);
+}
+
+__attribute__((noreturn)) void ChipSharp_Runtime_ArgumentOutOfRange(void)
+{
+    static const char message[] =
+        UNHANDLED "System.ArgumentOutOfRangeException: Specified argument was out of the range of valid values.\r\n";
+    fail(message, sizeof message - 1);
+}
+
+__attribute__((noreturn)) void ChipSharp_Runtime_LengthOutOfRange(void)
+{
+    static const char message[] = UNHANDLED "System.ArgumentOutOfRangeException: Specified argument was out of the "
+        "range of valid values. (Parameter 'length')\r\n";
+    fail(message, sizeof message - 1);
+}
+
+__attribute__((noreturn)) void ChipSharp_Runtime_DestinationTooShort(void)
+{
+    static const char message[] =
+        UNHANDLED "System.ArgumentException: Destination is too short. (Parameter 'destination')\r\n";
+    fail(message, sizeof message - 1);
+}
+
+// The RP2040's Cortex-M0+ cannot read a word at an address that is not a multiple of its size, and MemoryMarshal.Cast
+// made a span whose elements are there: said with the message of .NET's exception for a misaligned read.
+__attribute__((noreturn)) void ChipSharp_Runtime_DataMisaligned(void)
+{
+    static const char message[] =
+        UNHANDLED "System.DataMisalignedException: A datatype misalignment was detected in a load or store instruction.\r\n";
     fail(message, sizeof message - 1);
 }
 

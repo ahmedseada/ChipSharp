@@ -66,6 +66,14 @@ public sealed class TirBuilder(TirBlock block)
     public TirPointerStore Store(TirValue address, TirValue value, bool isVolatile = false) =>
         Block.Append(new TirPointerStore(address, value, isVolatile));
 
+    /// <summary>Reads a <paramref name="type"/> from <paramref name="address"/>, which may not be aligned for it.</summary>
+    public TirPointerLoad LoadUnaligned(TirType type, TirValue address) =>
+        Block.Append(new TirPointerLoad(type, address) { IsUnaligned = true });
+
+    /// <summary>Writes <paramref name="value"/> to <paramref name="address"/>, which may not be aligned for it.</summary>
+    public TirPointerStore StoreUnaligned(TirValue address, TirValue value) =>
+        Block.Append(new TirPointerStore(address, value) { IsUnaligned = true });
+
     /// <summary>
     /// The address of field number <paramref name="fieldIndex"/> of the struct at <paramref name="address"/> (a ptr), or
     /// of the object <paramref name="address"/> (a ref) of a class whose object type is <paramref name="structType"/>.

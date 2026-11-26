@@ -11,10 +11,15 @@
 //   ChipSharp_Runtime_NullReference      a field, element or method of null (NullReferenceException)
 //   ChipSharp_Runtime_OutOfMemory        an object that does not fit in the heap, even after a collection
 //                                        (OutOfMemoryException)
-//   ChipSharp_Runtime_Overflow           an array of a negative length (OverflowException)
+//   ChipSharp_Runtime_Overflow           an array of a negative length, a span of more bytes than an int counts
+//                                        (OverflowException)
+//   ChipSharp_Runtime_ArgumentOutOfRange a span's start or length outside it (ArgumentOutOfRangeException)
+//   ChipSharp_Runtime_LengthOutOfRange   MemoryMarshal.Read and Write on too few bytes (ArgumentOutOfRangeException)
+//   ChipSharp_Runtime_DestinationTooShort  a span's CopyTo a shorter one (ArgumentException)
+//   ChipSharp_Runtime_DataMisaligned     MemoryMarshal.Cast on a chip without unaligned access (DataMisalignedException)
 //
-// IndexOutOfRange, NullReference, OutOfMemory and Overflow are the code generator's and the heap's (chipsharp_heap.c);
-// the others are the methods of ChipSharp.Library.Runtime, which says when each happens.
+// IndexOutOfRange, NullReference, OutOfMemory, Overflow and the span ones are the code generator's and the heap's
+// (chipsharp_heap.c); the others are the methods of ChipSharp.Library.Runtime, which says when each happens.
 
 #define UNHANDLED "Unhandled exception. "
 #define TIMESPAN_TOO_LONG "TimeSpan overflowed because the duration is too long."
@@ -118,5 +123,35 @@ __declspec(noreturn) void ChipSharp_Runtime_OutOfMemory(void)
 __declspec(noreturn) void ChipSharp_Runtime_Overflow(void)
 {
     static const char message[] = UNHANDLED "System.OverflowException: Arithmetic operation resulted in an overflow.\r\n";
+    fail(message, (DWORD)(sizeof message - 1));
+}
+
+__declspec(noreturn) void ChipSharp_Runtime_ArgumentOutOfRange(void)
+{
+    static const char message[] =
+        UNHANDLED "System.ArgumentOutOfRangeException: Specified argument was out of the range of valid values.\r\n";
+    fail(message, (DWORD)(sizeof message - 1));
+}
+
+__declspec(noreturn) void ChipSharp_Runtime_LengthOutOfRange(void)
+{
+    static const char message[] = UNHANDLED "System.ArgumentOutOfRangeException: Specified argument was out of the "
+        "range of valid values. (Parameter 'length')\r\n";
+    fail(message, (DWORD)(sizeof message - 1));
+}
+
+__declspec(noreturn) void ChipSharp_Runtime_DestinationTooShort(void)
+{
+    static const char message[] =
+        UNHANDLED "System.ArgumentException: Destination is too short. (Parameter 'destination')\r\n";
+    fail(message, (DWORD)(sizeof message - 1));
+}
+
+// A PC reads values at any address, so MemoryMarshal.Cast never calls this there ("unalignedAccess": true); it is here
+// for every runtime to have each failure function.
+__declspec(noreturn) void ChipSharp_Runtime_DataMisaligned(void)
+{
+    static const char message[] =
+        UNHANDLED "System.DataMisalignedException: A datatype misalignment was detected in a load or store instruction.\r\n";
     fail(message, (DWORD)(sizeof message - 1));
 }

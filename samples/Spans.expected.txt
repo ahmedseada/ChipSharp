@@ -1,0 +1,6 @@
+array 61, slice 34, last two 23
+stackalloc 314, table 26
+packet 258: raw 0x1234, 23.5 degrees at 10000 ms, 256 readings, checksum ok
+reading: 8 bytes, checksum 42, same as the packet's: True
+5A 01 03 34 12 EB 00 0A 28 00 00 AD 
+time in the reply: 10250 ms

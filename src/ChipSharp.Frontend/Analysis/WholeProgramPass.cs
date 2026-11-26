@@ -63,6 +63,7 @@ public static partial class WholeProgramPass
         {
             InterruptHandlers = handlers,
             DetailsTarget = forTarget ? target!.Name : null,
+            UnalignedAccess = target?.HasCapability("unalignedAccess") ?? true,
         };
     }
 
@@ -183,18 +184,21 @@ public static partial class WholeProgramPass
             problems.Add(Problem.AtTry(method, tryOffset, Unsupported.TryCatchFinally));
         }
 
-        // the verdict of printed text comes first for the instructions it is about, then the arrays' rule's, then
-        // generics', then classes'
+        // the verdict of printed text comes first for the instructions it is about, then the arrays' rule's (a problem,
+        // then spans' verdict, then a fine), then generics', then classes'
         var printed = PrintedText.Of(method);
         var arrays = ArrayEscapeAnalysis.Check(method, statics);
+        var spans = ForSpans(method);
         var generics = ForGenerics(method);
         var classes = ForClasses(method);
         foreach (var instruction in body.Instructions)
         {
-            // what printed text, the array escape analysis, generics or classes found for this instruction, else
+            // what printed text, the array escape analysis, spans, generics or classes found for this instruction, else
             // building text, else the struct/reference rules, else the rest
             var unsupported = printed.Verdicts.TryGetValue(instruction, out var text) ? text
-                : arrays.TryGetValue(instruction, out var array) ? array
+                : arrays.TryGetValue(instruction, out var array) && (array is not null || !spans.ContainsKey(instruction))
+                    ? array
+                : spans.TryGetValue(instruction, out var span) ? span
                 : generics.TryGetValue(instruction, out var generic) ? generic
                 : classes.TryGetValue(instruction, out var forClasses) ? forClasses
                 : ForText(method, instruction) ?? ForStructOrReference(method, instruction)

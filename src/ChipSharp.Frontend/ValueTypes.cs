@@ -18,6 +18,8 @@ namespace ChipSharp.Frontend;
 /// <see cref="ObjectTypes"/>). There is one per struct, made once and shared by
 /// every module, because TIR's struct types are equal only to themselves. So is an instance of a generic struct, one
 /// per list of type arguments (<c>Pair&lt;int&gt;</c>, see <see cref="Generics.Instantiations"/>);</item>
+/// <item>a <c>Span&lt;T&gt;</c> or <c>ReadOnlySpan&lt;T&gt;</c> is an array value, <c>{ ptr, i32 }</c> (see
+/// <see cref="Spans"/>), so a ref struct may hold one;</item>
 /// <item>a reference (<c>ref</c>, <c>out</c>, <c>in</c>, a ref local, a ref return, a struct method's <c>this</c>) to a
 /// value of any of these types is a ptr. In verifiable C# a reference never outlives what it points to, so a plain
 /// address is all it needs.</item>
@@ -38,7 +40,7 @@ internal static class ValueTypes
         ArgumentNullException.ThrowIfNull(type);
         ArgumentNullException.ThrowIfNull(assembly);
 
-        if (SupportedSubset.TryMapType(type, out tirType))
+        if (SupportedSubset.TryMapType(type, out tirType) || Spans.TryMapType(type, assembly, out tirType))
         {
             return true;
         }
