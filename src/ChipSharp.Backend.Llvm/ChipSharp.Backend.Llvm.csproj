@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The "llvm" code generator: TIR in, LLVM IR text (.ll) out, for clang to compile for any LLVM target -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ChipSharp.Tests" />
+  </ItemGroup>
+</Project>
