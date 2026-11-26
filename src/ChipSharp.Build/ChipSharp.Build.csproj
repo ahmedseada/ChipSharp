@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The build pipeline: a compiled C# assembly in, a program for the target (or its chip image) out -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Backend.Llvm\ChipSharp.Backend.Llvm.csproj" />
+    <ProjectReference Include="..\ChipSharp.Frontend\ChipSharp.Frontend.csproj" />
+    <ProjectReference Include="..\ChipSharp.Runtime.Windows\ChipSharp.Runtime.Windows.csproj" />
+    <ProjectReference Include="..\ChipSharp.Targets\ChipSharp.Targets.csproj" />
+    <ProjectReference Include="..\ChipSharp.Toolchain.Clang\ChipSharp.Toolchain.Clang.csproj" />
+  </ItemGroup>
+</Project>
