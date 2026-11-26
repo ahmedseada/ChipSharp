@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\ChipSharp.Backend.Llvm\ChipSharp.Backend.Llvm.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Targets\ChipSharp.Targets.csproj" />
   </ItemGroup>
 
