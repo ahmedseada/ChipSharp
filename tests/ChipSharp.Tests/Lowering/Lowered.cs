@@ -4,7 +4,6 @@ using ChipSharp.Frontend.Lowering;
 using ChipSharp.Ir;
 using ChipSharp.Tests.Support;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
 
 namespace ChipSharp.Tests.Lowering;
 
@@ -14,19 +13,6 @@ namespace ChipSharp.Tests.Lowering;
 /// </summary>
 internal static class Lowered
 {
-    /// <summary>The shared framework's assemblies, the references <see cref="CSharpCompiler"/> uses too.</summary>
-    private static readonly Lazy<MetadataReference[]> FrameworkReferences = new(() =>
-    {
-        var trusted = (string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!;
-        var framework = Path.GetDirectoryName(typeof(object).Assembly.Location);
-        return
-        [
-            .. trusted.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
-                .Where(file => string.Equals(Path.GetDirectoryName(file), framework, StringComparison.OrdinalIgnoreCase))
-                .Select(file => MetadataReference.CreateFromFile(file)),
-        ];
-    });
-
     /// <summary>Compiles <paramref name="source"/> and reads it back; the file is called "&lt;assemblyName&gt;.dll".</summary>
     public static IlAssembly Compile(string source, string assemblyName = "Test") =>
         IlAssembly.Load(CSharpCompiler.Compile(source, assemblyName), assemblyName + ".dll");
@@ -35,17 +21,10 @@ internal static class Lowered
     /// Compiles a program the way <c>dotnet build</c> does in Debug: unoptimized IL, with nops, every value in a
     /// local, bools kept in locals before each branch, and so on. Reads it back like <see cref="Compile"/>.
     /// </summary>
-    public static IlAssembly CompileDebug(string source, string assemblyName)
-    {
-        var compilation = CSharpCompilation.Create(assemblyName,
-            [CSharpSyntaxTree.ParseText(source, CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest))],
-            FrameworkReferences.Value,
-            new CSharpCompilationOptions(OutputKind.ConsoleApplication, optimizationLevel: OptimizationLevel.Debug));
-        using var image = new MemoryStream();
-        var result = compilation.Emit(image);
-        Assert.True(result.Success, string.Join("\n", result.Diagnostics));
-        return IlAssembly.Load(image.ToArray(), assemblyName + ".dll");
-    }
+    public static IlAssembly CompileDebug(string source, string assemblyName) =>
+        IlAssembly.Load(
+            CSharpCompiler.Compile(source, assemblyName, OutputKind.ConsoleApplication, OptimizationLevel.Debug),
+            assemblyName + ".dll");
 
     /// <summary>
     /// The program that starts at <paramref name="entryPoint"/> (a display name such as "C.Run"), or at the

@@ -14,7 +14,7 @@ C# --Roslyn--> IL --ChipSharp--> TIR --code generator--> LLVM IR / C --toolchain
 | `src/ChipSharp.Ir` | TIR (Typed Intermediate Representation): every code generator reads it; with its verifier, printer and builder |
 | `src/ChipSharp.Abstractions` | The contracts (code generator, toolchain, image format, flasher, architecture runtime), the registry, the target model |
 | `src/ChipSharp.Targets` | Reads the target files and merges each inheritance chain |
-| `src/ChipSharp.Frontend` | Reads IL from a compiled C# .dll (and, next, turns it into TIR) |
+| `src/ChipSharp.Frontend` | Reads IL from a compiled C# .dll, finds every method the program uses and checks it against the supported subset, and translates it into TIR |
 | `src/ChipSharp.Backend.Llvm` | The `llvm` code generator: TIR in, LLVM IR text out |
 | `src/ChipSharp.Toolchain.Clang` | The `clang` toolchain: LLVM IR and runtime sources in, a linked program out |
 | `src/ChipSharp.Runtime.Windows` | The `windows-x64` runtime for PC programs: start-up and console output, no C runtime needed |
@@ -34,7 +34,11 @@ dotnet test -c Release --no-build
 .\src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe targets list
 .\src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe targets show pico
 .\src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe il path\to\YourProgram.dll --method Program.Main
+.\src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe check path\to\YourProgram.dll
 ```
+
+`check` says whether a program fits what ChipSharp compiles today, and if not, lists every problem with what to
+use instead.
 
 The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` / `CHIPSHARP_LLVM_BIN`).
 
@@ -44,6 +48,7 @@ The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` / 
 |---|---|
 | Skeleton (done) | Contracts, registry, target files with inheritance |
 | M0 wave 0–1 (done) | TIR; reading IL; the LLVM code generator; the PC target, clang toolchain, runtime and samples |
+| M0 wave 2 (done) | IL to TIR; the whole-program pass and `chipsharp check`; every sample runs end to end and matches .NET |
 | M0 | Compile simple C# to a PC program through LLVM; compare every result with real .NET |
 | M1 | Blink an LED on the Raspberry Pi Pico (RP2040) |
 | M2 | Structs, `Span<T>`, interrupts, UART: the Restricted tier |

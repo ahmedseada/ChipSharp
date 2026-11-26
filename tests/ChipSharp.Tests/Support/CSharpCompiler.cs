@@ -14,12 +14,14 @@ public static class CSharpCompiler
 {
     private static readonly Lazy<MetadataReference[]> References = new(LoadReferences);
 
-    /// <summary>Compiles one source file and returns the assembly's bytes.</summary>
-    public static byte[] Compile(string source, string assemblyName = "Test", OutputKind? outputKind = null) =>
-        Compile([source], assemblyName, outputKind);
+    /// <summary>Compiles one source file and returns the assembly's bytes (optimized like a Release build unless told otherwise).</summary>
+    public static byte[] Compile(string source, string assemblyName = "Test", OutputKind? outputKind = null,
+        OptimizationLevel optimization = OptimizationLevel.Release) =>
+        Compile([source], assemblyName, outputKind, optimization);
 
-    /// <summary>Compiles several source files into one assembly and returns its bytes.</summary>
-    public static byte[] Compile(IEnumerable<string> sources, string assemblyName = "Test", OutputKind? outputKind = null)
+    /// <summary>Compiles several source files into one assembly and returns its bytes (optimized like a Release build unless told otherwise).</summary>
+    public static byte[] Compile(IEnumerable<string> sources, string assemblyName = "Test", OutputKind? outputKind = null,
+        OptimizationLevel optimization = OptimizationLevel.Release)
     {
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentException.ThrowIfNullOrWhiteSpace(assemblyName);
@@ -28,7 +30,7 @@ public static class CSharpCompiler
         var trees = sources.Select((text, i) => CSharpSyntaxTree.ParseText(text, parseOptions, path: $"Source{i}.cs")).ToList();
         var options = new CSharpCompilationOptions(
             outputKind ?? (trees.Any(HasMain) ? OutputKind.ConsoleApplication : OutputKind.DynamicallyLinkedLibrary),
-            optimizationLevel: OptimizationLevel.Release,
+            optimizationLevel: optimization,
             allowUnsafe: true,
             deterministic: true);
         var compilation = CSharpCompilation.Create(assemblyName, trees, References.Value, options);
