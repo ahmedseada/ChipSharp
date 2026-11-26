@@ -1,7 +1,8 @@
 // chipsharp: the command line. It builds programs, and shows what they go through on the way:
 //
 //   chipsharp build <assembly.dll>   compiles the program for a target; prints the file it wrote (.exe, .uf2, ...)
-//   chipsharp check <assembly.dll>   whether M0 can compile the program, and the methods it uses
+//   chipsharp check <assembly.dll>   whether M0 can compile the program, and the methods it uses; if it cannot,
+//                                    the C# features it uses that M0 does not have, each with where and what to do
 //   chipsharp tir <assembly.dll>     the program's TIR, after the whole-program pass and the translation
 //   chipsharp il <assembly.dll>      the IL of every method, ildasm style
 //   chipsharp targets list           every target
@@ -10,6 +11,7 @@
 // Options: -t, --target <name>    with build: the target to build for (default: host)
 //          -o, --output <folder>  with build: where to write the program (default: chipsharp-output\<target>)
 //          --keep                 with build: also write the program's TIR and generated code (.ll) there
+//          --details              with check: every place M0 cannot compile on a line of its own, not by feature
 //          --method <name>        with il and tir: only the methods with this display name, e.g. Program.Main
 //          --targets <folder>     (default: $env:CHIPSHARP_TARGETS, then the targets folder next to chipsharp.exe)
 
@@ -32,6 +34,7 @@ try
     var target = TakeOption(rest, "--target", "-t");
     var output = TakeOption(rest, "--output", "-o");
     var keep = TakeFlag(rest, "--keep");
+    var details = TakeFlag(rest, "--details");
 
     switch (rest)
     {
@@ -111,12 +114,17 @@ try
 
         case ["check", var path]:
         {
-            var program = WholeProgramPass.Analyze(IlAssembly.Load(path));
-            var count = program.Methods.Count == 1
+            var analysis = WholeProgramPass.Check(IlAssembly.Load(path));
+            if (!analysis.IsSupported)
+            {
+                throw new ChipSharpException(details ? analysis.Details : analysis.Summary);
+            }
+
+            var count = analysis.Methods.Count == 1
                 ? "1 method"
-                : string.Create(CultureInfo.InvariantCulture, $"{program.Methods.Count} methods");
+                : string.Create(CultureInfo.InvariantCulture, $"{analysis.Methods.Count} methods");
             Console.WriteLine($"{path}: supported by {SupportedSubset.Milestone}. The program uses {count}, entry point first:");
-            foreach (var method in program.Methods)
+            foreach (var method in analysis.Methods)
             {
                 Console.WriteLine($"  {CSharpNames.Method(method)}");
             }
@@ -129,7 +137,7 @@ try
             Console.WriteLine("""
                 usage:
                   chipsharp build <assembly.dll> [-t|--target <name>] [-o|--output <folder>] [--keep]
-                  chipsharp check <assembly.dll>
+                  chipsharp check <assembly.dll> [--details]
                   chipsharp tir <assembly.dll> [--method <name>]
                   chipsharp il <assembly.dll> [--method <name>]
                   chipsharp targets list
@@ -138,6 +146,7 @@ try
                   -t, --target <name>     build: the target to build for (default: host)
                   -o, --output <folder>   build: where to write the program (default: chipsharp-output\<target>)
                   --keep                  build: also write the program's TIR (.tir) and generated code (.ll) there
+                  --details               check: list every place M0 cannot compile, not one line per C# feature
                   --method <name>         tir, il: only the methods with this display name, e.g. Program.Main
                   --targets <folder>      where the target files are (or set CHIPSHARP_TARGETS)
                 build finds LLVM's clang in its install folder or on the PATH, or set CHIPSHARP_LLVM_BIN to its bin folder.

@@ -2,45 +2,61 @@ using static ChipSharp.Tests.Analysis.WholeProgram;
 
 namespace ChipSharp.Tests.Analysis;
 
-/// <summary>What the pass rejects, and how it says so: one line per problem, in C# words, with a hint.</summary>
+/// <summary>
+/// What the pass rejects, and how it says so: one problem per place, in C# words, with a hint; the error names each
+/// feature once, the details list every place.
+/// </summary>
 public sealed class RejectionTests
 {
     private const string Objects = "For now, use static methods with whole-number and bool values.";
-    private const string LibraryCalls = "M0 supports these library calls: System.Console.WriteLine(), "
-        + "System.Console.WriteLine(int), System.Console.WriteLine(uint), System.Console.WriteLine(long), "
-        + "System.Console.WriteLine(ulong), System.Console.WriteLine(bool), " + HardwareCalls + ".";
 
-    private const string HardwareCalls = "ChipSharp.Hardware.Pin.Output(int), ChipSharp.Hardware.Pin.Input(int), "
-        + "ChipSharp.Hardware.Pin.Write(int, bool), ChipSharp.Hardware.Pin.Toggle(int), ChipSharp.Hardware.Pin.Read(int), "
-        + "ChipSharp.Hardware.Timing.DelayMilliseconds(int), ChipSharp.Hardware.Timing.DelayMicroseconds(int), "
-        + "ChipSharp.Hardware.Registers.Read(uint), ChipSharp.Hardware.Registers.Write(uint, uint)";
+    private const string Source = """
+        using System;
+
+        class Program
+        {
+            static void Main()
+            {
+                int[] numbers = new int[3];
+                numbers[0] = 42;
+                Console.WriteLine(numbers[0]);
+                Console.WriteLine("done");
+            }
+        }
+        """;
 
     [Fact]
-    public void Every_problem_is_reported_in_one_error_one_line_each()
+    public void The_error_names_every_feature_once_with_its_places()
     {
-        var error = Error("""
-            using System;
-
-            class Program
-            {
-                static void Main()
-                {
-                    int[] numbers = new int[3];
-                    numbers[0] = 42;
-                    Console.WriteLine(numbers[0]);
-                    Console.WriteLine("done");
-                }
-            }
-            """);
+        var error = Error(Source);
 
         Assert.Equal($"""
-            Test.dll uses C# that M0 does not compile yet (5 problems):
+            Test.dll uses 3 C# features that M0 does not compile yet (5 places):
+              arrays arrive after M0: 3 places in Program.Main() (IL_0001, IL_000a and IL_000c). For now, use separate variables.
+              text strings arrive after M0: 1 place in Program.Main() (IL_0012). For now, print numbers and bools with Console.WriteLine.
+              the library method System.Console.WriteLine(string) is not available in M0: 1 place in Program.Main() (IL_0017).
+            {LibraryCalls}
+            For every place, run: chipsharp check Test.dll --details
+            """.ReplaceLineEndings("\n"), error.Message);
+        Assert.Equal(Check(Source).Summary, error.Message);
+    }
+
+    [Fact]
+    public void The_details_list_every_problem_on_a_line_of_its_own()
+    {
+        var analysis = Check(Source);
+
+        Assert.Equal($"""
+            Test.dll uses 3 C# features that M0 does not compile yet (5 places):
               Program.Main() at IL_0001 (newarr): arrays arrive after M0. For now, use separate variables.
               Program.Main() at IL_000a (stelem.i4): arrays arrive after M0. For now, use separate variables.
               Program.Main() at IL_000c (ldelem.i4): arrays arrive after M0. For now, use separate variables.
               Program.Main() at IL_0012 (ldstr): text strings arrive after M0. For now, print numbers and bools with Console.WriteLine.
-              Program.Main() at IL_0017 (call): the library method System.Console.WriteLine(string) is not available in M0. {LibraryCalls}
-            """.ReplaceLineEndings("\n"), error.Message);
+              Program.Main() at IL_0017 (call): the library method System.Console.WriteLine(string) is not available in M0.
+            {LibraryCalls}
+            """.ReplaceLineEndings("\n"), analysis.Details);
+        Assert.Equal([1, 10, 12, 18, 23], analysis.Problems.Select(problem => problem.Offset));
+        Assert.All(analysis.Problems, problem => Assert.Equal("Program.Main", problem.Method.DisplayName));
     }
 
     [Fact]
@@ -67,7 +83,7 @@ public sealed class RejectionTests
                 + "For now, leave out checked: M0 arithmetic wraps around on overflow, like unchecked C#.",
             "Program.Second() at IL_0000 (ldstr): text strings arrive after M0. "
                 + "For now, print numbers and bools with Console.WriteLine.",
-            $"Program.Second() at IL_0005 (call): the library method string.get_Length() is not available in M0. {LibraryCalls}",
+            "Program.Second() at IL_0005 (call): the library method string.get_Length() is not available in M0.",
         ], problems);
     }
 
@@ -115,7 +131,7 @@ public sealed class RejectionTests
         Assert.Equal(
         [
             "Program.Main() at IL_0000 (ldstr): text strings arrive after M0. For now, print numbers and bools with Console.WriteLine.",
-            $"Program.Main() at IL_0005 (call): the library method System.Console.WriteLine(string) is not available in M0. {LibraryCalls}",
+            "Program.Main() at IL_0005 (call): the library method System.Console.WriteLine(string) is not available in M0.",
             $"Program.Main() at IL_000a (ldnull): null arrives after M0. {Objects}",
             "Program.Length(string), parameter 'text' (string): text strings arrive after M0. "
                 + "For now, print numbers and bools with Console.WriteLine.",
@@ -300,7 +316,7 @@ public sealed class RejectionTests
 
         Assert.Equal(
         [
-            $"Program.Main() at IL_0006 (call): the library method System.Console.WriteLine(object) is not available in M0. {LibraryCalls}",
+            "Program.Main() at IL_0006 (call): the library method System.Console.WriteLine(object) is not available in M0.",
             $"Program.Wrap(int), return type (object): classes and objects arrive after M0. {Objects}",
             "Program.Wrap(int) at IL_0001 (box): boxing (using a value as an object) arrives after M0. "
                 + "For now, keep values in their own types, such as int and bool.",
@@ -460,7 +476,7 @@ public sealed class RejectionTests
             """);
 
         Assert.Equal(
-            [$"Program.Main() at IL_0002 (call): the library method System.Math.Max(int, int) is not available in M0. {LibraryCalls}"],
+            ["Program.Main() at IL_0002 (call): the library method System.Math.Max(int, int) is not available in M0."],
             problems);
     }
 

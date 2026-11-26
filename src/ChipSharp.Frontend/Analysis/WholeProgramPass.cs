@@ -1,4 +1,3 @@
-using System.Globalization;
 using ChipSharp.Abstractions;
 using ChipSharp.Frontend.Il;
 
@@ -13,19 +12,24 @@ public static class WholeProgramPass
 {
     private static readonly IlArrayType StringArray = new(IlType.String);
 
-    private static readonly string SupportedLibraryCalls =
-        string.Join(", ", KnownExternals.All.Select(function => function.LibraryMethod));
-
     /// <summary>
     /// The program in <paramref name="assembly"/>: its entry point and every method of the assembly the entry point
     /// reaches through calls. Methods nothing calls are left out, and not checked.
     /// </summary>
     /// <exception cref="ChipSharpException">
     /// The assembly has no entry point, or its methods use C# that <see cref="SupportedSubset"/> does not have. The
-    /// message then lists every problem, one per line: the method, the IL offset where there is one, what is not
-    /// supported in C# words, and a hint.
+    /// message then is the <see cref="AnalysisResult.Summary"/> of <see cref="Check"/>: every feature in C# words, with
+    /// how many places use it and where, and a hint.
     /// </exception>
-    public static IlProgram Analyze(IlAssembly assembly)
+    public static IlProgram Analyze(IlAssembly assembly) => Check(assembly).ToProgram();
+
+    /// <summary>
+    /// The methods of the program in <paramref name="assembly"/>, found as <see cref="Analyze"/> finds them, and every
+    /// place they use C# that <see cref="SupportedSubset"/> does not have, as data: one problem per place (the method,
+    /// the IL offset where there is one, what is not supported in C# words, and a hint), and the problems by feature.
+    /// </summary>
+    /// <exception cref="ChipSharpException">The assembly has no entry point.</exception>
+    public static AnalysisResult Check(IlAssembly assembly)
     {
         ArgumentNullException.ThrowIfNull(assembly);
 
@@ -33,23 +37,13 @@ public static class WholeProgramPass
             $"{assembly.FilePath} has no entry point: a program needs a static void Main() (or top-level statements) to start from.");
         var methods = FindReachableMethods(entryPoint);
 
-        var problems = new List<string>();
+        var problems = new List<Problem>();
         foreach (var method in methods)
         {
-            Check(method, problems);
+            CheckMethod(method, problems);
         }
 
-        if (problems.Count > 0)
-        {
-            var count = problems.Count == 1
-                ? "1 problem"
-                : string.Create(CultureInfo.InvariantCulture, $"{problems.Count} problems");
-            throw new ChipSharpException(
-                $"{assembly.FilePath} uses C# that {SupportedSubset.Milestone} does not compile yet ({count}):\n" +
-                string.Join("\n", problems.Select(problem => $"  {problem}")));
-        }
-
-        return new IlProgram(assembly, methods);
+        return new AnalysisResult(assembly, methods, problems);
     }
 
     /// <summary>
@@ -75,45 +69,49 @@ public static class WholeProgramPass
         return [.. methods];
     }
 
-    /// <summary>Adds a line to <paramref name="problems"/> for everything in <paramref name="method"/> that M0 cannot compile.</summary>
-    private static void Check(IlMethod method, List<string> problems)
+    /// <summary>Adds a problem to <paramref name="problems"/> for every place in <paramref name="method"/> that M0 cannot compile.</summary>
+    private static void CheckMethod(IlMethod method, List<Problem> problems)
     {
-        var name = CSharpNames.Method(method);
-
-        void Add(string where, string message) => problems.Add($"{where}: {message}");
-
-        void AddAt(IlInstruction instruction, string message) =>
-            Add($"{name} at {IlPrinter.Label(instruction.Offset)} ({instruction.Name})", message);
-
-        void CheckType(IlType type, string what)
+        Unsupported? ForType(IlType type)
         {
-            if (!SupportedSubset.TryMapType(type, out _) && Unsupported.ForType(type, method.Assembly) is { } unsupported)
+            if (SupportedSubset.TryMapType(type, out _))
             {
-                Add($"{name}, {what} ({CSharpNames.Type(type, method)})", unsupported.Message);
+                return null;
+            }
+
+            var unsupported = Unsupported.ForType(type, method.Assembly);
+            return unsupported == Unsupported.OtherType ? Unsupported.TypeNamed(CSharpNames.Type(type, method)) : unsupported;
+        }
+
+        void CheckSignature(IlType type, string what)
+        {
+            if (ForType(type) is { } unsupported)
+            {
+                problems.Add(Problem.InSignature(method, what, type, unsupported));
             }
         }
 
         if (!method.IsStatic)
         {
-            Add(name, Unsupported.InstanceMethods.Message);
+            problems.Add(Problem.InMethod(method, Unsupported.InstanceMethods));
         }
 
         if (method.GenericParameters.Count > 0)
         {
-            Add(name, Unsupported.GenericMethods.Message);
+            problems.Add(Problem.InMethod(method, Unsupported.GenericMethods));
         }
 
         if (method.DeclaringType.GenericParameters.Count > 0)
         {
-            Add(name, Unsupported.GenericTypes.Message);
+            problems.Add(Problem.InMethod(method, Unsupported.GenericTypes));
         }
 
         if (!method.HasBody)
         {
-            Add(name, Unsupported.MethodsWithoutBody.Message);
+            problems.Add(Problem.InMethod(method, Unsupported.MethodsWithoutBody));
         }
 
-        CheckType(method.ReturnType, "return type");
+        CheckSignature(method.ReturnType, "return type");
 
         // the entry point may take a string[] args it never uses: C#'s top-level statements always declare one
         int? argsArgument = null;
@@ -125,7 +123,7 @@ public static class WholeProgramPass
             }
             else
             {
-                CheckType(parameter.Type, $"parameter '{parameter.Name}'");
+                CheckSignature(parameter.Type, $"parameter '{parameter.Name}'");
             }
         }
 
@@ -134,32 +132,67 @@ public static class WholeProgramPass
             return;
         }
 
+        // the locals C# builds interpolated strings in: taking their address is part of the string interpolation
+        var interpolations = new HashSet<int>();
         foreach (var local in body.Locals)
         {
-            CheckType(local.Type, $"local variable V_{local.Index.ToString(CultureInfo.InvariantCulture)}");
+            if (ForType(local.Type) is { } unsupported)
+            {
+                problems.Add(Problem.InLocal(method, local, unsupported));
+            }
+
+            if (Unsupported.IsInterpolatedStringHandler(local.Type))
+            {
+                interpolations.Add(local.Index);
+            }
         }
 
         foreach (var tryOffset in body.ExceptionRegions.Select(region => region.TryOffset).Distinct().Order())
         {
-            Add($"{name} at {IlPrinter.Label(tryOffset)}", Unsupported.TryCatchFinally.Message);
+            problems.Add(Problem.AtTry(method, tryOffset, Unsupported.TryCatchFinally));
         }
 
         foreach (var instruction in body.Instructions)
         {
-            if (argsArgument is not null && instruction.ArgumentIndex == argsArgument)
+            if (ForInstruction(instruction, argsArgument, interpolations) is { } unsupported)
             {
-                AddAt(instruction, Unsupported.Arguments.Message);
-            }
-            else if (!SupportedSubset.OpCodes.Contains(instruction.OpCode))
-            {
-                AddAt(instruction, Unsupported.ForInstruction(instruction.OpCode).Message);
-            }
-            else if (instruction is { OpCode: IlOpCode.Call, Operand: IlMethodOperand { Method: { Definition: null } callee } }
-                && !KnownExternals.TryMap(callee, out _))
-            {
-                AddAt(instruction, $"the library method {CSharpNames.Method(callee)} is not available in " +
-                    $"{SupportedSubset.Milestone}. {SupportedSubset.Milestone} supports these library calls: {SupportedLibraryCalls}.");
+                problems.Add(Problem.At(method, instruction, unsupported));
             }
         }
+    }
+
+    /// <summary>
+    /// What <paramref name="instruction"/> does that M0 cannot compile, or null. <paramref name="argsArgument"/> is the
+    /// entry point's unused args; <paramref name="interpolations"/> the locals of interpolated strings.
+    /// </summary>
+    private static Unsupported? ForInstruction(IlInstruction instruction, int? argsArgument, HashSet<int> interpolations)
+    {
+        if (argsArgument is not null && instruction.ArgumentIndex == argsArgument)
+        {
+            return Unsupported.Arguments;
+        }
+
+        if (!SupportedSubset.OpCodes.Contains(instruction.OpCode))
+        {
+            if (instruction is { OpCode: IlOpCode.Ldloca or IlOpCode.Ldloca_S, LocalIndex: { } local }
+                && interpolations.Contains(local))
+            {
+                return Unsupported.StringInterpolation;
+            }
+
+            var unsupported = Unsupported.ForInstruction(instruction.OpCode);
+            return unsupported == Unsupported.OtherInstruction ? Unsupported.InstructionNamed(instruction.Name) : unsupported;
+        }
+
+        if (instruction is { OpCode: IlOpCode.Call, Operand: IlMethodOperand { Method: { Definition: null } callee } }
+            && !KnownExternals.TryMap(callee, out _))
+        {
+            // the calls C# makes to build an interpolated string are the interpolation, not calls the program wrote
+            return Unsupported.IsInterpolatedStringHandler(callee.DeclaringType)
+                ? Unsupported.StringInterpolation
+                : Unsupported.LibraryMethod(CSharpNames.Method(callee));
+        }
+
+        return null;
     }
 }

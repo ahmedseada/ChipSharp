@@ -5,13 +5,14 @@ namespace ChipSharp.Frontend.Analysis;
 /// <summary>
 /// A C# feature the program uses that <see cref="SupportedSubset"/> does not have yet, in C# words, with a hint
 /// for what to write instead. <see cref="Message"/> is e.g. "text strings arrive after M0. For now, print numbers
-/// and bools with Console.WriteLine."
+/// and bools with Console.WriteLine." The problems of a check that have equal features are one group in its summary.
 /// </summary>
 /// <param name="What">The feature as C# programmers know it, e.g. "arrays" or "checked arithmetic".</param>
 /// <param name="IsPlural">True when <paramref name="What"/> takes "arrive" rather than "arrives".</param>
-/// <param name="Hint">What to do for now: a sentence.</param>
+/// <param name="Hint">What to do for now: a sentence; empty for a library method (the summary lists the ones there are).</param>
 internal sealed record Unsupported(string What, bool IsPlural, string Hint)
 {
+    private const string StringsHint = "For now, print numbers and bools with Console.WriteLine.";
     private const string ObjectsHint = "For now, use static methods with whole-number and bool values.";
     private const string ReferencesHint = "For now, pass values in and return results.";
     private const string VariablesHint = "For now, use separate variables.";
@@ -33,8 +34,8 @@ internal sealed record Unsupported(string What, bool IsPlural, string Hint)
         "For now, put the method in a class that is not generic.");
     public static readonly Unsupported MethodsWithoutBody = new("methods without a body (extern, DllImport)", true,
         "For now, write the method in C#.");
-    public static readonly Unsupported Strings = new("text strings", true,
-        "For now, print numbers and bools with Console.WriteLine.");
+    public static readonly Unsupported Strings = new("text strings", true, StringsHint);
+    public static readonly Unsupported StringInterpolation = new("string interpolation ($\"...\")", false, StringsHint);
     public static readonly Unsupported Characters = new("characters (char)", true, "For now, use whole numbers.");
     public static readonly Unsupported Arrays = new("arrays", true, VariablesHint);
     public static readonly Unsupported Stackalloc = new("stackalloc", false, VariablesHint);
@@ -61,8 +62,38 @@ internal sealed record Unsupported(string What, bool IsPlural, string Hint)
     public static readonly Unsupported OtherType = new("this type", false,
         $"{SupportedSubset.Milestone} supports bool, the whole-number types (sbyte to ulong, nint, nuint) and void.");
 
+    /// <summary>True for a library method the program calls: it "is not available in M0" rather than "arrives after M0".</summary>
+    public bool IsLibraryMethod { get; private init; }
+
+    /// <summary>
+    /// What is not supported, as a clause: "arrays arrive after M0",
+    /// "the library method System.Math.Abs(int) is not available in M0".
+    /// </summary>
+    public string Heading => IsLibraryMethod
+        ? $"{What} is not available in {SupportedSubset.Milestone}"
+        : $"{What} {(IsPlural ? "arrive" : "arrives")} after {SupportedSubset.Milestone}";
+
     /// <summary>The sentence a problem line ends with: what arrives after the milestone, then the hint.</summary>
-    public string Message => $"{What} {(IsPlural ? "arrive" : "arrives")} after {SupportedSubset.Milestone}. {Hint}";
+    public string Message => Hint.Length == 0 ? $"{Heading}." : $"{Heading}. {Hint}";
+
+    /// <summary>A call to a library method <see cref="KnownExternals"/> does not have, e.g. "System.Math.Abs(int)".</summary>
+    public static Unsupported LibraryMethod(string method) =>
+        new($"the library method {method}", false, "") { IsLibraryMethod = true };
+
+    /// <summary><see cref="OtherType"/> for one type, so that two types are two features: "the type System.Random".</summary>
+    public static Unsupported TypeNamed(string type) => OtherType with { What = $"the type {type}" };
+
+    /// <summary><see cref="OtherInstruction"/> for one instruction: "the IL instruction cpblk".</summary>
+    public static Unsupported InstructionNamed(string name) => OtherInstruction with { What = $"the IL instruction {name}" };
+
+    /// <summary>
+    /// True for the type C# builds an interpolated string (<c>$"..."</c>) with. Its local, the address of that local
+    /// and the calls on it are all one feature: <see cref="StringInterpolation"/>.
+    /// </summary>
+    public static bool IsInterpolatedStringHandler(IlType type) => type is IlNamedType
+    {
+        Namespace: "System.Runtime.CompilerServices", Name: "DefaultInterpolatedStringHandler", IsDefinedInThisAssembly: false,
+    };
 
     /// <summary>What an instruction outside <see cref="SupportedSubset.OpCodes"/> stands for in C#.</summary>
     public static Unsupported ForInstruction(IlOpCode opCode)
@@ -111,6 +142,7 @@ internal sealed record Unsupported(string What, bool IsPlural, string Hint)
         IlFunctionPointerType => Delegates,
         IlNamedType { IsDefinedInThisAssembly: true } named when assembly.FindType(named.FullName) is { } definition =>
             ForDefinition(definition),
+        _ when IsInterpolatedStringHandler(type) => StringInterpolation,
         IlGenericInstanceType { Definition: IlNamedType { IsDefinedInThisAssembly: true } } => GenericTypes,
         _ => OtherType,
     };
