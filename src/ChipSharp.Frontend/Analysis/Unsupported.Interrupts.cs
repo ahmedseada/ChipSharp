@@ -16,7 +16,7 @@ internal sealed partial record Unsupported
         "volatile fields.");
 
     public static readonly Unsupported WaitInHandler = Rule(
-        "an interrupt handler cannot wait (Timing.DelayMilliseconds, Timing.DelayMicroseconds)",
+        "an interrupt handler cannot wait (Timing.Delay, Timing.DelayMilliseconds, Timing.DelayMicroseconds)",
         "The interrupt that ends the wait cannot come while a handler runs, so it would wait forever: keep handlers " +
         "short, and wait in Main, e.g. for a static volatile field the handler sets.");
 

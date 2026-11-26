@@ -16,16 +16,16 @@ public sealed class HardwareLibraryTests
         .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly));
 
     [Fact]
-    public void The_library_is_pins_timing_and_registers_with_int_uint_and_bool_only_and_no_Set_names()
+    public void The_library_is_pins_timing_and_registers_with_int_uint_bool_and_TimeSpan_only_and_no_Set_names()
     {
         Assert.Equal(
             [
                 "Pin.Input(Int32)", "Pin.Output(Int32)", "Pin.Read(Int32)", "Pin.Toggle(Int32)", "Pin.Unwatch(Int32)",
                 "Pin.Watch(Int32)", "Pin.WatchFalling(Int32)", "Pin.WatchRising(Int32)", "Pin.Write(Int32, Boolean)",
                 "Registers.Read(UInt32)", "Registers.Write(UInt32, UInt32)",
-                "Timing.AfterMicroseconds(Int32)", "Timing.AfterMilliseconds(Int32)", "Timing.DelayMicroseconds(Int32)",
-                "Timing.DelayMilliseconds(Int32)", "Timing.EveryMicroseconds(Int32)", "Timing.EveryMilliseconds(Int32)",
-                "Timing.Stop()",
+                "Timing.AfterMicroseconds(Int32)", "Timing.AfterMilliseconds(Int32)", "Timing.Delay(TimeSpan)",
+                "Timing.DelayMicroseconds(Int32)", "Timing.DelayMilliseconds(Int32)", "Timing.EveryMicroseconds(Int32)",
+                "Timing.EveryMilliseconds(Int32)", "Timing.Stop()",
             ],
             HardwareMethods.Select(m => $"{m.DeclaringType!.Name}.{m.Name}({string.Join(", ", m.GetParameters().Select(p => p.ParameterType.Name))})")
                 .Order(StringComparer.Ordinal));
@@ -84,8 +84,9 @@ public sealed class HardwareLibraryTests
             externals.Select(f => f.Name));
         Assert.Equal(TirType.I32, externals.Single(f => f.Name == "ChipSharp.Runtime.PinRead").ReturnType);
         Assert.Equal(TirType.I32, externals.Single(f => f.Name == "ChipSharp.Runtime.RegisterRead").ReturnType);
+        // all but Timing.Delay(TimeSpan), which is C# of ChipSharp's library (LibrarySubstituteTests)
         Assert.Equal(
-            HardwareMethods.Count(),
+            HardwareMethods.Count() - 1,
             KnownExternals.All.Count(f => f.LibraryMethod.StartsWith("ChipSharp.Hardware.", StringComparison.Ordinal)));
     }
 

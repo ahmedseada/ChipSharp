@@ -42,7 +42,10 @@ public sealed class IlMethodReference
     /// <summary>The type arguments of a generic method instance, e.g. <c>Id&lt;int32&gt;</c>; empty otherwise.</summary>
     public IReadOnlyList<IlType> GenericArguments { get; }
 
-    /// <summary>The method's definition when it is defined in this assembly; null for a method of another assembly.</summary>
+    /// <summary>
+    /// The method's definition when it is defined in this assembly, or ChipSharp's own C# for it (see
+    /// <see cref="LibrarySubstitutes"/>); null for any other method of another assembly.
+    /// </summary>
     public IlMethod? Definition { get; }
 
     /// <summary>True when the declaring type is defined in the assembly being read.</summary>
@@ -82,7 +85,10 @@ public sealed class IlFieldReference
 
     public IlType FieldType { get; }
 
-    /// <summary>The field's definition when it is defined in this assembly; null for a field of another assembly.</summary>
+    /// <summary>
+    /// The field's definition when it is defined in this assembly, or ChipSharp's own C# for it (see
+    /// <see cref="LibrarySubstitutes"/>); null for any other field of another assembly.
+    /// </summary>
     public IlField? Definition { get; }
 
     /// <summary>True when the declaring type is defined in the assembly being read.</summary>

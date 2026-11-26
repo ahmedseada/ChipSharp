@@ -17,6 +17,7 @@ internal static class WholeProgram
         ChipSharp can call these library methods (--details lists each one with its parameters):
           Console.WriteLine of (nothing), int, uint, long, ulong, bool, float, double
           Math and MathF: Abs, Min, Max, Sqrt
+          TimeSpan: FromTicks, FromDays, FromHours, FromMinutes, FromSeconds, FromMilliseconds, FromMicroseconds, Add, Subtract, Negate, Multiply, Divide, Duration, Compare, CompareTo, Equals, its constructors, properties and operators
           ChipSharp.Hardware: Pin, Timing, Registers (see the README)
         """.ReplaceLineEndings("\n");
 
@@ -26,8 +27,9 @@ internal static class WholeProgram
           System.Console: WriteLine(), WriteLine(int), WriteLine(uint), WriteLine(long), WriteLine(ulong), WriteLine(bool), WriteLine(float), WriteLine(double)
           System.Math: Abs(double), Abs(float), Min(double, double), Min(float, float), Max(double, double), Max(float, float), Sqrt(double)
           System.MathF: Abs(float), Min(float, float), Max(float, float), Sqrt(float)
+          System.TimeSpan: Zero, MaxValue, MinValue, new TimeSpan(long), new TimeSpan(int, int, int), new TimeSpan(int, int, int, int), new TimeSpan(int, int, int, int, int), new TimeSpan(int, int, int, int, int, int), Ticks, Days, Hours, Minutes, Seconds, Milliseconds, Microseconds, Nanoseconds, TotalDays, TotalHours, TotalMinutes, TotalSeconds, TotalMilliseconds, TotalMicroseconds, TotalNanoseconds, FromTicks(long), FromDays(int), FromHours(int), FromMinutes(long), FromSeconds(long), FromMilliseconds(long), FromMicroseconds(long), FromDays(double), FromHours(double), FromMinutes(double), FromSeconds(double), FromMilliseconds(double), FromMicroseconds(double), Add(System.TimeSpan), Subtract(System.TimeSpan), Negate(), Multiply(double), Divide(double), Divide(System.TimeSpan), Duration(), Compare(System.TimeSpan, System.TimeSpan), CompareTo(System.TimeSpan), Equals(System.TimeSpan), Equals(System.TimeSpan, System.TimeSpan), operator -(System.TimeSpan), operator -(System.TimeSpan, System.TimeSpan), operator +(System.TimeSpan), operator +(System.TimeSpan, System.TimeSpan), operator *(System.TimeSpan, double), operator *(double, System.TimeSpan), operator /(System.TimeSpan, double), operator /(System.TimeSpan, System.TimeSpan), operator ==(System.TimeSpan, System.TimeSpan), operator !=(System.TimeSpan, System.TimeSpan), operator <(System.TimeSpan, System.TimeSpan), operator <=(System.TimeSpan, System.TimeSpan), operator >(System.TimeSpan, System.TimeSpan), operator >=(System.TimeSpan, System.TimeSpan)
           ChipSharp.Hardware.Pin: Output(int), Input(int), Write(int, bool), Toggle(int), Read(int), Watch(int), WatchRising(int), WatchFalling(int), Unwatch(int)
-          ChipSharp.Hardware.Timing: DelayMilliseconds(int), DelayMicroseconds(int), EveryMilliseconds(int), EveryMicroseconds(int), AfterMilliseconds(int), AfterMicroseconds(int), Stop()
+          ChipSharp.Hardware.Timing: DelayMilliseconds(int), DelayMicroseconds(int), EveryMilliseconds(int), EveryMicroseconds(int), AfterMilliseconds(int), AfterMicroseconds(int), Stop(), Delay(System.TimeSpan)
           ChipSharp.Hardware.Registers: Read(uint), Write(uint, uint)
         """.ReplaceLineEndings("\n");
 

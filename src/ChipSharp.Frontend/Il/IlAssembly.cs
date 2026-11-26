@@ -207,9 +207,12 @@ public sealed partial class IlAssembly
 
     internal IlType ResolveType(EntityHandle handle) => _types.Decode(handle);
 
-    internal IlMethodReference ResolveMethod(EntityHandle handle) => _methodReferences.GetOrAdd(handle, CreateMethodReference);
+    // a reference to a member of a library type ChipSharp has its own C# for links to that C# (LibrarySubstitutes)
+    internal IlMethodReference ResolveMethod(EntityHandle handle) => _methodReferences.GetOrAdd(handle,
+        static (handle, assembly) => LibrarySubstitutes.Link(assembly, assembly.CreateMethodReference(handle)), this);
 
-    internal IlFieldReference ResolveField(EntityHandle handle) => _fieldReferences.GetOrAdd(handle, CreateFieldReference);
+    internal IlFieldReference ResolveField(EntityHandle handle) => _fieldReferences.GetOrAdd(handle,
+        static (handle, assembly) => LibrarySubstitutes.Link(assembly, assembly.CreateFieldReference(handle)), this);
 
     internal bool IsField(MemberReferenceHandle handle) =>
         _reader.GetMemberReference(handle).GetKind() == MemberReferenceKind.Field;

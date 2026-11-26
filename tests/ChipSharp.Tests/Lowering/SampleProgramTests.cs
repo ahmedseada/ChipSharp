@@ -75,6 +75,9 @@ public sealed class SampleProgramTests : IDisposable
     public Task Structs() => PrintsWhatDotnetPrints();
 
     [HostFact]
+    public Task TimeSpans() => PrintsWhatDotnetPrints();
+
+    [HostFact]
     public Task Unsigned() => PrintsWhatDotnetPrints();
 
     [HostFact]

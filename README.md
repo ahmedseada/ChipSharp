@@ -15,6 +15,7 @@ C# --Roslyn--> IL --ChipSharp--> TIR --code generator--> LLVM IR / C --toolchain
 | `src/ChipSharp.Abstractions` | The contracts (code generator, toolchain, image format, flasher, architecture runtime), the registry, the target model |
 | `src/ChipSharp.Targets` | Reads the target files and merges each inheritance chain |
 | `src/ChipSharp.Frontend` | Reads IL from a compiled C# .dll, finds every method the program uses and checks it against the supported subset, and translates it into TIR |
+| `src/ChipSharp.Library` | ChipSharp's own C# for library types (library substitutes, e.g. `System.TimeSpan`), compiled together with the programs that use them |
 | `src/ChipSharp.Backend.Llvm` | The `llvm` code generator: TIR in, LLVM IR text out |
 | `src/ChipSharp.Toolchain.Clang` | The `clang` toolchain: LLVM IR and runtime sources in, a linked program out |
 | `src/ChipSharp.Runtime.Windows` | The `windows-x64` runtime for PC programs: start-up and console output, no C runtime needed |
@@ -45,7 +46,7 @@ that ChipSharp does not compile yet, where, when it is planned, and what to writ
 on a line of its own, and every library method ChipSharp can call). `tir` shows the program in TIR. `build` compiles
 it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` also keeps the `.tir` and `.ll` files.
 
-`dotnet test` runs 832 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
+`dotnet test` runs 862 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
 `CHIPSHARP_LLVM_BIN`); the Pico tests also need the simulator (see below), and are skipped, saying why, without it.
 
 ## What C# compiles today
@@ -58,7 +59,7 @@ it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` 
 | Types | Structs, enums (`[Flags]` too), `ref`, `out` and `in` parameters, `ref` locals |
 | Static fields | Of the types above, `volatile` too, with field initializers and static constructors |
 | Arrays | Of numbers, bools, structs and enums, on the stack: a constant size, kept in the method that makes them and passed down to the methods it calls |
-| Library | `Console.WriteLine` of a number or a bool; `Math` and `MathF`: `Abs`, `Min`, `Max`, `Sqrt`; on a chip, `ChipSharp.Hardware`: pins, timing, registers and interrupts |
+| Library | `Console.WriteLine` of a number or a bool; `Math` and `MathF`: `Abs`, `Min`, `Max`, `Sqrt`; `TimeSpan`: its factories in any unit (`FromMilliseconds(500)`, `FromSeconds(1.5)`), parts, totals, arithmetic and comparisons; on a chip, `ChipSharp.Hardware`: pins, timing (`Timing.Delay(TimeSpan)` too), registers and interrupts |
 
 | Not yet | When |
 |---|---|
@@ -77,13 +78,29 @@ error: Logit.dll uses 3 C# features that ChipSharp does not compile yet (11 plac
 ChipSharp can call these library methods (--details lists each one with its parameters):
   Console.WriteLine of (nothing), int, uint, long, ulong, bool, float, double
   Math and MathF: Abs, Min, Max, Sqrt
+  TimeSpan: FromTicks, FromDays, FromHours, FromMinutes, FromSeconds, FromMilliseconds, FromMicroseconds, Add, Subtract, Negate, Multiply, Divide, Duration, Compare, CompareTo, Equals, its constructors, properties and operators
   ChipSharp.Hardware: Pin, Timing, Registers (see the README)
 For every place, run: chipsharp check Logit.dll --details
 ```
 
 With `Console.WriteLine(result)` it compiles, and prints what .NET prints: that is `samples/Logit.cs`. The other
 samples show the rest of the table, e.g. `VendingMachine.cs` (structs, enums, an array of structs and static fields as
-a state machine) and `Projectile.cs` (floats in structs, with operators).
+a state machine), `Projectile.cs` (floats in structs, with operators) and `TimeSpans.cs` (TimeSpan arithmetic).
+
+Where .NET would throw an exception (an index outside an array, a `TimeSpan` too long), the program stops with the
+message .NET prints for it: on standard error with exit code 1 on a PC, over UART0 and at a breakpoint on a chip.
+
+### Library substitutes
+
+Some library types are compiled from ChipSharp's own C#, in `src/ChipSharp.Library`: a type there marked
+`[Substitute(typeof(System.TimeSpan))]` stands for `System.TimeSpan`. Where a program uses a member of the library type,
+ChipSharp compiles the substitute's public member with the same name and signature, together with the program, and only
+the members the program reaches; a struct substitute has the library struct's fields (`TimeSpan` is one `long` of
+ticks). A member the substitute does not have stays "not available yet". A substitute is written in the C# ChipSharp
+compiles, may use other substitutes, and stops the program where .NET throws by calling a method of
+`ChipSharp.Library.Runtime`, which becomes a call to the runtime function of that name (each runtime's
+`..._failures.c` has one per method). So a new library type is C# in `src/ChipSharp.Library`, not compiler code; its
+tests compare it with .NET's, value by value.
 
 ## Raspberry Pi Pico
 
@@ -99,6 +116,9 @@ while (true)
     Timing.DelayMilliseconds(500);
 }
 ```
+
+`Timing.Delay(TimeSpan.FromMilliseconds(500))` waits the same, in any unit (`TimeSpan.FromSeconds(2)`,
+`TimeSpan.FromMicroseconds(250)`), also longer than an `int` of microseconds.
 
 ```powershell
 cd examples\pico-blink
@@ -154,7 +174,7 @@ input pin at a set time with `--input 15=high@100ms`.
 | M0 wave 2 (done) | IL to TIR; the whole-program pass and `chipsharp check`; every sample runs end to end and matches .NET |
 | M0 (done) | Compile simple C# to a PC program through LLVM; every sample matches real .NET |
 | M1 (done in the simulator) | Blink the Raspberry Pi Pico's LED; every sample also runs on the simulated RP2040 and matches .NET over UART0 |
-| M2 (done) | The Restricted tier: static fields and constructors; float and double, bit for bit like .NET; structs, enums, `ref`/`out`/`in`; arrays on the stack; interrupts (timer and pin). `Timing.Delay(TimeSpan)` and library substitutes: in progress |
+| M2 (done) | The Restricted tier: static fields and constructors; float and double, bit for bit like .NET; structs, enums, `ref`/`out`/`in`; arrays on the stack; interrupts (timer and pin); `TimeSpan` and `Timing.Delay(TimeSpan)`, from library substitutes (ChipSharp's own C# for library types) |
 | M3 | Classes, heap, garbage collector, strings, interfaces, generics (and with them `Span<T>`): the Full tier |
 | M4 | ESP32-C5 (RISC-V) |
 | M5 | CH32V003: C# on a 10-cent chip |

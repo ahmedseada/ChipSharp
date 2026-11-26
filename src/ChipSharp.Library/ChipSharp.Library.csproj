@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    ChipSharp's own C# for chosen library types and members (substitutes, e.g. System.TimeSpan): ChipSharp compiles it
+    together with a program that uses them. It is written in the C# ChipSharp compiles, and runs on .NET too (for tests).
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Hardware\ChipSharp.Hardware.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ChipSharp.Tests" />
+  </ItemGroup>
+</Project>

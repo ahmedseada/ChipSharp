@@ -71,11 +71,13 @@ internal static class ValueTypes
 
     /// <summary>
     /// The struct or enum of <paramref name="assembly"/> that <paramref name="type"/> names (modifiers looked through),
-    /// when it is not generic; null for any other type.
+    /// or the library substitute of the library type it names (<see cref="LibrarySubstitutes"/>), when it is not
+    /// generic; null for any other type.
     /// </summary>
     public static IlTypeDefinition? Definition(IlType type, IlAssembly assembly) =>
-        WithoutModifiers(type) is IlNamedType { IsDefinedInThisAssembly: true } named
-            && assembly.FindType(named.FullName) is { GenericParameters.Count: 0 } definition
+        WithoutModifiers(type) is IlNamedType named
+            && (named.IsDefinedInThisAssembly ? assembly.FindType(named.FullName) : LibrarySubstitutes.FindType(named))
+                is { GenericParameters.Count: 0 } definition
             && (IsStruct(definition) || IsEnum(definition))
             ? definition
             : null;

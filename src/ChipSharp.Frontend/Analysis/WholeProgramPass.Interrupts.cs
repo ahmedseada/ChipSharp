@@ -1,3 +1,4 @@
+using System.Reflection;
 using ChipSharp.Abstractions;
 using ChipSharp.Frontend.Il;
 
@@ -99,8 +100,10 @@ public static partial class WholeProgramPass
                     handlerFields.Add(field);
                 }
 
-                // through its address (ref field, a field of a struct field) it may be written too
-                if (instruction.OpCode is IlOpCode.Stsfld or IlOpCode.Ldsflda)
+                // through its address (ref field, a field of a struct field) it may be written too, unless it is
+                // readonly: then only its type's initializer writes it, before Main
+                if (instruction.OpCode is IlOpCode.Stsfld or IlOpCode.Ldsflda
+                    && (field.Attributes & FieldAttributes.InitOnly) == 0)
                 {
                     written.Add(field);
                 }
@@ -110,12 +113,12 @@ public static partial class WholeProgramPass
         var shared = mainFields.Where(field => handlerFields.Contains(field) && written.Contains(field) && !IsVolatile(field))
             .ToHashSet();
 
-        foreach (var method in methods)
+        // the places are in the program's own methods: a library substitute's calls count where the program calls it
+        foreach (var method in methods.Where(method => !LibrarySubstitutes.Defines(method)))
         {
             foreach (var instruction in method.Body?.Instructions ?? [])
             {
-                if (instruction is { OpCode: IlOpCode.Call, Operand: IlMethodOperand { Method: { Definition: null } callee } }
-                    && KnownExternals.TryMap(callee, out var external))
+                foreach (var external in RuntimeCalls(instruction))
                 {
                     if (Interrupts.Starters.TryGetValue(external.DisplayName, out var started) && !handled.Contains(started))
                     {

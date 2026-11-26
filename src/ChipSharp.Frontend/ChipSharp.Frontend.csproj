@@ -2,6 +2,8 @@
   <!-- The frontend: reads the IL of a compiled C# assembly (and translates it to TIR) -->
   <ItemGroup>
     <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+    <!-- the library substitutes, which ChipSharp reads as IL next to this assembly (LibrarySubstitutes) -->
+    <ProjectReference Include="..\ChipSharp.Library\ChipSharp.Library.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="ChipSharp.Tests" />
