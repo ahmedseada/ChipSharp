@@ -51,9 +51,10 @@ public static partial class WholeProgramPass
 
         var problems = new List<Problem>();
         var statics = StaticArrays.Find(methods);
+        var heap = HeapArrays.Find(methods, statics);
         foreach (var method in methods)
         {
-            CheckMethod(method, problems, statics);
+            CheckMethod(method, problems, statics, heap);
         }
 
         var forTarget = TargetRules.Apply(target, methods, problems);
@@ -104,12 +105,15 @@ public static partial class WholeProgramPass
 
     /// <summary>
     /// Adds a problem to <paramref name="problems"/> for every place in <paramref name="method"/> that ChipSharp cannot
-    /// compile. <paramref name="statics"/> are the program's arrays in static fields.
+    /// compile. <paramref name="statics"/> are the program's arrays in static fields, <paramref name="heap"/> what it
+    /// keeps of the arrays its methods are given (see <see cref="HeapArrays"/>).
     /// </summary>
-    private static void CheckMethod(IlMethod method, List<Problem> problems, StaticArrays statics)
+    private static void CheckMethod(IlMethod method, List<Problem> problems, StaticArrays statics, HeapArrays heap)
     {
-        Unsupported? ForType(IlType type) =>
-            SupportedSubset.TryMapType(type, method.Assembly, out _) ? null : ForAnyType(type, method.Assembly, method);
+        // an array of references compiles only with a heap: a heap use
+        Unsupported? ForType(IlType type) => SupportedSubset.TryMapType(type, method.Assembly, out _)
+            ? HeapArrays.ForType(type, method.Assembly)
+            : ForAnyType(type, method.Assembly, method);
 
         void CheckSignature(IlType type, string what)
         {
@@ -184,7 +188,7 @@ public static partial class WholeProgramPass
 
         // the verdict of printed text comes first for the instructions it is about, then the arrays' rule's, then generics'
         var printed = PrintedText.Of(method);
-        var arrays = ArrayEscapeAnalysis.Check(method, statics);
+        var arrays = ArrayEscapeAnalysis.Analyze(method, statics, heap).Verdicts;
         var generics = ForGenerics(method);
         foreach (var instruction in body.Instructions)
         {

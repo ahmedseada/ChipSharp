@@ -217,18 +217,21 @@ public sealed class IlToTirArrayTests
     }
 
     [Fact]
-    public void An_empty_array_has_no_elements_and_a_null_data()
+    public void An_empty_array_has_no_elements_and_a_data_that_is_not_null()
     {
+        // null is the view of zeros (see HeapArrays): [] is the program's one empty array, new int[0] a byte of its own
         var function = Function("Program.Empty");
 
-        Assert.DoesNotContain("$array_", function);
         Assert.StartsWith("""
             function i32 Program.Empty()
               $V_0: ChipSharp.Array
+              $array_IL_0006: [1 x i8]
             IL_0000:
-              %0 = zero ChipSharp.Array
-              %1 = zero ChipSharp.Array
-              store $V_0, %1
+              %0 = call ChipSharp.Array ChipSharp.Array.Empty()
+              %1 = addr $array_IL_0006
+              %2 = const i32 0
+              %3 = call ChipSharp.Array ChipSharp.Array.Make(%1, %2)
+              store $V_0, %3
             """.ReplaceLineEndings("\n"), function);
     }
 
@@ -246,11 +249,12 @@ public sealed class IlToTirArrayTests
             "Defined ChipSharp.Array.CheckIndex(ChipSharp.Array, i32)",
             "Defined ChipSharp.Array.CheckIndex(ChipSharp.Array, i64)",
             "Defined ChipSharp.Array.Data(ChipSharp.Array)",
+            "Defined ChipSharp.Array.Empty()",
             "Defined ChipSharp.Array.Length(ChipSharp.Array)",
             "Defined ChipSharp.Array.Make(ptr, i32)",
             "External ChipSharp.Runtime.IndexOutOfRange()",
         ], names);
-        Assert.Equal([StackArrays.ArrayType], module.FindStructTypes());
+        Assert.Equal(["ChipSharp.EmptyArray", "ChipSharp.Array"], module.FindStructTypes().Select(type => type.Name));
         Assert.Equal("""
             function void ChipSharp.Array.CheckIndex(ChipSharp.Array %array, i64 %index)
             entry:
@@ -388,8 +392,9 @@ public sealed class IlToTirArrayTests
     }
 
     [Fact]
-    public void Breaking_the_rule_is_an_error_of_the_translation_too()
+    public void What_leaves_its_method_or_has_a_size_known_only_when_it_runs_is_made_on_the_heap()
     {
+        // what the rule of arrays on the stack does not allow is an array on the heap (see HeapArrays)
         const string Source = """
             class C
             {
@@ -409,13 +414,27 @@ public sealed class IlToTirArrayTests
             }
             """;
 
-        Assert.Equal("Test.dll: C.Make(): it returns int32[], and an array that leaves the method that creates it " +
-            "(returned, or stored in a field or in another array) arrives with M3 (the heap).",
-            Error(Source, "C.Make").Message);
-        Assert.Equal("Test.dll: C.Sized(int32) at IL_0001: newarr: an array whose size is known only when the program " +
-            "runs arrives with M3 (the heap).", Error(Source, "C.Sized").Message);
-        Assert.Equal("Test.dll: C.First() at IL_000c: ret: an array that leaves the method that creates it (returned, " +
-            "or stored in a field or in another array) arrives with M3 (the heap).", Error(Source, "C.First").Message);
+        foreach (var method in new[] { "C.Make", "C.Sized", "C.First" })
+        {
+            var module = Lowered.Lower(Lowered.Program(Lowered.Compile(Source), method));
+            var function = TirPrinter.Print(Assert.Single(module.Functions, f => f.Name == method));
+            Assert.Contains("= newarray int[], ", function, StringComparison.Ordinal);
+            Assert.DoesNotContain("$array_", function, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void Breaking_the_rule_is_an_error_of_the_translation_too()
+    {
+        const string Source = """
+            class C
+            {
+                static object[] Objects() => new int[1][];
+            }
+            """;
+
+        Assert.Equal("Test.dll: C.Objects() at IL_0006: stloc.0: array covariance (an array of one type of object used as an "
+            + "array of another, object[] items = new int[2][]) arrives later.", Error(Source, "C.Objects").Message);
     }
 
     private static string Function(string name) =>

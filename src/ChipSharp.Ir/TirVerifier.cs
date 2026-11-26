@@ -285,6 +285,8 @@ public static class TirVerifier
             TirNullCheck n => ReferenceOperandProblem("nullcheck", n.Reference),
             TirArrayLength l => ReferenceOperandProblem("arraylength", l.Array),
             TirArrayData d => ReferenceOperandProblem("arraydata", d.Array) ?? ArrayDataProblem(d),
+            TirArrayObject o when o.Data.Type != TirType.Ptr =>
+                $"arrayobject takes the address of an array's elements (ptr), not {o.Data.Type}.",
             TirTypeOf t => ReferenceOperandProblem("typeof", t.Reference),
             TirTypeAddress a => DescriptorProblem("typeaddr", a.TypeDescriptor, null),
 

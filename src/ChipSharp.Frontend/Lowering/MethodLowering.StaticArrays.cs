@@ -26,10 +26,10 @@ internal sealed partial class MethodLowering
             return false;
         }
 
-        Push(array.Length == 0
-            ? _ir.Zero(StackArrays.ArrayType)
+        PushArray(array.Length == 0
+            ? EmptyArray()
             : _ir.Call(_program.Arrays.Make, _ir.AddressOf(_program.StaticArray(array)),
-                _ir.Const(TirType.I32, array.Length)));
+                _ir.Const(TirType.I32, array.Length)), StaticFields.Type(field));
         return true;
     }
 }

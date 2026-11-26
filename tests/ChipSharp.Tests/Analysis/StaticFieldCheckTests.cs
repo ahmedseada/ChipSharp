@@ -301,20 +301,14 @@ public sealed class StaticFieldCheckTests
             """);
 
         // ratio, color and origin compile: double, and the enums and structs of the program, are supported types (and
-        // so is string, for fixed text)
+        // so is string, for fixed text); so does table, an array in a static field assigned in Main, which is on the
+        // heap (see HeapArrays): any target may have one
         const string Objects = "classes and objects arrive with M3 (the heap). For now, use structs and static methods.";
-        // an array in a static field needs no heap when its initializer gives it one, once (see StaticArrays); this one
-        // is assigned in Main
-        const string Arrays = "an array in a static field that is assigned again, or anywhere but in its field "
-            + "initializer or static constructor arrives with M3 (the heap). For now, assign it once, where the field "
-            + "is declared (static int[] buffer = new int[16];), and change its elements instead.";
         const string Characters = "characters (char) arrive with M3 (the heap). For now, use whole numbers.";
         Assert.Equal(
         [
             $"Program.Main() at IL_0000 (ldsfld): {Objects}",
             $"Program.Main() at IL_0005 (stsfld): {Objects}",
-            $"Program.Main() at IL_0028 (ldsfld): {Arrays}",
-            $"Program.Main() at IL_002d (stsfld): {Arrays}",
             $"Program.Main() at IL_0032 (ldsfld): {Characters}",
             $"Program.Main() at IL_0037 (stsfld): {Characters}",
             "Program.Main() at IL_003d (stsfld): generics over classes (a class, an interface, object or an array as a "

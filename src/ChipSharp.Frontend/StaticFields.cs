@@ -28,12 +28,22 @@ internal static class StaticFields
         return type;
     }
 
-    /// <summary>The TIR type of the global the field becomes, when the field's type is supported.</summary>
+    /// <summary>
+    /// The TIR type of the global the field becomes, when the field's type is supported: for an array that the program
+    /// assigns while it runs, a ref, the array object (see <see cref="HeapArrays"/>; a static array has a global of its
+    /// own, see <see cref="StaticArrays"/>).
+    /// </summary>
     public static bool TryMapType(IlField field, [NotNullWhen(true)] out TirType? tirType)
     {
         if ((ValueTypes.TryMapType(Type(field), field.DeclaringType.Assembly, out tirType) && tirType != TirType.Void)
             || FixedText.TryMapType(Type(field), out tirType))
         {
+            return true;
+        }
+
+        if (StackArrays.TryMapType(Type(field), field.DeclaringType.Assembly, out _))
+        {
+            tirType = TirType.Ref;
             return true;
         }
 

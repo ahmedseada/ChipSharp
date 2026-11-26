@@ -36,6 +36,7 @@ public static partial class WholeProgramPass
         {
             IlPointerType or IlPinnedType => Unsupported.UnsafeCode,
             IlByRefType reference when FixedText.IsText(reference.ElementType) => Unsupported.TextReferences,
+            IlByRefType { ElementType: IlArrayType } => Unsupported.ArrayReferences,
             IlByRefType reference => ForAnyType(reference.ElementType, assembly, method),
             var plain when ValueTypes.Definition(plain, assembly) is { } definition => ForStruct(definition),
             _ => null,
@@ -45,7 +46,7 @@ public static partial class WholeProgramPass
     /// What an array of <paramref name="elementType"/> stands for when it is not supported where it is: an array
     /// kept where it outlives its method (a field, a return value) when arrays hold such elements (see
     /// <see cref="StackArrays"/>), else what the element type needs: floating point, a field of a struct, ... (an
-    /// array of references is one feature). Null for a generic parameter's T[].
+    /// array of references is one feature, an array of strings another). Null for a generic parameter's T[].
     /// </summary>
     internal static Unsupported? ForArrayElement(IlType elementType, IlAssembly assembly)
     {
@@ -60,7 +61,12 @@ public static partial class WholeProgramPass
         }
 
         var element = ForAnyType(StackArrays.Primitive(elementType), assembly);
-        return element == Unsupported.Strings || element == Unsupported.ClassesAndObjects
+        if (element == Unsupported.Strings)
+        {
+            return Unsupported.ArraysOfText;
+        }
+
+        return element == Unsupported.ClassesAndObjects
             || element == Unsupported.Interfaces || element == Unsupported.Delegates
             ? Unsupported.ArraysOfReferences
             : element;
@@ -127,10 +133,14 @@ public static partial class WholeProgramPass
                 Operand: IlTypeOperand { Type: var type } }:
                 return ForAnyType(type, assembly, method);
 
+            // new object(), which the translation makes on the heap, is a heap use
             case { OpCode: IlOpCode.Newobj, Operand: IlMethodOperand { Method: var constructor } }:
                 return constructor.Definition is { } definition && ValueTypes.IsStruct(definition.DeclaringType)
                     ? ForStruct(definition.DeclaringType)
-                    : Unsupported.CreatingObjects;
+                    : constructor is { Name: ".ctor", Definition: null, ParameterTypes.Count: 0 }
+                        && ObjectTypes.IsSystemObject(constructor.DeclaringType)
+                        ? Unsupported.HeapUse(Unsupported.CreatingObjects)
+                        : Unsupported.CreatingObjects;
 
             case { OpCode: IlOpCode.Ldind_Ref or IlOpCode.Stind_Ref }:
                 return Unsupported.ClassesAndObjects;

@@ -579,6 +579,7 @@ internal sealed partial class MethodLowering
     /// </summary>
     private StackValue ToStack(TirValue value, IlType type) => value.Type.Kind switch
     {
+        _ when IsArrayValue(value, type) => ArrayToStack(value, type),
         TirTypeKind.Bool => StackValue.OfBool(value),
         TirTypeKind.I8 or TirTypeKind.I16 => StackValue.Of(_ir.Convert(value, TirType.I32, IsUnsigned(type))),
         TirTypeKind.Ptr => ReferenceToStack(value, type),
@@ -703,6 +704,7 @@ internal sealed partial class MethodLowering
     /// </summary>
     private void Leave(params IEnumerable<IlBlock> successors)
     {
+        NullsAsArrays([.. successors]); // see MethodLowering.HeapArrays.cs
         var types = _stack.Select(v => v.Type).ToArray();
         foreach (var successor in successors)
         {

@@ -23,11 +23,17 @@ namespace ChipSharp.Frontend.Analysis;
 /// </remarks>
 internal static partial class ArrayEscapeAnalysis
 {
-    /// <summary>The problem with the return type of <paramref name="method"/>: an array it returns would outlive it.</summary>
+    /// <summary>
+    /// The problem with the return type of <paramref name="method"/>: an array it returns outlives it, which needs a heap
+    /// (a heap use). An array of references is a heap use as a type already (<see cref="HeapArrays.ForType"/>).
+    /// </summary>
     public static Unsupported? ForReturnType(IlMethod method)
     {
         ArgumentNullException.ThrowIfNull(method);
-        return StackArrays.TryMapType(method.ReturnType, method.Assembly, out _) ? Unsupported.ArrayEscapes : null;
+        return StackArrays.TryMapType(method.ReturnType, method.Assembly, out _)
+            && HeapArrays.ForType(method.ReturnType, method.Assembly) is null
+                ? HeapUse(Unsupported.ArrayEscapes)
+                : null;
     }
 
     /// <summary>Adds the problem of <see cref="ForReturnType"/>, if there is one, to <paramref name="problems"/>.</summary>
@@ -80,6 +86,10 @@ internal static partial class ArrayEscapeAnalysis
     /// <summary>What a value on the stack can be, as far as arrays care.</summary>
     private readonly record struct Value(Kind Kind, long Constant, ImmutableHashSet<int> Set)
     {
+        /// <summary>The IL type of an array, when it is known (see ArrayEscapeAnalysis.Heap.cs: what an element of an
+        /// array of arrays is).</summary>
+        public IlType? Type { get; init; }
+
         public static Value Other { get; } = new(Kind.Other, 0, []);
 
         public static Value Of(Kind kind, ImmutableHashSet<int> set) => new(kind, 0, set);
@@ -88,22 +98,26 @@ internal static partial class ArrayEscapeAnalysis
 
         /// <summary>
         /// What either can be. A reference into an array that meets another reference where ways join (C#'s
-        /// <c>ref c ? ref a[0] : ref x</c>) may still be into the array, and null that meets an array (C#'s
-        /// <c>c ? a : null</c>) may still be null; any other two kinds are just something.
+        /// <c>ref c ? ref a[0] : ref x</c>) may still be into the array; null that meets an array (C#'s
+        /// <c>c ? a : null</c>) is that array or null, and so is an array read from an element (<see cref="Kind.Other"/>)
+        /// that meets one; any other two kinds are just something.
         /// </summary>
         public static Value Merge(Value a, Value b) => (a.Kind, b.Kind) switch
         {
             (Kind.ElementAddress, Kind.Other) => a,
             (Kind.Other, Kind.ElementAddress) => b,
-            (Kind.Null, Kind.Array) => a,
-            (Kind.Array, Kind.Null) => b,
+            (Kind.Null, Kind.Array) => b with { Set = b.Set.Add(NullOrigin) },
+            (Kind.Array, Kind.Null) => a with { Set = a.Set.Add(NullOrigin) },
+            (Kind.Other, Kind.Array) => b with { Set = b.Set.Add(LoadedOrigin), Type = null },
+            (Kind.Array, Kind.Other) => a with { Set = a.Set.Add(LoadedOrigin), Type = null },
             _ when a.Kind != b.Kind => Other,
             (Kind.Constant, _) => a.Constant == b.Constant ? a : Other,
             (Kind.Other, _) => a,
-            _ => a with { Set = a.Set.Union(b.Set) },
+            _ => a with { Set = a.Set.Union(b.Set), Type = Equals(a.Type, b.Type) ? a.Type : null },
         };
 
-        public bool SameAs(Value other) => Kind == other.Kind && Constant == other.Constant && Set.SetEquals(other.Set);
+        public bool SameAs(Value other) => Kind == other.Kind && Constant == other.Constant && Set.SetEquals(other.Set)
+            && Equals(Type, other.Type);
     }
 
     /// <summary>
@@ -170,11 +184,12 @@ internal static partial class ArrayEscapeAnalysis
         private Dictionary<int, HashSet<int>> _liveAfter = [];
         private bool _record;
 
-        public Flow(IlMethod method, IlMethodBody body, StaticArrays? statics)
+        public Flow(IlMethod method, IlMethodBody body, StaticArrays? statics, HeapArrays? heap = null)
         {
             _method = method;
             _body = body;
             _statics = statics;
+            _heap = heap;
             _blocks = IlBlock.Split(body);
             _blockOf = new int[body.Instructions.Count];
             for (var b = 0; b < _blocks.Count; b++)
@@ -209,6 +224,7 @@ internal static partial class ArrayEscapeAnalysis
         public Dictionary<IlInstruction, Unsupported?> Run()
         {
             var entries = FindEntryStates();
+            FindArraysOnEntry(entries);
             _liveAfter = FindLiveVariablesAfterNewarr();
 
             _record = true;
@@ -459,7 +475,8 @@ internal static partial class ArrayEscapeAnalysis
                     break;
 
                 case IlOpCode.Ldlen:
-                    Verdict(instruction, Pop().Kind == Kind.Null ? Unsupported.NullArrays : null);
+                    NotNull(instruction, Pop());
+                    Verdict(instruction, null);
                     stack.Add(Value.Other);
                     break;
 
@@ -470,6 +487,7 @@ internal static partial class ArrayEscapeAnalysis
                     Element(instruction, index1);
                     stack.Add(instruction.OpCode == IlOpCode.Ldelema
                         ? Value.Of(Kind.ElementAddress, array.Kind == Kind.Array ? array.Set : [])
+                        : instruction.OpCode == IlOpCode.Ldelem_Ref ? Loaded(array.Type is { } type ? HeapArrays.ElementType(type) : null)
                         : Value.Other);
                     break;
 
@@ -481,7 +499,7 @@ internal static partial class ArrayEscapeAnalysis
                     Written(written);
                     if (element.Kind == Kind.Array)
                     {
-                        Verdict(instruction, Unsupported.ArrayEscapes);
+                        Escapes(instruction, element);
                     }
 
                     Consumed(element, instruction);
@@ -548,9 +566,9 @@ internal static partial class ArrayEscapeAnalysis
                     break;
 
                 case IlOpCode.Call when instruction.Operand is IlMethodOperand { Method: var callee }
-                    && StackArrays.IsEmptyArray(callee, _method.Assembly, out _):
+                    && StackArrays.IsEmptyArray(callee, _method.Assembly, out var emptyOf):
                     Verdict(instruction, null);
-                    stack.Add(Value.Of(Kind.Array, []));
+                    stack.Add(ArrayOf([], new IlArrayType(StackArrays.Primitive(emptyOf))));
                     break;
 
                 default:
@@ -559,7 +577,7 @@ internal static partial class ArrayEscapeAnalysis
                         if (reads)
                         {
                             var held = state.Variables[variable];
-                            stack.Add(_isArray[variable] ? Value.Of(Kind.Array, held)
+                            stack.Add(_isArray[variable] ? ArrayOf(held, VariableType(variable))
                                 : _isReference[variable] && !held.IsEmpty ? Value.Of(Kind.ElementAddress, held)
                                 : Value.Other);
                         }
@@ -569,9 +587,15 @@ internal static partial class ArrayEscapeAnalysis
                             if (_isArray[variable])
                             {
                                 NotNull(instruction, stored);
+                                Covariance(instruction, stored, VariableType(variable));
+                            }
+                            else if (stored.Kind == Kind.Array && !_isReference[variable])
+                            {
+                                Kept(instruction, stored); // an array as an object (object o = array;)
                             }
 
-                            state.Variables[variable] = stored.Kind is Kind.Array or Kind.ElementAddress ? stored.Set : [];
+                            state.Variables[variable] = _isArray[variable] ? ArrayOrigins(stored)
+                                : stored.Kind is Kind.Array or Kind.ElementAddress ? stored.Set : [];
                             if (stored.Kind is Kind.Index or Kind.Token)
                             {
                                 Consumed(stored, instruction);
@@ -591,15 +615,25 @@ internal static partial class ArrayEscapeAnalysis
             instruction.OpCode is IlOpCode.Ldloca or IlOpCode.Ldloca_S or IlOpCode.Ldarga or IlOpCode.Ldarga_S;
 
         /// <summary>
-        /// ldfld, ldflda and stfld: an array kept in a field leaves its method (<see cref="FieldOfArrays"/>); the field
-        /// of a struct that is an element of an array is in the array too, so its address is a reference into it.
+        /// ldfld, ldflda and stfld: an array kept in a field leaves its method (<see cref="FieldOfArrays"/>), and is kept
+        /// in a field of an object, which the rules of classes judge; the field of a struct that is an element of an
+        /// array is in the array too, so its address is a reference into it.
         /// </summary>
         private void InstanceField(IlInstruction instruction, Func<Value> pop, List<Value> stack)
         {
             FieldOfArrays(instruction);
             var stored = instruction.OpCode == IlOpCode.Stfld ? pop() : Value.Other;
             var owner = pop(); // the struct, or a reference to it
-            Consumed(stored, instruction);
+            Covariance(instruction, stored, (instruction.Operand as IlFieldOperand)?.Field.FieldType);
+            if (stored.Kind == Kind.Array && IsObjectField(instruction))
+            {
+                Kept(instruction, stored);
+            }
+            else
+            {
+                Consumed(stored, instruction);
+            }
+
             if (instruction.OpCode == IlOpCode.Stfld)
             {
                 Written(owner);
@@ -611,17 +645,35 @@ internal static partial class ArrayEscapeAnalysis
             }
             else if (instruction.OpCode == IlOpCode.Ldfld)
             {
-                stack.Add(Value.Other);
+                stack.Add(Loaded((instruction.Operand as IlFieldOperand)?.Field.FieldType));
             }
         }
 
-        /// <summary>An instruction on a field that holds arrays: an array there outlives the method that made it.</summary>
+        /// <summary>
+        /// An instruction on a field that holds arrays: an array there outlives the method that made it, which needs a
+        /// heap (a heap use; the field of an object is the rules of classes' to judge); a struct with an array in a field
+        /// does not compile yet, and a reference to such a field (<c>ref int[]</c>) is not supported.
+        /// </summary>
         private void FieldOfArrays(IlInstruction instruction)
         {
-            if ((instruction.Operand as IlFieldOperand)?.Field.FieldType is { } type
-                && StackArrays.TryMapType(type, _method.Assembly, out _))
+            // a field of the library or of a generic type is that field's problem (see WholeProgramPass.ForStaticField)
+            if ((instruction.Operand as IlFieldOperand)?.Field is not { Definition.DeclaringType.GenericParameters.Count: 0 } field
+                || !StackArrays.TryMapType(ValueTypes.WithoutModifiers(field.FieldType), _method.Assembly, out _))
+            {
+                return;
+            }
+
+            if (instruction.OpCode is IlOpCode.Ldflda or IlOpCode.Ldsflda)
+            {
+                Verdict(instruction, Unsupported.ArrayReferences);
+            }
+            else if (field.Definition is { IsStatic: false } definition && ValueTypes.IsStruct(definition.DeclaringType))
             {
                 Verdict(instruction, Unsupported.ArrayEscapes);
+            }
+            else if (!IsObjectField(instruction))
+            {
+                Verdict(instruction, ForArrayField(field.FieldType));
             }
         }
 
@@ -645,41 +697,57 @@ internal static partial class ArrayEscapeAnalysis
             for (var i = 0; i < pops; i++)
             {
                 var value = pop();
-                if (callee is not null && ParameterType(instruction, callee, pops - 1 - i) is { } parameter
-                    && StackArrays.TryMapType(parameter, _method.Assembly, out _))
+                var parameterType = callee is null ? null : ParameterType(instruction, callee, pops - 1 - i);
+                if (parameterType is not null && StackArrays.TryMapType(parameterType, _method.Assembly, out _))
                 {
                     NotNull(instruction, value);
                 }
 
+                // where it goes: a parameter, the return value, a static field
+                Covariance(instruction, value, parameterType
+                    ?? (instruction.OpCode == IlOpCode.Ret ? _method.ReturnType
+                        : instruction.OpCode == IlOpCode.Stsfld ? (instruction.Operand as IlFieldOperand)?.Field.FieldType
+                        : null));
+
                 if (callee is not null)
                 {
                     Passed(instruction, callee, pops - 1 - i, value);
+                    var argument = pops - 1 - i + (instruction.OpCode == IlOpCode.Newobj && callee.HasThis ? 1 : 0);
+                    PassedOnHeap(instruction, callee, argument, value, parameterType);
                 }
 
                 if (value.Kind == Kind.Array && IsComparison(instruction.OpCode))
                 {
-                    Verdict(instruction, Unsupported.ArrayComparisons);
+                    Verdict(instruction, HeapUse(Unsupported.ArrayComparisons));
                 }
                 else if (value.Kind is not (Kind.Array or Kind.ElementAddress) || !checkedElsewhere)
                 {
                     Consumed(value, instruction);
                 }
                 else if (instruction.OpCode == IlOpCode.Ret && value.Kind == Kind.ElementAddress
-                    && value.Set.Any(origin => origin >= 0))
+                    && value.Set.Any(IsNewarr))
                 {
                     // a ref return into an array this method made (not one it was given)
-                    Verdict(instruction, Unsupported.ArrayEscapes);
+                    Escapes(instruction, value);
                 }
                 else
                 {
+                    if (instruction.OpCode == IlOpCode.Ret && value.Kind == Kind.Array)
+                    {
+                        Kept(instruction, value); // the return type says what that needs
+                    }
+
                     given = given.Union(value.Set);
                 }
             }
 
+            // what a call returns, or a static field holds, is an array that was kept (see HeapArrays), or something else
             var returnsReference = callee is not null && IsReference(callee.ReturnType) && !given.IsEmpty;
+            var loaded = callee?.ReturnType
+                ?? (instruction.OpCode == IlOpCode.Ldsfld ? (instruction.Operand as IlFieldOperand)?.Field.FieldType : null);
             for (var i = 0; i < pushes; i++)
             {
-                stack.Add(returnsReference ? Value.Of(Kind.ElementAddress, given) : Value.Other);
+                stack.Add(returnsReference ? Value.Of(Kind.ElementAddress, given) : Loaded(loaded));
             }
         }
 
@@ -693,12 +761,20 @@ internal static partial class ArrayEscapeAnalysis
             return index >= 0 && index < callee.ParameterTypes.Count ? callee.ParameterTypes[index] : null;
         }
 
-        /// <summary>An array an instruction takes, which must not be null: one on the stack never is.</summary>
+        /// <summary>
+        /// An array an instruction takes: null there needs a heap (one on the stack is never null), and an array that may
+        /// be null is tested (see <see cref="HeapArrays"/>).
+        /// </summary>
         private void NotNull(IlInstruction instruction, Value array)
         {
-            if (array.Kind == Kind.Null)
+            if (array.Kind == Kind.Null || (array.Kind == Kind.Array && array.Set.Contains(NullOrigin)))
             {
-                Verdict(instruction, Unsupported.NullArrays);
+                Verdict(instruction, HeapUse(Unsupported.NullArrays));
+            }
+
+            if (MayBeNull(array))
+            {
+                Nullable(instruction);
             }
         }
 
@@ -722,7 +798,7 @@ internal static partial class ArrayEscapeAnalysis
 
                 case Kind.Array when SupportedSubset.OpCodes.Contains(instruction.OpCode)
                     && instruction.OpCode is not (IlOpCode.Pop or IlOpCode.Ldlen):
-                    Verdict(instruction, Unsupported.ArrayEscapes);
+                    Escapes(instruction, value);
                     break;
 
                 case Kind.ElementAddress when SupportedSubset.OpCodes.Contains(instruction.OpCode)
@@ -732,12 +808,15 @@ internal static partial class ArrayEscapeAnalysis
             }
         }
 
-        /// <summary>newarr: of an element type arrays support, with a constant size, and not made again while the
-        /// one from before is still in use.</summary>
+        /// <summary>
+        /// newarr: of an element type arrays support. It makes its array on the stack when the size is a constant and it
+        /// is not made again while the one from before is still in use (and the array is not kept, see
+        /// <see cref="HeapArrays"/>); otherwise on the heap. An array of references needs a heap.
+        /// </summary>
         private void NewArray(IlInstruction instruction, Value length, State state)
         {
             var element = StackArrays.ElementType(instruction);
-            if (element is null || !StackArrays.TryMapElementType(element, _method.Assembly, out _))
+            if (element is null || !HeapArrays.TryMapElementType(element, _method.Assembly, out _))
             {
                 Verdict(instruction, element is null ? null : WholeProgramPass.ForArrayElement(element, _method.Assembly));
                 Consumed(length, instruction);
@@ -745,25 +824,40 @@ internal static partial class ArrayEscapeAnalysis
                 return;
             }
 
-            if (length is not { Kind: Kind.Constant, Constant: >= 0 and <= int.MaxValue })
+            if (!StackArrays.TryMapElementType(element, _method.Assembly, out _))
             {
-                Verdict(instruction, Unsupported.ArraySizes);
-                Consumed(length, instruction);
-                state.Stack.Add(Value.Other);
-                return;
+                Verdict(instruction, HeapUse(Unsupported.ArraysOfReferences));
             }
 
             var offset = instruction.Offset;
+            if (length is not { Kind: Kind.Constant, Constant: >= 0 and <= int.MaxValue })
+            {
+                Consumed(length, instruction);
+                OnHeap(instruction, Unsupported.ArraySizes);
+                state.Stack.Add(ArrayOf([offset], new IlArrayType(element)));
+                return;
+            }
+
+            // an empty array is never in use: there is nothing in it
             var live = _liveAfter.GetValueOrDefault(offset) ?? [];
-            var inUse = state.Stack.Any(v => v.Kind is Kind.Array or Kind.ElementAddress && v.Set.Contains(offset))
-                || live.Any(v => state.Variables[v].Contains(offset));
-            Verdict(instruction, inUse ? Unsupported.ArrayReuse : null);
+            var inUse = length.Constant > 0
+                && (state.Stack.Any(v => v.Kind is Kind.Array or Kind.ElementAddress && v.Set.Contains(offset))
+                    || live.Any(v => state.Variables[v].Contains(offset)));
+            if (inUse)
+            {
+                OnHeap(instruction, Unsupported.ArrayReuse);
+            }
+            else
+            {
+                Verdict(instruction, null);
+            }
+
             if (_record)
             {
                 _lengths[offset] = length.Constant;
             }
 
-            state.Stack.Add(Value.Of(Kind.Array, length.Constant == 0 ? [] : [offset]));
+            state.Stack.Add(ArrayOf([offset], new IlArrayType(element)));
         }
 
         /// <summary>ldelem, stelem and ldelema: of an element type arrays support; a converted index is used here.</summary>
@@ -784,7 +878,7 @@ internal static partial class ArrayEscapeAnalysis
             var element = StackArrays.ElementType(instruction);
             if (element is not null && !StackArrays.TryMapElementType(element, _method.Assembly, out _))
             {
-                Verdict(instruction, WholeProgramPass.ForArrayElement(element, _method.Assembly));
+                Verdict(instruction, ForElement(element));
             }
             else if (SupportedSubset.OpCodes.Contains(instruction.OpCode))
             {
@@ -856,10 +950,14 @@ internal static partial class ArrayEscapeAnalysis
             }
         }
 
-        /// <summary>Records a verdict in the last pass; a problem already found at the instruction stays.</summary>
+        /// <summary>
+        /// Records a verdict in the last pass; a problem already found at the instruction stays, but for a heap use, which
+        /// a problem that is not one takes the place of.
+        /// </summary>
         private void Verdict(IlInstruction instruction, Unsupported? unsupported)
         {
-            if (_record && !(_verdicts.TryGetValue(instruction, out var found) && found is not null))
+            if (_record && !(_verdicts.TryGetValue(instruction, out var found) && found is not null
+                && !(found.IsHeapUse && unsupported is { IsHeapUse: false })))
             {
                 _verdicts[instruction] = unsupported;
             }

@@ -15,6 +15,7 @@ public sealed class IlProgram
 {
     private IReadOnlyList<IlMethod>? _typeInitializers;
     private StaticArrays? _staticArrays;
+    private HeapArrays? _heapArrays;
 
     public IlProgram(IlAssembly assembly, IReadOnlyList<IlMethod> methods)
     {
@@ -61,4 +62,10 @@ public sealed class IlProgram
     /// and static fixed arrays, globals that need no heap.
     /// </summary>
     internal StaticArrays StaticArrays => _staticArrays ??= StaticArrays.Find(Methods);
+
+    /// <summary>
+    /// The array parameters of <see cref="Methods"/> that are kept, and those that may be null (see
+    /// <see cref="Frontend.HeapArrays"/>): what decides, with each method's own IL, which arrays are on the heap.
+    /// </summary>
+    internal HeapArrays HeapArrays => _heapArrays ??= HeapArrays.Find(Methods, StaticArrays);
 }

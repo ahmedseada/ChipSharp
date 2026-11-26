@@ -1,16 +1,32 @@
+using ChipSharp.Frontend.Analysis;
+using ChipSharp.Frontend.Il;
+using ChipSharp.Targets;
+using ChipSharp.Tests.Support;
 using static ChipSharp.Tests.Analysis.WholeProgram;
 
 namespace ChipSharp.Tests.Analysis;
 
 /// <summary>
 /// The rule of arrays on the stack (see StackArrays): what keeps an array inside the method that makes it is
-/// accepted, and everything else is rejected with a message in C# words.
+/// accepted everywhere, and everything else is on the heap (see HeapArrays), so on the chip "tiny", which has no heap,
+/// it is rejected with a message in C# words (the messages a check without a target gave before the heap came, see
+/// <see cref="WithoutHeap"/>).
 /// </summary>
-public sealed class ArrayRejectionTests
+public sealed class ArrayRejectionTests : IDisposable
 {
     private const string Escapes = "an array that leaves the method that creates it (returned, or stored in a field or "
         + "in another array) arrives with M3 (the heap). For now, keep each array in the method that creates it; the "
         + "methods it calls can take it as a parameter.";
+
+    private readonly string _scratch = Path.Combine(Path.GetTempPath(), "chipsharp-tests", Guid.NewGuid().ToString("N"));
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_scratch))
+        {
+            Directory.Delete(_scratch, recursive: true);
+        }
+    }
 
     [Theory]
     [InlineData("locals, indexing and Length", """
@@ -125,7 +141,7 @@ public sealed class ArrayRejectionTests
     public void A_reference_to_an_element_returned_from_the_method_that_makes_the_array_is_rejected()
     {
         // directly, through a ref local, through a method that returns the reference it is given, and from either of two
-        var problems = Problems(Program("""
+        var problems = ProblemsWithoutHeap(Program("""
             Console.WriteLine(Direct() + Kept() + Through() + Either(true));
             """, """
             static int shared;
@@ -158,19 +174,19 @@ public sealed class ArrayRejectionTests
             static ref int Same(ref int value) => ref value;
             """));
 
-        Assert.Equal(
+        Assert.Equal(WithoutHeap(
         [
             $"Program.Direct() at IL_000c (ret): {Escapes}",
             $"Program.Kept() at IL_000c (ret): {Escapes}",
             $"Program.Through() at IL_0011 (ret): {Escapes}",
             $"Program.Either(bool) at IL_0017 (ret): {Escapes}",
-        ], problems);
+        ]), problems);
     }
 
     [Fact]
     public void A_reference_to_an_element_of_an_array_made_again_in_a_loop_is_rejected_while_in_use()
     {
-        var problems = Problems(Program("""
+        var problems = ProblemsWithoutHeap(Program("""
             int[] first = new int[1];
             ref int previous = ref first[0];
             for (int i = 0; i < 3; i++)
@@ -183,8 +199,8 @@ public sealed class ArrayRejectionTests
             Console.WriteLine(previous);
             """));
 
-        Assert.Equal(["Program.Main() at IL_0012 (newarr): an array made in a loop while the one made there before is "
-            + "still in use arrives with M3 (the heap). For now, make the array once, before the loop, and reuse it."],
+        Assert.Equal(WithoutHeap(["Program.Main() at IL_0012 (newarr): an array made in a loop while the one made there before is "
+            + "still in use arrives with M3 (the heap). For now, make the array once, before the loop, and reuse it."]),
             problems);
     }
 
@@ -224,23 +240,23 @@ public sealed class ArrayRejectionTests
     [Fact]
     public void A_returned_array_is_rejected_at_the_return_type()
     {
-        var problems = Problems(Program("Console.WriteLine(Make().Length + Same(new int[1]).Length);", """
+        var problems = ProblemsWithoutHeap(Program("Console.WriteLine(Make().Length + Same(new int[1]).Length);", """
             static int[] Make() => new int[2];
 
             static int[] Same(int[] values) => values;
             """));
 
-        Assert.Equal(
+        Assert.Equal(WithoutHeap(
         [
             $"Program.Make(), return type (int[]): {Escapes}",
             $"Program.Same(int[]), return type (int[]): {Escapes}",
-        ], problems);
+        ]), problems);
     }
 
     [Fact]
     public void An_array_kept_in_a_static_field_by_a_method_is_rejected_where_the_field_is_used()
     {
-        var problems = Problems(Program("Keep(new int[2]); Console.WriteLine(saved.Length);", """
+        var problems = ProblemsWithoutHeap(Program("Keep(new int[2]); Console.WriteLine(saved.Length);", """
             static int[] saved;
 
             static void Keep(int[] values) => saved = values;
@@ -250,17 +266,17 @@ public sealed class ArrayRejectionTests
         const string Assigned = "an array in a static field that is assigned again, or anywhere but in its field "
             + "initializer or static constructor arrives with M3 (the heap). For now, assign it once, where the field "
             + "is declared (static int[] buffer = new int[16];), and change its elements instead.";
-        Assert.Equal(
+        Assert.Equal(WithoutHeap(
         [
             $"Program.Main() at IL_000b (ldsfld): {Assigned}",
             $"Program.Keep(int[]) at IL_0001 (stsfld): {Assigned}",
-        ], problems);
+        ]), problems);
     }
 
     [Fact]
     public void An_array_stored_in_another_array_is_rejected_as_an_array_of_arrays()
     {
-        var problems = Problems(Program("""
+        var problems = ProblemsWithoutHeap(Program("""
             int[][] grid = new int[2][];
             grid[0] = new int[3];
             Console.WriteLine(grid[0].Length);
@@ -268,12 +284,12 @@ public sealed class ArrayRejectionTests
 
         const string References = "arrays of strings, objects or arrays arrive with M3 (the heap). For now, use arrays "
             + "of numbers, bools, structs or enums.";
-        Assert.Equal(
+        Assert.Equal(WithoutHeap(
         [
             $"Program.Main() at IL_0001 (newarr): {References}",
             $"Program.Main() at IL_000e (stelem.ref): {References}",
             $"Program.Main() at IL_0010 (ldelem.ref): {References}",
-        ], problems);
+        ]), problems);
     }
 
     [Fact]
@@ -292,7 +308,7 @@ public sealed class ArrayRejectionTests
     [Fact]
     public void An_array_whose_size_is_not_a_constant_is_rejected()
     {
-        var problems = Problems(Program("Console.WriteLine(Sized(3));", """
+        var problems = ProblemsWithoutHeap(Program("Console.WriteLine(Sized(3));", """
             static int Sized(int n)
             {
                 int[] values = new int[n];
@@ -300,8 +316,8 @@ public sealed class ArrayRejectionTests
             }
             """));
 
-        Assert.Equal(["Program.Sized(int) at IL_0001 (newarr): an array whose size is known only when the program runs "
-            + "arrives with M3 (the heap). For now, give the array a fixed size: a constant, such as new int[16]."],
+        Assert.Equal(WithoutHeap(["Program.Sized(int) at IL_0001 (newarr): an array whose size is known only when the program runs "
+            + "arrives with M3 (the heap). For now, give the array a fixed size: a constant, such as new int[16]."]),
             problems);
     }
 
@@ -309,7 +325,7 @@ public sealed class ArrayRejectionTests
     public void An_array_made_again_in_a_loop_while_the_one_before_is_in_use_is_rejected()
     {
         // each turn reuses the elements of the newarr: the array of the turn before (in previous) must be done with
-        var problems = Problems(Program("""
+        var problems = ProblemsWithoutHeap(Program("""
             int[] previous = new int[1];
             for (int i = 0; i < 3; i++)
             {
@@ -321,15 +337,15 @@ public sealed class ArrayRejectionTests
             Console.WriteLine(previous[0]);
             """));
 
-        Assert.Equal(["Program.Main() at IL_000c (newarr): an array made in a loop while the one made there before is "
-            + "still in use arrives with M3 (the heap). For now, make the array once, before the loop, and reuse it."],
+        Assert.Equal(WithoutHeap(["Program.Main() at IL_000c (newarr): an array made in a loop while the one made there before is "
+            + "still in use arrives with M3 (the heap). For now, make the array once, before the loop, and reuse it."]),
             problems);
     }
 
     [Fact]
     public void Comparing_arrays_or_testing_one_for_null_is_rejected()
     {
-        var problems = Problems(Program("Console.WriteLine(Same(new int[1], new int[1]));", """
+        var problems = ProblemsWithoutHeap(Program("Console.WriteLine(Same(new int[1], new int[1]));", """
             static bool Same(int[] a, int[] b)
             {
                 if (a != null)
@@ -343,11 +359,11 @@ public sealed class ArrayRejectionTests
 
         const string Comparisons = "comparing arrays (or an array with null) arrives with M3 (the heap). For now, leave the "
             + "comparison out: an array on the stack is never null.";
-        Assert.Equal(
+        Assert.Equal(WithoutHeap(
         [
             $"Program.Same(int[], int[]) at IL_0001 (brfalse.s): {Comparisons}",
             $"Program.Same(int[], int[]) at IL_0005 (ceq): {Comparisons}",
-        ], problems);
+        ]), problems);
     }
 
     [Fact]
@@ -402,7 +418,7 @@ public sealed class ArrayRejectionTests
     [Fact]
     public void The_summary_groups_the_arrays_that_leave_their_method()
     {
-        var analysis = Check(Program("Console.WriteLine(First() + Make().Length);", """
+        var analysis = CheckWithoutHeap(Program("Console.WriteLine(First() + Make().Length);", """
             static ref int First()
             {
                 int[] values = new int[2];
@@ -412,14 +428,52 @@ public sealed class ArrayRejectionTests
             static int[] Make() => new int[2];
             """));
 
-        var group = Assert.Single(analysis.Groups);
+        var group = Assert.Single(analysis.Groups, group => group.Problems.All(IsAboutArrays));
         Assert.Equal("an array that leaves the method that creates it (returned, or stored in a field or in another "
-            + "array): 2 places in Program.First() (IL_000c) and Program.Make() (return type). For now, keep "
+            + "array): 2 places in Program.First() (IL_000c) and Program.Make() (return type). Keep "
             + "each array in the method that creates it; the methods it calls can take it as a parameter.",
-            group.Line.Replace(" arrives with M3 (the heap)", "", StringComparison.Ordinal));
+            group.Line.Replace(" needs a heap, and the target 'tiny' (2 KB RAM) has no heap", "", StringComparison.Ordinal));
         Assert.StartsWith("an array that leaves the method that creates it (returned, or stored in a field or in "
-            + "another array) arrives with M3 (the heap): 2 places", group.Line);
+            + "another array) needs a heap, and the target 'tiny' (2 KB RAM) has no heap: 2 places", group.Line);
     }
+
+    /// <summary>
+    /// A problem a check without a target gave before arrays on the heap ("... arrives with M3 (the heap). For now, ..."),
+    /// as the chip "tiny", which has no heap, words it ("... needs a heap, and the target 'tiny' (2 KB RAM) has no heap.
+    /// ...").
+    /// </summary>
+    private static string WithoutHeap(string problem)
+    {
+        var (verb, at) = problem.Contains(" arrives with M3 (the heap). For now, ", StringComparison.Ordinal)
+            ? ("needs", problem.IndexOf(" arrives with M3 (the heap). For now, ", StringComparison.Ordinal))
+            : ("need", problem.IndexOf(" arrive with M3 (the heap). For now, ", StringComparison.Ordinal));
+        var hint = problem[(problem.IndexOf("For now, ", at, StringComparison.Ordinal) + "For now, ".Length)..];
+        return $"{problem[..at]} {verb} a heap, and the target 'tiny' (2 KB RAM) has no heap. " +
+            $"{char.ToUpperInvariant(hint[0])}{hint[1..]}";
+    }
+
+    private static string[] WithoutHeap(string[] problems) => [.. problems.Select(WithoutHeap)];
+
+    /// <summary>
+    /// The program in <paramref name="source"/> checked for the chip "tiny", which has no heap; checked without a target
+    /// (for any target: the PC's and the Pico's have a heap), it compiles.
+    /// </summary>
+    private AnalysisResult CheckWithoutHeap(string source)
+    {
+        var anyTarget = Check(source);
+        Assert.True(anyTarget.IsSupported, anyTarget.Details);
+        var tiny = new TargetLoader(TinyChip.Targets(_scratch)).Load(TinyChip.Name);
+        var analysis = WholeProgramPass.Check(IlAssembly.Load(ChipSharp.Tests.Support.CSharpCompiler.Compile(source), "Test.dll"), tiny);
+        Assert.False(analysis.IsSupported);
+        return analysis;
+    }
+
+    private string[] ProblemsWithoutHeap(string source) =>
+        [.. CheckWithoutHeap(source).Problems.Where(IsAboutArrays).Select(problem => problem.Line)];
+
+    /// <summary>True for a problem about arrays: the chip "tiny" has no console either, which is a problem of its own.</summary>
+    private static bool IsAboutArrays(Problem problem) =>
+        !problem.Feature.StartsWith("Console.Write", StringComparison.Ordinal);
 
     /// <summary>A class Program with <paramref name="main"/> as its Main and <paramref name="members"/> beside it.</summary>
     private static string Program(string main, string members = "") => $$"""

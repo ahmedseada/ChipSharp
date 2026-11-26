@@ -108,6 +108,7 @@ public static class TirPrinter
             TirNullCheck n => $"nullcheck {names.Of(n.Reference)}",
             TirArrayLength l => $"arraylength {names.Of(l.Array)}",
             TirArrayData d => $"arraydata {d.ElementType} {names.Of(d.Array)}",
+            TirArrayObject o => $"arrayobject {names.Of(o.Data)}",
             TirTypeOf t => $"typeof {names.Of(t.Reference)}",
             TirTypeAddress a => $"typeaddr {a.TypeDescriptor}",
             TirCall c => $"call {c.Type} {c.Callee.Name}({string.Join(", ", c.Arguments.Select(names.Of))})",

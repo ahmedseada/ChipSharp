@@ -59,7 +59,7 @@ public static class IlToTir
         ArgumentNullException.ThrowIfNull(program);
 
         var module = new TirModule(program.Assembly.Name);
-        var functions = new ProgramFunctions(module) { StaticArrays = program.StaticArrays };
+        var functions = new ProgramFunctions(module) { StaticArrays = program.StaticArrays, HeapArrays = program.HeapArrays };
 
         // a type initializer that only sets fields to constants becomes their globals' initial values, not code
         var methods = program.Methods.Where(method => !functions.TryFoldInitializer(method)).ToList();

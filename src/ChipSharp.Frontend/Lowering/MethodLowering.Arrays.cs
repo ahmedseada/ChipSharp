@@ -23,19 +23,21 @@ internal sealed partial class MethodLowering
     private readonly Dictionary<IlInstruction, TirSlot> _elementSlots = [];
 
     /// <summary>
-    /// Rejects arrays that break the rule of <see cref="StackArrays"/>, with the analysis the whole-program pass uses
-    /// (<see cref="ArrayEscapeAnalysis"/>), so the two always agree. The array of strings of a <c>string.Concat</c> of
+    /// Rejects arrays that break the rule of <see cref="StackArrays"/> (and of <see cref="HeapArrays"/>), with the analysis
+    /// the whole-program pass uses (<see cref="ArrayEscapeAnalysis"/>), so the two always agree; what needs a heap is
+    /// fine here (the code generator refuses a target without one). The array of strings of a <c>string.Concat</c> of
     /// printed text is no array (see <see cref="PrintedText"/>).
     /// </summary>
     private void CheckArrays()
     {
-        if (ArrayEscapeAnalysis.ForReturnType(_method) is { } returned)
+        if (ArrayEscapeAnalysis.ForReturnType(_method) is { IsHeapUse: false } returned)
         {
             throw LoweringErrors.In(_method, $"it returns {_method.ReturnType}, and {returned.Heading}");
         }
 
-        var problem = ArrayEscapeAnalysis.Check(_method, _program.StaticArrays)
-            .Where(verdict => verdict.Value is not null && !IsPrintedText(verdict.Key))
+        _arrays = ArrayEscapeAnalysis.Analyze(_method, _program.StaticArrays, _program.HeapArrays);
+        var problem = _arrays.Verdicts
+            .Where(verdict => verdict.Value is { IsHeapUse: false } && !IsPrintedText(verdict.Key))
             .OrderBy(verdict => verdict.Key.Offset).FirstOrDefault();
         if (problem.Value is { } unsupported)
         {
@@ -54,20 +56,32 @@ internal sealed partial class MethodLowering
             or IlOpCode.Conv_Ovf_I or IlOpCode.Conv_Ovf_I_Un or IlOpCode.Ldtoken => true,
         IlOpCode.Call => instruction.Operand is IlMethodOperand { Method: var method }
             && (StackArrays.IsInitializeArray(method) || StackArrays.IsEmptyArray(method, _method.Assembly, out _)),
-        _ => false,
+        _ => IsArrayComparison(instruction),
     };
 
     private void LowerArrayInstruction(IlInstruction instruction)
     {
         switch (instruction.OpCode)
         {
+            case var _ when IsArrayComparison(instruction):
+                LowerArrayComparison();
+                break;
+
+            case IlOpCode.Newarr when _arrays.HeapArrays.Contains(instruction.Offset):
+                NewHeapArray();
+                break;
+
             case IlOpCode.Newarr:
                 NewArray();
                 break;
 
+            case IlOpCode.Ldelem_Ref or IlOpCode.Stelem_Ref:
+                LowerReferenceElement();
+                break;
+
             case IlOpCode.Ldlen:
                 // IL's length is a native unsigned int; C# converts it to int at once (conv.i4)
-                var length = _ir.Call(_program.Arrays.Length, PopArray());
+                var length = _ir.Call(LengthFunction, PopArray());
                 Push(Convert(StackValue.Of(length), TirType.NativeInt, unsigned: true));
                 break;
 
@@ -98,8 +112,9 @@ internal sealed partial class MethodLowering
                 Push(StackValue.OfConstant(TirType.NativeInt, 0));
                 break;
 
-            case IlOpCode.Call when StackArrays.IsEmptyArray(((IlMethodOperand)instruction.Operand!).Method, _method.Assembly, out _):
-                Push(_ir.Zero(StackArrays.ArrayType));
+            case IlOpCode.Call when StackArrays.IsEmptyArray(((IlMethodOperand)instruction.Operand!).Method, _method.Assembly,
+                out var emptyOf):
+                PushArray(EmptyArray(), new IlArrayType(StackArrays.Primitive(emptyOf)));
                 break;
 
             default:
@@ -109,8 +124,8 @@ internal sealed partial class MethodLowering
     }
 
     /// <summary>
-    /// newarr of a constant length: an empty array (no elements, a null data), or the elements' slot zeroed, as a
-    /// new array is, every time this runs.
+    /// newarr of a constant length on the stack: an empty array (no elements, a byte of its own as their address), or
+    /// the elements' slot zeroed, as a new array is, every time this runs.
     /// </summary>
     private void NewArray()
     {
@@ -120,10 +135,10 @@ internal sealed partial class MethodLowering
             throw Error("newarr needs a constant number of elements here (an array lives on the stack)");
         }
 
-        var element = Element().Type;
+        var (element, ilElement) = Element();
         if (count.Constant == 0)
         {
-            Push(_ir.Zero(StackArrays.ArrayType));
+            PushArray(EmptyStackArray(), new IlArrayType(ilElement));
             return;
         }
 
@@ -134,17 +149,18 @@ internal sealed partial class MethodLowering
         }
 
         _ir.Store(slot, _ir.Zero(slot.Type));
-        Push(_ir.Call(_program.Arrays.Make, _ir.AddressOf(slot), _ir.Const(TirType.I32, count.Constant)));
+        PushArray(_ir.Call(_program.Arrays.Make, _ir.AddressOf(slot), _ir.Const(TirType.I32, count.Constant)),
+            new IlArrayType(ilElement));
     }
 
     /// <summary>
     /// <c>newarr T; dup; ldtoken field; call InitializeArray</c>: the elements C# keeps in the field's data, stored one
-    /// by one into the new array's slot (the zeros are there already).
+    /// by one into the new array's slot, or its elements on the heap (the zeros are there already).
     /// </summary>
     private void InitializeArray()
     {
         PopValue(); // ldtoken's stand-in
-        PopValue(); // the array, which dup left below it too
+        var made = PopValue(); // the array, which dup left below it too
         var instructions = _body.Instructions;
         var index = _body.IndexOf(_instruction.Offset);
         if (index < 3 || instructions[index - 1].Operand is not IlFieldOperand { Field.Definition: { } field }
@@ -153,12 +169,23 @@ internal sealed partial class MethodLowering
             throw Error("InitializeArray is supported only right after newarr, dup and ldtoken, as C# calls it");
         }
 
-        if (!_elementSlots.TryGetValue(instructions[index - 3], out var slot))
+        TirArrayType array;
+        TirValue elements;
+        if (_elementSlots.TryGetValue(instructions[index - 3], out var slot))
+        {
+            array = (TirArrayType)slot.Type;
+            elements = _ir.AddressOf(slot);
+        }
+        else if (_heapInitialized.TryGetValue(instructions[index - 3], out var onHeap) && onHeap.Count > 0)
+        {
+            array = new TirArrayType(onHeap.Element, onHeap.Count);
+            elements = _ir.Call(_program.Arrays.Data, Materialize(made));
+        }
+        else
         {
             return; // an empty array
         }
 
-        var array = (TirArrayType)slot.Type;
         var size = array.Element.Kind switch
         {
             TirTypeKind.I8 => 1,
@@ -170,7 +197,6 @@ internal sealed partial class MethodLowering
         var data = _method.Assembly.ReadFieldData(field, array.Count * size)
             ?? throw Error($"the field {field.Name} has no data for {array.Count} elements of {size} bytes");
 
-        var elements = _ir.AddressOf(slot);
         for (var i = 0; i < array.Count; i++)
         {
             var bytes = data.AsSpan(i * size, size);
@@ -203,10 +229,10 @@ internal sealed partial class MethodLowering
         return (StorageType(ilType), ilType);
     }
 
-    private TirType StorageType(IlType element) => StackArrays.TryMapElementType(element, _method.Assembly, out var type)
+    private TirType StorageType(IlType element) => HeapArrays.TryMapElementType(element, _method.Assembly, out var type)
         ? type
-        : throw Error($"an array of {element} is not supported yet (arrays hold bools, whole numbers, and the " +
-            "structs and enums of the program)");
+        : throw Error($"an array of {element} is not supported yet (arrays hold bools, whole numbers, floats, the " +
+            "structs and enums of the program, arrays and objects)");
 
     /// <summary>
     /// Pops an index and an array; checks the index, which stops the program when it is outside the array; gives the
@@ -221,16 +247,19 @@ internal sealed partial class MethodLowering
             throw Error($"{_instruction.Name} takes an int32 or native int index, not {LoweringErrors.StackTypeName(index.Type)}");
         }
 
-        _ir.Call(_program.Arrays.CheckIndex(index.Type), array, index);
+        _ir.Call(CheckIndexFunction(index.Type), array, index);
         return _ir.ElementAddress(_ir.Call(_program.Arrays.Data, array), element, index);
     }
 
-    /// <summary>Pops an array value: a <c>ChipSharp.Array</c>.</summary>
+    /// <summary>
+    /// Pops an array value: a <c>ChipSharp.Array</c>, or null as the view of zeros (a ptr where IL has an array is null,
+    /// also one that waited in a stack slot).
+    /// </summary>
     private TirValue PopArray()
     {
         var array = PopValue();
-        return array.Type == StackArrays.ArrayType
-            ? Materialize(array)
+        return array.Type == StackArrays.ArrayType ? Materialize(array)
+            : array.Type == TirType.Ptr ? _ir.Zero(StackArrays.ArrayType)
             : throw Error($"{_instruction.Name} needs an array, but the evaluation stack has {StackName(array.Type)}");
     }
 }
