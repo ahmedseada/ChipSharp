@@ -20,7 +20,10 @@ internal sealed partial class MethodLowering
     /// <summary>The block that starts at each instruction index; null inside a block.</summary>
     private readonly IlBlock?[] _blockAt;
 
-    /// <summary>The slot of each argument the method assigns to (<c>starg</c>), by argument number; null for the others.</summary>
+    /// <summary>
+    /// The slot of each argument the method assigns to (<c>starg</c>) or takes the address of (<c>ldarga</c>), by
+    /// argument number; null for the others.
+    /// </summary>
     private readonly TirSlot?[] _argumentSlots;
 
     private readonly TirSlot[] _localSlots;
@@ -55,7 +58,8 @@ internal sealed partial class MethodLowering
         _argumentSlots = new TirSlot?[_arguments.Count];
         foreach (var instruction in _body.Instructions)
         {
-            if (instruction.OpCode is IlOpCode.Starg or IlOpCode.Starg_S && instruction.ArgumentIndex is { } index
+            if (instruction.OpCode is IlOpCode.Starg or IlOpCode.Starg_S or IlOpCode.Ldarga or IlOpCode.Ldarga_S
+                && instruction.ArgumentIndex is { } index
                 && index < _arguments.Count && _arguments[index].Parameter is { } parameter)
             {
                 _argumentSlots[index] ??= AddSlot(parameter.Name, parameter.Type);
@@ -192,6 +196,17 @@ internal sealed partial class MethodLowering
 
             case IlOpCode.Volatile:
                 CheckVolatilePrefix();
+                break;
+
+            case IlOpCode.Ldloca_S or IlOpCode.Ldloca or IlOpCode.Ldarga_S or IlOpCode.Ldarga or IlOpCode.Ldsflda
+                or (>= IlOpCode.Ldind_I1 and <= IlOpCode.Ldind_I) or (>= IlOpCode.Stind_I1 and <= IlOpCode.Stind_I8)
+                or IlOpCode.Stind_I:
+                LowerReference(instruction);
+                break;
+
+            case IlOpCode.Ldfld or IlOpCode.Ldflda or IlOpCode.Stfld or IlOpCode.Initobj or IlOpCode.Ldobj
+                or IlOpCode.Stobj or IlOpCode.Cpobj or IlOpCode.Newobj:
+                LowerStruct(instruction);
                 break;
 
             case >= IlOpCode.Ldc_I4_M1 and <= IlOpCode.Ldc_I4_8:
@@ -418,6 +433,7 @@ internal sealed partial class MethodLowering
     private void BranchOnValue(bool jumpWhenTrue)
     {
         var value = PopValue();
+        CheckNumber(value);
         if (value.Condition is { } condition)
         {
             Branch(condition, jumpWhenTrue);
@@ -500,6 +516,8 @@ internal sealed partial class MethodLowering
     {
         var right = PopValue();
         var left = PopValue();
+        CheckNumber(left);
+        CheckNumber(right);
         if (left.Type != right.Type)
         {
             if (left.Type == TirType.NativeInt && right.Type == TirType.I32)
@@ -528,6 +546,7 @@ internal sealed partial class MethodLowering
     {
         TirTypeKind.Bool => StackValue.OfBool(value),
         TirTypeKind.I8 or TirTypeKind.I16 => StackValue.Of(_ir.Convert(value, TirType.I32, IsUnsigned(type))),
+        TirTypeKind.Ptr => ReferenceToStack(value, type),
         _ => StackValue.Of(value),
     };
 
@@ -538,6 +557,11 @@ internal sealed partial class MethodLowering
     /// </summary>
     private TirValue FromStack(StackValue value, TirType type, IlType ilType, string destination)
     {
+        if (ReferenceOrStructFromStack(value, type, ilType, destination) is { } unconverted)
+        {
+            return unconverted;
+        }
+
         if ((value.Type == TirType.I64) != (type == TirType.I64))
         {
             throw Error($"{destination} has type {ilType}, but the value on the evaluation stack is " +
@@ -568,6 +592,7 @@ internal sealed partial class MethodLowering
     /// </summary>
     private StackValue Convert(StackValue value, TirType to, bool unsigned)
     {
+        CheckNumber(value);
         if (value.Type == to)
         {
             return value;
@@ -627,7 +652,8 @@ internal sealed partial class MethodLowering
         _ => 0,
     };
 
-    private static bool IsUnsigned(IlType type) => type is IlPrimitiveType
+    /// <summary>True for an unsigned integer type, or an enum of one; bool and char count as unsigned.</summary>
+    private bool IsUnsigned(IlType type) => ValueTypes.Underlying(type, _method.Assembly) is IlPrimitiveType
     {
         Kind: IlPrimitiveKind.Bool or IlPrimitiveKind.Char or IlPrimitiveKind.UInt8 or IlPrimitiveKind.UInt16
             or IlPrimitiveKind.UInt32 or IlPrimitiveKind.UInt64 or IlPrimitiveKind.NativeUInt,
@@ -658,6 +684,8 @@ internal sealed partial class MethodLowering
                       $"stack, but another way into {label} has {LoweringErrors.StackText(successor.EntryStack)}");
             }
         }
+
+        PassReferenceTargets(successors);
 
         // every value is read before any slot is written, as one may come from a slot that another goes into
         var stores = new List<(TirSlot Slot, TirValue Value)>();
@@ -724,8 +752,13 @@ internal sealed partial class MethodLowering
 
     private void Push(StackValue value) => _stack.Add(value);
 
-    /// <summary>Pops a value and writes it as TIR if it was still pending.</summary>
-    private TirValue Pop() => Materialize(PopValue());
+    /// <summary>Pops a number and writes it as TIR if it was still pending.</summary>
+    private TirValue Pop()
+    {
+        var value = PopValue();
+        CheckNumber(value);
+        return Materialize(value);
+    }
 
     private StackValue PopValue()
     {

@@ -5,8 +5,9 @@ using ChipSharp.Ir;
 namespace ChipSharp.Frontend;
 
 /// <summary>
-/// The static fields a program may read and write (<c>ldsfld</c>, <c>stsfld</c>): those of its own types that are not
-/// generic, of a type <see cref="SupportedSubset.TryMapType"/> supports. Each becomes a TIR global.
+/// The static fields a program may read and write (<c>ldsfld</c>, <c>stsfld</c>) and take the address of
+/// (<c>ldsflda</c>): those of its own types that are not generic, of a type <see cref="ValueTypes.TryMapType"/> supports
+/// (its structs and enums too). Each becomes a TIR global.
 /// </summary>
 internal static class StaticFields
 {
@@ -30,7 +31,7 @@ internal static class StaticFields
     /// <summary>The TIR type of the global the field becomes, when the field's type is supported.</summary>
     public static bool TryMapType(IlField field, [NotNullWhen(true)] out TirType? tirType)
     {
-        if (SupportedSubset.TryMapType(Type(field), out tirType) && tirType != TirType.Void)
+        if (ValueTypes.TryMapType(Type(field), field.DeclaringType.Assembly, out tirType) && tirType != TirType.Void)
         {
             return true;
         }

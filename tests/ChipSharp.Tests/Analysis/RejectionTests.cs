@@ -168,7 +168,7 @@ public sealed class RejectionTests
     [Fact]
     public void Fields()
     {
-        // counter compiles; its address, a float field and a field of the library do not
+        // counter and its address compile; a float field and a field of the library do not
         var problems = Problems("""
             using System;
             using System.Threading;
@@ -189,8 +189,6 @@ public sealed class RejectionTests
 
         Assert.Equal(
         [
-            "Program.Main() at IL_0000 (ldsflda): taking addresses (ref, out, struct methods) arrives after M0. "
-                + "For now, pass values in and return results.",
             "Program.Main() at IL_0005 (call): the library method System.Threading.Interlocked.Increment(ref int) "
                 + "is not available in M0.",
             "Program.Main() at IL_000b (ldc.r4): floating point (float/double) arrives after M0. "
@@ -334,38 +332,46 @@ public sealed class RejectionTests
     }
 
     [Fact]
-    public void Taking_addresses_and_ref_parameters()
+    public void Unsafe_code()
     {
+        // the address of y as a reference compiles; as a pointer (a number), like sizeof, it does not
         var problems = Problems("""
             using System;
 
+            struct Point
+            {
+                public int X;
+            }
+
             class Program
             {
-                static void Bump(ref int x) => x++;
+                static unsafe int Read(int* p) => *p;
 
-                static void Main()
+                static unsafe void Main()
                 {
                     int y = 1;
-                    Bump(ref y);
-                    Console.WriteLine(y);
+                    int* p = &y;
+                    *p = 2;
+                    Console.WriteLine(Read(&y) + sizeof(Point));
                 }
             }
             """);
 
-        const string References = "references and pointers (ref, out, in, *) arrive after M0. For now, pass values in and return results.";
+        const string Unsafe = "unsafe code (pointers, &x, sizeof, fixed) arrives after M0. "
+            + "For now, use ref parameters, ref locals and structs.";
         Assert.Equal(
         [
-            "Program.Main() at IL_0002 (ldloca.s): taking addresses (ref, out, struct methods) arrives after M0. "
-                + "For now, pass values in and return results.",
-            $"Program.Bump(ref int), parameter 'x' (ref int): {References}",
-            $"Program.Bump(ref int) at IL_0002 (ldind.i4): {References}",
-            $"Program.Bump(ref int) at IL_0005 (stind.i4): {References}",
+            $"Program.Main() at IL_0004 (conv.u): {Unsafe}",
+            $"Program.Main() at IL_0009 (conv.u): {Unsafe}",
+            $"Program.Main() at IL_000f (sizeof): {Unsafe}",
+            $"Program.Read(int*), parameter 'p' (int*): {Unsafe}",
         ], problems);
     }
 
     [Fact]
-    public void Struct_locals_and_instance_methods()
+    public void Structs_used_as_objects()
     {
+        // a struct's own methods compile; the ones it has as an object (GetHashCode), and boxing it, do not
         var problems = Problems("""
             using System;
 
@@ -380,19 +386,21 @@ public sealed class RejectionTests
                 {
                     var counter = new Counter();
                     Console.WriteLine(counter.Next(1));
+                    Console.WriteLine(counter.GetHashCode());
+                    Console.WriteLine(counter);
                 }
             }
             """);
 
-        const string Structs = "structs arrive after M0. For now, use separate whole-number and bool variables.";
-        const string Addresses = "taking addresses (ref, out, struct methods) arrives after M0. For now, pass values in and return results.";
+        const string InstanceCalls = "instance or virtual method calls arrive after M0. "
+            + "For now, call static methods of your own program.";
         Assert.Equal(
         [
-            $"Program.Main(), local variable V_0 (Counter): {Structs}",
-            $"Program.Main() at IL_0000 (ldloca.s): {Addresses}",
-            $"Program.Main() at IL_0002 (initobj): {Structs}",
-            $"Program.Main() at IL_0008 (ldloca.s): {Addresses}",
-            "Counter.Next(int): instance methods arrive after M0. For now, make the method static.",
+            $"Program.Main() at IL_0017 (constrained.): {InstanceCalls}",
+            $"Program.Main() at IL_001d (callvirt): {InstanceCalls}",
+            "Program.Main() at IL_0028 (box): boxing (using a value as an object) arrives after M0. "
+                + "For now, keep values in their own types, such as int and bool.",
+            "Program.Main() at IL_002d (call): the library method System.Console.WriteLine(object) is not available in M0.",
         ], problems);
     }
 
@@ -552,8 +560,9 @@ public sealed class RejectionTests
     }
 
     [Fact]
-    public void Chars_and_enums()
+    public void Chars_but_not_enums()
     {
+        // an enum is its whole number, so Hue compiles
         var problems = Problems("""
             using System;
 
@@ -573,10 +582,8 @@ public sealed class RejectionTests
             """);
 
         Assert.Equal(
-        [
-            "Program.Code(char), parameter 'c' (char): characters (char) arrive after M0. For now, use whole numbers.",
-            "Program.Hue(Color), parameter 'color' (Color): enums arrive after M0. For now, use int constants.",
-        ], problems);
+            ["Program.Code(char), parameter 'c' (char): characters (char) arrive after M0. For now, use whole numbers."],
+            problems);
     }
 
     [Fact]

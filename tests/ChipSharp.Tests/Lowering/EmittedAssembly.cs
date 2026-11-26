@@ -8,20 +8,22 @@ namespace ChipSharp.Tests.Lowering;
 /// <summary>
 /// An assembly written instruction by instruction with System.Reflection.Emit, for IL that C# does not produce:
 /// nop, the long forms (ldarg, starg, ldloc, stloc, br, beq, ...), and broken stacks. Its static methods live in a
-/// class named Program, and each parameter is named a, b, c, ...
+/// class named Program, and each parameter is named a, b, c, ...; it may have structs of its own too.
 /// </summary>
 internal sealed class EmittedAssembly
 {
     private readonly PersistedAssemblyBuilder _assembly;
+    private readonly ModuleBuilder _module;
     private readonly TypeBuilder _type;
+    private readonly List<TypeBuilder> _structs = [];
     private byte[]? _image;
 
     public EmittedAssembly(string name = "Emitted")
     {
         Name = name;
         _assembly = new PersistedAssemblyBuilder(new AssemblyName(name), typeof(object).Assembly);
-        _type = _assembly.DefineDynamicModule(name)
-            .DefineType("Program", TypeAttributes.Public | TypeAttributes.Abstract | TypeAttributes.Sealed);
+        _module = _assembly.DefineDynamicModule(name);
+        _type = _module.DefineType("Program", TypeAttributes.Public | TypeAttributes.Abstract | TypeAttributes.Sealed);
     }
 
     public string Name { get; }
@@ -47,11 +49,28 @@ internal sealed class EmittedAssembly
         _type.DefineField(name, type, isVolatile ? [typeof(System.Runtime.CompilerServices.IsVolatile)] : null, null,
             FieldAttributes.Public | FieldAttributes.Static);
 
+    /// <summary>
+    /// Adds a struct named <paramref name="name"/>, laid out as C# lays out structs (sequential); its fields, constructors
+    /// and methods are defined on what this returns.
+    /// </summary>
+    public TypeBuilder Struct(string name)
+    {
+        var type = _module.DefineType(name, TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.SequentialLayout,
+            typeof(ValueType));
+        _structs.Add(type);
+        return type;
+    }
+
     /// <summary>The assembly's bytes; no method can be added after this.</summary>
     public byte[] Save()
     {
         if (_image is null)
         {
+            foreach (var type in _structs)
+            {
+                type.CreateType();
+            }
+
             _type.CreateType();
             using var stream = new MemoryStream();
             _assembly.Save(stream);

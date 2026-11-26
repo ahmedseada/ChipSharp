@@ -24,14 +24,18 @@ internal sealed partial class MethodLowering
         _ir.Store(_ir.AddressOf(field.Global), value, IsVolatileAccess());
     }
 
-    /// <summary>volatile. changes the instruction after it, which must be an ldsfld or stsfld: M0 has no other access it applies to.</summary>
+    /// <summary>
+    /// volatile. changes the instruction after it, which must be an ldsfld, stsfld, ldfld or stfld (a volatile field of a
+    /// struct): M0 has no other access it applies to.
+    /// </summary>
     private void CheckVolatilePrefix()
     {
         var next = _body.IndexOf(_instruction.Offset) + 1;
-        if (next >= _body.Instructions.Count || _body.Instructions[next].OpCode is not (IlOpCode.Ldsfld or IlOpCode.Stsfld))
+        if (next >= _body.Instructions.Count
+            || _body.Instructions[next].OpCode is not (IlOpCode.Ldsfld or IlOpCode.Stsfld or IlOpCode.Ldfld or IlOpCode.Stfld))
         {
-            throw Error($"volatile. must come right before ldsfld or stsfld: {SupportedSubset.Milestone} has no other " +
-                "memory access it applies to");
+            throw Error($"volatile. must come right before ldsfld, stsfld, ldfld or stfld: {SupportedSubset.Milestone} " +
+                "has no other memory access it applies to");
         }
     }
 

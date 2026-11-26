@@ -114,8 +114,8 @@ public sealed class IlToTirErrorTests
         var generic = Assert.Throws<ChipSharpException>(
             () => IlToTir.Lower(new IlProgram(assembly, [.. assembly.FindMethods("C.Same")])));
 
-        Assert.Equal("Test.dll: C.Field(): instance methods are not supported yet (M0 compiles static methods only).",
-            instance.Message);
+        Assert.Equal("Test.dll: C.Field(): instance methods are not supported yet (M0 compiles static methods and the " +
+            "methods of structs).", instance.Message);
         Assert.Equal("Test.dll: C.Same(!!0): generic methods and the methods of generic types are not supported yet " +
             "(they arrive after M0).", generic.Message);
     }

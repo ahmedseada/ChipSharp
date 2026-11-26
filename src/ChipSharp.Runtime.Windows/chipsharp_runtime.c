@@ -6,6 +6,7 @@
 //   chipsharp_start                      the program's entry point: runs chipsharp_entry, exits with its result
 //   ChipSharp_Runtime_WriteLine...       Console.WriteLine for each type, written like .NET on Windows ("\r\n");
 //                                        floats and doubles as text come from chipsharp_float_text.c
+//   memcpy, memmove, memset              what LLVM calls to copy and clear large structs
 
 typedef void *HANDLE;
 typedef unsigned long DWORD;
@@ -27,6 +28,36 @@ int chipsharp_float32_text(unsigned int bits, char *text);
 
 // The linker looks for this symbol when a program uses floating point; nothing reads it.
 int _fltused = 0;
+
+// LLVM copies and clears large structs by calling memcpy, memmove and memset, which a program without a C runtime
+// must have. They use the x86 string instructions, which the compiler cannot turn back into calls to themselves.
+void *memcpy(void *target, const void *source, __SIZE_TYPE__ count)
+{
+    void *to = target;
+    __asm__ volatile("rep movsb" : "+D"(to), "+S"(source), "+c"(count) : : "memory");
+    return target;
+}
+
+void *memmove(void *target, const void *source, __SIZE_TYPE__ count)
+{
+    if ((const char *)target <= (const char *)source || (const char *)target >= (const char *)source + count)
+    {
+        return memcpy(target, source, count);
+    }
+
+    // the target starts inside the source: copy from the last byte down to the first
+    char *to = (char *)target + count - 1;
+    const char *from = (const char *)source + count - 1;
+    __asm__ volatile("std\n\trep movsb\n\tcld" : "+D"(to), "+S"(from), "+c"(count) : : "memory");
+    return target;
+}
+
+void *memset(void *target, int value, __SIZE_TYPE__ count)
+{
+    void *to = target;
+    __asm__ volatile("rep stosb" : "+D"(to), "+c"(count) : "a"(value) : "memory");
+    return target;
+}
 
 __declspec(noreturn) void chipsharp_start(void)
 {

@@ -303,11 +303,10 @@ public sealed class StaticFieldCheckTests
             }
             """);
 
+        // color and origin compile: enums and structs of the program are supported types
         const string Strings = "text strings arrive after M0. For now, print numbers and bools with Console.WriteLine.";
         const string Floats = "floating point (float/double) arrives after M0. "
             + "For now, use whole numbers: int, long and the other integer types.";
-        const string Enums = "enums arrive after M0. For now, use int constants.";
-        const string Structs = "structs arrive after M0. For now, use separate whole-number and bool variables.";
         const string Arrays = "arrays arrive after M0. For now, use separate variables.";
         const string Characters = "characters (char) arrive after M0. For now, use whole numbers.";
         Assert.Equal(
@@ -316,10 +315,6 @@ public sealed class StaticFieldCheckTests
             $"Program.Main() at IL_0005 (stsfld): {Strings}",
             $"Program.Main() at IL_000a (ldsfld): {Floats}",
             $"Program.Main() at IL_000f (stsfld): {Floats}",
-            $"Program.Main() at IL_0014 (ldsfld): {Enums}",
-            $"Program.Main() at IL_0019 (stsfld): {Enums}",
-            $"Program.Main() at IL_001e (ldsfld): {Structs}",
-            $"Program.Main() at IL_0023 (stsfld): {Structs}",
             $"Program.Main() at IL_0028 (ldsfld): {Arrays}",
             $"Program.Main() at IL_002d (stsfld): {Arrays}",
             $"Program.Main() at IL_0032 (ldsfld): {Characters}",
@@ -330,8 +325,9 @@ public sealed class StaticFieldCheckTests
     }
 
     [Fact]
-    public void Instance_fields_field_addresses_and_library_fields_are_rejected()
+    public void The_fields_of_objects_and_library_fields_are_rejected()
     {
+        // origin's address and its X compile: origin is a struct
         var problems = Problems("""
             using System;
 
@@ -340,13 +336,20 @@ public sealed class StaticFieldCheckTests
                 public int X;
             }
 
+            class Holder
+            {
+                public int Count;
+            }
+
             class Program
             {
                 static Point origin;
+                static Holder holder;
 
                 static void Main()
                 {
                     origin.X = 5;
+                    holder.Count = origin.X;
                     Console.WriteLine(BitConverter.IsLittleEndian);
                 }
             }
@@ -354,11 +357,11 @@ public sealed class StaticFieldCheckTests
 
         Assert.Equal(
         [
-            "Program.Main() at IL_0000 (ldsflda): taking addresses (ref, out, struct methods) arrives after M0. "
-                + "For now, pass values in and return results.",
-            "Program.Main() at IL_0006 (stfld): instance fields (fields without static) arrive after M0. "
+            "Program.Main() at IL_000b (ldsfld): classes and objects arrive after M0. "
+                + "For now, use static methods with whole-number and bool values.",
+            "Program.Main() at IL_001a (stfld): instance fields (fields without static) arrive after M0. "
                 + "For now, make the fields static.",
-            "Program.Main() at IL_000b (ldsfld): the library field System.BitConverter.IsLittleEndian is not available "
+            "Program.Main() at IL_001f (ldsfld): the library field System.BitConverter.IsLittleEndian is not available "
                 + "in M0. For now, use constants or the static fields of your own types.",
         ], problems);
     }

@@ -346,7 +346,7 @@ public sealed class IlToTirStaticFieldTests
     }
 
     [Fact]
-    public void Volatile_before_anything_but_a_static_field_is_an_error()
+    public void Volatile_before_anything_but_a_field_is_an_error()
     {
         var emitted = new EmittedAssembly();
         emitted.Method("F", typeof(int), [], il =>
@@ -358,8 +358,8 @@ public sealed class IlToTirStaticFieldTests
 
         var error = Assert.Throws<ChipSharpException>(() => Lowered.Lower(Lowered.Program(emitted.Read(), "Program.F")));
 
-        Assert.Equal("Emitted.dll: Program.F() at IL_0000: volatile. must come right before ldsfld or stsfld: M0 has " +
-            "no other memory access it applies to.", error.Message);
+        Assert.Equal("Emitted.dll: Program.F() at IL_0000: volatile. must come right before ldsfld, stsfld, ldfld or " +
+            "stfld: M0 has no other memory access it applies to.", error.Message);
     }
 
     [Fact]

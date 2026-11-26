@@ -20,13 +20,19 @@ internal static class LoweringErrors
 
     /// <summary>
     /// The TIR type of a parameter, local or return type, or an error that starts with <paramref name="subject"/>,
-    /// e.g. "parameter 'x' has type" or "it returns".
+    /// e.g. "parameter 'x' has type" or "it returns". For a struct of the program it says what keeps the struct out.
     /// </summary>
-    public static TirType MapType(IlMethod method, IlType type, string subject) =>
-        SupportedSubset.TryMapType(type, out var tirType)
-            ? tirType
-            : throw In(method, $"{subject} {type}, which is not supported yet " +
-                $"({SupportedSubset.Milestone} compiles bool and whole numbers)");
+    public static TirType MapType(IlMethod method, IlType type, string subject)
+    {
+        if (ValueTypes.TryMapType(type, method.Assembly, out var tirType))
+        {
+            return tirType;
+        }
+
+        var why = ValueTypes.ProblemOf(type, method.Assembly)?.Text
+            ?? $"{SupportedSubset.Milestone} compiles bool and whole numbers";
+        throw In(method, $"{subject} {type}, which is not supported yet ({why})");
+    }
 
     /// <summary>The IL name of an evaluation stack type: int32, int64 or native int.</summary>
     public static string StackTypeName(TirType type) => type.Kind switch

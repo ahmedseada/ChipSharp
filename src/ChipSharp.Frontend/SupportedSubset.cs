@@ -16,7 +16,7 @@ public static class SupportedSubset
     public const string Milestone = "M0";
 
     /// <summary>The IL instructions M0 compiles. Checked arithmetic (<c>*.ovf</c>), objects, arrays, strings,
-    /// instance fields, floats, addresses and exceptions are not in it.</summary>
+    /// floats, pointers and exceptions are not in it; newobj and the field instructions are there for structs only.</summary>
     public static FrozenSet<IlOpCode> OpCodes { get; } = new[]
     {
         IlOpCode.Nop,
@@ -25,6 +25,13 @@ public static class SupportedSubset
         IlOpCode.Ldloc_0, IlOpCode.Ldloc_1, IlOpCode.Ldloc_2, IlOpCode.Ldloc_3, IlOpCode.Ldloc_S, IlOpCode.Ldloc,
         IlOpCode.Stloc_0, IlOpCode.Stloc_1, IlOpCode.Stloc_2, IlOpCode.Stloc_3, IlOpCode.Stloc_S, IlOpCode.Stloc,
         IlOpCode.Ldsfld, IlOpCode.Stsfld, IlOpCode.Volatile,
+
+        // structs, enums and references (ValueTypes): fields of structs, addresses, and loads and stores through them
+        IlOpCode.Ldfld, IlOpCode.Stfld, IlOpCode.Ldflda, IlOpCode.Initobj, IlOpCode.Ldobj, IlOpCode.Stobj, IlOpCode.Cpobj,
+        IlOpCode.Newobj, IlOpCode.Ldloca_S, IlOpCode.Ldloca, IlOpCode.Ldarga_S, IlOpCode.Ldarga, IlOpCode.Ldsflda,
+        IlOpCode.Ldind_I1, IlOpCode.Ldind_U1, IlOpCode.Ldind_I2, IlOpCode.Ldind_U2, IlOpCode.Ldind_I4, IlOpCode.Ldind_U4,
+        IlOpCode.Ldind_I8, IlOpCode.Ldind_I, IlOpCode.Stind_I1, IlOpCode.Stind_I2, IlOpCode.Stind_I4, IlOpCode.Stind_I8,
+        IlOpCode.Stind_I,
         IlOpCode.Ldc_I4_M1, IlOpCode.Ldc_I4_0, IlOpCode.Ldc_I4_1, IlOpCode.Ldc_I4_2, IlOpCode.Ldc_I4_3,
         IlOpCode.Ldc_I4_4, IlOpCode.Ldc_I4_5, IlOpCode.Ldc_I4_6, IlOpCode.Ldc_I4_7, IlOpCode.Ldc_I4_8,
         IlOpCode.Ldc_I4_S, IlOpCode.Ldc_I4, IlOpCode.Ldc_I8,
