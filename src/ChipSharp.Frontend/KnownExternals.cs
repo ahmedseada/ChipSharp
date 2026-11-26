@@ -111,7 +111,10 @@ public static class KnownExternals
     /// <summary>Every runtime function a library call can become.</summary>
     public static IReadOnlyList<ExternalFunction> All { get; } = [.. Table.Select(entry => entry.Function)];
 
-    /// <summary>The runtime function a call to <paramref name="method"/> becomes, if the library method is supported.</summary>
+    /// <summary>
+    /// The runtime function a call to <paramref name="method"/> becomes, if the library method is supported; a call to
+    /// a runtime function of ChipSharp's library is one too (<see cref="LibrarySubstitutes.TryMapRuntimeFunction"/>).
+    /// </summary>
     public static bool TryMap(IlMethodReference method, [NotNullWhen(true)] out ExternalFunction? function)
     {
         ArgumentNullException.ThrowIfNull(method);
@@ -128,8 +131,7 @@ public static class KnownExternals
             }
         }
 
-        function = null;
-        return false;
+        return LibrarySubstitutes.TryMapRuntimeFunction(method, out function);
     }
 
     /// <summary>

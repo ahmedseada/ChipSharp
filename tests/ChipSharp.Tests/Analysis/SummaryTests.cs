@@ -199,15 +199,15 @@ public sealed class SummaryTests
 
             class Program
             {
-                static int Next(Random random, TimeSpan when, Random other) => 0;
+                static int Next(Random random, DateTime when, Random other) => 0;
 
                 static void Main() => Console.WriteLine(Next(null, default, null));
             }
             """);
 
         var types = analysis.Groups.Where(group => group.Feature.StartsWith("the type ", StringComparison.Ordinal)).ToList();
-        Assert.Equal(["the type System.TimeSpan", "the type System.Random"], types.Select(group => group.Feature));
-        Assert.Equal("the type System.Random arrives later: 2 places in Program.Next(System.Random, System.TimeSpan, "
+        Assert.Equal(["the type System.DateTime", "the type System.Random"], types.Select(group => group.Feature));
+        Assert.Equal("the type System.Random arrives later: 2 places in Program.Next(System.Random, System.DateTime, "
             + "System.Random) (parameter 'random' and parameter 'other'). For now, use bool, the whole-number types "
             + "(sbyte to ulong, nint, nuint), float, double, and the program's own structs and enums.", types[1].Line);
     }
@@ -244,7 +244,7 @@ public sealed class SummaryTests
             For every place, run: chipsharp check Test.dll --details
             """.ReplaceLineEndings("\n"), analysis.Summary);
         Assert.InRange(analysis.Summary.Split('\n').Length, 1, 11);
-        Assert.Equal(19, analysis.Details.Split('\n').Length);
+        Assert.Equal(20, analysis.Details.Split('\n').Length);
     }
 
     [Fact]
@@ -272,7 +272,8 @@ public sealed class SummaryTests
         [
             "System.Console.WriteLine()", "System.Console.WriteLine(int)", "System.Math.Abs(double)",
             "System.Math.Clamp(int, int, int)", "System.MathF.Abs(float)", "System.TimeSpan.FromMilliseconds(double)",
-            "System.TimeSpan.FromSeconds(double)", "ChipSharp.Hardware.Pin.Toggle(int)",
+            "System.TimeSpan.FromSeconds(double)", "System.TimeSpan.Ticks", "System.TimeSpan.new TimeSpan(long)",
+            "System.TimeSpan.operator <(System.TimeSpan, System.TimeSpan)", "ChipSharp.Hardware.Pin.Toggle(int)",
             "ChipSharp.Hardware.Timing.Delay(System.TimeSpan)",
         ];
 
@@ -281,7 +282,7 @@ public sealed class SummaryTests
               Console.WriteLine of (nothing), int
               Math: Abs, Clamp
               MathF.Abs of float
-              TimeSpan: FromMilliseconds, FromSeconds
+              TimeSpan: FromMilliseconds, FromSeconds, its constructors, properties and operators
               ChipSharp.Hardware: Pin, Timing (see the README)
             """.ReplaceLineEndings("\n"), Calls.Summarize(methods));
         Assert.Equal("""
@@ -289,11 +290,13 @@ public sealed class SummaryTests
               System.Console: WriteLine(), WriteLine(int)
               System.Math: Abs(double), Clamp(int, int, int)
               System.MathF: Abs(float)
-              System.TimeSpan: FromMilliseconds(double), FromSeconds(double)
+              System.TimeSpan: FromMilliseconds(double), FromSeconds(double), Ticks, new TimeSpan(long), operator <(System.TimeSpan, System.TimeSpan)
               ChipSharp.Hardware.Pin: Toggle(int)
               ChipSharp.Hardware.Timing: Delay(System.TimeSpan)
             """.ReplaceLineEndings("\n"), Calls.List(methods));
-        Assert.Equal(Calls.Summarize(KnownExternals.All.Select(function => function.LibraryMethod)),
+        Assert.Equal(
+            Calls.Summarize(KnownExternals.All.Select(function => function.LibraryMethod).Concat(LibrarySubstitutes.Members)
+                .OrderBy(method => method.StartsWith("ChipSharp.", StringComparison.Ordinal))),
             Calls.Summary);
     }
 }

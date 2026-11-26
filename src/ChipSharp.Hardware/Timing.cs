@@ -19,6 +19,13 @@ public static class Timing
     public static void DelayMicroseconds(int microseconds) => throw ChipOnly.Method("Timing.DelayMicroseconds");
 
     /// <summary>
+    /// Waits at least <paramref name="duration"/>, in any unit: <c>Timing.Delay(TimeSpan.FromMilliseconds(500))</c>,
+    /// <c>TimeSpan.FromSeconds(2)</c>, <c>TimeSpan.FromMicroseconds(250)</c>. It waits whole microseconds (a part of one
+    /// counts as one), also for durations longer than an int of microseconds.
+    /// </summary>
+    public static void Delay(TimeSpan duration) => throw ChipOnly.Method("Timing.Delay");
+
+    /// <summary>
     /// Runs the program's <c>[Interrupt(Event.Timer)]</c> method every <paramref name="milliseconds"/> thousandths of
     /// a second, the first time that long from now, until <see cref="Stop"/> or another Every or After call. Zero or a
     /// negative time stops the timer; more than 2147483 (about 35 minutes) counts as 2147483.

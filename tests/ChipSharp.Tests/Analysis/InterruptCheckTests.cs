@@ -253,8 +253,8 @@ public sealed class InterruptCheckTests
 
         Assert.Equal(
             [
-                "Program.Pause() at IL_0002 (call): an interrupt handler cannot wait (Timing.DelayMilliseconds, " +
-                    "Timing.DelayMicroseconds). The interrupt that ends the wait cannot come while a handler runs, so " +
+                "Program.Pause() at IL_0002 (call): an interrupt handler cannot wait (Timing.Delay, " +
+                    "Timing.DelayMilliseconds, Timing.DelayMicroseconds). The interrupt that ends the wait cannot come while a handler runs, so " +
                     "it would wait forever: keep handlers short, and wait in Main, e.g. for a static volatile field the " +
                     "handler sets.",
             ],

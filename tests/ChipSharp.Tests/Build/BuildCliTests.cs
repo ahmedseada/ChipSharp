@@ -100,9 +100,9 @@ public sealed class BuildCliTests : IDisposable
             "  the library method System.Console.WriteLine(string) is not available yet: 2 places in Program.Main() "
                 + "(IL_0005 and IL_0016).",
         ], lines[1..3]);
-        Assert.Equal(WholeProgram.LibraryCalls.Split('\n'), lines[3..7]);
-        Assert.Equal($"For every place, run: chipsharp check {ChipSharpCli.Quoted(dll)} --details", lines[7]);
-        Assert.Equal(8, lines.Length);
+        Assert.Equal(WholeProgram.LibraryCalls.Split('\n'), lines[3..8]);
+        Assert.Equal($"For every place, run: chipsharp check {ChipSharpCli.Quoted(dll)} --details", lines[8]);
+        Assert.Equal(9, lines.Length);
         Assert.Equal(check.Error, build.Error);
         Assert.Equal(check.ExitCode, build.ExitCode);
         Assert.False(Directory.Exists(Path.Combine(_scratch, "chipsharp-output")));
