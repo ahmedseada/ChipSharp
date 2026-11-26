@@ -63,6 +63,7 @@ public static partial class WholeProgramPass
         {
             InterruptHandlers = handlers,
             DetailsTarget = forTarget ? target!.Name : null,
+            UnalignedAccess = target?.HasCapability("unalignedAccess") ?? true,
         };
     }
 
@@ -182,16 +183,20 @@ public static partial class WholeProgramPass
             problems.Add(Problem.AtTry(method, tryOffset, Unsupported.TryCatchFinally));
         }
 
-        // the verdict of printed text comes first for the instructions it is about, then the arrays' rule's, then generics'
+        // the verdict of printed text comes first for the instructions it is about, then the arrays' rule's (a problem,
+        // then spans' verdict, then a fine), then generics'
         var printed = PrintedText.Of(method);
         var arrays = ArrayEscapeAnalysis.Check(method, statics);
+        var spans = ForSpans(method);
         var generics = ForGenerics(method);
         foreach (var instruction in body.Instructions)
         {
-            // what printed text, the array escape analysis or generics found for this instruction, else building text,
-            // else the struct/reference rules, else the rest
+            // what printed text, the array escape analysis, spans or generics found for this instruction, else building
+            // text, else the struct/reference rules, else the rest
             var unsupported = printed.Verdicts.TryGetValue(instruction, out var text) ? text
-                : arrays.TryGetValue(instruction, out var array) ? array
+                : arrays.TryGetValue(instruction, out var array) && (array is not null || !spans.ContainsKey(instruction))
+                    ? array
+                : spans.TryGetValue(instruction, out var span) ? span
                 : generics.TryGetValue(instruction, out var generic) ? generic
                 : ForText(method, instruction) ?? ForStructOrReference(method, instruction)
                     ?? ForInstruction(instruction, argsArgument, interpolations);

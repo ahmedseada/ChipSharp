@@ -37,6 +37,8 @@ public static partial class WholeProgramPass
             IlPointerType or IlPinnedType => Unsupported.UnsafeCode,
             IlByRefType reference when FixedText.IsText(reference.ElementType) => Unsupported.TextReferences,
             IlByRefType reference => ForAnyType(reference.ElementType, assembly, method),
+            var plain when Spans.IsSpan(plain, out var element, out _) => Unsupported.ForSpan(element, assembly),
+            var plain when Unsupported.IsCollectionExpression(plain) => Unsupported.SpanCollectionExpressions,
             var plain when ValueTypes.Definition(plain, assembly) is { } definition => ForStruct(definition),
             _ => null,
         };

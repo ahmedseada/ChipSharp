@@ -100,9 +100,10 @@ public sealed class BuildCliTests : IDisposable
                 + "Console.Write.",
             "  the library method System.Math.Abs(int) is not available yet: 1 place in Program.Main() (IL_0025).",
         ], lines[1..3]);
-        Assert.Equal(WholeProgram.LibraryCalls.Split('\n'), lines[3..8]);
-        Assert.Equal($"For every place, run: chipsharp check {ChipSharpCli.Quoted(dll)} --details", lines[8]);
-        Assert.Equal(9, lines.Length);
+        var calls = WholeProgram.LibraryCalls.Split('\n');
+        Assert.Equal(calls, lines[3..(3 + calls.Length)]);
+        Assert.Equal($"For every place, run: chipsharp check {ChipSharpCli.Quoted(dll)} --details", lines[3 + calls.Length]);
+        Assert.Equal(4 + calls.Length, lines.Length);
         Assert.Equal(check.Error, build.Error);
         Assert.Equal(check.ExitCode, build.ExitCode);
         Assert.False(Directory.Exists(Path.Combine(_scratch, "chipsharp-output")));

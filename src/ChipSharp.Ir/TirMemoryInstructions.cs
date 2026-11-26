@@ -86,6 +86,13 @@ public sealed class TirPointerLoad : TirInstruction
     /// <summary>True for a read that must happen exactly as written (a hardware register).</summary>
     public bool IsVolatile { get; }
 
+    /// <summary>
+    /// True for a read at an address that may not be aligned for the type (<c>load unaligned i32 [%0]</c>), as C#'s
+    /// MemoryMarshal.Read reads a value from any byte: the code generator reads it so that a chip that cannot read a
+    /// misaligned word (a Cortex-M0+) does not fault, e.g. byte by byte.
+    /// </summary>
+    public bool IsUnaligned { get; init; }
+
     public override IReadOnlyList<TirValue> Operands => [Address];
 }
 
@@ -112,6 +119,9 @@ public sealed class TirPointerStore : TirInstruction
 
     /// <summary>True for a write that must happen exactly as written (a hardware register).</summary>
     public bool IsVolatile { get; }
+
+    /// <summary>True for a write at an address that may not be aligned for the type: see <see cref="TirPointerLoad.IsUnaligned"/>.</summary>
+    public bool IsUnaligned { get; init; }
 
     public override IReadOnlyList<TirValue> Operands => [Address, Value];
 }

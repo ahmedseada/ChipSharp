@@ -190,7 +190,7 @@ internal static class LibrarySubstitutes
 
         foreach (var method in type.Methods.Where(method => IsPublic(method.Attributes) && method.Name != ".cctor"))
         {
-            var parameters = string.Join(", ", method.Parameters.Select(parameter => CSharpName(parameter.Type)));
+            var parameters = string.Join(", ", method.Parameters.Select(parameter => CSharpName(parameter.Type, method)));
             var special = (method.Attributes & MethodAttributes.SpecialName) != 0;
             yield return method.Name switch
             {
@@ -204,12 +204,15 @@ internal static class LibrarySubstitutes
         }
     }
 
-    /// <summary>A type of the library's signatures as C# writes it, a substitute as the type it stands for.</summary>
-    private static string CSharpName(IlType type) =>
+    /// <summary>
+    /// A type of the library's signatures as C# writes it, a substitute as the type it stands for, and a generic parameter
+    /// by its name in <paramref name="method"/> (T).
+    /// </summary>
+    private static string CSharpName(IlType type, IlMethod method) =>
         type is IlNamedType { IsDefinedInThisAssembly: true } named && Assembly.FindType(named.FullName) is { } definition
             && Substituted.TryGetValue(definition, out var library)
             ? library
-            : CSharpNames.Type(type);
+            : CSharpNames.Type(type, method);
 
     private static bool IsPublic(MethodAttributes attributes) =>
         (attributes & MethodAttributes.MemberAccessMask) == MethodAttributes.Public;

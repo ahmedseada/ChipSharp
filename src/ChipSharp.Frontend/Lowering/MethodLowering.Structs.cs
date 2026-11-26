@@ -47,13 +47,14 @@ internal sealed partial class MethodLowering
 
             case IlOpCode.Ldobj:
                 var (loaded, ilType) = TypeOperand();
-                Push(ToStack(_ir.Load(loaded, PopAddress()), ilType));
+                Push(ToStack(_ir.Load(ByteOfBool(loaded, out var reference) ? TirType.I8 : loaded, reference), ilType));
                 break;
 
             case IlOpCode.Stobj:
                 (type, ilType) = TypeOperand();
                 var value = FromStack(PopValue(), type, ilType, "the value it refers to");
-                _ir.Store(PopAddress(), value);
+                var isByte = ByteOfBool(type, out var target);
+                _ir.Store(target, isByte ? _ir.Convert(value, TirType.I8) : value);
                 break;
 
             case IlOpCode.Cpobj:
@@ -192,6 +193,17 @@ internal sealed partial class MethodLowering
             ? (tirType, type)
             : throw Error($"{_instruction.Name} of {type} is not supported yet (ChipSharp compiles " +
                 "bool, whole numbers, and the structs and enums of the program)");
+    }
+
+    /// <summary>
+    /// Pops the reference an ldobj or stobj of <paramref name="type"/> goes through; true when the type is bool and the
+    /// reference is to a bool element of an array or span, which is a byte (0 or 1), as ldind.u1 would read it.
+    /// </summary>
+    private bool ByteOfBool(TirType type, out TirValue address)
+    {
+        var (reference, target) = PopReference();
+        address = reference;
+        return type == TirType.Bool && target == TirType.I8;
     }
 
     /// <summary>Pops the address of a struct or another value: a reference (ptr).</summary>

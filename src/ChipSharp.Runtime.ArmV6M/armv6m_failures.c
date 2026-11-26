@@ -13,6 +13,9 @@
 //   ChipSharp_Runtime_OutOfMemory        an object that does not fit in the heap (OutOfMemoryException)
 //   ChipSharp_Runtime_Overflow           an array of a negative length (OverflowException)
 //   ChipSharp_Runtime_HeapInInterrupt    an interrupt handler that makes an object, which it never may
+//   ChipSharp_Runtime_ArgumentOutOfRange, LengthOutOfRange, DestinationTooShort, DataMisaligned
+//                                        a span's start or length outside it, too few bytes for MemoryMarshal.Read or
+//                                        Write, a CopyTo a shorter span, a MemoryMarshal.Cast this chip cannot read
 //
 // The TimeSpan ones and NegateOverflow are the methods of ChipSharp.Library.Runtime, which says when each happens; the
 // others are the code generator's and the heap's (chipsharp_heap.c, armv6m_heap.c).
@@ -37,3 +40,7 @@ __attribute__((weak, noreturn)) void ChipSharp_Runtime_NullReference(void) { fai
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_OutOfMemory(void) { fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_Overflow(void) { fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_HeapInInterrupt(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_ArgumentOutOfRange(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_LengthOutOfRange(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_DestinationTooShort(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_DataMisaligned(void) { fail(); }

@@ -314,7 +314,7 @@ public sealed class SummaryTests
             """.ReplaceLineEndings("\n"), Calls.List(methods));
         Assert.Equal(
             Calls.Summarize(KnownExternals.All.Select(function => function.LibraryMethod).Concat(LibrarySubstitutes.Members)
-                .OrderBy(method => method.StartsWith("ChipSharp.", StringComparison.Ordinal))),
+                .Concat(Spans.Members).OrderBy(method => method.StartsWith("ChipSharp.", StringComparison.Ordinal))),
             Calls.Summary);
     }
 }
