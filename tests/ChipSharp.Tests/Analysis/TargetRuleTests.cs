@@ -108,15 +108,16 @@ public sealed class TargetRuleTests : IDisposable
 
                 static void Main()
                 {
-                    result = Same(5);
+                    result = Code('a');
                 }
 
-                static T Same<T>(T value) => value;
+                static int Code(char letter) => letter;
             }
             """, Tiny);
 
         Assert.Equal(
-            ["Program.Same<T>(T): generic methods arrive with M3 (the heap). For now, write a method for each type you need."],
+            ["Program.Code(char), parameter 'letter' (char): characters (char) arrive with M3 (the heap). For now, use " +
+                "whole numbers."],
             problems);
     }
 

@@ -51,6 +51,9 @@ public sealed class SampleProgramTests : IDisposable
     public Task Gcd() => PrintsWhatDotnetPrints();
 
     [HostFact]
+    public Task Generics() => PrintsWhatDotnetPrints();
+
+    [HostFact]
     public Task IfElse() => PrintsWhatDotnetPrints();
 
     [HostFact]

@@ -15,7 +15,8 @@ namespace ChipSharp.Frontend;
 /// widened and narrowed like a byte;</item>
 /// <item>a struct of the program that is not generic is a <see cref="TirStructType"/> named as C# writes it (e.g.
 /// <c>Program.Point</c>), with its instance fields in their order. There is one per struct, made once and shared by
-/// every module, because TIR's struct types are equal only to themselves;</item>
+/// every module, because TIR's struct types are equal only to themselves. So is an instance of a generic struct, one
+/// per list of type arguments (<c>Pair&lt;int&gt;</c>, see <see cref="Generics.Instantiations"/>);</item>
 /// <item>a reference (<c>ref</c>, <c>out</c>, <c>in</c>, a ref local, a ref return, a struct method's <c>this</c>) to a
 /// value of any of these types is a ptr. In verifiable C# a reference never outlives what it points to, so a plain
 /// address is all it needs.</item>
@@ -50,7 +51,7 @@ internal static class ValueTypes
                 tirType = TirType.Ptr;
                 return true;
 
-            case IlNamedType when Definition(type, assembly) is { } definition:
+            case IlNamedType or IlGenericInstanceType when Definition(type, assembly) is { } definition:
                 if (IsEnum(definition))
                 {
                     return EnumType(definition) is { } underlying && SupportedSubset.TryMapType(underlying, out tirType);
@@ -72,13 +73,18 @@ internal static class ValueTypes
     /// <summary>
     /// The struct or enum of <paramref name="assembly"/> that <paramref name="type"/> names (modifiers looked through),
     /// or the library substitute of the library type it names (<see cref="LibrarySubstitutes"/>), when it is not
-    /// generic; null for any other type.
+    /// generic, or the instance of a generic struct it names (<see cref="Generics.Instantiations.Type"/>: a struct of
+    /// its own for each list of type arguments); null for any other type.
     /// </summary>
     public static IlTypeDefinition? Definition(IlType type, IlAssembly assembly) =>
-        WithoutModifiers(type) is IlNamedType named
-            && (named.IsDefinedInThisAssembly ? assembly.FindType(named.FullName) : LibrarySubstitutes.FindType(named))
-                is { GenericParameters.Count: 0 } definition
-            && (IsStruct(definition) || IsEnum(definition))
+        (WithoutModifiers(type) switch
+        {
+            IlNamedType named => named.IsDefinedInThisAssembly
+                ? assembly.FindType(named.FullName)
+                : LibrarySubstitutes.FindType(named),
+            IlGenericInstanceType instance => Generics.Instantiations.Type(instance, assembly),
+            _ => null,
+        }) is { GenericParameters.Count: 0 } definition && (IsStruct(definition) || IsEnum(definition))
             ? definition
             : null;
 

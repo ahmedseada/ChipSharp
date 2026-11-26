@@ -295,7 +295,7 @@ public sealed class StaticFieldCheckTests
                     origin = origin;
                     table = table;
                     letter = letter;
-                    Box<int>.Count = 1;
+                    Box<object>.Count = 1;
                 }
             }
             """);
@@ -317,8 +317,9 @@ public sealed class StaticFieldCheckTests
             $"Program.Main() at IL_002d (stsfld): {Arrays}",
             $"Program.Main() at IL_0032 (ldsfld): {Characters}",
             $"Program.Main() at IL_0037 (stsfld): {Characters}",
-            "Program.Main() at IL_003d (stsfld): generic types arrive with M3 (the heap). "
-                + "For now, write a type for each type argument you need.",
+            "Program.Main() at IL_003d (stsfld): generics over classes (a class, an interface, object or an array as a "
+                + "type argument) arrive with M3 (the heap). For now, use numbers, bools, enums and structs as type "
+                + "arguments: ChipSharp makes the code once for each.",
         ], problems);
     }
 
