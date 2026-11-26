@@ -80,7 +80,10 @@ public sealed class TirFunction
     /// <summary>The first block, or null when there are none (an external function).</summary>
     public TirBlock? EntryBlock => _blocks.Count > 0 ? _blocks[0] : null;
 
-    /// <summary>Adds a mutable variable, printed as <c>$name</c>. Slot names are unique within the function.</summary>
+    /// <summary>
+    /// Adds a mutable variable of any type but void (a struct or an array too), printed as <c>$name</c>. It starts
+    /// at zero. Slot names are unique within the function.
+    /// </summary>
     public TirSlot AddSlot(string name, TirType type)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -146,7 +149,8 @@ public sealed class TirParameter : TirValue
 /// <summary>
 /// A mutable variable of a function, read with <see cref="TirLoad"/> and written with <see cref="TirStore"/>,
 /// printed as <c>$name</c>. C# locals live in slots, and so does any value that must cross from one block to
-/// another. (The LLVM generator makes each slot an alloca; LLVM's mem2reg then turns them into registers.)
+/// another. Its address (<see cref="TirSlotAddress"/>) reaches the parts of a struct or array in it.
+/// (The LLVM generator makes each slot an alloca; LLVM's mem2reg then turns them into registers.)
 /// </summary>
 public sealed class TirSlot
 {

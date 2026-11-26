@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using ChipSharp.Abstractions;
 using ChipSharp.Ir;
@@ -7,11 +8,13 @@ namespace ChipSharp.Backend.Llvm;
 /// <summary>
 /// The "llvm" code generator: writes a TIR module as LLVM IR text, one .ll file that clang compiles for any
 /// target LLVM knows (PC, ARM, RISC-V, ...).
-/// Each function becomes a symbol made from its display name (see <see cref="SymbolName"/>). External functions
-/// keep exactly that symbol, since the runtime implements them under it; a defined function whose symbol is
-/// already taken gets _2, _3, ... after it. Each slot becomes an alloca that starts at zero, in a block of its own
-/// in front of the TIR entry block. <see cref="EntrySymbol"/> calls the module's entry point and returns its int
-/// result (0 when it returns nothing); the runtime's startup code calls it.
+/// Each function and global becomes a symbol made from its display name (see <see cref="SymbolName"/>). External
+/// functions keep exactly that symbol, since the runtime implements them under it; a defined function or a global
+/// whose symbol is already taken gets _2, _3, ... after it. A global is an <c>internal global</c> that starts at
+/// zero or at its initial value. Each slot becomes an alloca that starts at zero, in a block of its own in front
+/// of the TIR entry block. Struct types become named LLVM struct types (<c>%struct.Program_Point</c>), and every
+/// alignment comes from <see cref="TirLayout"/>. <see cref="EntrySymbol"/> calls the module's entry point and
+/// returns its int result (0 when it returns nothing); the runtime's startup code calls it.
 /// </summary>
 public sealed class LlvmCodeGenerator : ICodeGenerator
 {
@@ -31,7 +34,7 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
         TirVerifier.Verify(module);
 
         var types = LlvmTypes.For(target);
-        var symbols = AssignSymbols(module);
+        var (symbols, globalSymbols) = AssignSymbols(module);
         var entry = module.EntryPoint is { } entryPoint ? EntryCall(entryPoint, symbols[entryPoint]) : null;
 
         var text = new StringBuilder();
@@ -39,6 +42,30 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
         if (!string.IsNullOrEmpty(target.Triple))
         {
             text.Append("target triple = ").Append(LlvmText.Quoted(target.Triple)).Append('\n');
+        }
+
+        var structs = types.NameStructs(module);
+        if (structs.Count > 0)
+        {
+            text.Append('\n');
+        }
+
+        foreach (var structType in structs)
+        {
+            text.Append(structType).Append('\n');
+        }
+
+        if (module.Globals.Count > 0)
+        {
+            text.Append('\n');
+        }
+
+        foreach (var global in module.Globals)
+        {
+            // internal, like the defined functions: only this module uses it
+            var value = global.InitialValue is { } initial ? LlvmText.Constant(initial) : LlvmText.Zero(global.Type);
+            var align = types.Alignment(global.Type).ToString(CultureInfo.InvariantCulture);
+            text.Append($"@{globalSymbols[global]} = internal global {types.Of(global.Type)} {value}, align {align}\n");
         }
 
         var externals = module.Functions.Where(f => f.Kind == TirFunctionKind.External).ToList();
@@ -56,7 +83,7 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
         foreach (var function in module.Functions.Where(f => f.Kind == TirFunctionKind.Defined))
         {
             text.Append('\n');
-            new LlvmFunctionWriter(function, types, symbols, text).Write();
+            new LlvmFunctionWriter(function, types, symbols, globalSymbols, text).Write();
         }
 
         if (entry is not null)
@@ -80,13 +107,15 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
 
     /// <summary>
     /// External functions first, in module order: they must keep their symbol, so two that clash are an error.
-    /// Then defined functions, in module order, each taking the first free symbol of name, name_2, name_3, ...
-    /// <see cref="EntrySymbol"/> is reserved.
+    /// Then defined functions, then globals, in module order, each taking the first free symbol of name, name_2,
+    /// name_3, ... (functions and globals share LLVM's one namespace of symbols). <see cref="EntrySymbol"/> is reserved.
     /// </summary>
-    private static Dictionary<TirFunction, string> AssignSymbols(TirModule module)
+    private static (Dictionary<TirFunction, string> Functions, Dictionary<TirGlobal, string> Globals) AssignSymbols(
+        TirModule module)
     {
         var symbols = new Dictionary<TirFunction, string>();
         var owners = new Dictionary<string, TirFunction?>(StringComparer.Ordinal) { [EntrySymbol] = null };
+        var globals = new Dictionary<TirGlobal, string>();
 
         foreach (var function in module.Functions.Where(f => f.Kind == TirFunctionKind.External))
         {
@@ -118,7 +147,20 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
             symbols[function] = symbol;
         }
 
-        return symbols;
+        foreach (var global in module.Globals)
+        {
+            var wanted = SymbolName(global.Name);
+            var symbol = wanted;
+            for (var n = 2; owners.ContainsKey(symbol); n++)
+            {
+                symbol = $"{wanted}_{n}";
+            }
+
+            owners[symbol] = null;
+            globals[global] = symbol;
+        }
+
+        return (symbols, globals);
     }
 
     /// <summary>

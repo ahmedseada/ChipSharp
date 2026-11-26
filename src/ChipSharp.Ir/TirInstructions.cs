@@ -56,6 +56,11 @@ public sealed class TirConst : TirInstruction
         IntegerValue = type.Kind switch
         {
             TirTypeKind.Void => throw new TirException("A constant cannot have type void."),
+            TirTypeKind.Ptr => throw new TirException(
+                "A constant cannot have type ptr; null is 'zero ptr', and inttoptr turns a number into an address."),
+            TirTypeKind.Struct or TirTypeKind.Array => throw new TirException(
+                $"A constant cannot have type {type}; only bool, integers and floats have constants " +
+                "('zero' makes a value of any type with every byte zero)."),
             TirTypeKind.Bool => value is 0 or 1
                 ? value
                 : throw new TirException($"A bool constant must be 0 or 1, not {Text(value)}."),
@@ -159,7 +164,11 @@ public sealed class TirBinary : TirInstruction
     public override IReadOnlyList<TirValue> Operands => [Left, Right];
 }
 
-/// <summary>Comparisons. The unsigned variants read integer operands as unsigned; the others as signed.</summary>
+/// <summary>
+/// Comparisons. The unsigned variants read integer operands as unsigned; the others as signed. On floats the
+/// unsigned variants are unordered: also true when either side is NaN, which is what IL's <c>clt.un</c>,
+/// <c>cgt.un</c>, <c>bge.un</c> and the like mean on floats.
+/// </summary>
 public enum TirCompareOp
 {
     Eq,
@@ -176,8 +185,8 @@ public enum TirCompareOp
 
 /// <summary>
 /// <c>%2 = lt i32 %0, %1</c>: compares two operands of the same type and produces a bool.
-/// eq and ne work on integers, floats and bool; lt, le, gt, ge on integers and floats; the unsigned variants
-/// on integers only.
+/// eq and ne work on integers, floats, bool and ptr; lt, le, gt, ge on integers and floats; the unsigned variants
+/// on integers, floats (unordered, see <see cref="TirCompareOp"/>) and ptr. Structs and arrays cannot be compared.
 /// </summary>
 public sealed class TirCompare : TirInstruction
 {
@@ -203,7 +212,8 @@ public sealed class TirCompare : TirInstruction
 /// the integer side is read as unsigned: the source when widening or turning an integer into a float, the
 /// result when turning a float into an integer. A bool converts to 0 or 1. Nothing converts to bool
 /// (compare with zero instead). Converting to the same type, or between nint and an integer of the
-/// target's pointer width, changes nothing.
+/// target's pointer width, changes nothing. It works on integers, floats and bool only: <see cref="TirPtrToInt"/>
+/// and <see cref="TirIntToPtr"/> turn addresses into numbers and back.
 /// </summary>
 public sealed class TirConvert : TirInstruction
 {
@@ -222,7 +232,10 @@ public sealed class TirConvert : TirInstruction
     public override IReadOnlyList<TirValue> Operands => [Value];
 }
 
-/// <summary><c>%0 = load i32 $x</c>: reads a slot. The result has the slot's type.</summary>
+/// <summary>
+/// <c>%0 = load i32 $x</c>: reads a slot. The result has the slot's type. (<see cref="TirPointerLoad"/> reads
+/// memory at an address.)
+/// </summary>
 public sealed class TirLoad : TirInstruction
 {
     public TirLoad(TirSlot slot) : base((slot ?? throw new ArgumentNullException(nameof(slot))).Type)
@@ -235,7 +248,10 @@ public sealed class TirLoad : TirInstruction
     public override IReadOnlyList<TirValue> Operands => [];
 }
 
-/// <summary><c>store $x, %0</c>: writes a value of the slot's type into a slot. Produces nothing.</summary>
+/// <summary>
+/// <c>store $x, %0</c>: writes a value of the slot's type into a slot. Produces nothing. (<see cref="TirPointerStore"/>
+/// writes memory at an address.)
+/// </summary>
 public sealed class TirStore : TirInstruction
 {
     public TirStore(TirSlot slot, TirValue value) : base(TirType.Void)

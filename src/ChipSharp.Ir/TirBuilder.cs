@@ -46,6 +46,52 @@ public sealed class TirBuilder(TirBlock block)
 
     public TirStore Store(TirSlot slot, TirValue value) => Block.Append(new TirStore(slot, value));
 
+    /// <summary>A value of <paramref name="type"/> with every byte zero: a null ptr, a struct or array of zeros, 0.</summary>
+    public TirZero Zero(TirType type) => Block.Append(new TirZero(type));
+
+    /// <summary>How many bytes <paramref name="type"/> takes on the target, an i32 the code generator fills in.</summary>
+    public TirSizeOf SizeOf(TirType type) => Block.Append(new TirSizeOf(type));
+
+    /// <summary>The address of a slot (a ptr), e.g. to reach the fields of a struct or the elements of an array in it.</summary>
+    public TirSlotAddress AddressOf(TirSlot slot) => Block.Append(new TirSlotAddress(slot));
+
+    /// <summary>The address of a global (a ptr).</summary>
+    public TirGlobalAddress AddressOf(TirGlobal global) => Block.Append(new TirGlobalAddress(global));
+
+    /// <summary>Reads a <paramref name="type"/> from memory at <paramref name="address"/>; volatile for a hardware register.</summary>
+    public TirPointerLoad Load(TirType type, TirValue address, bool isVolatile = false) =>
+        Block.Append(new TirPointerLoad(type, address, isVolatile));
+
+    /// <summary>Writes <paramref name="value"/> to memory at <paramref name="address"/>; volatile for a hardware register.</summary>
+    public TirPointerStore Store(TirValue address, TirValue value, bool isVolatile = false) =>
+        Block.Append(new TirPointerStore(address, value, isVolatile));
+
+    /// <summary>The address of field number <paramref name="fieldIndex"/> of the struct at <paramref name="address"/>.</summary>
+    public TirFieldAddress FieldAddress(TirValue address, TirStructType structType, int fieldIndex) =>
+        Block.Append(new TirFieldAddress(address, structType, fieldIndex));
+
+    /// <summary>The address of the field named <paramref name="fieldName"/> of the struct at <paramref name="address"/>.</summary>
+    public TirFieldAddress FieldAddress(TirValue address, TirStructType structType, string fieldName)
+    {
+        ArgumentNullException.ThrowIfNull(structType);
+        var field = structType.FindField(fieldName)
+            ?? throw new TirException($"Struct '{structType.Name}' has no field named {fieldName}.");
+        return FieldAddress(address, structType, field.Index);
+    }
+
+    /// <summary>
+    /// The address of element <paramref name="index"/> (i32, i64 or nint) of a row of <paramref name="elementType"/>
+    /// values that starts at <paramref name="address"/>, e.g. an array's.
+    /// </summary>
+    public TirElementAddress ElementAddress(TirValue address, TirType elementType, TirValue index) =>
+        Block.Append(new TirElementAddress(address, elementType, index));
+
+    /// <summary>An address as a number of type <paramref name="to"/> (an integer type).</summary>
+    public TirPtrToInt PtrToInt(TirValue address, TirType to) => Block.Append(new TirPtrToInt(address, to));
+
+    /// <summary>A number (an integer) as an address.</summary>
+    public TirIntToPtr IntToPtr(TirValue value) => Block.Append(new TirIntToPtr(value));
+
     public TirCall Call(TirFunction callee, params IEnumerable<TirValue> arguments) =>
         Block.Append(new TirCall(callee, arguments));
 

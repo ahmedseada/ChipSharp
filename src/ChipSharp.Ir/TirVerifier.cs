@@ -17,19 +17,37 @@ public static class TirVerifier
         }
     }
 
-    /// <summary>Every error in the module, in order: the entry point first, then function by function. Empty when it is well formed.</summary>
+    /// <summary>
+    /// Every error in the module, in order: the entry point and the struct types first, then function by function.
+    /// Empty when it is well formed.
+    /// </summary>
     public static IReadOnlyList<string> FindErrors(TirModule module)
     {
         ArgumentNullException.ThrowIfNull(module);
 
         var errors = new List<string>();
         CheckEntryPoint(module, errors);
+        CheckStructNames(module, errors);
         foreach (var function in module.Functions)
         {
             CheckFunction(module, function, errors);
         }
 
         return errors;
+    }
+
+    /// <summary>
+    /// Two different struct types of one name print the same, and a value of one does not fit where the other is
+    /// expected; the frontend most likely made the struct type of one C# struct twice.
+    /// </summary>
+    private static void CheckStructNames(TirModule module, List<string> errors)
+    {
+        var byName = module.FindStructTypes().GroupBy(s => s.Name, StringComparer.Ordinal);
+        foreach (var clash in byName.Where(g => g.Count() > 1))
+        {
+            errors.Add($"Module '{module.Name}': {clash.Count()} different struct types are named '{clash.Key}'; " +
+                "make one struct type per struct and use it everywhere.");
+        }
     }
 
     private static void CheckEntryPoint(TirModule module, List<string> errors)
@@ -60,6 +78,22 @@ public static class TirVerifier
         else if (function.Kind == TirFunctionKind.Defined && function.Blocks.Count == 0)
         {
             errors.Add($"{where}: a defined function needs at least one block, but it has none.");
+        }
+
+        // the runtime is written in C, which passes and returns structs by its own rules; an address works everywhere
+        if (function.Kind == TirFunctionKind.External)
+        {
+            foreach (var parameter in function.Parameters.Where(p => p.Type.IsAggregate))
+            {
+                errors.Add($"{where}: parameter {parameter} is {parameter.Type}; an external function cannot take " +
+                    "a struct or an array, so pass its address (ptr) instead.");
+            }
+
+            if (function.ReturnType.IsAggregate)
+            {
+                errors.Add($"{where}: it returns {function.ReturnType}; an external function cannot return a " +
+                    "struct or an array, so take the address (ptr) of where to put it instead.");
+            }
         }
 
         var names = new TirNumbering(function);
@@ -164,9 +198,26 @@ public static class TirVerifier
 
             TirConvert { Type.Kind: TirTypeKind.Void } => "convert cannot produce void.",
             TirConvert { Type.Kind: TirTypeKind.Bool } => "convert cannot produce bool; compare with zero (ne) instead.",
+            TirConvert c when c.Value.Type == TirType.Ptr || c.Type == TirType.Ptr =>
+                "convert does not take or produce ptr; use ptrtoint or inttoptr.",
+            TirConvert c when c.Value.Type.IsAggregate || c.Type.IsAggregate =>
+                $"convert works on integers, floats and bool, not on {(c.Value.Type.IsAggregate ? c.Value.Type : c.Type)}.",
 
             TirStore s when s.Value.Type != s.Slot.Type =>
                 $"the value is {s.Value.Type}, but slot {s.Slot} holds {s.Slot.Type}.",
+
+            TirZero { Type.Kind: TirTypeKind.Void } => "zero cannot produce void.",
+            TirSizeOf { OfType.Kind: TirTypeKind.Void } => "void takes no memory, so it has no size.",
+            TirPointerLoad { Type.Kind: TirTypeKind.Void } => "load cannot produce void.",
+            TirPointerLoad l => AddressProblem(l.Address) ?? PointeeProblem("loads", l.Type, l.Address),
+            TirPointerStore s => AddressProblem(s.Address) ?? PointeeProblem("stores", s.Value.Type, s.Address),
+            TirFieldAddress f => AddressProblem(f.Address) ?? FieldProblem(f),
+            TirElementAddress e => AddressProblem(e.Address) ?? ElementProblem(e),
+            TirPtrToInt p when p.Address.Type != TirType.Ptr => $"ptrtoint takes a ptr, not {p.Address.Type}.",
+            TirPtrToInt p when !p.Type.IsInteger =>
+                $"ptrtoint produces an integer (i8, i16, i32, i64 or nint), not {p.Type}.",
+            TirIntToPtr p when !p.Value.Type.IsInteger =>
+                $"inttoptr takes an integer (i8, i16, i32, i64 or nint), not {p.Value.Type}.",
 
             TirCall c => CallProblem(c),
 
@@ -205,18 +256,81 @@ public static class TirVerifier
             return null;
         }
 
-        /// <summary>A slot, jump target or callee that belongs to another function or module.</summary>
+        /// <summary>An address operand that is not a ptr.</summary>
+        private string? AddressProblem(TirValue address) =>
+            address.Type == TirType.Ptr ? null : $"the address {names.Of(address)} is {address.Type}; it must be ptr.";
+
+        /// <summary>A load or store of another type than the one the address is known to point to.</summary>
+        private string? PointeeProblem(string verb, TirType type, TirValue address) =>
+            PointeeOf(address) is { } pointee && pointee != type
+                ? $"{verb} {type}, but {names.Of(address)} points to {pointee}."
+                : null;
+
+        private string? FieldProblem(TirFieldAddress f)
+        {
+            var structType = f.StructType;
+            if (f.Field is null)
+            {
+                return $"{structType} has {Count(structType.Fields.Count, "field")}; there is no field number " +
+                    $"{f.FieldIndex}.";
+            }
+
+            return PointeeOf(f.Address) is { } pointee && pointee != structType
+                ? $"{names.Of(f.Address)} points to {pointee}, not to the struct {structType}."
+                : null;
+        }
+
+        private string? ElementProblem(TirElementAddress e)
+        {
+            var element = e.ElementType;
+            if (element == TirType.Void)
+            {
+                return "elementaddr needs an element type, not void.";
+            }
+
+            if (e.Index.Type.Kind is not (TirTypeKind.I32 or TirTypeKind.I64 or TirTypeKind.NativeInt))
+            {
+                return $"the index is {e.Index.Type}; it must be i32, i64 or nint.";
+            }
+
+            return PointeeOf(e.Address) is { } pointee && pointee != element &&
+                !(pointee is TirArrayType array && array.Element == element)
+                ? $"{names.Of(e.Address)} points to {pointee}; an element address of {element} needs the address " +
+                  $"of {element} or of an array of {element}."
+                : null;
+        }
+
+        /// <summary>
+        /// What an address points to when that can be seen: it was made by addr, fieldaddr or elementaddr (which are
+        /// in this block, since a temporary is). Null when it cannot be seen, e.g. for a parameter or a loaded ptr.
+        /// </summary>
+        private static TirType? PointeeOf(TirValue address) => address switch
+        {
+            TirSlotAddress a => a.Slot.Type,
+            TirGlobalAddress a => a.Global.Type,
+            TirFieldAddress f => f.Field?.Type,
+            TirElementAddress e => e.ElementType,
+            _ => null,
+        };
+
+        /// <summary>A slot, global, jump target or callee that belongs to another function or module.</summary>
         private string? ReferenceProblem(TirInstruction instruction)
         {
             var slot = instruction switch
             {
                 TirLoad l => l.Slot,
                 TirStore s => s.Slot,
+                TirSlotAddress a => a.Slot,
                 _ => null,
             };
             if (slot is not null && slot.Function != function)
             {
                 return $"uses slot {slot} of function '{slot.Function.Name}'.";
+            }
+
+            if (instruction is TirGlobalAddress { Global: var global } && global.Module != module)
+            {
+                return $"uses global {global} of module '{global.Module.Name}'.";
             }
 
             if (instruction is TirCall call && call.Callee.Module != module)
@@ -238,20 +352,20 @@ public static class TirVerifier
         {
             var ok = (type.IsInteger && accepts.HasFlag(Accepts.Integers))
                 || (type.IsFloat && accepts.HasFlag(Accepts.Floats))
-                || (type == TirType.Bool && accepts.HasFlag(Accepts.Bool));
+                || (type == TirType.Bool && accepts.HasFlag(Accepts.Bool))
+                || (type == TirType.Ptr && accepts.HasFlag(Accepts.Pointers));
             if (ok)
             {
                 return null;
             }
 
-            var kinds = accepts switch
+            var kinds = new[]
             {
-                Accepts.Integers => "integers",
-                Accepts.Integers | Accepts.Floats => "integers and floats",
-                Accepts.Integers | Accepts.Bool => "integers and bool",
-                _ => "integers, floats and bool",
-            };
-            return $"{op} works on {kinds}, not on {type}.";
+                (Accepts.Integers, "integers"), (Accepts.Floats, "floats"), (Accepts.Bool, "bool"),
+                (Accepts.Pointers, "ptr"),
+            }.Where(k => accepts.HasFlag(k.Item1)).Select(k => k.Item2).ToArray();
+            var list = kinds.Length == 1 ? kinds[0] : $"{string.Join(", ", kinds[..^1])} and {kinds[^1]}";
+            return $"{op} works on {list}, not on {type}.";
         }
 
         private static Accepts BinaryAccepts(TirBinaryOp op) => op switch
@@ -262,12 +376,16 @@ public static class TirVerifier
             _ => Accepts.Integers,
         };
 
+        /// <summary>
+        /// The unsigned comparisons take floats too: there they are unordered (true when either side is NaN), as
+        /// IL's clt.un, cgt.un, bge.un and the like need. Addresses compare as unsigned numbers.
+        /// </summary>
         private static Accepts CompareAccepts(TirCompareOp op) => op switch
         {
-            TirCompareOp.Eq or TirCompareOp.Ne => Accepts.Integers | Accepts.Floats | Accepts.Bool,
+            TirCompareOp.Eq or TirCompareOp.Ne => Accepts.Integers | Accepts.Floats | Accepts.Bool | Accepts.Pointers,
             TirCompareOp.Lt or TirCompareOp.Le or TirCompareOp.Gt or TirCompareOp.Ge =>
                 Accepts.Integers | Accepts.Floats,
-            _ => Accepts.Integers,
+            _ => Accepts.Integers | Accepts.Floats | Accepts.Pointers,
         };
     }
 
@@ -277,5 +395,6 @@ public static class TirVerifier
         Integers = 1,
         Floats = 2,
         Bool = 4,
+        Pointers = 8,
     }
 }
