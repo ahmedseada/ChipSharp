@@ -366,7 +366,7 @@ public sealed class IlToTirStaticFieldTests
     public void A_field_of_an_unsupported_type_is_an_error()
     {
         var emitted = new EmittedAssembly();
-        var name = emitted.Field("name", typeof(string));
+        var name = emitted.Field("name", typeof(object));
         emitted.Method("F", typeof(void), [], il =>
         {
             il.Emit(OpCodes.Ldsfld, name);
@@ -376,9 +376,9 @@ public sealed class IlToTirStaticFieldTests
 
         var error = Assert.Throws<ChipSharpException>(() => Lowered.Lower(Lowered.Program(emitted.Read(), "Program.F")));
 
-        Assert.Equal("Emitted.dll: Program.F() at IL_0000: the field Program.name has type string, which is not " +
-            "supported yet (ChipSharp compiles bool, whole numbers, float, double, and the structs and enums of the program).",
-            error.Message);
+        Assert.Equal("Emitted.dll: Program.F() at IL_0000: the field Program.name has type object, which is not " +
+            "supported yet (ChipSharp compiles bool, whole numbers, float, double, fixed text (string), and the structs " +
+            "and enums of the program).", error.Message);
     }
 
     [Fact]

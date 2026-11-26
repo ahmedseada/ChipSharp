@@ -29,12 +29,13 @@ public static partial class WholeProgramPass
     /// <summary>
     /// What keeps a pointer, a reference or a struct of the program from compiling; null for any other type, which
     /// <see cref="Unsupported.ForType"/> describes. A reference (<c>ref</c>, <c>out</c>, <c>in</c>) has the problem of
-    /// what it refers to.
+    /// what it refers to; one to text is a problem of its own.
     /// </summary>
     private static Unsupported? ForValueType(IlType type, IlAssembly assembly, IlMethod? method) =>
         ValueTypes.WithoutModifiers(type) switch
         {
             IlPointerType or IlPinnedType => Unsupported.UnsafeCode,
+            IlByRefType reference when FixedText.IsText(reference.ElementType) => Unsupported.TextReferences,
             IlByRefType reference => ForAnyType(reference.ElementType, assembly, method),
             var plain when ValueTypes.Definition(plain, assembly) is { } definition => ForStruct(definition),
             _ => null,

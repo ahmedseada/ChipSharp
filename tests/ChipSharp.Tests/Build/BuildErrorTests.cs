@@ -126,7 +126,7 @@ public sealed class BuildErrorTests : IDisposable
 
             class Program
             {
-                static void Main() => Console.WriteLine("Hello");
+                static void Main() => Console.WriteLine("Hello".ToUpper());
             }
             """, Path.Combine(_scratch, "Hello.dll"));
         var output = Path.Combine(_scratch, "out");
@@ -135,8 +135,9 @@ public sealed class BuildErrorTests : IDisposable
             new BuildOptions { TargetsFolder = ShippedTargets, OutputFolder = output, KeepIntermediates = true }));
 
         Assert.Equal(WholeProgramPass.Check(IlAssembly.Load(dll)).Summary, error.Message);
-        Assert.StartsWith($"{dll} uses 2 C# features that ChipSharp does not compile yet (2 places):\n  text strings arrive with M3 (the heap): "
-            + "1 place in Program.Main() (IL_0000).", error.Message);
+        Assert.StartsWith($"{dll} uses 1 C# feature that ChipSharp does not compile yet (1 place):\n  building text "
+            + "($\"...\", +, ToString, string.Format and the other methods of string) arrives with M3 (the heap): "
+            + "1 place in Program.Main() (IL_0005).", error.Message);
         Assert.EndsWith($"\nFor every place, run: chipsharp check {ChipSharpCli.Quoted(dll)} --details", error.Message);
         Assert.False(Directory.Exists(output));
     }

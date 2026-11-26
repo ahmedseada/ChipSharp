@@ -19,7 +19,7 @@ public sealed class RejectionTests
             {
                 string[] words = new string[3];
                 words[0] = "done";
-                Console.WriteLine(words[0]);
+                Console.WriteLine(Math.Abs(words[0].Length));
             }
         }
         """;
@@ -32,8 +32,8 @@ public sealed class RejectionTests
         Assert.Equal($"""
             Test.dll uses 3 C# features that ChipSharp does not compile yet (5 places):
               arrays of strings, objects or arrays arrive with M3 (the heap): 3 places in Program.Main() (IL_0001, IL_000d and IL_000f). For now, use arrays of numbers, bools, structs or enums.
-              text strings arrive with M3 (the heap): 1 place in Program.Main() (IL_0008). For now, print numbers and bools with Console.WriteLine.
-              the library method System.Console.WriteLine(string) is not available yet: 1 place in Program.Main() (IL_0010).
+              {Building}: 1 place in Program.Main() (IL_0010). {BuildingHint}
+              the library method System.Math.Abs(int) is not available yet: 1 place in Program.Main() (IL_0015).
             {LibraryCalls}
             For every place, run: chipsharp check Test.dll --details
             """.ReplaceLineEndings("\n"), error.Message);
@@ -48,13 +48,13 @@ public sealed class RejectionTests
         Assert.Equal($"""
             Test.dll uses 3 C# features that ChipSharp does not compile yet (5 places):
               Program.Main() at IL_0001 (newarr): arrays of strings, objects or arrays arrive with M3 (the heap). For now, use arrays of numbers, bools, structs or enums.
-              Program.Main() at IL_0008 (ldstr): text strings arrive with M3 (the heap). For now, print numbers and bools with Console.WriteLine.
               Program.Main() at IL_000d (stelem.ref): arrays of strings, objects or arrays arrive with M3 (the heap). For now, use arrays of numbers, bools, structs or enums.
               Program.Main() at IL_000f (ldelem.ref): arrays of strings, objects or arrays arrive with M3 (the heap). For now, use arrays of numbers, bools, structs or enums.
-              Program.Main() at IL_0010 (call): the library method System.Console.WriteLine(string) is not available yet.
+              Program.Main() at IL_0010 (callvirt): {Building}. {BuildingHint}
+              Program.Main() at IL_0015 (call): the library method System.Math.Abs(int) is not available yet.
             {LibraryCallDetails}
             """.ReplaceLineEndings("\n"), analysis.Details);
-        Assert.Equal([1, 8, 13, 15, 16], analysis.Problems.Select(problem => problem.Offset));
+        Assert.Equal([1, 13, 15, 16, 21], analysis.Problems.Select(problem => problem.Offset));
         Assert.All(analysis.Problems, problem => Assert.Equal("Program.Main", problem.Method.DisplayName));
     }
 
@@ -80,9 +80,7 @@ public sealed class RejectionTests
         [
             "Program.First(int) at IL_0002 (add.ovf): checked arithmetic arrives later. "
                 + "For now, leave out checked: ChipSharp's arithmetic wraps around on overflow, like unchecked C#.",
-            "Program.Second() at IL_0000 (ldstr): text strings arrive with M3 (the heap). "
-                + "For now, print numbers and bools with Console.WriteLine.",
-            "Program.Second() at IL_0005 (call): the library method string.get_Length() is not available yet.",
+            $"Program.Second() at IL_0005 (call): {Building}. {BuildingHint}",
         ], problems);
     }
 
@@ -106,34 +104,6 @@ public sealed class RejectionTests
             $"Program.Main() at IL_0001 (newobj): creating objects (new ...) arrives with M3 (the heap). {Objects}",
             "Program.Main() at IL_0008 (callvirt): instance or virtual method calls arrive with M3 (the heap). "
                 + "For now, call static methods, or the methods of your own structs.",
-        ], problems);
-    }
-
-    [Fact]
-    public void Text_strings()
-    {
-        var problems = Problems("""
-            using System;
-
-            class Program
-            {
-                static int Length(string text) => 0;
-
-                static void Main()
-                {
-                    Console.WriteLine("Hello");
-                    Console.WriteLine(Length(null));
-                }
-            }
-            """);
-
-        Assert.Equal(
-        [
-            "Program.Main() at IL_0000 (ldstr): text strings arrive with M3 (the heap). For now, print numbers and bools with Console.WriteLine.",
-            "Program.Main() at IL_0005 (call): the library method System.Console.WriteLine(string) is not available yet.",
-            $"Program.Main() at IL_000a (ldnull): null arrives with M3 (the heap). {Objects}",
-            "Program.Length(string), parameter 'text' (string): text strings arrive with M3 (the heap). "
-                + "For now, print numbers and bools with Console.WriteLine.",
         ], problems);
     }
 
@@ -521,7 +491,6 @@ public sealed class RejectionTests
 
         Assert.Equal(
         [
-            $"Program.Main(string[]) at IL_0000 (ldnull): null arrives with M3 (the heap). {Objects}",
             "Program.Main(string[]) at IL_0001 (starg.s): using the command-line arguments (args) arrives later. "
                 + "For now, leave args unused: Main may take string[] args only if it never uses them.",
         ], problems);
@@ -544,7 +513,6 @@ public sealed class RejectionTests
 
         Assert.Equal(
         [
-            $"Program.Main() at IL_0000 (ldnull): null arrives with M3 (the heap). {Objects}",
             "Program.Count(string[]), parameter 'names' (string[]): arrays of strings, objects or arrays arrive with M3 (the heap). "
                 + "For now, use arrays of numbers, bools, structs or enums.",
         ], problems);

@@ -6,6 +6,8 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="rp2040_runtime.c" LogicalName="rp2040_runtime.c" />
+    <!-- Console.Write and Console.WriteLine, shared with the other runtimes -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_console.c" LogicalName="chipsharp_console.c" />
     <!-- float and double as text, shared with the other runtimes -->
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_text.c" LogicalName="chipsharp_float_text.c" />
     <EmbeddedResource Include="rp2040_failures.c" LogicalName="rp2040_failures.c" />

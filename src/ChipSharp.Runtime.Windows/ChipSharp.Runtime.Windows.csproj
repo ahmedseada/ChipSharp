@@ -5,6 +5,8 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="chipsharp_runtime.c" LogicalName="chipsharp_runtime.c" />
+    <!-- Console.Write and Console.WriteLine, shared with the other runtimes -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_console.c" LogicalName="chipsharp_console.c" />
     <!-- float and double as text, shared with the other runtimes -->
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_text.c" LogicalName="chipsharp_float_text.c" />
     <!-- fmod and the Math methods, shared with the other runtimes -->

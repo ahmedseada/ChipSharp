@@ -7,16 +7,16 @@ namespace ChipSharp.Frontend;
 
 /// <summary>
 /// What ChipSharp compiles today: static methods (and the methods of structs) over whole numbers, floats and bools,
-/// the program's structs and enums, references to them and arrays of them on the stack, static fields, with branches,
-/// loops, switch and calls, printing and the hardware through <see cref="KnownExternals"/>. The whole-program pass
-/// rejects anything else with a clear message that says when it is planned; the IL-to-TIR translation handles exactly
-/// this set. Later milestones grow it.
+/// the program's structs and enums, references to them and arrays of them on the stack, fixed text (string literals,
+/// see <see cref="FixedText"/>), static fields, with branches, loops, switch and calls, printing and the hardware
+/// through <see cref="KnownExternals"/>. The whole-program pass rejects anything else with a clear message that says
+/// when it is planned; the IL-to-TIR translation handles exactly this set. Later milestones grow it.
 /// </summary>
 public static class SupportedSubset
 {
     /// <summary>The IL instructions compiled today. Checked arithmetic (<c>*.ovf</c>), objects, arrays (but those of
-    /// <see cref="StackArrays"/>), strings, pointers, exceptions and ckfinite are not in it; newobj and the field
-    /// instructions are there for structs only.</summary>
+    /// <see cref="StackArrays"/>), pointers, exceptions and ckfinite are not in it; newobj and the field instructions
+    /// are there for structs only, ldstr and ldnull for fixed text.</summary>
     public static FrozenSet<IlOpCode> OpCodes { get; } = new[]
     {
         IlOpCode.Nop,
@@ -62,20 +62,26 @@ public static class SupportedSubset
         IlOpCode.Stelem_I1, IlOpCode.Stelem_I2, IlOpCode.Stelem_I4, IlOpCode.Stelem_I8, IlOpCode.Stelem_I,
         IlOpCode.Stelem_R4, IlOpCode.Stelem_R8, IlOpCode.Stelem,
         IlOpCode.Conv_Ovf_I, IlOpCode.Conv_Ovf_I_Un, IlOpCode.Ldtoken,
+
+        // fixed text (FixedText): a string literal, and null, which only text can be (the whole-program pass rejects a
+        // null in place of an array; the other types it could be are rejected as types)
+        IlOpCode.Ldstr, IlOpCode.Ldnull,
     }.ToFrozenSet();
 
     /// <summary>
     /// The TIR type of a parameter, local or return type of a method of <paramref name="assembly"/>: a value
-    /// (<see cref="ValueTypes.TryMapType"/>: a primitive below, or a struct, enum or reference of the program) or an
-    /// array on the stack (<see cref="StackArrays.TryMapType"/>). This is the one test of whether such a type is
-    /// supported: the whole-program pass and the IL-to-TIR translation both ask it. (Whether an array may be returned
-    /// is the rule of <see cref="StackArrays"/>, which they check apart.)
+    /// (<see cref="ValueTypes.TryMapType"/>: a primitive below, or a struct, enum or reference of the program), an
+    /// array on the stack (<see cref="StackArrays.TryMapType"/>) or fixed text (<see cref="FixedText.TryMapType"/>).
+    /// This is the one test of whether such a type is supported: the whole-program pass and the IL-to-TIR translation
+    /// both ask it. (Whether an array may be returned is the rule of <see cref="StackArrays"/>, which they check
+    /// apart.)
     /// </summary>
     public static bool TryMapType(IlType type, IlAssembly assembly, [NotNullWhen(true)] out TirType? tirType)
     {
         ArgumentNullException.ThrowIfNull(type);
         ArgumentNullException.ThrowIfNull(assembly);
-        return ValueTypes.TryMapType(type, assembly, out tirType) || StackArrays.TryMapType(type, assembly, out tirType);
+        return ValueTypes.TryMapType(type, assembly, out tirType) || StackArrays.TryMapType(type, assembly, out tirType)
+            || FixedText.TryMapType(type, out tirType);
     }
 
     /// <summary>

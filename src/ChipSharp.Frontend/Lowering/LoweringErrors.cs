@@ -6,7 +6,7 @@ namespace ChipSharp.Frontend.Lowering;
 
 /// <summary>
 /// The errors of the translation, written like the IL reader's: the file, the method and, for an instruction,
-/// its offset, e.g. <c>Test.dll: Program.Main() at IL_0003: ldstr is not supported yet.</c>
+/// its offset, e.g. <c>Test.dll: Program.Main() at IL_0001: box is not supported yet.</c>
 /// </summary>
 internal static class LoweringErrors
 {
@@ -30,7 +30,7 @@ internal static class LoweringErrors
         }
 
         var why = ValueTypes.ProblemOf(type, method.Assembly)?.Text
-            ?? "ChipSharp compiles bool, whole numbers, float and double";
+            ?? "ChipSharp compiles bool, whole numbers, float, double and fixed text (string)";
         throw In(method, $"{subject} {type}, which is not supported yet ({why})");
     }
 

@@ -148,6 +148,39 @@ public sealed class TirMemoryModelTests
         Assert.Single(module.Globals);
     }
 
+    [Fact]
+    public void A_constant_is_a_global_of_bytes_that_it_holds_from_the_start()
+    {
+        var module = new TirModule("Demo");
+        var counter = module.AddGlobal("Program.counter", TirType.I32);
+        var text = module.AddConstant("<text 0>", [1, 0, 0, 0, 1, 0, 0, 0, (byte)'A']);
+
+        Assert.Equal([counter, text], module.Globals);
+        Assert.Equal(1, text.Index);
+        Assert.True(text.IsConstant);
+        Assert.False(counter.IsConstant);
+        Assert.Equal(new TirArrayType(TirType.I8, 9), text.Type);
+        Assert.Equal([1, 0, 0, 0, 1, 0, 0, 0, (byte)'A'], text.Data);
+        Assert.Null(text.InitialValue);
+        Assert.Null(counter.Data);
+        Assert.Equal("@<text 0>", text.ToString());
+    }
+
+    [Fact]
+    public void A_constant_must_have_a_unique_name_and_at_least_one_byte()
+    {
+        var module = new TirModule("Demo");
+        module.AddGlobal("Program.counter", TirType.I32);
+
+        Assert.Equal("Module 'Demo' already has a global named @Program.counter.",
+            Assert.Throws<TirException>(() => module.AddConstant("Program.counter", [1])).Message);
+        Assert.Equal("Module 'Demo': constant @<text 0> has no bytes; it needs at least one.",
+            Assert.Throws<TirException>(() => module.AddConstant("<text 0>", [])).Message);
+        Assert.Throws<ArgumentException>(() => module.AddConstant(" ", [1]));
+        Assert.Throws<ArgumentNullException>(() => module.AddConstant("<text 1>", null!));
+        Assert.Single(module.Globals);
+    }
+
     // ---- instructions ----
 
     [Fact]

@@ -92,8 +92,8 @@ internal sealed partial class ProgramFunctions(TirModule module)
                 if (body.Instructions.FirstOrDefault(i => i.ArgumentIndex == parameter.Index) is { } use)
                 {
                     throw LoweringErrors.At(method, use.Offset,
-                        $"the entry point uses its string[] {parameter.Name}, and strings are not supported yet " +
-                        "(ChipSharp leaves an unused args out)");
+                        $"the entry point uses its string[] {parameter.Name}, and arrays of strings are not " +
+                        "supported yet (ChipSharp leaves an unused args out)");
                 }
 
                 leftOut.Add(parameter.Index);

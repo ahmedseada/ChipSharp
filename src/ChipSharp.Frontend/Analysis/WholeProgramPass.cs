@@ -151,7 +151,7 @@ public static partial class WholeProgramPass
             return;
         }
 
-        // the locals C# builds interpolated strings in: taking their address is part of the string interpolation
+        // the locals C# builds interpolated strings in: taking their address is part of building the text
         var interpolations = new HashSet<int>();
         foreach (var local in body.Locals)
         {
@@ -175,10 +175,12 @@ public static partial class WholeProgramPass
         var arrays = ArrayEscapeAnalysis.Check(method);
         foreach (var instruction in body.Instructions)
         {
-            // what the array escape analysis found for this instruction, else the struct/reference rules, else the rest
+            // what the array escape analysis found for this instruction, else building text, else the struct/reference
+            // rules, else the rest
             var unsupported = arrays.TryGetValue(instruction, out var array)
                 ? array
-                : ForStructOrReference(method, instruction) ?? ForInstruction(instruction, argsArgument, interpolations);
+                : ForText(method, instruction) ?? ForStructOrReference(method, instruction)
+                    ?? ForInstruction(instruction, argsArgument, interpolations);
             if (unsupported is not null)
             {
                 problems.Add(Problem.At(method, instruction, unsupported));
@@ -200,7 +202,7 @@ public static partial class WholeProgramPass
         if (instruction is { OpCode: IlOpCode.Ldloca or IlOpCode.Ldloca_S, LocalIndex: { } local }
             && interpolations.Contains(local))
         {
-            return Unsupported.StringInterpolation;
+            return Unsupported.BuildingText;
         }
 
         if (!SupportedSubset.OpCodes.Contains(instruction.OpCode))
@@ -217,12 +219,28 @@ public static partial class WholeProgramPass
         if (instruction is { OpCode: IlOpCode.Call, Operand: IlMethodOperand { Method: { Definition: null } callee } }
             && !KnownExternals.TryMap(callee, out _))
         {
-            // the calls C# makes to build an interpolated string are the interpolation, not calls the program wrote
-            return Unsupported.IsInterpolatedStringHandler(callee.DeclaringType)
-                ? Unsupported.StringInterpolation
-                : Unsupported.LibraryMethod(CSharpNames.Method(callee));
+            return Unsupported.LibraryMethod(CSharpNames.Method(callee));
         }
 
         return null;
     }
+
+    /// <summary>
+    /// What <paramref name="instruction"/> does with text that needs the heap, or null: a call, callvirt or newobj of a
+    /// library method that builds or reads text (<see cref="FixedText.IsBuildingText"/>: string's methods, ToString,
+    /// the calls C# makes for <c>$"..."</c>, which are the interpolation, not calls the program wrote), or the
+    /// <c>constrained.</c> prefix of one (C#'s <c>value.ToString()</c>). Text itself, a literal, is fine.
+    /// </summary>
+    private static Unsupported? ForText(IlMethod method, IlInstruction instruction)
+    {
+        var operand = instruction.OpCode == IlOpCode.Constrained ? Next(method, instruction)?.Operand : instruction.Operand;
+        return operand is IlMethodOperand { Method: var callee } && FixedText.IsBuildingText(callee)
+            ? Unsupported.BuildingText
+            : null;
+    }
+
+    private static IlInstruction? Next(IlMethod method, IlInstruction instruction) =>
+        method.Body!.IndexOf(instruction.Offset) + 1 is var index && index < method.Body.Instructions.Count
+            ? method.Body.Instructions[index]
+            : null;
 }

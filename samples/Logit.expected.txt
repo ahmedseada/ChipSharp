@@ -1,2 +1,2 @@
-0
-1.375
+Logit result: 0
+Logit result: 1.375

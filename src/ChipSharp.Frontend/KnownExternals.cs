@@ -7,7 +7,10 @@ namespace ChipSharp.Frontend;
 /// <summary>A runtime function a library call becomes, e.g. <c>Console.WriteLine(int)</c> becomes <c>ChipSharp.Runtime.WriteLineInt32</c>.</summary>
 /// <param name="DisplayName">The TIR external function's name; the code generator turns it into the runtime's symbol.</param>
 /// <param name="ReturnType">What it returns.</param>
-/// <param name="ParameterTypes">The TIR type of each parameter. A C# bool is passed (and returned) as an i32 holding 0 or 1.</param>
+/// <param name="ParameterTypes">
+/// The TIR type of each parameter. A C# bool is passed (and returned) as an i32 holding 0 or 1; text as a ptr to its
+/// record (see <see cref="FixedText"/>).
+/// </param>
 /// <param name="LibraryMethod">The library method it stands for, as messages show it, e.g. "System.Console.WriteLine(int)".</param>
 public sealed record ExternalFunction(
     string DisplayName,
@@ -29,22 +32,12 @@ public static class KnownExternals
 
     private static readonly (string Type, string Name, IlType[] Parameters, IlType Returns, ExternalFunction Function)[] Table =
     [
+        // Console.Write and Console.WriteLine of text (FixedText: a ptr to a literal's record, or null), of the numbers
+        // and of bools, as .NET writes them; WriteLine also of nothing
+        .. ConsoleWrites("Write"),
         ("System.Console", "WriteLine", [], IlType.Void,
             new("ChipSharp.Runtime.WriteLine", TirType.Void, [], "System.Console.WriteLine()")),
-        ("System.Console", "WriteLine", [IlType.Int32], IlType.Void,
-            new("ChipSharp.Runtime.WriteLineInt32", TirType.Void, [TirType.I32], "System.Console.WriteLine(int)")),
-        ("System.Console", "WriteLine", [IlType.UInt32], IlType.Void,
-            new("ChipSharp.Runtime.WriteLineUInt32", TirType.Void, [TirType.I32], "System.Console.WriteLine(uint)")),
-        ("System.Console", "WriteLine", [IlType.Int64], IlType.Void,
-            new("ChipSharp.Runtime.WriteLineInt64", TirType.Void, [TirType.I64], "System.Console.WriteLine(long)")),
-        ("System.Console", "WriteLine", [IlType.UInt64], IlType.Void,
-            new("ChipSharp.Runtime.WriteLineUInt64", TirType.Void, [TirType.I64], "System.Console.WriteLine(ulong)")),
-        ("System.Console", "WriteLine", [IlType.Bool], IlType.Void,
-            new("ChipSharp.Runtime.WriteLineBool", TirType.Void, [TirType.I32], "System.Console.WriteLine(bool)")),
-        ("System.Console", "WriteLine", [IlType.Float32], IlType.Void,
-            new("ChipSharp.Runtime.WriteLineFloat32", TirType.Void, [TirType.F32], "System.Console.WriteLine(float)")),
-        ("System.Console", "WriteLine", [IlType.Float64], IlType.Void,
-            new("ChipSharp.Runtime.WriteLineFloat64", TirType.Void, [TirType.F64], "System.Console.WriteLine(double)")),
+        .. ConsoleWrites("WriteLine"),
 
         // System.Math and System.MathF on doubles and floats, with .NET's results bit for bit (a square root is
         // rounded to nearest; Min and Max give NaN when either value is NaN, and take -0 as less than +0)
@@ -132,6 +125,30 @@ public static class KnownExternals
         }
 
         return LibrarySubstitutes.TryMapRuntimeFunction(method, out function);
+    }
+
+    /// <summary>
+    /// The entries of System.Console.<paramref name="name"/> (Write or WriteLine) of text and of each type it prints:
+    /// the runtime's &lt;name&gt;String, &lt;name&gt;Int32, ..., e.g. Console.Write(int) becomes
+    /// ChipSharp.Runtime.WriteInt32.
+    /// </summary>
+    private static IEnumerable<(string Type, string Name, IlType[] Parameters, IlType Returns, ExternalFunction Function)>
+        ConsoleWrites(string name)
+    {
+        (IlType Type, TirType TirType, string Runtime, string CSharp)[] printed =
+        [
+            (IlType.String, TirType.Ptr, "String", "string"),
+            (IlType.Int32, TirType.I32, "Int32", "int"),
+            (IlType.UInt32, TirType.I32, "UInt32", "uint"),
+            (IlType.Int64, TirType.I64, "Int64", "long"),
+            (IlType.UInt64, TirType.I64, "UInt64", "ulong"),
+            (IlType.Bool, TirType.I32, "Bool", "bool"),
+            (IlType.Float32, TirType.F32, "Float32", "float"),
+            (IlType.Float64, TirType.F64, "Float64", "double"),
+        ];
+        return printed.Select(p => ("System.Console", name, new[] { p.Type }, (IlType)IlType.Void,
+            new ExternalFunction($"ChipSharp.Runtime.{name}{p.Runtime}", TirType.Void, [p.TirType],
+                $"System.Console.{name}({p.CSharp})")));
     }
 
     /// <summary>

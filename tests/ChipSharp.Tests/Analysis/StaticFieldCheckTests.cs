@@ -255,14 +255,11 @@ public sealed class StaticFieldCheckTests
 
         Assert.Equal(
         [
-            "text strings arrive with M3 (the heap): 1 place in the static field initializers of Program (IL_0000). "
-                + "For now, print numbers and bools with Console.WriteLine.",
-            "the library method string.get_Length() is not available yet: 1 place in the static field initializers "
-                + "of Program (IL_0005).",
+            $"{Building}: 1 place in the static field initializers of Program (IL_0005). {BuildingHint}",
             "checked arithmetic arrives later: 1 place in the static constructor of Settings (IL_000b). "
                 + "For now, leave out checked: ChipSharp's arithmetic wraps around on overflow, like unchecked C#.",
         ], analysis.Groups.Select(group => group.Line));
-        Assert.Contains("\n  Program..cctor() at IL_0000 (ldstr): text strings arrive with M3 (the heap).", analysis.Details);
+        Assert.Contains($"\n  Program..cctor() at IL_0005 (call): {Building}.", analysis.Details);
     }
 
     [Fact]
@@ -283,7 +280,7 @@ public sealed class StaticFieldCheckTests
 
             class Program
             {
-                static string name;
+                static object thing;
                 static double ratio;
                 static Color color;
                 static Point origin;
@@ -292,7 +289,7 @@ public sealed class StaticFieldCheckTests
 
                 static void Main()
                 {
-                    name = name;
+                    thing = thing;
                     ratio = ratio;
                     color = color;
                     origin = origin;
@@ -303,8 +300,9 @@ public sealed class StaticFieldCheckTests
             }
             """);
 
-        // ratio, color and origin compile: double, and the enums and structs of the program, are supported types
-        const string Strings = "text strings arrive with M3 (the heap). For now, print numbers and bools with Console.WriteLine.";
+        // ratio, color and origin compile: double, and the enums and structs of the program, are supported types (and
+        // so is string, for fixed text)
+        const string Objects = "classes and objects arrive with M3 (the heap). For now, use structs and static methods.";
         // an array kept in a static field outlives every method, so it is the "leaves its method" case of stack arrays
         const string Arrays = "an array that leaves the method that creates it (returned, or stored in a field or in "
             + "another array) arrives with M3 (the heap). For now, keep each array in the method that creates it; "
@@ -312,8 +310,8 @@ public sealed class StaticFieldCheckTests
         const string Characters = "characters (char) arrive with M3 (the heap). For now, use whole numbers.";
         Assert.Equal(
         [
-            $"Program.Main() at IL_0000 (ldsfld): {Strings}",
-            $"Program.Main() at IL_0005 (stsfld): {Strings}",
+            $"Program.Main() at IL_0000 (ldsfld): {Objects}",
+            $"Program.Main() at IL_0005 (stsfld): {Objects}",
             $"Program.Main() at IL_0028 (ldsfld): {Arrays}",
             $"Program.Main() at IL_002d (stsfld): {Arrays}",
             $"Program.Main() at IL_0032 (ldsfld): {Characters}",

@@ -71,34 +71,48 @@ public sealed class HostTargetTests
         var files = runtime.Startup(host).Files;
 
         Assert.Equal(
-            ["chipsharp_runtime.c", "chipsharp_float_text.c", "chipsharp_float_math.c", "chipsharp_failures.c",
-                "chipsharp_memory.c", "chipsharp_chkstk.S"],
+            ["chipsharp_runtime.c", "chipsharp_console.c", "chipsharp_float_text.c", "chipsharp_float_math.c",
+                "chipsharp_failures.c", "chipsharp_memory.c", "chipsharp_chkstk.S"],
             files.Select(f => f.FileName));
         var file = files[0];
         Assert.Equal(WindowsX64Runtime.Source, file.Content);
-        Assert.Equal(WindowsX64Runtime.FloatText, files[1].Content);
-        Assert.Equal(WindowsX64Runtime.FloatMath, files[2].Content);
+        Assert.Equal(WindowsX64Runtime.Console, files[1].Content);
+        Assert.Equal(WindowsX64Runtime.FloatText, files[2].Content);
+        Assert.Equal(WindowsX64Runtime.FloatMath, files[3].Content);
         Assert.All(files, f => Assert.DoesNotContain("#include", f.Content));
+        Assert.Contains("void chipsharp_start(void)", file.Content);
+        Assert.Contains("int chipsharp_entry(void);", file.Content);
+        Assert.Contains("void chipsharp_console_write(const char *bytes, unsigned int count)", file.Content);
         string[] functions =
         [
-            "void chipsharp_start(void)",
-            "int chipsharp_entry(void);",
             "void ChipSharp_Runtime_WriteLine(void)",
+            "void ChipSharp_Runtime_WriteString(const unsigned char *value)",
+            "void ChipSharp_Runtime_WriteLineString(const unsigned char *value)",
+            "void ChipSharp_Runtime_WriteInt32(int value)",
             "void ChipSharp_Runtime_WriteLineInt32(int value)",
+            "void ChipSharp_Runtime_WriteUInt32(unsigned int value)",
             "void ChipSharp_Runtime_WriteLineUInt32(unsigned int value)",
+            "void ChipSharp_Runtime_WriteInt64(long long value)",
             "void ChipSharp_Runtime_WriteLineInt64(long long value)",
+            "void ChipSharp_Runtime_WriteUInt64(unsigned long long value)",
             "void ChipSharp_Runtime_WriteLineUInt64(unsigned long long value)",
+            "void ChipSharp_Runtime_WriteBool(int value)",
             "void ChipSharp_Runtime_WriteLineBool(int value)",
+            "void ChipSharp_Runtime_WriteFloat32(float value)",
             "void ChipSharp_Runtime_WriteLineFloat32(float value)",
+            "void ChipSharp_Runtime_WriteFloat64(double value)",
             "void ChipSharp_Runtime_WriteLineFloat64(double value)",
         ];
-        Assert.All(functions, f => Assert.Contains(f, file.Content));
-        Assert.Contains("int chipsharp_float64_text(u64 bits, char *text)", files[1].Content);
-        Assert.Contains("int chipsharp_float32_text(u32 bits, char *text)", files[1].Content);
-        Assert.Contains("double fmod(double x, double y)", files[2].Content); // what LLVM calls for % on doubles
-        Assert.Contains("float fmodf(float x, float y)", files[2].Content);
+        Assert.All(functions, f => Assert.Contains(f, files[1].Content));
+        Assert.Contains("void chipsharp_console_write(const char *bytes, unsigned int count);", files[1].Content);
+        Assert.All(KnownExternals.All.Where(f => f.LibraryMethod.StartsWith("System.Console", StringComparison.Ordinal)),
+            f => Assert.Contains($" {LlvmCodeGenerator.SymbolName(f.DisplayName)}(", files[1].Content));
+        Assert.Contains("int chipsharp_float64_text(u64 bits, char *text)", files[2].Content);
+        Assert.Contains("int chipsharp_float32_text(u32 bits, char *text)", files[2].Content);
+        Assert.Contains("double fmod(double x, double y)", files[3].Content); // what LLVM calls for % on doubles
+        Assert.Contains("float fmodf(float x, float y)", files[3].Content);
         Assert.All(KnownExternals.All.Where(f => f.LibraryMethod.StartsWith("System.Math", StringComparison.Ordinal)),
-            f => Assert.Contains($" {LlvmCodeGenerator.SymbolName(f.DisplayName)}(", files[2].Content));
+            f => Assert.Contains($" {LlvmCodeGenerator.SymbolName(f.DisplayName)}(", files[3].Content));
         Assert.Empty(runtime.InterruptEntry(host).Files);
         Assert.Empty(runtime.Atomics(host).Files);
     }

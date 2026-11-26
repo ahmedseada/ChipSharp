@@ -14,9 +14,10 @@ namespace ChipSharp.Ir;
 /// Temporaries are numbered %0, %1, ... per function, in block order; parameters print as %name,
 /// slots as $name, globals as @name, blocks by name. A value that does not belong to the function prints as %?.
 /// A module lists the structs it uses (<c>struct Program.Point { i32 X, i32 Y }</c>) and its globals
-/// (<c>global i32 @Program.counter = 5</c>) before its functions. Memory at an address is written in brackets:
-/// <c>%1 = load i32 [%0]</c>, <c>store volatile i32 [%0], %1</c>. An exported function says its symbol after its
-/// signature: <c>function void &lt;Interrupt timer&gt;() export chipsharp_isr_irq1</c>.
+/// (<c>global i32 @Program.counter = 5</c>, <c>constant [2 x i8] @&lt;text 0&gt; = c"A\00"</c>) before its
+/// functions. Memory at an address is written in brackets: <c>%1 = load i32 [%0]</c>,
+/// <c>store volatile i32 [%0], %1</c>. An exported function says its symbol after its signature:
+/// <c>function void &lt;Interrupt timer&gt;() export chipsharp_isr_irq1</c>.
 /// </summary>
 public static class TirPrinter
 {
@@ -173,10 +174,35 @@ public static class TirPrinter
     private static string StructText(TirStructType structType) =>
         $"struct {structType.Name} {{ {string.Join(", ", structType.Fields)} }}";
 
-    /// <summary><c>global i32 @Program.counter</c>, or <c>global i32 @Program.limit = 10</c> with an initial value.</summary>
-    private static string GlobalText(TirGlobal global) => global.InitialValue is { } initial
-        ? $"global {global.Type} {global} = {ConstantText(initial)}"
-        : $"global {global.Type} {global}";
+    /// <summary>
+    /// <c>global i32 @Program.counter</c>, or <c>global i32 @Program.limit = 10</c> with an initial value;
+    /// <c>constant [2 x i8] @&lt;text 0&gt; = c"A\00"</c> for read-only data.
+    /// </summary>
+    private static string GlobalText(TirGlobal global) => global switch
+    {
+        { Data: { } data } => $"constant {global.Type} {global} = {BytesText(data)}",
+        { InitialValue: { } initial } => $"global {global.Type} {global} = {ConstantText(initial)}",
+        _ => $"global {global.Type} {global}",
+    };
+
+    /// <summary>Bytes as <c>c"..."</c>: printable ASCII as it is, any other byte (and " and \) as \XX in hex.</summary>
+    private static string BytesText(IReadOnlyList<byte> data)
+    {
+        var text = new StringBuilder("c\"");
+        foreach (var b in data)
+        {
+            if (b is >= 0x20 and < 0x7F && b != '"' && b != '\\')
+            {
+                text.Append((char)b);
+            }
+            else
+            {
+                text.Append('\\').Append(b.ToString("X2", CultureInfo.InvariantCulture));
+            }
+        }
+
+        return text.Append('"').ToString();
+    }
 
     private static string ConstantText(TirConst c) => c.Type.Kind switch
     {
