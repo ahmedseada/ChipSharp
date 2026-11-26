@@ -43,7 +43,7 @@ internal static class PicoBuild
     public static PicoProgram Build(string source, string name, string folder, TargetDescription target)
     {
         var bytes = CSharpCompiler.Compile([source], [HardwareAssembly], name);
-        var program = WholeProgramPass.Analyze(IlAssembly.Load(bytes, name + ".dll"));
+        var program = WholeProgramPass.Analyze(IlAssembly.Load(bytes, name + ".dll"), target);
         return Build(IlToTir.Lower(program), folder, target);
     }
 

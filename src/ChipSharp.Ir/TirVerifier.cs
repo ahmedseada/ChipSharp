@@ -28,6 +28,7 @@ public static class TirVerifier
         var errors = new List<string>();
         CheckEntryPoint(module, errors);
         CheckStructNames(module, errors);
+        CheckExports(module, errors);
         foreach (var function in module.Functions)
         {
             CheckFunction(module, function, errors);
@@ -47,6 +48,23 @@ public static class TirVerifier
         {
             errors.Add($"Module '{module.Name}': {clash.Count()} different struct types are named '{clash.Key}'; " +
                 "make one struct type per struct and use it everywhere.");
+        }
+    }
+
+    /// <summary>The runtime calls an exported function by its symbol: it must have a body, and a symbol of its own.</summary>
+    private static void CheckExports(TirModule module, List<string> errors)
+    {
+        foreach (var function in module.Functions.Where(f => f is { Kind: TirFunctionKind.External, ExportName: not null }))
+        {
+            errors.Add($"Function '{function.Name}': an external function cannot be exported (as {function.ExportName}); " +
+                "the runtime implements it.");
+        }
+
+        var bySymbol = module.Functions.Where(f => f.ExportName is not null).GroupBy(f => f.ExportName, StringComparer.Ordinal);
+        foreach (var clash in bySymbol.Where(g => g.Count() > 1))
+        {
+            errors.Add($"Module '{module.Name}': {string.Join(" and ", clash.Select(f => $"'{f.Name}'"))} are exported under " +
+                $"one symbol, {clash.Key}; a symbol names one function.");
         }
     }
 

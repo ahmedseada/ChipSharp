@@ -78,8 +78,8 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
     /// What is not supported, as a clause: "arrays arrive after M0",
     /// "the library method System.Math.Abs(int) is not available in M0".
     /// </summary>
-    public string Heading => IsLibraryMethod || IsLibraryField
-        ? $"{What} is not available in {SupportedSubset.Milestone}"
+    public string Heading => IsRule ? What
+        : IsLibraryMethod || IsLibraryField ? $"{What} is not available in {SupportedSubset.Milestone}"
         : $"{What} {(IsPlural ? "arrive" : "arrives")} {Arrival}";
 
     /// <summary>The sentence a problem line ends with: what arrives after the milestone, then the hint.</summary>

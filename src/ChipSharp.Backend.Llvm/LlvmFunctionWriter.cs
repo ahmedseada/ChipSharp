@@ -60,11 +60,12 @@ internal sealed class LlvmFunctionWriter
             _labels[block] = Unique(LlvmText.Name(block.Name));
         }
 
-        // internal: only chipsharp_entry is called from outside, so LLVM may inline and drop the rest.
-        // nounwind: nothing unwinds yet, and without it ARM targets would want the C++ unwinder linked in.
+        // internal: only chipsharp_entry and the exported functions are called from outside, so LLVM may inline and
+        // drop the rest. nounwind: nothing unwinds yet, and without it ARM targets would want the C++ unwinder linked in.
         var parameters = string.Join(", ", _function.Parameters.Select(Typed));
+        var linkage = LlvmExports.Linkage(_function);
         _text.Append(CultureInfo.InvariantCulture,
-            $"define internal {_types.Of(_function.ReturnType)} @{_symbols[_function]}({parameters}) nounwind {{\n");
+            $"define {linkage}{_types.Of(_function.ReturnType)} @{_symbols[_function]}({parameters}) nounwind {{\n");
 
         // LLVM's entry block cannot be a jump target, and TIR's may be (a loop at the very start of a method),
         // so the slots get a block of their own. Each starts at zero, like the locals of IL's ".locals init".

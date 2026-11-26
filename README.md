@@ -73,6 +73,33 @@ That makes `chipsharp-output\pico\PicoBlink.uf2`. To run it:
 - **The real board**: hold BOOTSEL while plugging it in, then copy the `.uf2` onto the drive that appears.
   `Console.WriteLine` goes to UART0 (GPIO 0, 115200 baud).
 
+### Interrupts
+
+A `static void` method without parameters marked `[Interrupt(...)]` runs when its event happens, whatever `Main` is
+doing; nothing in the program calls it. Plain calls start the events (`examples/pico-timer-blink`, `examples/pico-button`):
+
+```csharp
+using ChipSharp.Hardware;
+
+Pin.Output(25);
+Timing.EveryMilliseconds(500);   // or EveryMicroseconds, AfterMilliseconds (once), AfterMicroseconds; Stop
+while (true)
+{
+}
+
+partial class Program
+{
+    [Interrupt(Event.Timer)]
+    static void Toggle() => Pin.Toggle(25);
+}
+```
+
+`Pin.Watch`, `Pin.WatchRising` and `Pin.WatchFalling` run the `[Interrupt(Event.Pin)]` method when a pin changes
+(`Pin.Unwatch` stops). A static field that a handler and the rest of the program share must be `volatile`, and a handler
+cannot wait (`Timing.Delay...`): `chipsharp check` says where. The target file says which interrupt each event uses
+(`"interrupts"` in `rp2040.json`); a PC has none, so such a program does not build for `host`. The simulator changes an
+input pin at a set time with `--input 15=high@100ms`.
+
 ## Roadmap
 
 | Milestone | Goal |

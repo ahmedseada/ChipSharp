@@ -82,6 +82,30 @@ public static class KnownExternals
         (Registers, "Write", [IlType.UInt32, IlType.UInt32], IlType.Void,
             new("ChipSharp.Runtime.RegisterWrite", TirType.Void, [TirType.I32, TirType.I32],
                 $"{Registers}.Write(uint, uint)")),
+
+        // the events an [Interrupt] method handles (see Interrupts): starting and stopping them
+        (Timing, "EveryMilliseconds", [IlType.Int32], IlType.Void,
+            new("ChipSharp.Runtime.TimerEveryMilliseconds", TirType.Void, [TirType.I32],
+                $"{Timing}.EveryMilliseconds(int)")),
+        (Timing, "EveryMicroseconds", [IlType.Int32], IlType.Void,
+            new("ChipSharp.Runtime.TimerEveryMicroseconds", TirType.Void, [TirType.I32],
+                $"{Timing}.EveryMicroseconds(int)")),
+        (Timing, "AfterMilliseconds", [IlType.Int32], IlType.Void,
+            new("ChipSharp.Runtime.TimerAfterMilliseconds", TirType.Void, [TirType.I32],
+                $"{Timing}.AfterMilliseconds(int)")),
+        (Timing, "AfterMicroseconds", [IlType.Int32], IlType.Void,
+            new("ChipSharp.Runtime.TimerAfterMicroseconds", TirType.Void, [TirType.I32],
+                $"{Timing}.AfterMicroseconds(int)")),
+        (Timing, "Stop", [], IlType.Void,
+            new("ChipSharp.Runtime.TimerStop", TirType.Void, [], $"{Timing}.Stop()")),
+        (Pin, "Watch", [IlType.Int32], IlType.Void,
+            new("ChipSharp.Runtime.PinWatch", TirType.Void, [TirType.I32], $"{Pin}.Watch(int)")),
+        (Pin, "WatchRising", [IlType.Int32], IlType.Void,
+            new("ChipSharp.Runtime.PinWatchRising", TirType.Void, [TirType.I32], $"{Pin}.WatchRising(int)")),
+        (Pin, "WatchFalling", [IlType.Int32], IlType.Void,
+            new("ChipSharp.Runtime.PinWatchFalling", TirType.Void, [TirType.I32], $"{Pin}.WatchFalling(int)")),
+        (Pin, "Unwatch", [IlType.Int32], IlType.Void,
+            new("ChipSharp.Runtime.PinUnwatch", TirType.Void, [TirType.I32], $"{Pin}.Unwatch(int)")),
     ];
 
     /// <summary>Every runtime function a library call can become.</summary>

@@ -9,8 +9,9 @@ namespace ChipSharp.Backend.Llvm;
 /// The "llvm" code generator: writes a TIR module as LLVM IR text, one .ll file that clang compiles for any
 /// target LLVM knows (PC, ARM, RISC-V, ...).
 /// Each function and global becomes a symbol made from its display name (see <see cref="SymbolName"/>). External
-/// functions keep exactly that symbol, since the runtime implements them under it; a defined function or a global
-/// whose symbol is already taken gets _2, _3, ... after it. A global is an <c>internal global</c> that starts at
+/// functions keep exactly that symbol, since the runtime implements them under it, and so do exported functions
+/// (<see cref="TirFunction.ExportName"/>), which the runtime calls by it; another defined function or a global whose
+/// symbol is already taken gets _2, _3, ... after it. A global is an <c>internal global</c> that starts at
 /// zero or at its initial value. Each slot becomes an alloca that starts at zero, in a block of its own in front
 /// of the TIR entry block. Struct types become named LLVM struct types (<c>%struct.Program_Point</c>), and every
 /// alignment comes from <see cref="TirLayout"/>. <see cref="EntrySymbol"/> calls the module's entry point and
@@ -118,9 +119,10 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
     }
 
     /// <summary>
-    /// External functions first, in module order: they must keep their symbol, so two that clash are an error.
-    /// Then defined functions, then globals, in module order, each taking the first free symbol of name, name_2,
-    /// name_3, ... (functions and globals share LLVM's one namespace of symbols). <see cref="EntrySymbol"/> is reserved.
+    /// External functions first, in module order: they must keep their symbol, so two that clash are an error; so must
+    /// the exported functions, next (see <see cref="LlvmExports"/>). Then the other defined functions, then globals, in
+    /// module order, each taking the first free symbol of name, name_2, name_3, ... (functions and globals share LLVM's
+    /// one namespace of symbols). <see cref="EntrySymbol"/> is reserved.
     /// </summary>
     private static (Dictionary<TirFunction, string> Functions, Dictionary<TirGlobal, string> Globals) AssignSymbols(
         TirModule module)
@@ -146,7 +148,8 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
             symbols[function] = symbol;
         }
 
-        foreach (var function in module.Functions.Where(f => f.Kind == TirFunctionKind.Defined))
+        LlvmExports.Assign(module, owners, symbols);
+        foreach (var function in module.Functions.Where(f => f is { Kind: TirFunctionKind.Defined, ExportName: null }))
         {
             var wanted = SymbolName(function.Name);
             var symbol = wanted;

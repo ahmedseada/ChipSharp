@@ -53,7 +53,8 @@ public sealed class Rp2040RuntimeTests
             files.Single(f => f.FileName == Rp2040Runtime.FloatTextFileName).Content);
         Assert.Equal(WindowsX64Runtime.FloatMath,
             files.Single(f => f.FileName == ArmV6MRuntime.FloatMathFileName).Content);
-        Assert.Equal(["armv6m_vectors.c"], runtime.InterruptEntry(pico).Files.Select(f => f.FileName));
+        Assert.Equal(["armv6m_vectors.c", Rp2040Runtime.InterruptsFileName],
+            runtime.InterruptEntry(pico).Files.Select(f => f.FileName));
         Assert.Empty(runtime.Atomics(pico).Files);
 
         // ChipSharp's own C includes nothing (compiler-rt's includes its own headers and, on these targets, only the
@@ -93,16 +94,19 @@ public sealed class Rp2040RuntimeTests
     public void The_runtime_defines_every_function_a_library_call_becomes()
     {
         var pico = Targets.Load("pico");
-        var files = new Rp2040Runtime().Startup(pico).Files;
+        var runtime = new Rp2040Runtime();
+        var files = runtime.Startup(pico).Files;
         var source = files.Single(f => f.FileName == Rp2040Runtime.SourceFileName).Content;
         var floatMath = files.Single(f => f.FileName == ArmV6MRuntime.FloatMathFileName).Content;
+        var interrupts = runtime.InterruptEntry(pico).Files
+            .Single(f => f.FileName == Rp2040Runtime.InterruptsFileName).Content;
 
         // the Math methods are in the float math every runtime shares; the rest is the chip's own
         Assert.All(KnownExternals.All, function =>
         {
             var symbol = LlvmCodeGenerator.SymbolName(function.DisplayName);
-            Assert.Contains($" {symbol}(",
-                function.LibraryMethod.StartsWith("System.Math", StringComparison.Ordinal) ? floatMath : source);
+            var math = function.LibraryMethod.StartsWith("System.Math", StringComparison.Ordinal);
+            Assert.Contains($" {symbol}(", math ? floatMath : source + interrupts);
         });
         Assert.Contains("void chipsharp_chip_init(void)", source);
         Assert.Contains("void chipsharp_isr_irq0(void)", source);

@@ -10,10 +10,12 @@
 //
 //     node tools/rp2040-sim/run.mjs <image.uf2> [--ms <simulated milliseconds, default 1000>]
 //                                              [--uart0 <file to write UART0's bytes to>]
-//                                              [--input <pin>=<high|low>]...
+//                                              [--input <pin>=<high|low>[@<simulated milliseconds>ms]]...
 //
-// --input drives a pin from outside, as a button or another chip would; the program reads it with Pin.Read.
-// (rp2040js reads only these outside levels: a pin the program drives itself reads as low.)
+// --input drives a pin from outside, as a button or another chip would; the program reads it with Pin.Read, and
+// Pin.Watch... sees it change. Without a time it is the level from the start; with one, e.g. --input 15=high@100ms,
+// the pin changes then (as a button pressed after 100 ms), and the change is printed. Give a pin several times to
+// change it several times. (rp2040js reads only these outside levels: a pin the program drives itself reads as low.)
 //
 // Booting: the RP2040's boot ROM checks the CRC-32 of the first 256 bytes of flash (the second-stage
 // bootloader, boot2), copies them to the top of RAM (0x20041f00) and runs them with lr = 0; boot2 sets up the
@@ -28,6 +30,7 @@
 //                                                pull-up, input pull-down or input bus-keeper
 //     [    0.200 ms] UART0 baud 115200           the program set UART0's baud rate
 //     [    1.234 ms] UART0: Hello                a line written to UART0 (without its line ending)
+//     [  100.000 ms] input: GPIO15 high          an --input with a time changed the pin from outside
 //     [ 1000.000 ms] stopped: <why>              the last line
 //
 // Exit code: 0 when the program ran (to its end or for the whole time), 1 when the image is not valid, 2 for
@@ -58,7 +61,7 @@ const PIN_STATES = {
 function usage(message) {
   console.error(`run.mjs: ${message}`);
   console.error('Usage: node run.mjs <image.uf2> [--ms <simulated milliseconds>] [--uart0 <output file>] ' +
-    '[--input <pin>=<high|low>]...');
+    '[--input <pin>=<high|low>[@<milliseconds>ms]]...');
   process.exit(2);
 }
 
@@ -83,12 +86,14 @@ function parseArguments(args) {
           usage(`--ms must be a positive number of milliseconds, not '${value}'.`);
         }
       } else if (arg === '--input') {
-        const match = /^(\d+)=(high|low)$/.exec(value);
+        const match = /^(\d+)=(high|low)(?:@(\d+(?:\.\d+)?)ms)?$/.exec(value);
         if (match === null || Number(match[1]) > 29) {
-          usage(`--input takes a pin from 0 to 29 and a level, e.g. 3=high, not '${value}'.`);
+          usage(`--input takes a pin from 0 to 29, a level and maybe a time, e.g. 3=high or 3=high@100ms, ` +
+            `not '${value}'.`);
         }
 
-        options.inputs.push({ pin: Number(match[1]), high: match[2] === 'high' });
+        const at = match[3] === undefined ? null : Number(match[3]);
+        options.inputs.push({ pin: Number(match[1]), high: match[2] === 'high', at });
       } else {
         options.uart0 = value;
       }
@@ -210,8 +215,17 @@ mcu.uart[0].onByte = (value) => {
 };
 mcu.uart[0].onBaudRateChange = (baud) => console.log(`${milliseconds(clock.nanos)} UART0 baud ${baud}`);
 
-for (const { pin, high } of options.inputs) {
-  mcu.gpio[pin].setInputValue(high);
+// the levels from the start, then the changes at their times, as alarms of the simulated clock: a core asleep until
+// one of them wakes up for it, as the chip would
+for (const { pin, high, at } of options.inputs) {
+  if (at === null) {
+    mcu.gpio[pin].setInputValue(high);
+  } else {
+    clock.createAlarm(() => {
+      console.log(`${milliseconds(clock.nanos)} input: GPIO${pin} ${high ? 'high' : 'low'}`);
+      mcu.gpio[pin].setInputValue(high);
+    }).schedule(at * 1e6);
+  }
 }
 
 // the boot ROM's part: boot2 copied to the top of RAM and run from there, as if called with lr = 0
