@@ -22,7 +22,7 @@ namespace ChipSharp.Frontend;
 /// Digits =&gt; new byte[] { ... }</c>, which C# keeps in the assembly: a constant table, in flash on a chip, never
 /// copied), and a variable (<c>MemoryMarshal.CreateSpan(ref x, 1)</c>). C#'s rules for ref structs already keep a
 /// span of <c>stackalloc</c> or of a variable from outliving it; a span of an array on the stack obeys the array's rule
-/// (see <see cref="Analysis.ArrayEscapeAnalysis"/>).
+/// (see <see cref="Analysis.SpanEscapeAnalysis"/>).
 /// </para>
 /// <para>
 /// The members are compiler intrinsics (<see cref="Call"/>): what Span's own methods, the <c>AsSpan</c> of arrays,
@@ -131,17 +131,10 @@ internal static class Spans
     /// <summary>
     /// True for a type whose values may hold a span: a span, or a struct (a ref struct) with a field of such a type. A
     /// method that hands one out (returns it, writes it through a ref or out parameter, or is a method of one) may let a
-    /// span outlive the method; see <see cref="Analysis.ArrayEscapeAnalysis"/>.
+    /// span outlive the method; see <see cref="Analysis.SpanEscapeAnalysis"/>.
     /// </summary>
     public static bool IsSpanLike(IlType type, IlAssembly assembly) => IsSpanLike(type, assembly, 0);
 
-    /// <summary>The element type of a span or an array, as a signature names it; null for any other type.</summary>
-    public static IlType? ElementOf(IlType type) => ValueTypes.WithoutModifiers(type) switch
-    {
-        IlArrayType array => StackArrays.Primitive(array.ElementType),
-        var other when IsSpan(other, out var element, out _) => element,
-        _ => null,
-    };
 
     /// <summary>
     /// What a call or newobj of <paramref name="method"/> is, when it is one of the members ChipSharp compiles itself:
@@ -183,15 +176,6 @@ internal static class Spans
         };
     }
 
-    /// <summary>
-    /// True for the instruction that makes a span from a constant data field: <c>ldtoken</c> of the field right before
-    /// <c>RuntimeHelpers.CreateSpan&lt;T&gt;</c>, at <paramref name="index"/> in <paramref name="body"/>.
-    /// </summary>
-    public static bool IsDataToken(IlMethodBody body, int index) =>
-        body.Instructions[index] is { OpCode: IlOpCode.Ldtoken, Operand: IlFieldOperand { Field.Definition: not null } }
-        && index + 1 < body.Instructions.Count
-        && body.Instructions[index + 1] is { OpCode: IlOpCode.Call, Operand: IlMethodOperand { Method: var method } }
-        && Call(method)?.Operation == SpanOperation.Data;
 
     /// <summary>The field of constant data an <c>ldtoken</c> or <c>ldsflda</c> names: one C# gave data in the assembly (an RVA).</summary>
     public static IlField? DataField(IlInstruction instruction) =>
@@ -233,8 +217,9 @@ internal static class Spans
     /// The <c>stackalloc</c>s of <paramref name="body"/> that make a span, as C# writes them (Release and Debug): the
     /// size (<c>ldc.i4 16; conv.u</c>, or <c>ldc.i4.2; conv.u; sizeof T; mul.ovf.un</c> for a struct), <c>localloc</c>,
     /// the initializer if there is one (stores through the new memory, or a <c>cpblk</c> from constant data), the number
-    /// of elements and <c>newobj Span&lt;T&gt;::.ctor(void*, int32)</c>, with no branch in between. Any other localloc
-    /// (into a pointer: unsafe code) is not among them.
+    /// of elements and <c>newobj Span&lt;T&gt;::.ctor(void*, int32)</c>, with no branch in between, the new memory's
+    /// address staying on the stack (dup'ed for the initializer) until the constructor takes it. Any other localloc (into
+    /// a pointer: unsafe code) is not among them.
     /// </summary>
     public static IReadOnlyList<Stackalloc> FindStackallocs(IlMethodBody body)
     {
@@ -249,6 +234,8 @@ internal static class Spans
                 continue;
             }
 
+            // how many values are on the stack from the address up: the address alone, at first
+            var depth = 1;
             for (var c = i + 1; c < instructions.Count; c++)
             {
                 var instruction = instructions[c];
@@ -258,12 +245,20 @@ internal static class Spans
                     break;
                 }
 
-                if (IsPointerConstructor(instruction, out var element))
+                if (IsPointerConstructor(instruction, out var element) && depth == 2)
                 {
                     var start = instructions[i - 1].OpCode == IlOpCode.Mul_Ovf_Un && i >= 2 ? i - 2 : i;
                     found.Add(new Stackalloc(start, i, c, element, Integer(instructions[c - 1])));
                     break;
                 }
+
+                var (pops, pushes) = instruction.OpCode == IlOpCode.Dup ? (0, 1) : Analysis.IlStackEffects.Of(instruction, body.Method);
+                if (depth - pops < 1)
+                {
+                    break; // something else takes the address: a pointer
+                }
+
+                depth += pushes - pops;
             }
         }
 

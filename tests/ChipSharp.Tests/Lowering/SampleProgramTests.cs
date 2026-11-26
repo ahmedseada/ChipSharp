@@ -78,6 +78,9 @@ public sealed class SampleProgramTests : IDisposable
     public Task ShortCircuit() => PrintsWhatDotnetPrints();
 
     [HostFact]
+    public Task Spans() => PrintsWhatDotnetPrints();
+
+    [HostFact]
     public Task Square() => PrintsWhatDotnetPrints();
 
     [HostFact]

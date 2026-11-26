@@ -21,6 +21,23 @@ public sealed partial class IlAssembly
         return layout.IsDefault || layout.Size <= 0 ? null : layout.Size;
     }
 
+    /// <summary>
+    /// True when <paramref name="type"/>'s layout is not C#'s default: <c>[StructLayout(Pack = n)]</c> or
+    /// <c>[StructLayout(Size = n)]</c>, which .NET lays out otherwise than every field aligned to its size.
+    /// </summary>
+    public bool HasCustomLayout(IlTypeDefinition type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        var definition = type.GenericDefinition ?? type;
+        if (definition.Assembly != this)
+        {
+            throw new ArgumentException($"{type} is a type of {definition.Assembly}, not of {this}.", nameof(type));
+        }
+
+        var layout = _reader.GetTypeDefinition(MetadataTokens.TypeDefinitionHandle(definition.Token & 0xFFFFFF)).GetLayout();
+        return !layout.IsDefault && (layout.PackingSize != 0 || layout.Size != 0);
+    }
+
     /// <summary>True when <paramref name="field"/> has data in the image (an RVA), as the fields of constant data do.</summary>
     public bool HasFieldData(IlField field)
     {

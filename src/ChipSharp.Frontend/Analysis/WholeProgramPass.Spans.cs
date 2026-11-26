@@ -119,12 +119,29 @@ public static partial class WholeProgramPass
     {
         if (StackArrays.TryMapElementType(type, assembly, out _))
         {
-            return null;
+            // its bytes are what .NET reads only when it is laid out as C# lays out a struct by default
+            return CustomLayout(type, assembly, 0) is { } custom
+                ? Unsupported.MemoryMarshalOf(CSharpNames.Type(type), $"{custom} has a [StructLayout] with Pack or Size, " +
+                    "which ChipSharp does not lay out yet")
+                : null;
         }
 
         var why = ValueTypes.ProblemOf(type, assembly)?.Text
             ?? (ForAnyType(type, assembly) is { } unsupported ? unsupported.What : "ChipSharp does not compile it");
         return Unsupported.MemoryMarshalOf(CSharpNames.Type(type), why);
+    }
+
+    /// <summary>The struct, <paramref name="type"/> or one in its fields, with a custom layout (Pack or Size); null when none has.</summary>
+    private static string? CustomLayout(IlType type, IlAssembly assembly, int depth)
+    {
+        if (depth > 8 || ValueTypes.Definition(type, assembly) is not { } definition || !ValueTypes.IsStruct(definition))
+        {
+            return null;
+        }
+
+        return definition.Assembly.HasCustomLayout(definition) ? CSharpNames.Type(definition.Type)
+            : ValueTypes.InstanceFields(definition).Select(field => CustomLayout(field.Type, definition.Assembly, depth + 1))
+                .FirstOrDefault(found => found is not null);
     }
 
     /// <summary>

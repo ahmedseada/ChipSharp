@@ -2,11 +2,13 @@ using System.Text;
 using ChipSharp.Abstractions;
 using ChipSharp.Frontend.Analysis;
 using ChipSharp.Frontend.Il;
+using ChipSharp.Frontend.Lowering;
 using ChipSharp.Image.Uf2;
 using ChipSharp.Targets;
 using ChipSharp.Tests.Build;
 using ChipSharp.Tests.Lowering;
 using ChipSharp.Tests.Support;
+using Microsoft.CodeAnalysis;
 
 namespace ChipSharp.Tests.Pico;
 
@@ -48,13 +50,16 @@ public sealed class SpanSimulatorTests : IDisposable
         var source = SpanPrograms.All.Single(program => program.Name == name).Source;
         var dotnet = await HostRun.RunOnDotnetAsync(CSharpCompiler.Compile(source, name), name,
             Path.Combine(_scratch, "dotnet"));
-        var program = PicoBuild.Build(source, name, Path.Combine(_scratch, name));
+        foreach (var optimization in new[] { OptimizationLevel.Release, OptimizationLevel.Debug })
+        {
+            var program = Build(source, name, optimization);
 
-        var run = await Rp2040Simulator.RunAsync(program.Uf2, 30_000);
+            var run = await Rp2040Simulator.RunAsync(program.Uf2, 30_000);
 
-        Assert.True(run.ExitCode == 0, run.ToString());
-        Assert.Contains("stopped: the program has finished", run.Stopped);
-        Assert.Equal(dotnet.Output, run.Uart0);
+            Assert.True(run.ExitCode == 0, run.ToString());
+            Assert.Contains("stopped: the program has finished", run.Stopped);
+            Assert.Equal(dotnet.Output, run.Uart0);
+        }
     }
 
     [SimulatorTheory]
@@ -62,13 +67,16 @@ public sealed class SpanSimulatorTests : IDisposable
     public async Task Where_dotnet_throws_the_program_says_so_on_UART0_and_stops_at_a_breakpoint(string name)
     {
         var (_, source, printed, error) = SpanPrograms.Failures.Single(failure => failure.Name == name);
-        var program = PicoBuild.Build(source, name, Path.Combine(_scratch, name));
+        foreach (var optimization in new[] { OptimizationLevel.Release, OptimizationLevel.Debug })
+        {
+            var program = Build(source, name, optimization);
 
-        var run = await Rp2040Simulator.RunAsync(program.Uf2, 1000);
+            var run = await Rp2040Simulator.RunAsync(program.Uf2, 1000);
 
-        Assert.True(run.ExitCode == 3, run.ToString());
-        Assert.Contains("stopped: the program hit a breakpoint (bkpt #0)", run.Stopped);
-        Assert.Equal(printed + error, Encoding.ASCII.GetString(run.Uart0));
+            Assert.True(run.ExitCode == 3, run.ToString());
+            Assert.Contains("stopped: the program hit a breakpoint (bkpt #0)", run.Stopped);
+            Assert.Equal(printed + error, Encoding.ASCII.GetString(run.Uart0));
+        }
     }
 
     [SimulatorFact]
@@ -219,5 +227,14 @@ public sealed class SpanSimulatorTests : IDisposable
             """), "Test.dll"), target).Problems.Select(problem => problem.Line);
         Assert.Equal(["Program.Main() at IL_0015 (call): copying a span into a new array (ToArray) needs a heap, and the "
             + "target 'pico-noheap' (264 KB RAM) has no heap. Copy it into an array of your own with CopyTo."], problems);
+    }
+
+    /// <summary>Compiles <paramref name="source"/> (Release or Debug IL) and builds it for the Pico.</summary>
+    private PicoProgram Build(string source, string name, OptimizationLevel optimization)
+    {
+        var assembly = CSharpCompiler.Compile([source], [PicoBuild.HardwareAssembly], name, OutputKind.ConsoleApplication,
+            optimization);
+        var program = WholeProgramPass.Analyze(IlAssembly.Load(assembly, name + ".dll"), PicoBuild.Pico);
+        return PicoBuild.Build(IlToTir.Lower(program), Path.Combine(_scratch, $"{name}-{optimization}"));
     }
 }

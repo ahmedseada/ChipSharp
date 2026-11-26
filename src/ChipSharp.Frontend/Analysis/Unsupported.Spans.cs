@@ -48,8 +48,9 @@ internal sealed partial record Unsupported
     /// runs; ChipSharp says so when it compiles.
     /// </summary>
     public static Unsupported MemoryMarshalOf(string type, string why) => Rule(
-        $"MemoryMarshal reads and writes as bytes only values without references, and {type} is not one ({why})",
-        "Read and write numbers, bools, enums and structs of them.");
+        $"MemoryMarshal reads and writes as bytes only values with no references in them, laid out as C# lays them " +
+        $"out by default, and {type} is not one ({why})",
+        "Read and write numbers, bools, enums and structs of them, without [StructLayout(Pack = ...)].");
 
     /// <summary>
     /// The feature of a span type that cannot be compiled: what its elements need (<c>Span&lt;char&gt;</c> is characters,

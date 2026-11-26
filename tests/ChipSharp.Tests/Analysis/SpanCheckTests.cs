@@ -222,7 +222,7 @@ public sealed class SpanCheckTests : IDisposable
     }
 
     [Fact]
-    public void A_span_of_characters_or_of_text_is_what_its_elements_need_and_MemoryMarshal_reads_only_plain_values()
+    public void A_span_of_characters_is_what_its_elements_need_and_MemoryMarshal_reads_only_plain_values()
     {
         var problems = Problems("""
             using System;
@@ -234,6 +234,13 @@ public sealed class SpanCheckTests : IDisposable
                 public int Age;
             }
 
+            [StructLayout(LayoutKind.Sequential, Pack = 1)]
+            struct Packed
+            {
+                public byte Kind;
+                public int Value;
+            }
+
             class Program
             {
 
@@ -241,16 +248,22 @@ public sealed class SpanCheckTests : IDisposable
                 {
                     Span<char> letters = stackalloc char[2];
                     var person = MemoryMarshal.Read<Person>(new byte[16]);
-                    Console.WriteLine(letters.Length + person.Age);
+                    var packed = MemoryMarshal.Read<Packed>(new byte[16]);
+                    Console.WriteLine(letters.Length + person.Age + packed.Value);
                 }
             }
             """);
 
         Assert.Contains("Program.Main(), local variable V_0 (System.Span<char>): characters (char) arrive with M3 (the "
             + "heap). For now, use whole numbers.", problems);
-        Assert.Contains("Program.Main() at IL_0017 (call): MemoryMarshal reads and writes as bytes only values without "
-            + "references, and Person is not one (the field Person.Name has type string). Read and write numbers, bools, "
-            + "enums and structs of them.", problems);
+        Assert.Contains("Program.Main() at IL_0017 (call): MemoryMarshal reads and writes as bytes only values with no "
+            + "references in them, laid out as C# lays them out by default, and Person is not one (the field Person.Name has "
+            + "type string). Read and write numbers, bools, enums and structs of them, without [StructLayout(Pack = ...)].",
+            problems);
+        Assert.Contains("Program.Main() at IL_0029 (call): MemoryMarshal reads and writes as bytes only values with no "
+            + "references in them, laid out as C# lays them out by default, and Packed is not one (Packed has a "
+            + "[StructLayout] with Pack or Size, which ChipSharp does not lay out yet). Read and write numbers, bools, "
+            + "enums and structs of them, without [StructLayout(Pack = ...)].", problems);
     }
 
     [Fact]
