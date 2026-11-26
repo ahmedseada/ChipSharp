@@ -34,6 +34,13 @@ namespace ChipSharp.Frontend.Lowering;
 /// in the form the use needs (see <see cref="StackValue"/>): <c>const i64 5</c> rather than an i32 constant and a
 /// conversion, a branch on the comparison itself rather than on its 0 or 1, no load of a value that is only passed on.
 /// </para>
+/// <para>
+/// A static field is a global named like it, e.g. <c>@Program.counter</c>: <c>ldsfld</c> and <c>stsfld</c> take its
+/// address and load or store through it. The type initializers (<see cref="IlProgram.TypeInitializers"/>) run before
+/// the entry point: when there are any, the module's entry point is <c>&lt;Start&gt;</c>, which calls them in order and
+/// then the entry point. An initializer that only sets its type's fields to constants is not compiled at all: the
+/// fields' globals start with those values.
+/// </para>
 /// </remarks>
 public static class IlToTir
 {
@@ -48,18 +55,21 @@ public static class IlToTir
         var module = new TirModule(program.Assembly.Name);
         var functions = new ProgramFunctions(module);
 
+        // a type initializer that only sets fields to constants becomes their globals' initial values, not code
+        var methods = program.Methods.Where(method => !functions.TryFoldInitializer(method)).ToList();
+
         // every function exists before any body is built, so calls (recursion included) find their callee
-        foreach (var method in program.Methods)
+        foreach (var method in methods)
         {
             functions.Declare(method, isEntryPoint: ReferenceEquals(method, program.EntryPoint));
         }
 
-        foreach (var method in program.Methods)
+        foreach (var method in methods)
         {
             new MethodLowering(functions, functions.Get(method)).Lower();
         }
 
-        module.EntryPoint = functions.Get(program.EntryPoint).Function;
+        module.EntryPoint = functions.Start(program);
         return module;
     }
 }

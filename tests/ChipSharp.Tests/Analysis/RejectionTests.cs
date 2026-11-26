@@ -168,27 +168,37 @@ public sealed class RejectionTests
     [Fact]
     public void Fields()
     {
+        // counter compiles; its address, a float field and a field of the library do not
         var problems = Problems("""
             using System;
+            using System.Threading;
 
             class Program
             {
                 static int counter;
+                static float scale;
 
                 static void Main()
                 {
-                    counter = counter + 1;
-                    Console.WriteLine(counter);
+                    Interlocked.Increment(ref counter);
+                    scale = 2;
+                    Console.WriteLine(counter + (int)nint.Zero);
                 }
             }
             """);
 
-        const string Fields = "fields arrive after M0. For now, keep values in local variables and pass them as parameters.";
         Assert.Equal(
         [
-            $"Program.Main() at IL_0000 (ldsfld): {Fields}",
-            $"Program.Main() at IL_0007 (stsfld): {Fields}",
-            $"Program.Main() at IL_000c (ldsfld): {Fields}",
+            "Program.Main() at IL_0000 (ldsflda): taking addresses (ref, out, struct methods) arrives after M0. "
+                + "For now, pass values in and return results.",
+            "Program.Main() at IL_0005 (call): the library method System.Threading.Interlocked.Increment(ref int) "
+                + "is not available in M0.",
+            "Program.Main() at IL_000b (ldc.r4): floating point (float/double) arrives after M0. "
+                + "For now, use whole numbers: int, long and the other integer types.",
+            "Program.Main() at IL_0010 (stsfld): floating point (float/double) arrives after M0. "
+                + "For now, use whole numbers: int, long and the other integer types.",
+            "Program.Main() at IL_001a (ldsfld): the library field nint.Zero is not available in M0. "
+                + "For now, use constants or the static fields of your own types.",
         ], problems);
     }
 

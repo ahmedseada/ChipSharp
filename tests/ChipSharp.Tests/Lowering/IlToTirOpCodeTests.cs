@@ -146,8 +146,9 @@ public sealed class IlToTirOpCodeTests : IDisposable
     }
 
     /// <summary>
-    /// Pure static methods that together use every instruction of the subset, and a Main that calls each with a few
-    /// inputs and prints the result with Console.WriteLine.
+    /// Pure static methods that together use every instruction of the subset (but for the static fields, whose values
+    /// carry over from call to call in .NET too), and a Main that calls each with a few inputs and prints the result
+    /// with Console.WriteLine.
     /// </summary>
     private sealed class OpCodeProgram
     {
@@ -164,6 +165,7 @@ public sealed class IlToTirOpCodeTests : IDisposable
         public static OpCodeProgram Build()
         {
             var program = new OpCodeProgram();
+            program.AddStaticFields();
             program.AddArithmetic();
             program.AddConversions();
             program.AddComparisonsAndBranches();
@@ -542,6 +544,46 @@ public sealed class IlToTirOpCodeTests : IDisposable
                 il.Emit(OpCodes.Add);
                 il.Emit(OpCodes.Ret);
             }, [9]);
+        }
+
+        /// <summary>ldsfld, stsfld and volatile.: static fields that keep their values from one call to the next.</summary>
+        private void AddStaticFields()
+        {
+            var total = Assembly.Field("total", typeof(long));
+            Add("AddToTotal", typeof(long), [typeof(int)], il =>
+            {
+                il.Emit(OpCodes.Ldsfld, total);
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Conv_I8);
+                il.Emit(OpCodes.Add);
+                il.Emit(OpCodes.Dup);
+                il.Emit(OpCodes.Stsfld, total);
+                il.Emit(OpCodes.Ret);
+            }, [5], [-12], [int.MaxValue]);
+
+            // the int32 is cut to the byte's 8 bits on the way in, and zero-extended on the way out
+            var small = Assembly.Field("small", typeof(byte));
+            Add("StoreByte", typeof(int), [typeof(int)], il =>
+            {
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Stsfld, small);
+                il.Emit(OpCodes.Ldsfld, small);
+                il.Emit(OpCodes.Ret);
+            }, [300], [-1]);
+
+            var ticks = Assembly.Field("ticks", typeof(int), isVolatile: true);
+            Add("Tick", typeof(int), [], il =>
+            {
+                il.Emit(OpCodes.Volatile);
+                il.Emit(OpCodes.Ldsfld, ticks);
+                il.Emit(OpCodes.Ldc_I4_1);
+                il.Emit(OpCodes.Add);
+                il.Emit(OpCodes.Volatile);
+                il.Emit(OpCodes.Stsfld, ticks);
+                il.Emit(OpCodes.Volatile);
+                il.Emit(OpCodes.Ldsfld, ticks);
+                il.Emit(OpCodes.Ret);
+            }, [[], []]);
         }
 
         /// <summary>Main: each call, its result printed with the WriteLine for its type.</summary>

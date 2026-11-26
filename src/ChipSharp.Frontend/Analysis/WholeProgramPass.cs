@@ -5,10 +5,10 @@ namespace ChipSharp.Frontend.Analysis;
 
 /// <summary>
 /// The whole-program pass: finds every method the program uses, starting at its entry point and following
-/// <c>call</c> instructions, and checks each one against <see cref="SupportedSubset"/>. What it returns, an
-/// <see cref="IlProgram"/>, is what the IL-to-TIR translation compiles.
+/// <c>call</c> instructions (and the type initializers of the types the methods use), and checks each one against
+/// <see cref="SupportedSubset"/>. What it returns, an <see cref="IlProgram"/>, is what the IL-to-TIR translation compiles.
 /// </summary>
-public static class WholeProgramPass
+public static partial class WholeProgramPass
 {
     private static readonly IlArrayType StringArray = new(IlType.String);
 
@@ -48,7 +48,8 @@ public static class WholeProgramPass
 
     /// <summary>
     /// The entry point, then every method of the assembly it reaches through <c>call</c>, each once, in the order
-    /// they are first called when the methods are scanned in this same order, instruction by instruction.
+    /// they are first called when the methods are scanned in this same order, instruction by instruction. The type
+    /// initializers each method makes run (see <see cref="StaticInitialization"/>) come before the methods it calls.
     /// </summary>
     private static IlMethod[] FindReachableMethods(IlMethod entryPoint)
     {
@@ -56,6 +57,14 @@ public static class WholeProgramPass
         var found = new HashSet<IlMethod> { entryPoint };
         for (var i = 0; i < methods.Count; i++)
         {
+            foreach (var initializer in StaticInitialization.InitializersRunBy(methods[i], isStart: i == 0))
+            {
+                if (found.Add(initializer))
+                {
+                    methods.Add(initializer);
+                }
+            }
+
             foreach (var instruction in methods[i].Body?.Instructions ?? [])
             {
                 if (instruction is { OpCode: IlOpCode.Call, Operand: IlMethodOperand { Method.Definition: { } callee } }
@@ -182,6 +191,11 @@ public static class WholeProgramPass
 
             var unsupported = Unsupported.ForInstruction(instruction.OpCode);
             return unsupported == Unsupported.OtherInstruction ? Unsupported.InstructionNamed(instruction.Name) : unsupported;
+        }
+
+        if (ForStaticField(instruction) is { } field)
+        {
+            return field;
         }
 
         if (instruction is { OpCode: IlOpCode.Call, Operand: IlMethodOperand { Method: { Definition: null } callee } }

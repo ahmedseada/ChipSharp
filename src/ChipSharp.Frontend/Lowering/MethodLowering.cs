@@ -8,7 +8,7 @@ namespace ChipSharp.Frontend.Lowering;
 /// Translates the IL of one method into the blocks of its TIR function, simulating IL's evaluation stack with TIR
 /// values (see <see cref="IlToTir"/> for the approach). Used once per method.
 /// </summary>
-internal sealed class MethodLowering
+internal sealed partial class MethodLowering
 {
     private readonly ProgramFunctions _program;
     private readonly IlMethod _method;
@@ -180,6 +180,18 @@ internal sealed class MethodLowering
                 local = Local(instruction.LocalIndex!.Value);
                 var slot = _localSlots[local.Index];
                 _ir.Store(slot, FromStack(PopValue(), slot.Type, local.Type, $"local V_{local.Index}"));
+                break;
+
+            case IlOpCode.Ldsfld:
+                LoadStaticField();
+                break;
+
+            case IlOpCode.Stsfld:
+                StoreStaticField();
+                break;
+
+            case IlOpCode.Volatile:
+                CheckVolatilePrefix();
                 break;
 
             case >= IlOpCode.Ldc_I4_M1 and <= IlOpCode.Ldc_I4_8:

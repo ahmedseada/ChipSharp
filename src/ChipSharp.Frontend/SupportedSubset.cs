@@ -16,7 +16,7 @@ public static class SupportedSubset
     public const string Milestone = "M0";
 
     /// <summary>The IL instructions M0 compiles. Checked arithmetic (<c>*.ovf</c>), objects, arrays, strings,
-    /// fields, floats, addresses and exceptions are not in it.</summary>
+    /// instance fields, floats, addresses and exceptions are not in it.</summary>
     public static FrozenSet<IlOpCode> OpCodes { get; } = new[]
     {
         IlOpCode.Nop,
@@ -24,6 +24,7 @@ public static class SupportedSubset
         IlOpCode.Starg_S, IlOpCode.Starg,
         IlOpCode.Ldloc_0, IlOpCode.Ldloc_1, IlOpCode.Ldloc_2, IlOpCode.Ldloc_3, IlOpCode.Ldloc_S, IlOpCode.Ldloc,
         IlOpCode.Stloc_0, IlOpCode.Stloc_1, IlOpCode.Stloc_2, IlOpCode.Stloc_3, IlOpCode.Stloc_S, IlOpCode.Stloc,
+        IlOpCode.Ldsfld, IlOpCode.Stsfld, IlOpCode.Volatile,
         IlOpCode.Ldc_I4_M1, IlOpCode.Ldc_I4_0, IlOpCode.Ldc_I4_1, IlOpCode.Ldc_I4_2, IlOpCode.Ldc_I4_3,
         IlOpCode.Ldc_I4_4, IlOpCode.Ldc_I4_5, IlOpCode.Ldc_I4_6, IlOpCode.Ldc_I4_7, IlOpCode.Ldc_I4_8,
         IlOpCode.Ldc_I4_S, IlOpCode.Ldc_I4, IlOpCode.Ldc_I8,

@@ -27,7 +27,8 @@ public sealed class AnalysisResult
 
     /// <summary>
     /// Every method of the program the entry point can reach, itself included: the entry point first, then in the
-    /// order they are first called. Methods nothing calls are left out, and not checked.
+    /// order they are first called. Methods nothing calls are left out, and not checked. The initializers (.cctor) of
+    /// the types the program uses are in it too (see <see cref="IlProgram.TypeInitializers"/>).
     /// </summary>
     public IReadOnlyList<IlMethod> Methods { get; }
 

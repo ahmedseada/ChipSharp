@@ -39,6 +39,14 @@ internal sealed class EmittedAssembly
         return method;
     }
 
+    /// <summary>
+    /// Adds <c>static <paramref name="type"/> Program.<paramref name="name"/></c>; with <paramref name="isVolatile"/>,
+    /// its type carries the modifier C# gives a volatile field, <c>modreq(IsVolatile)</c>.
+    /// </summary>
+    public FieldBuilder Field(string name, Type type, bool isVolatile = false) =>
+        _type.DefineField(name, type, isVolatile ? [typeof(System.Runtime.CompilerServices.IsVolatile)] : null, null,
+            FieldAttributes.Public | FieldAttributes.Static);
+
     /// <summary>The assembly's bytes; no method can be added after this.</summary>
     public byte[] Save()
     {

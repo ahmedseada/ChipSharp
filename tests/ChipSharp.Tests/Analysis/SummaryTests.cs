@@ -8,7 +8,7 @@ namespace ChipSharp.Tests.Analysis;
 /// </summary>
 public sealed class SummaryTests
 {
-    private const string Fields = "fields arrive after M0";
+    private const string Characters = "characters (char) arrive after M0";
     private const string Checked = "For now, leave out checked: M0 arithmetic wraps around on overflow, like unchecked C#.";
 
     [Fact]
@@ -19,24 +19,24 @@ public sealed class SummaryTests
 
             class Program
             {
-                static int counter;
+                static char counter;
 
                 static void Main()
                 {
-                    counter = counter + 1;
-                    Console.WriteLine(counter);
+                    counter = (char)(counter + 1);
+                    Console.WriteLine((int)counter);
                 }
             }
             """);
 
         var group = Assert.Single(analysis.Groups);
-        Assert.Equal("fields", group.Feature);
+        Assert.Equal("characters (char)", group.Feature);
         Assert.Equal(3, group.Problems.Count);
         Assert.Equal(["Program.Main"], group.Methods.Select(method => method.DisplayName));
         Assert.False(group.IsLibraryCall);
         Assert.Equal($"""
             Test.dll uses 1 C# feature that M0 does not compile yet (3 places):
-              {Fields}: 3 places in Program.Main() (IL_0000, IL_0007 and IL_000c). For now, keep values in local variables and pass them as parameters.
+              {Characters}: 3 places in Program.Main() (IL_0000, IL_0008 and IL_000d). For now, use whole numbers.
             For every place, run: chipsharp check Test.dll --details
             """.ReplaceLineEndings("\n"), analysis.Summary);
     }
@@ -80,7 +80,7 @@ public sealed class SummaryTests
 
             class Program
             {
-                static int a, b, c, d, e;
+                static char a, b, c, d, e;
 
                 static int One() => a;
                 static int Two() => b;
@@ -90,11 +90,11 @@ public sealed class SummaryTests
 
                 static void Main()
                 {
-                    a = 1;
-                    b = 2;
-                    c = 3;
-                    d = 4;
-                    e = 5;
+                    a = (char)1;
+                    b = (char)2;
+                    c = (char)3;
+                    d = (char)4;
+                    e = (char)5;
                     Console.WriteLine(One() + Two() + Three() + Four() + Five());
                 }
             }
@@ -102,8 +102,8 @@ public sealed class SummaryTests
 
         var group = Assert.Single(analysis.Groups);
         Assert.Equal(10, group.Problems.Count);
-        Assert.Equal($"{Fields}: 10 places in Program.Main() (IL_0001, IL_0007, IL_000d and 2 more), Program.One() (IL_0000), "
-            + "Program.Two() (IL_0000) and 3 more methods. For now, keep values in local variables and pass them as parameters.",
+        Assert.Equal($"{Characters}: 10 places in Program.Main() (IL_0001, IL_0007, IL_000d and 2 more), Program.One() (IL_0000), "
+            + "Program.Two() (IL_0000) and 3 more methods. For now, use whole numbers.",
             group.Line);
     }
 
@@ -115,7 +115,7 @@ public sealed class SummaryTests
 
             class Program
             {
-                static int a;
+                static char a;
 
                 static int One() => a;
                 static int Two() => a;
@@ -123,15 +123,15 @@ public sealed class SummaryTests
 
                 static void Main()
                 {
-                    a = 1;
-                    a = a + a;
+                    a = (char)1;
+                    a = (char)(a + a);
                     Console.WriteLine(One() + Two() + Three());
                 }
             }
             """);
 
-        Assert.Equal($"{Fields}: 7 places in Program.Main() (IL_0001, IL_0006, IL_000b and IL_0011), Program.One() (IL_0000), "
-            + "Program.Two() (IL_0000) and Program.Three() (IL_0000). For now, keep values in local variables and pass them as parameters.",
+        Assert.Equal($"{Characters}: 7 places in Program.Main() (IL_0001, IL_0006, IL_000b and IL_0012), Program.One() (IL_0000), "
+            + "Program.Two() (IL_0000) and Program.Three() (IL_0000). For now, use whole numbers.",
             Assert.Single(analysis.Groups).Line);
     }
 

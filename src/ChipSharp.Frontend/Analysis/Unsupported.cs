@@ -39,8 +39,8 @@ internal sealed record Unsupported(string What, bool IsPlural, string Hint)
     public static readonly Unsupported Characters = new("characters (char)", true, "For now, use whole numbers.");
     public static readonly Unsupported Arrays = new("arrays", true, VariablesHint);
     public static readonly Unsupported Stackalloc = new("stackalloc", false, VariablesHint);
-    public static readonly Unsupported Fields = new("fields", true,
-        "For now, keep values in local variables and pass them as parameters.");
+    public static readonly Unsupported Fields = new("instance fields (fields without static)", true,
+        "For now, make the fields static.");
     public static readonly Unsupported Structs = new("structs", true, "For now, use separate whole-number and bool variables.");
     public static readonly Unsupported Enums = new("enums", true, "For now, use int constants.");
     public static readonly Unsupported CheckedArithmetic = new("checked arithmetic", false,
@@ -65,11 +65,14 @@ internal sealed record Unsupported(string What, bool IsPlural, string Hint)
     /// <summary>True for a library method the program calls: it "is not available in M0" rather than "arrives after M0".</summary>
     public bool IsLibraryMethod { get; private init; }
 
+    /// <summary>True for a static field of the library the program reads or writes: it "is not available in M0" too.</summary>
+    public bool IsLibraryField { get; private init; }
+
     /// <summary>
     /// What is not supported, as a clause: "arrays arrive after M0",
     /// "the library method System.Math.Abs(int) is not available in M0".
     /// </summary>
-    public string Heading => IsLibraryMethod
+    public string Heading => IsLibraryMethod || IsLibraryField
         ? $"{What} is not available in {SupportedSubset.Milestone}"
         : $"{What} {(IsPlural ? "arrive" : "arrives")} after {SupportedSubset.Milestone}";
 
@@ -79,6 +82,13 @@ internal sealed record Unsupported(string What, bool IsPlural, string Hint)
     /// <summary>A call to a library method <see cref="KnownExternals"/> does not have, e.g. "System.Math.Abs(int)".</summary>
     public static Unsupported LibraryMethod(string method) =>
         new($"the library method {method}", false, "") { IsLibraryMethod = true };
+
+    /// <summary>A static field of another assembly the program reads or writes, e.g. "nint.Zero".</summary>
+    public static Unsupported LibraryField(string field) =>
+        new($"the library field {field}", false, "For now, use constants or the static fields of your own types.")
+        {
+            IsLibraryField = true,
+        };
 
     /// <summary><see cref="OtherType"/> for one type, so that two types are two features: "the type System.Random".</summary>
     public static Unsupported TypeNamed(string type) => OtherType with { What = $"the type {type}" };
@@ -109,7 +119,8 @@ internal sealed record Unsupported(string What, bool IsPlural, string Hint)
             IlOpCode.Ldstr => Strings,
             IlOpCode.Newarr or IlOpCode.Ldlen => Arrays,
             IlOpCode.Localloc => Stackalloc,
-            IlOpCode.Ldfld or IlOpCode.Ldflda or IlOpCode.Stfld or IlOpCode.Ldsfld or IlOpCode.Ldsflda or IlOpCode.Stsfld => Fields,
+            IlOpCode.Ldfld or IlOpCode.Ldflda or IlOpCode.Stfld => Fields,
+            IlOpCode.Ldsflda => Addresses,
             IlOpCode.Initobj or IlOpCode.Ldobj or IlOpCode.Stobj or IlOpCode.Cpobj or IlOpCode.Sizeof => Structs,
             IlOpCode.Ldc_R4 or IlOpCode.Ldc_R8 or IlOpCode.Conv_R4 or IlOpCode.Conv_R8 or IlOpCode.Conv_R_Un
                 or IlOpCode.Ckfinite => FloatingPoint,

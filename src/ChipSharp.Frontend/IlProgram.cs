@@ -13,6 +13,8 @@ namespace ChipSharp.Frontend;
 /// </remarks>
 public sealed class IlProgram
 {
+    private IReadOnlyList<IlMethod>? _typeInitializers;
+
     public IlProgram(IlAssembly assembly, IReadOnlyList<IlMethod> methods)
     {
         ArgumentNullException.ThrowIfNull(assembly);
@@ -34,6 +36,13 @@ public sealed class IlProgram
     /// <summary>
     /// Every method of the program the entry point can reach, itself included: the entry point first, then in the
     /// order they are first called. Each appears once. Library calls (see <see cref="KnownExternals"/>) are not in it.
+    /// The initializers (<c>.cctor</c>) of the types the program uses are in it too, where their type is first used.
     /// </summary>
     public IReadOnlyList<IlMethod> Methods { get; }
+
+    /// <summary>
+    /// The type initializers among <see cref="Methods"/> (static field initializers and static constructors), in the
+    /// order the program runs them when it starts, before the entry point (see <see cref="StaticInitialization"/>).
+    /// </summary>
+    public IReadOnlyList<IlMethod> TypeInitializers => _typeInitializers ??= StaticInitialization.RunOrder(Methods);
 }
