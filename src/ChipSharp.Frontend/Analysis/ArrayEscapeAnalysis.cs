@@ -8,7 +8,8 @@ namespace ChipSharp.Frontend.Analysis;
 /// <summary>
 /// Checks that the arrays of one method keep to the rule of <see cref="StackArrays"/>: each array lives on the stack
 /// of the method that makes it, so it must not outlive that method, and an array made again in a loop must not
-/// still be in use from the time before.
+/// still be in use from the time before. One that does not is on the heap, which needs a heap (a heap use, see
+/// <see cref="HeapArrays"/> and ArrayEscapeAnalysis.Heap.cs, where an array is kept and which may be null).
 /// </summary>
 /// <remarks>
 /// It follows what each value on IL's evaluation stack, each local and each argument can be (an abstract
@@ -689,6 +690,8 @@ internal static partial class ArrayEscapeAnalysis
             {
                 Verdict(instruction, Unsupported.MultiDimensionalArrays);
             }
+
+            ArrayMethod(instruction, callee);
 
             // the return type, the callee's parameter or the library method (not available) says whether it is fine
             var checkedElsewhere = instruction.OpCode == IlOpCode.Ret || callee is not null;

@@ -298,11 +298,19 @@ public sealed class ArrayRejectionTests : IDisposable
         var problems = Problems(Program("""
             int[] values = new int[3];
             Array.Clear(values);
-            Console.WriteLine(values[0]);
+            int[] copy = new int[3];
+            Array.Copy(values, copy, 3);
+            int[] clone = (int[])values.Clone();
+            Console.WriteLine(values[0] + copy[0] + clone[0]);
             """));
 
-        Assert.Equal(["Program.Main() at IL_0007 (call): the library method System.Array.Clear(System.Array) is not "
-            + "available yet."], problems);
+        const string Loop = "is not available yet. For now, write it as a loop over the elements: for (int i = 0; "
+            + "i < array.Length; i++) { ... }.";
+        Assert.Contains($"Program.Main() at IL_0007 (call): the library method System.Array.Clear(System.Array) {Loop}",
+            problems);
+        Assert.Contains("Program.Main() at IL_0016 (call): the library method System.Array.Copy(System.Array, "
+            + $"System.Array, int) {Loop}", problems);
+        Assert.Contains($"Program.Main() at IL_001c (callvirt): the library method System.Array.Clone() {Loop}", problems);
     }
 
     [Fact]

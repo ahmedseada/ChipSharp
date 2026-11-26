@@ -384,8 +384,8 @@ public sealed class StaticArrayCheckTests : IDisposable
             $"Program..cctor() at IL_0024 (stsfld): {Strings}",
             "Program.Get() at IL_0005 (ret): an array in a static field that needs no heap (a constant table, or a fixed "
                 + "array) kept outside its field: returned, stored in another field or array, or passed to a method that "
-                + "keeps it arrives later. For now, read it through its field where it is needed, or copy it into an "
-                + "array made with new (Array.Copy) and keep that.",
+                + "keeps it arrives later. For now, read it through its field where it is needed, or copy its elements "
+                + "into an array made with new and keep that.",
         ], problems);
     }
 

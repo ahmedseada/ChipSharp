@@ -19,7 +19,7 @@ internal sealed partial record Unsupported
     public static readonly Unsupported StaticArrayKept = new(
         "an array in a static field that needs no heap (a constant table, or a fixed array) kept outside its field: " +
         "returned, stored in another field or array, or passed to a method that keeps it", false,
-        "For now, read it through its field where it is needed, or copy it into an array made with new (Array.Copy) " +
+        "For now, read it through its field where it is needed, or copy its elements into an array made with new " +
         "and keep that.");
 
     public static readonly Unsupported ArrayReferences = new("references to arrays (ref int[], out int[])", true,
@@ -28,6 +28,15 @@ internal sealed partial record Unsupported
     public static readonly Unsupported ArrayCovariance = new(
         "array covariance (an array of one type of object used as an array of another, object[] items = new int[2][])",
         false, "For now, make the array of the type it is used as: new object[2].");
+
+    /// <summary>
+    /// A method of System.Array the program calls (<c>Array.Copy</c>, <c>Array.Fill</c>, <c>array.Clone()</c>, ...),
+    /// e.g. "System.Array.Copy(System.Array, System.Array, int)": not available yet, with what to write for now.
+    /// </summary>
+    public static Unsupported ArrayMethod(string method) => LibraryMethod(method) with
+    {
+        Hint = "For now, write it as a loop over the elements: for (int i = 0; i < array.Length; i++) { ... }.",
+    };
 
     /// <summary>
     /// <paramref name="feature"/>, which needs a heap, as a heap use: fine on a target with a heap, and

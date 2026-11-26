@@ -46,7 +46,7 @@ that ChipSharp does not compile yet, where, when it is planned, and what to writ
 on a line of its own, and every library method ChipSharp can call). `tir` shows the program in TIR. `build` compiles
 it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` also keeps the `.tir` and `.ll` files.
 
-`dotnet test` runs 1139 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
+`dotnet test` runs 1166 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
 `CHIPSHARP_LLVM_BIN`); the Pico tests also need the simulator (see below), and are skipped, saying why, without it.
 
 ## What C# compiles today
@@ -60,7 +60,7 @@ it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` 
 | Classes | On a target with a heap: the program's classes, `sealed` or not, nested, derived from each other (and from an `abstract` class): `new`, fields of the types above, of objects (the class itself too: lists, trees) and of structs holding objects, field initializers, constructors (overloads, `this(...)`, `base(...)`), instance and static methods and properties, `this`, a method hidden with `new`; objects in locals, parameters, return values, the fields of objects and of structs, and static fields; `null`, `==`, `!=`, `is null`, `ReferenceEquals`, `?.` and `??` (`??=` too), object initializers (`new Node { Value = 1 }`), `object`. The garbage collector frees what the program no longer reaches |
 | Generics | Generic methods, structs and static classes over values (numbers, bools, enums, structs, generic structs, fixed text), nested in each other: `static T Max<T>(T a, T b) where T : IComparable<T>`, `static void Swap<T>(ref T a, ref T b)`, `struct Pair<T>`, made once for each type argument, with no heap. Interfaces implemented by structs, through a constraint (`static void Run<T>(ref T device) where T : struct, IDevice`, explicit implementations and static abstract members too) or called on the struct itself; `CompareTo`, `Equals`, `GetHashCode` and `ToString` of a number `T`; generic math (`INumber<T>`): the operators, comparisons, `T.Zero`, `T.One`, `MinValue`, `MaxValue`; `default(T)`, `typeof(T) == typeof(int)`, `sizeof(T)`; a `T` printed and in printed text |
 | Static fields | Of the types above, `volatile` too, with field initializers and static constructors |
-| Arrays | Of numbers, bools, structs and enums, on the stack: a constant size, kept in the method that makes them and passed down to the methods it calls |
+| Arrays | Of numbers, bools, structs and enums, on the stack: a constant size, kept in the method that makes them and passed down to the methods it calls. On a target with a heap also on the heap: returned, kept in static fields, in the fields of objects and in other arrays, of a size known only when the program runs (`new int[n]`), `null` (`a == null`, `a?.Length ?? 0`), arrays of arrays (`int[][]`), of objects and of the program's classes; `[]` and `Array.Empty<T>()`, `foreach`, `.Length`, bounds checks and .NET's messages for null and a negative length. An array that stays in its method with a constant size is still on the stack |
 | Static arrays | Arrays in static fields that the field's initializer gives once, with a constant size and constant elements: `static readonly byte[] Digits = { 0x3F, 0x06, ... };` is a constant table when nothing writes an element (in flash on a chip), `static int[] buffer = new int[16];` a fixed array in RAM; read, indexed and passed to methods like any array, with no heap |
 | Fixed text | String literals (`"road : 1"`, `string.Empty`) in locals, parameters, return values, static fields (`static readonly` too) and `const`, compared with `null`; printed part by part with `Console.Write` and `Console.WriteLine` (`null` as nothing, like .NET), as UTF-8. Each literal is in flash once on a chip |
 | Printed text | Text built and printed straight away, with no string ever made and no heap: `Console.WriteLine($"road : {lane}")`, `Console.Write("road : " + lane)`, `lane.ToString()`; holes of text and of every type `Console.Write` prints, worked out first, in order, like .NET; alignments (`{x,5}`, `{x,-5}`, not of floats) and the formats `D`, `D<n>`, `X<n>`, `x<n>` and `G` of whole numbers |
@@ -68,8 +68,9 @@ it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` 
 
 | Not yet | When |
 |---|---|
-| Virtual methods (`virtual`, `override`, `abstract`), object's `ToString`, `Equals` and `GetHashCode`, records, casts and type tests (`is`, `as`, `(T)x`), variables of an interface type and a struct turned into one (boxing), generics over classes (`List<T>`, `Span<T>`, generic classes, a class, `object` or an array as a type argument), `ref` and `out` of an object, `?.` that gives a number (an `int?`); keeping built text (in a variable, a field, a return value), `string.Format` and the other methods of string, `==` on text, enum names in text, text in the fields of structs, `char`; arrays that leave their method (in the field of an object too), whose size is known only when the program runs, that are `null`, or that hold strings or objects | With M3 (the heap) |
-| Exceptions (`try`, `catch`, `finally`, `throw`, `using`), `checked` arithmetic, multi-dimensional arrays, unsafe code and `stackalloc`, delegates and lambdas, `typeof`, finalizers, classes derived from library classes | Later |
+| Virtual methods (`virtual`, `override`, `abstract`), object's `ToString`, `Equals` and `GetHashCode`, records, casts and type tests (`is`, `as`, `(T)x`), variables of an interface type and a struct turned into one (boxing), generics over classes (`List<T>`, `Span<T>`, generic classes, a class, `object` or an array as a type argument), `ref` and `out` of an object, `?.` that gives a number (an `int?`); keeping built text (in a variable, a field, a return value), `string.Format` and the other methods of string, `==` on text, enum names in text, text in the fields of structs, `char`; arrays of strings, an array in the field of a struct | With M3 (the heap) |
+| Exceptions (`try`, `catch`, `finally`, `throw`, `using`), `checked` arithmetic, multi-dimensional arrays, array covariance (`object[] items = new int[2][]`), `ref` and `out` of an array, a static array kept outside its field, unsafe code and `stackalloc`, delegates and lambdas, `typeof`, finalizers, classes derived from library classes | Later |
+| The methods of `System.Array` (`Array.Copy`, `Array.Fill`, `Array.Clear`, `Array.IndexOf`, `Array.Reverse`, `array.Clone()`, ...) | Not yet: `chipsharp check` says where, and to write the loop |
 | Other library types and methods (`decimal`, `Random`, `Math.Sin`, ...) | Not yet: `chipsharp check` lists the methods there are |
 
 `chipsharp check` (and `build`) say so for each feature a program uses, with what to write for now. The first program
@@ -98,9 +99,10 @@ The other samples show the rest of the table, e.g. `VendingMachine.cs` (structs,
 fields as a state machine), `Projectile.cs` (floats in structs, with operators), `TimeSpans.cs` (TimeSpan arithmetic),
 `TrafficLights.cs` (fixed text between numbers), `PrintedText.cs` (text built and printed straight away),
 `LookupTables.cs` (a 7-segment display's tables in flash and a buffer of readings in RAM), `Generics.cs` (generic
-methods and structs, devices used through a constraint, generic math) and `Classes.cs` (a linked list and a tree of
+methods and structs, devices used through a constraint, generic math), `Classes.cs` (a linked list and a tree of
 objects, constructors calling each other, a derived class, objects in static fields, and enough short-lived objects to
-make the Pico's garbage collector run again and again).
+make the Pico's garbage collector run again and again) and `HeapArrays.cs` (arrays returned, of sizes known when the
+program runs, an array of arrays, an array kept in a static field and replaced, null, and many arrays used once).
 
 ### Fixed text
 
@@ -159,7 +161,41 @@ static void Record(int value) => readings[count++ % readings.Length] = value;
 ```
 
 Any other array in a static field (assigned again, made of computed elements or of a size known only when the program
-runs, never given one) arrives with the heap; `chipsharp check` says which, where, and what to write for now.
+runs, never given one) is assigned while the program runs, on the heap (below); on a chip without a heap,
+`chipsharp check` says which, where, and what to write instead.
+
+### Arrays on the heap
+
+On a target with a heap, an array that leaves the method that makes it, whose size is known only when the program runs,
+or that a loop makes again while the one from before is still in use, is an object on the heap
+(`src/ChipSharp.Frontend/HeapArrays.cs`), which the garbage collector frees once nothing uses it:
+
+```csharp
+static int[] latest;                                  // null until the first window
+
+static int[] Read(int count)                          // a size known when the program runs, returned
+{
+    int[] readings = new int[count];
+    ...
+    return readings;
+}
+
+static void Keep(int[] window) => latest = window;    // kept in a static field: its callers' arrays are on the heap
+```
+
+Every array, on the stack, in flash, in RAM or on the heap, is the same value where the program has one (a local, a
+parameter, a return value): the address of its elements and its length, so one method takes them all, and an array
+that stays in its method with a constant size is on the stack as before, on every target. Null is the value of zeros;
+every other array has an address of its elements, the empty ones too (`[]` is one empty array of the program's, outside
+the heap). Where the collector reads references exactly (a static field the program assigns, a field of an object, an
+element of an array of arrays or of objects) the array object itself is kept, which is the address of its elements less
+the length and header in front of them; on the stack the address of the elements keeps the object alive. The analysis
+(`ArrayEscapeAnalysis`) follows each array through the whole program, the parameters of every method it is passed to
+included, so that only an array on the heap is ever kept that way; a constant table in flash, which has no object
+around it, is not (keeping one outside its field is rejected). An array that may be null (read from a field, given null
+by a caller) is measured with a null test, and its bounds check tells null from an index outside the array only when the
+index is not in range. On a chip without a heap, each of these needs a heap, and `chipsharp check` says so, with the
+same hints as before.
 
 ### Generics
 

@@ -17,7 +17,8 @@ namespace ChipSharp.Frontend;
 /// element (<c>ref a[i]</c>) obeys it too: it may be kept in a ref local and passed as a <c>ref</c> argument, but not
 /// returned from the method that made the array, also not through a method that returns the <c>ref</c> it was given.
 /// An array made again in a loop reuses its memory, so the one made there before (or a reference to one of its
-/// elements) must no longer be in use.
+/// elements) must no longer be in use. On a target with a heap, an array that does not keep to the rule is on the heap
+/// instead (see <see cref="HeapArrays"/>); on one without, it is rejected.
 /// </para>
 /// <para>
 /// The representation: an array value (on IL's evaluation stack, in a local, in a parameter) is a

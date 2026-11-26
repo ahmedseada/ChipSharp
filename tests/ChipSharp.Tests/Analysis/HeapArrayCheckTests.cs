@@ -214,8 +214,8 @@ public sealed class HeapArrayCheckTests : IDisposable
                 + "or string) arrive with M3 (the heap). For now, return the object, or keep it in a field.",
             "Program.Get() at IL_0005 (ret): an array in a static field that needs no heap (a constant table, or a fixed "
                 + "array) kept outside its field: returned, stored in another field or array, or passed to a method that "
-                + "keeps it arrives later. For now, read it through its field where it is needed, or copy it into an "
-                + "array made with new (Array.Copy) and keep that.",
+                + "keeps it arrives later. For now, read it through its field where it is needed, or copy its elements "
+                + "into an array made with new and keep that.",
             $"Program.Covariant() at IL_0006 (stloc.0): {Covariance}",
             $"Program.Covariant() at IL_0008 (ret): {Covariance}",
         ], problems);
