@@ -4,11 +4,14 @@ namespace ChipSharp.Ir;
 /// A variable of the whole program, such as a C# static field, printed as <c>@name</c>. It starts at zero, or at
 /// the constant it was given. Code reaches it through its address (<see cref="TirGlobalAddress"/>), then loads and
 /// stores through that. Created with <see cref="TirModule.AddGlobal"/>; read-only data, such as the text of a C#
-/// string literal, is a constant global, created with <see cref="TirModule.AddConstant"/>.
+/// string literal, is a constant global, created with <see cref="TirModule.AddConstant"/>. A global array may start
+/// with a constant for each element (<see cref="Elements"/>), a variable one or a constant one (a table, such as a C#
+/// <c>static readonly byte[]</c> whose elements nothing writes): see <see cref="TirModule.AddArray"/>.
 /// </summary>
 public sealed class TirGlobal
 {
-    internal TirGlobal(TirModule module, int index, string name, TirType type, TirConst? initialValue, byte[]? data)
+    internal TirGlobal(TirModule module, int index, string name, TirType type, TirConst? initialValue, byte[]? data,
+        TirConst[]? elements = null, bool isConstant = false)
     {
         Module = module;
         Index = index;
@@ -16,6 +19,8 @@ public sealed class TirGlobal
         Type = type;
         InitialValue = initialValue;
         Data = data is null ? null : Array.AsReadOnly(data);
+        Elements = elements is null ? null : Array.AsReadOnly(elements);
+        IsConstant = data is not null || isConstant;
     }
 
     public TirModule Module { get; }
@@ -41,8 +46,17 @@ public sealed class TirGlobal
     /// </summary>
     public IReadOnlyList<byte>? Data { get; }
 
-    /// <summary>True for read-only data (<see cref="Data"/>): a code generator puts it with the code, in flash on a chip.</summary>
-    public bool IsConstant => Data is not null;
+    /// <summary>
+    /// The values a global array starts with, one constant per element, in order; null when it starts at zero (and
+    /// for any global that is not an array).
+    /// </summary>
+    public IReadOnlyList<TirConst>? Elements { get; }
+
+    /// <summary>
+    /// True for read-only data (<see cref="Data"/>, or a constant array): a code generator puts it with the code, in
+    /// flash on a chip.
+    /// </summary>
+    public bool IsConstant { get; }
 
     public override string ToString() => $"@{Name}";
 }

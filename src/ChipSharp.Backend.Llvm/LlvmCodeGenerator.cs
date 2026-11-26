@@ -13,7 +13,8 @@ namespace ChipSharp.Backend.Llvm;
 /// (<see cref="TirFunction.ExportName"/>), which the runtime calls by it; another defined function or a global whose
 /// symbol is already taken gets _2, _3, ... after it. A global is an <c>internal global</c> that starts at
 /// zero or at its initial value; a constant global (read-only data) is a <c>private unnamed_addr constant</c>
-/// array of bytes, <c>c"..."</c>. Each slot becomes an alloca that starts at zero, in a block of its own in front
+/// array of bytes, <c>c"..."</c>; a global array starts with its elements (<c>[i32 1, i32 2]</c>), and a constant one
+/// (a table) is an <c>internal unnamed_addr constant</c>, read-only data with a symbol. Each slot becomes an alloca that starts at zero, in a block of its own in front
 /// of the TIR entry block. Struct types become named LLVM struct types (<c>%struct.Program_Point</c>), and every
 /// alignment comes from <see cref="TirLayout"/>. <see cref="EntrySymbol"/> calls the module's entry point and
 /// returns its int result (0 when it returns nothing); the runtime's startup code calls it.
@@ -74,8 +75,12 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
                 continue;
             }
 
-            var value = global.InitialValue is { } initial ? LlvmText.Constant(initial) : LlvmText.Zero(global.Type);
-            text.Append($"@{globalSymbols[global]} = internal global {types.Of(global.Type)} {value}, align {align}\n");
+            // a constant array (a table) keeps its symbol, internal, and is read-only data too
+            var value = global.Elements is { } elements ? Elements((TirArrayType)global.Type, elements, types)
+                : global.InitialValue is { } initial ? LlvmText.Constant(initial)
+                : LlvmText.Zero(global.Type);
+            var kind = global.IsConstant ? "unnamed_addr constant" : "global";
+            text.Append($"@{globalSymbols[global]} = internal {kind} {types.Of(global.Type)} {value}, align {align}\n");
         }
 
         var externals = module.Functions.Where(f => f.Kind == TirFunctionKind.External).ToList();
@@ -208,6 +213,13 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
         };
 
         return $"define i32 @{EntrySymbol}() nounwind {{\nentry:\n{call}}}\n";
+    }
+
+    /// <summary>The elements a global array starts with, as an LLVM constant: <c>[i32 1, i32 2]</c>.</summary>
+    private static string Elements(TirArrayType array, IReadOnlyList<TirConst> elements, LlvmTypes types)
+    {
+        var element = types.Of(array.Element);
+        return $"[{string.Join(", ", elements.Select(value => $"{element} {LlvmText.Constant(value)}"))}]";
     }
 
     /// <summary>The module name plus ".ll", with characters that cannot be in a file name replaced by '_'.</summary>

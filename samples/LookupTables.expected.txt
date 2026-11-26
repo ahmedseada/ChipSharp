@@ -1,0 +1,19 @@
+0: 0x3F, 6 segments
+1: 0x06, 2 segments
+2: 0x5B, 5 segments
+3: 0x4F, 5 segments
+4: 0x66, 4 segments
+5: 0x6D, 5 segments
+6: 0x7D, 6 segments
+7: 0x07, 3 segments
+8: 0x7F, 7 segments
+9: 0x6F, 6 segments
+1234 takes 72 mA; the last 6 add up to 1234
+9139 takes 85.25 mA; the last 6 add up to 10373
+4474 takes 68 mA; the last 6 add up to 14847
+1819 takes 75.75 mA; the last 6 add up to 16666
+3234 takes 85.75 mA; the last 6 add up to 19900
+3139 takes 80.75 mA; the last 6 add up to 23039
+2474 takes 72.25 mA; the last 6 add up to 24279
+7819 takes 80.25 mA; the last 6 add up to 22959
+5234 takes 85.75 mA; the last 6 add up to 23719

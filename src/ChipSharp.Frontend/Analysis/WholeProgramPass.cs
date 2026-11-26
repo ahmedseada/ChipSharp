@@ -50,9 +50,10 @@ public static partial class WholeProgramPass
         var methods = FindReachableMethods(entryPoint, handlers.Select(handler => handler.Method));
 
         var problems = new List<Problem>();
+        var statics = StaticArrays.Find(methods);
         foreach (var method in methods)
         {
-            CheckMethod(method, problems);
+            CheckMethod(method, problems, statics);
         }
 
         var forTarget = TargetRules.Apply(target, methods, problems);
@@ -101,9 +102,9 @@ public static partial class WholeProgramPass
 
     /// <summary>
     /// Adds a problem to <paramref name="problems"/> for every place in <paramref name="method"/> that ChipSharp cannot
-    /// compile.
+    /// compile. <paramref name="statics"/> are the program's arrays in static fields.
     /// </summary>
-    private static void CheckMethod(IlMethod method, List<Problem> problems)
+    private static void CheckMethod(IlMethod method, List<Problem> problems, StaticArrays statics)
     {
         Unsupported? ForType(IlType type) =>
             SupportedSubset.TryMapType(type, method.Assembly, out _) ? null : ForAnyType(type, method.Assembly, method);
@@ -181,7 +182,7 @@ public static partial class WholeProgramPass
 
         // the verdict of printed text comes first for the instructions it is about, then the arrays' rule's
         var printed = PrintedText.Of(method);
-        var arrays = ArrayEscapeAnalysis.Check(method);
+        var arrays = ArrayEscapeAnalysis.Check(method, statics);
         foreach (var instruction in body.Instructions)
         {
             // what printed text or the array escape analysis found for this instruction, else building text, else the

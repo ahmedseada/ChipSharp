@@ -34,7 +34,7 @@ internal sealed partial class MethodLowering
             throw LoweringErrors.In(_method, $"it returns {_method.ReturnType}, and {returned.Heading}");
         }
 
-        var problem = ArrayEscapeAnalysis.Check(_method)
+        var problem = ArrayEscapeAnalysis.Check(_method, _program.StaticArrays)
             .Where(verdict => verdict.Value is not null && !IsPrintedText(verdict.Key))
             .OrderBy(verdict => verdict.Key.Offset).FirstOrDefault();
         if (problem.Value is { } unsupported)

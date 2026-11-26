@@ -124,7 +124,10 @@ internal sealed partial class MethodLowering
             for (var i = block.First; i < block.End; i++)
             {
                 _instruction = instructions[i];
-                Lower(_instruction);
+                if (!IsFoldedStaticArray(i))
+                {
+                    Lower(_instruction);
+                }
             }
 
             if (!IlBlock.EndsBlock(block.Last))

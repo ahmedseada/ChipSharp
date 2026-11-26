@@ -238,7 +238,7 @@ public sealed class ArrayRejectionTests
     }
 
     [Fact]
-    public void An_array_kept_in_a_field_is_rejected_where_the_field_is_used()
+    public void An_array_kept_in_a_static_field_by_a_method_is_rejected_where_the_field_is_used()
     {
         var problems = Problems(Program("Keep(new int[2]); Console.WriteLine(saved.Length);", """
             static int[] saved;
@@ -246,10 +246,14 @@ public sealed class ArrayRejectionTests
             static void Keep(int[] values) => saved = values;
             """));
 
+        // a static field holds an array without a heap only when its initializer gives it one (see StaticArrays)
+        const string Assigned = "an array in a static field that is assigned again, or anywhere but in its field "
+            + "initializer or static constructor arrives with M3 (the heap). For now, assign it once, where the field "
+            + "is declared (static int[] buffer = new int[16];), and change its elements instead.";
         Assert.Equal(
         [
-            $"Program.Main() at IL_000b (ldsfld): {Escapes}",
-            $"Program.Keep(int[]) at IL_0001 (stsfld): {Escapes}",
+            $"Program.Main() at IL_000b (ldsfld): {Assigned}",
+            $"Program.Keep(int[]) at IL_0001 (stsfld): {Assigned}",
         ], problems);
     }
 
@@ -398,17 +402,19 @@ public sealed class ArrayRejectionTests
     [Fact]
     public void The_summary_groups_the_arrays_that_leave_their_method()
     {
-        var analysis = Check(Program("Keep(new int[2]); Console.WriteLine(Make().Length);", """
-            static int[] saved;
-
-            static void Keep(int[] values) => saved = values;
+        var analysis = Check(Program("Console.WriteLine(First() + Make().Length);", """
+            static ref int First()
+            {
+                int[] values = new int[2];
+                return ref values[0];
+            }
 
             static int[] Make() => new int[2];
             """));
 
         var group = Assert.Single(analysis.Groups);
         Assert.Equal("an array that leaves the method that creates it (returned, or stored in a field or in another "
-            + "array): 2 places in Program.Keep(int[]) (IL_0001) and Program.Make() (return type). For now, keep "
+            + "array): 2 places in Program.First() (IL_000c) and Program.Make() (return type). For now, keep "
             + "each array in the method that creates it; the methods it calls can take it as a parameter.",
             group.Line.Replace(" arrives with M3 (the heap)", "", StringComparison.Ordinal));
         Assert.StartsWith("an array that leaves the method that creates it (returned, or stored in a field or in "
