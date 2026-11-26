@@ -9,25 +9,27 @@ namespace ChipSharp.Tests.Analysis;
 /// <summary>Compiles C# with Roslyn and runs the whole-program pass on it; the assembly is called Test.dll in messages.</summary>
 internal static class WholeProgram
 {
-    /// <summary>The line a message ends with when the program calls a library method M0 does not have.</summary>
-    public const string LibraryCalls = "M0 supports these library calls: System.Console.WriteLine(), "
-        + "System.Console.WriteLine(int), System.Console.WriteLine(uint), System.Console.WriteLine(long), "
-        + "System.Console.WriteLine(ulong), System.Console.WriteLine(bool), System.Console.WriteLine(float), "
-        + "System.Console.WriteLine(double), " + MathCalls + ", " + HardwareCalls + ".";
+    /// <summary>
+    /// The lines a summary ends with, before how to see every place, when the program calls a library method ChipSharp
+    /// does not have.
+    /// </summary>
+    public static readonly string LibraryCalls = """
+        ChipSharp can call these library methods (--details lists each one with its parameters):
+          Console.WriteLine of (nothing), int, uint, long, ulong, bool, float, double
+          Math and MathF: Abs, Min, Max, Sqrt
+          ChipSharp.Hardware: Pin, Timing, Registers (see the README)
+        """.ReplaceLineEndings("\n");
 
-    private const string MathCalls = "System.Math.Abs(double), System.Math.Abs(float), System.Math.Min(double, double), "
-        + "System.Math.Min(float, float), System.Math.Max(double, double), System.Math.Max(float, float), "
-        + "System.Math.Sqrt(double), System.MathF.Abs(float), System.MathF.Min(float, float), "
-        + "System.MathF.Max(float, float), System.MathF.Sqrt(float)";
-
-    private const string HardwareCalls = "ChipSharp.Hardware.Pin.Output(int), ChipSharp.Hardware.Pin.Input(int), "
-        + "ChipSharp.Hardware.Pin.Write(int, bool), ChipSharp.Hardware.Pin.Toggle(int), ChipSharp.Hardware.Pin.Read(int), "
-        + "ChipSharp.Hardware.Timing.DelayMilliseconds(int), ChipSharp.Hardware.Timing.DelayMicroseconds(int), "
-        + "ChipSharp.Hardware.Registers.Read(uint), ChipSharp.Hardware.Registers.Write(uint, uint), "
-        + "ChipSharp.Hardware.Timing.EveryMilliseconds(int), ChipSharp.Hardware.Timing.EveryMicroseconds(int), "
-        + "ChipSharp.Hardware.Timing.AfterMilliseconds(int), ChipSharp.Hardware.Timing.AfterMicroseconds(int), "
-        + "ChipSharp.Hardware.Timing.Stop(), ChipSharp.Hardware.Pin.Watch(int), ChipSharp.Hardware.Pin.WatchRising(int), "
-        + "ChipSharp.Hardware.Pin.WatchFalling(int), ChipSharp.Hardware.Pin.Unwatch(int)";
+    /// <summary>The lines the details end with when the program calls a library method ChipSharp does not have.</summary>
+    public static readonly string LibraryCallDetails = """
+        ChipSharp can call these library methods:
+          System.Console: WriteLine(), WriteLine(int), WriteLine(uint), WriteLine(long), WriteLine(ulong), WriteLine(bool), WriteLine(float), WriteLine(double)
+          System.Math: Abs(double), Abs(float), Min(double, double), Min(float, float), Max(double, double), Max(float, float), Sqrt(double)
+          System.MathF: Abs(float), Min(float, float), Max(float, float), Sqrt(float)
+          ChipSharp.Hardware.Pin: Output(int), Input(int), Write(int, bool), Toggle(int), Read(int), Watch(int), WatchRising(int), WatchFalling(int), Unwatch(int)
+          ChipSharp.Hardware.Timing: DelayMilliseconds(int), DelayMicroseconds(int), EveryMilliseconds(int), EveryMicroseconds(int), AfterMilliseconds(int), AfterMicroseconds(int), Stop()
+          ChipSharp.Hardware.Registers: Read(uint), Write(uint, uint)
+        """.ReplaceLineEndings("\n");
 
     public static IlProgram Analyze(string source) => WholeProgramPass.Analyze(Load(source));
 

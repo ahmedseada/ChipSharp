@@ -117,7 +117,7 @@ internal sealed partial class MethodLowering
         if (reference.Definition is not { Name: ".ctor" } constructor || !ValueTypes.IsStructInstanceMethod(constructor))
         {
             throw Error($"{_instruction.Name} creates an object of {CSharpNames.Type(reference.DeclaringType)}, " +
-                $"and objects are not supported yet (they arrive after {SupportedSubset.Milestone}); structs are");
+                "and objects are not supported yet (they arrive with M3, the heap); structs are");
         }
 
         var structType = StructOf(constructor.DeclaringType);
@@ -149,7 +149,7 @@ internal sealed partial class MethodLowering
         if (reference.Definition is not { } field)
         {
             throw Error($"{_instruction.Name} of {reference.DisplayName} is not supported: " +
-                $"{SupportedSubset.Milestone} compiles the fields of the program's own structs");
+                "ChipSharp compiles the fields of the program's own structs");
         }
 
         if (field.IsStatic)
@@ -160,7 +160,7 @@ internal sealed partial class MethodLowering
         if (!ValueTypes.IsStruct(field.DeclaringType))
         {
             throw Error($"{_instruction.Name} uses {reference.DisplayName}, a field of an object, and objects are not " +
-                $"supported yet (they arrive after {SupportedSubset.Milestone}); the fields of structs are");
+                "supported yet (they arrive with M3, the heap); the fields of structs are");
         }
 
         return (StructOf(field.DeclaringType), ValueTypes.FieldOf(field).Index, field);
@@ -171,8 +171,7 @@ internal sealed partial class MethodLowering
     {
         if (type.GenericParameters.Count > 0)
         {
-            throw Error($"the generic struct {type} is not supported yet (generic types arrive after " +
-                $"{SupportedSubset.Milestone})");
+            throw Error($"the generic struct {type} is not supported yet (generic types arrive with M3, the heap)");
         }
 
         return ValueTypes.ProblemOf(type) is { } problem
@@ -191,7 +190,7 @@ internal sealed partial class MethodLowering
 
         return ValueTypes.TryMapType(type, _method.Assembly, out var tirType) && tirType != TirType.Void
             ? (tirType, type)
-            : throw Error($"{_instruction.Name} of {type} is not supported yet ({SupportedSubset.Milestone} compiles " +
+            : throw Error($"{_instruction.Name} of {type} is not supported yet (ChipSharp compiles " +
                 "bool, whole numbers, and the structs and enums of the program)");
     }
 

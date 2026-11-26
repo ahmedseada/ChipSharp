@@ -255,14 +255,14 @@ public sealed class StaticFieldCheckTests
 
         Assert.Equal(
         [
-            "text strings arrive after M0: 1 place in the static field initializers of Program (IL_0000). "
+            "text strings arrive with M3 (the heap): 1 place in the static field initializers of Program (IL_0000). "
                 + "For now, print numbers and bools with Console.WriteLine.",
-            "the library method string.get_Length() is not available in M0: 1 place in the static field initializers "
+            "the library method string.get_Length() is not available yet: 1 place in the static field initializers "
                 + "of Program (IL_0005).",
-            "checked arithmetic arrives after M0: 1 place in the static constructor of Settings (IL_000b). "
-                + "For now, leave out checked: M0 arithmetic wraps around on overflow, like unchecked C#.",
+            "checked arithmetic arrives later: 1 place in the static constructor of Settings (IL_000b). "
+                + "For now, leave out checked: ChipSharp's arithmetic wraps around on overflow, like unchecked C#.",
         ], analysis.Groups.Select(group => group.Line));
-        Assert.Contains("\n  Program..cctor() at IL_0000 (ldstr): text strings arrive after M0.", analysis.Details);
+        Assert.Contains("\n  Program..cctor() at IL_0000 (ldstr): text strings arrive with M3 (the heap).", analysis.Details);
     }
 
     [Fact]
@@ -304,12 +304,12 @@ public sealed class StaticFieldCheckTests
             """);
 
         // ratio, color and origin compile: double, and the enums and structs of the program, are supported types
-        const string Strings = "text strings arrive after M0. For now, print numbers and bools with Console.WriteLine.";
+        const string Strings = "text strings arrive with M3 (the heap). For now, print numbers and bools with Console.WriteLine.";
         // an array kept in a static field outlives every method, so it is the "leaves its method" case of stack arrays
         const string Arrays = "an array that leaves the method that creates it (returned, or stored in a field or in "
-            + "another array) arrives with the heap in M3. For now, keep each array in the method that creates it; "
+            + "another array) arrives with M3 (the heap). For now, keep each array in the method that creates it; "
             + "the methods it calls can take it as a parameter.";
-        const string Characters = "characters (char) arrive after M0. For now, use whole numbers.";
+        const string Characters = "characters (char) arrive with M3 (the heap). For now, use whole numbers.";
         Assert.Equal(
         [
             $"Program.Main() at IL_0000 (ldsfld): {Strings}",
@@ -318,8 +318,8 @@ public sealed class StaticFieldCheckTests
             $"Program.Main() at IL_002d (stsfld): {Arrays}",
             $"Program.Main() at IL_0032 (ldsfld): {Characters}",
             $"Program.Main() at IL_0037 (stsfld): {Characters}",
-            "Program.Main() at IL_003d (stsfld): generic types arrive after M0. "
-                + "For now, put the method in a class that is not generic.",
+            "Program.Main() at IL_003d (stsfld): generic types arrive with M3 (the heap). "
+                + "For now, write a type for each type argument you need.",
         ], problems);
     }
 
@@ -356,12 +356,12 @@ public sealed class StaticFieldCheckTests
 
         Assert.Equal(
         [
-            "Program.Main() at IL_000b (ldsfld): classes and objects arrive after M0. "
-                + "For now, use static methods with whole-number and bool values.",
-            "Program.Main() at IL_001a (stfld): instance fields (fields without static) arrive after M0. "
-                + "For now, make the fields static.",
+            "Program.Main() at IL_000b (ldsfld): classes and objects arrive with M3 (the heap). "
+                + "For now, use structs and static methods.",
+            "Program.Main() at IL_001a (stfld): instance fields of classes (fields without static) arrive with M3 "
+                + "(the heap). For now, make the fields static, or make the class a struct.",
             "Program.Main() at IL_001f (ldsfld): the library field System.BitConverter.IsLittleEndian is not available "
-                + "in M0. For now, use constants or the static fields of your own types.",
+                + "yet. For now, use constants or the static fields of your own types.",
         ], problems);
     }
 }

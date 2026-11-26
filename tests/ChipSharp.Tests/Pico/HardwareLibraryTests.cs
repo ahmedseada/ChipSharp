@@ -112,7 +112,7 @@ public sealed class HardwareLibraryTests
             var error = Assert.Throws<ChipSharp.Abstractions.ChipSharpException>(
                 () => WholeProgramPass.Analyze(IlAssembly.Load(program, "Fake.dll")));
 
-            Assert.Contains("the library method ChipSharp.Hardware.Pin.Toggle(int) is not available in M0", error.Message);
+            Assert.Contains("the library method ChipSharp.Hardware.Pin.Toggle(int) is not available yet", error.Message);
         }
         finally
         {

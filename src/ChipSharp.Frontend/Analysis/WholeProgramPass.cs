@@ -92,7 +92,10 @@ public static partial class WholeProgramPass
         return [.. methods];
     }
 
-    /// <summary>Adds a problem to <paramref name="problems"/> for every place in <paramref name="method"/> that M0 cannot compile.</summary>
+    /// <summary>
+    /// Adds a problem to <paramref name="problems"/> for every place in <paramref name="method"/> that ChipSharp cannot
+    /// compile.
+    /// </summary>
     private static void CheckMethod(IlMethod method, List<Problem> problems)
     {
         Unsupported? ForType(IlType type) =>
@@ -184,8 +187,8 @@ public static partial class WholeProgramPass
     }
 
     /// <summary>
-    /// What <paramref name="instruction"/> does that M0 cannot compile, or null. <paramref name="argsArgument"/> is the
-    /// entry point's unused args; <paramref name="interpolations"/> the locals of interpolated strings.
+    /// What <paramref name="instruction"/> does that ChipSharp cannot compile, or null. <paramref name="argsArgument"/> is
+    /// the entry point's unused args; <paramref name="interpolations"/> the locals of interpolated strings.
     /// </summary>
     private static Unsupported? ForInstruction(IlInstruction instruction, int? argsArgument, HashSet<int> interpolations)
     {

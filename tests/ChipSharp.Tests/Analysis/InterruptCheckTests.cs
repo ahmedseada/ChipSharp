@@ -165,7 +165,7 @@ public sealed class InterruptCheckTests
 
         Assert.Equal(
             """
-            Test.dll uses 1 C# feature that M0 does not compile yet (1 place):
+            Test.dll uses 1 C# feature that ChipSharp does not compile yet (1 place):
               [Interrupt] methods need interrupts, and target 'host' has none: 1 place in Program.Toggle(). Interrupts are a chip's, not a PC's: build the program for a chip, e.g. with -t pico.
             For every place, run: chipsharp check Test.dll --details
             """.ReplaceLineEndings("\n"),
@@ -435,7 +435,7 @@ public sealed class InterruptCheckTests
 
         Assert.Equal(
             """
-            Test.dll uses 2 C# features that M0 does not compile yet (4 places):
+            Test.dll uses 2 C# features that ChipSharp does not compile yet (4 places):
               an [Interrupt] method must be static, return void and take no parameters: 1 place in Program.Changed(int). The chip calls it with nothing to pass and nowhere to return a value to: share values through static volatile fields.
               the static field Program.count is shared by an interrupt handler and the rest of the program, and is not volatile: 3 places in Program.Main() (IL_0006) and Program.Tick() (IL_0000 and IL_0007). Declare it volatile (static volatile int count;): otherwise the program may keep a copy of it, and never see the other side's change.
             For every place, run: chipsharp check Test.dll --details

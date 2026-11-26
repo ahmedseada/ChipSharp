@@ -54,7 +54,13 @@ public sealed class SampleProgramTests : IDisposable
     public Task IfElse() => PrintsWhatDotnetPrints();
 
     [HostFact]
+    public Task Logit() => PrintsWhatDotnetPrints();
+
+    [HostFact]
     public Task Primes() => PrintsWhatDotnetPrints();
+
+    [HostFact]
+    public Task Projectile() => PrintsWhatDotnetPrints();
 
     [HostFact]
     public Task ShortCircuit() => PrintsWhatDotnetPrints();
@@ -70,6 +76,9 @@ public sealed class SampleProgramTests : IDisposable
 
     [HostFact]
     public Task Unsigned() => PrintsWhatDotnetPrints();
+
+    [HostFact]
+    public Task VendingMachine() => PrintsWhatDotnetPrints();
 
     [HostFact]
     public Task WhileSum() => PrintsWhatDotnetPrints();

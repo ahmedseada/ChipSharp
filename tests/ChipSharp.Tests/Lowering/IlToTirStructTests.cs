@@ -593,7 +593,7 @@ public sealed class IlToTirStructTests
         var error = Assert.Throws<ChipSharpException>(() => IlToTir.Lower(new IlProgram(assembly, [assembly.EntryPoint!])));
 
         Assert.Equal("Test.dll: Program.Main() at IL_0000: newobj creates an object of Box, and objects are not " +
-            "supported yet (they arrive after M0); structs are.", error.Message);
+            "supported yet (they arrive with M3, the heap); structs are.", error.Message);
     }
 
     [Fact]
@@ -635,7 +635,7 @@ public sealed class IlToTirStructTests
             """, "C.Address");
 
         Assert.Equal("Test.dll: C.Address() at IL_0004: conv.u works on numbers, but the evaluation stack has a " +
-            "reference (&) (turning a reference into a number is unsafe code, which M0 does not compile).", error.Message);
+            "reference (&) (turning a reference into a number is unsafe code, which ChipSharp does not compile).", error.Message);
     }
 
     [Fact]

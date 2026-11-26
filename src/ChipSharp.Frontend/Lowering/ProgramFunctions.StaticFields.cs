@@ -55,13 +55,13 @@ internal sealed partial class ProgramFunctions
         if (reference.Definition is not { } field)
         {
             throw LoweringErrors.At(user, instruction.Offset, $"{instruction.Name} of {reference.DisplayName} is not " +
-                $"supported: {SupportedSubset.Milestone} compiles the static fields of the program's own types");
+                "supported: ChipSharp compiles the static fields of the program's own types");
         }
 
         if (field.DeclaringType.GenericParameters.Count > 0)
         {
             throw LoweringErrors.At(user, instruction.Offset, $"the fields of generic types such as {reference.DisplayName} " +
-                $"are not supported yet (they arrive after {SupportedSubset.Milestone})");
+                "are not supported yet (they arrive with M3, the heap)");
         }
 
         if (!field.IsStatic)
@@ -76,7 +76,7 @@ internal sealed partial class ProgramFunctions
             if (!StaticFields.TryMapType(field, out var type))
             {
                 throw LoweringErrors.At(user, instruction.Offset, $"the field {name} has type {StaticFields.Type(field)}, " +
-                    $"which is not supported yet ({SupportedSubset.Milestone} compiles bool, whole numbers, float, double, " +
+                    "which is not supported yet (ChipSharp compiles bool, whole numbers, float, double, " +
                     "and the structs and enums of the program)");
             }
 

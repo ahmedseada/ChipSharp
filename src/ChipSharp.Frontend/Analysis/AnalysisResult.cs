@@ -11,10 +11,6 @@ namespace ChipSharp.Frontend.Analysis;
 /// </summary>
 public sealed class AnalysisResult
 {
-    private static readonly string SupportedLibraryCalls =
-        $"{SupportedSubset.Milestone} supports these library calls: " +
-        $"{string.Join(", ", KnownExternals.All.Select(function => function.LibraryMethod))}.";
-
     internal AnalysisResult(IlAssembly assembly, IReadOnlyList<IlMethod> methods, IReadOnlyList<Problem> problems)
     {
         Assembly = assembly;
@@ -45,30 +41,35 @@ public sealed class AnalysisResult
     /// <summary>The problems by feature, in the order each feature first appears in <see cref="Problems"/>.</summary>
     public IReadOnlyList<ProblemGroup> Groups { get; }
 
-    /// <summary>True when the milestone compiles the program: there are no problems.</summary>
+    /// <summary>True when ChipSharp compiles the program: there are no problems.</summary>
     public bool IsSupported => Problems.Count == 0;
 
     /// <summary>
-    /// The problems by feature, one line each, then the library calls there are (when a library call is a problem)
-    /// and how to see every place:
+    /// The problems by feature, one line each, then the library calls there are by type (when a library call is a
+    /// problem) and how to see every place:
     /// <code>
-    /// Demo.dll uses 2 C# features that M0 does not compile yet (4 places):
-    ///   the library method System.Math.Abs(int) is not available in M0: 1 place in Program.Main() (IL_000e).
-    ///   floating point (float/double) arrives after M0: 3 places in Program.Half(int) (return type, IL_0001 and IL_0002). For now, ...
-    /// M0 supports these library calls: System.Console.WriteLine(), ...
+    /// Demo.dll uses 2 C# features that ChipSharp does not compile yet (3 places):
+    ///   the library method System.Math.Abs(int) is not available yet: 1 place in Program.Main() (IL_000e).
+    ///   text strings arrive with M3 (the heap): 2 places in Program.Main() (IL_0001 and IL_0014). For now, ...
+    /// ChipSharp can call these library methods (--details lists each one with its parameters):
+    ///   Console.WriteLine of (nothing), int, uint, long, ulong, bool, float, double
+    ///   ...
     /// For every place, run: chipsharp check Demo.dll --details
     /// </code>
     /// Empty when the program has no problems.
     /// </summary>
     public string Summary => IsSupported ? "" : Message(
         Groups.Select(group => group.Line),
+        LibraryCalls.Summary,
         $"For every place, run: chipsharp check {Quoted(Assembly.FilePath)} --details");
 
     /// <summary>
-    /// The heading of <see cref="Summary"/>, then every problem on a line of its own (<see cref="Problem.Line"/>), then the
-    /// library calls there are when a library call is a problem. Empty when the program has no problems.
+    /// The heading of <see cref="Summary"/>, then every problem on a line of its own (<see cref="Problem.Line"/>), then
+    /// every library method there is, with its parameters, when a library call is a problem. Empty when the program has
+    /// no problems.
     /// </summary>
-    public string Details => IsSupported ? "" : Message(Problems.Select(problem => problem.Line), null);
+    public string Details =>
+        IsSupported ? "" : Message(Problems.Select(problem => problem.Line), LibraryCalls.Details, null);
 
     /// <summary>The program, for the IL-to-TIR translation.</summary>
     /// <exception cref="ChipSharpException">The program has problems; the message is the <see cref="Summary"/>.</exception>
@@ -76,19 +77,21 @@ public sealed class AnalysisResult
         ? new IlProgram(Assembly, Methods) { InterruptHandlers = InterruptHandlers }
         : throw new ChipSharpException(Summary);
 
-    /// <summary>The heading, the lines indented, the library calls there are if they matter, and <paramref name="last"/>.</summary>
-    private string Message(IEnumerable<string> lines, string? last)
+    /// <summary>
+    /// The heading, the lines indented, <paramref name="libraryCalls"/> if they matter, and <paramref name="last"/>.
+    /// </summary>
+    private string Message(IEnumerable<string> lines, string libraryCalls, string? last)
     {
         var features = ProblemGroup.Count(Groups.Count, "C# feature");
         var places = ProblemGroup.Count(Problems.Count, "place");
         var message = new List<string>
         {
-            $"{Assembly.FilePath} uses {features} that {SupportedSubset.Milestone} does not compile yet ({places}):",
+            $"{Assembly.FilePath} uses {features} that ChipSharp does not compile yet ({places}):",
         };
         message.AddRange(lines.Select(line => $"  {line}"));
         if (Groups.Any(group => group.IsLibraryCall))
         {
-            message.Add(SupportedLibraryCalls);
+            message.Add(libraryCalls);
         }
 
         if (last is not null)

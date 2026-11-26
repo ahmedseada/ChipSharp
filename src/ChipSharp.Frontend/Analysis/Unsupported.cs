@@ -3,48 +3,59 @@ using ChipSharp.Frontend.Il;
 namespace ChipSharp.Frontend.Analysis;
 
 /// <summary>
-/// A C# feature the program uses that <see cref="SupportedSubset"/> does not have yet, in C# words, with a hint
-/// for what to write instead. <see cref="Message"/> is e.g. "text strings arrive after M0. For now, print numbers
-/// and bools with Console.WriteLine." The problems of a check that have equal features are one group in its summary.
+/// A C# feature the program uses that <see cref="SupportedSubset"/> does not have yet, in C# words, with when it is
+/// planned and a hint for what to write instead. <see cref="Message"/> is e.g. "text strings arrive with M3 (the heap).
+/// For now, print numbers and bools with Console.WriteLine." The problems of a check that have equal features are one
+/// group in its summary.
 /// </summary>
 /// <param name="What">The feature as C# programmers know it, e.g. "arrays" or "checked arithmetic".</param>
 /// <param name="IsPlural">True when <paramref name="What"/> takes "arrive" rather than "arrives".</param>
 /// <param name="Hint">What to do for now: a sentence; empty for a library method (the summary lists the ones there are).</param>
 internal sealed partial record Unsupported(string What, bool IsPlural, string Hint)
 {
+    /// <summary>The <see cref="Arrival"/> of what needs objects on the heap: classes, strings, generics, ...</summary>
+    private const string WithTheHeap = "with M3 (the heap)";
+
+    /// <summary>The <see cref="Arrival"/> of the rest: planned, without a milestone yet.</summary>
+    private const string Later = "later";
+
     private const string StringsHint = "For now, print numbers and bools with Console.WriteLine.";
-    private const string ObjectsHint = "For now, use static methods with whole-number and bool values.";
+    private const string ObjectsHint = "For now, use structs and static methods.";
     private const string ReferencesHint = "For now, pass values in and return results.";
-    private const string VariablesHint = "For now, use separate variables.";
     private const string FailuresHint = "For now, report failures through return values";
 
-    public static readonly Unsupported CreatingObjects = new("creating objects (new ...)", false, ObjectsHint);
-    public static readonly Unsupported ClassesAndObjects = new("classes and objects", true, ObjectsHint);
-    public static readonly Unsupported Interfaces = new("interfaces", true, ObjectsHint);
-    public static readonly Unsupported Null = new("null", false, ObjectsHint);
-    public static readonly Unsupported TypeTests = new("type tests and casts on objects (is, as, (T)x)", true, ObjectsHint);
-    public static readonly Unsupported Boxing = new("boxing (using a value as an object)", false,
+    public static readonly Unsupported CreatingObjects = Heap("creating objects (new ...)", false, ObjectsHint);
+    public static readonly Unsupported ClassesAndObjects = Heap("classes and objects", true, ObjectsHint);
+    public static readonly Unsupported Interfaces = Heap("interfaces", true, ObjectsHint);
+    public static readonly Unsupported Null = Heap("null", false, ObjectsHint);
+    public static readonly Unsupported TypeTests = Heap("type tests and casts on objects (is, as, (T)x)", true,
+        ObjectsHint);
+    public static readonly Unsupported Boxing = Heap("boxing (using a value as an object)", false,
         "For now, keep values in their own types, such as int and bool.");
-    public static readonly Unsupported InstanceCalls = new("instance or virtual method calls", true,
-        "For now, call static methods of your own program.");
-    public static readonly Unsupported InstanceMethods = new("instance methods", true, "For now, make the method static.");
-    public static readonly Unsupported GenericMethods = new("generic methods", true,
+    public static readonly Unsupported InstanceCalls = Heap("instance or virtual method calls", true,
+        "For now, call static methods, or the methods of your own structs.");
+    public static readonly Unsupported InstanceMethods = Heap("instance methods of classes", true,
+        "For now, make the method static, or make the class a struct.");
+    public static readonly Unsupported GenericMethods = Heap("generic methods", true,
         "For now, write a method for each type you need.");
-    public static readonly Unsupported GenericTypes = new("generic types", true,
-        "For now, put the method in a class that is not generic.");
+    public static readonly Unsupported GenericTypes = Heap("generic types", true,
+        "For now, write a type for each type argument you need.");
     public static readonly Unsupported MethodsWithoutBody = new("methods without a body (extern, DllImport)", true,
         "For now, write the method in C#.");
-    public static readonly Unsupported Strings = new("text strings", true, StringsHint);
-    public static readonly Unsupported StringInterpolation = new("string interpolation ($\"...\")", false, StringsHint);
-    public static readonly Unsupported Characters = new("characters (char)", true, "For now, use whole numbers.");
-    public static readonly Unsupported Arrays = new("arrays", true, VariablesHint);
-    public static readonly Unsupported Stackalloc = new("stackalloc", false, VariablesHint);
-    public static readonly Unsupported Fields = new("instance fields (fields without static)", true,
-        "For now, make the fields static.");
+    public static readonly Unsupported Strings = Heap("text strings", true, StringsHint);
+    public static readonly Unsupported StringInterpolation = Heap("string interpolation ($\"...\")", false,
+        StringsHint);
+    public static readonly Unsupported Characters = Heap("characters (char)", true, "For now, use whole numbers.");
+    public static readonly Unsupported Arrays = Heap("arrays", true,
+        "For now, use arrays of numbers, bools, structs or enums, each kept in the method that creates it.");
+    public static readonly Unsupported Stackalloc = new("stackalloc", false,
+        "For now, use an array with a constant size, such as new int[16]: ChipSharp keeps it on the stack too.");
+    public static readonly Unsupported Fields = Heap("instance fields of classes (fields without static)", true,
+        "For now, make the fields static, or make the class a struct.");
     public static readonly Unsupported Structs = new("structs", true, "For now, use separate whole-number and bool variables.");
     public static readonly Unsupported Enums = new("enums", true, "For now, use int constants.");
     public static readonly Unsupported CheckedArithmetic = new("checked arithmetic", false,
-        $"For now, leave out checked: {SupportedSubset.Milestone} arithmetic wraps around on overflow, like unchecked C#.");
+        "For now, leave out checked: ChipSharp's arithmetic wraps around on overflow, like unchecked C#.");
     public static readonly Unsupported FiniteCheck = new("checking that a float is finite (ckfinite)", false,
         "For now, compare it: x >= -double.MaxValue && x <= double.MaxValue is false for NaN and the infinities.");
     public static readonly Unsupported Exceptions = new("exceptions", true, $"{FailuresHint}.");
@@ -63,26 +74,32 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
     public static readonly Unsupported Arguments = new("using the command-line arguments (args)", false,
         "For now, leave args unused: Main may take string[] args only if it never uses them.");
     public static readonly Unsupported OtherInstruction = new("this IL instruction", false,
-        $"{SupportedSubset.Milestone} compiles static methods over bools, whole numbers and floats.");
+        "For now, write that code another way.");
     public static readonly Unsupported OtherType = new("this type", false,
-        $"{SupportedSubset.Milestone} supports bool, the whole-number types (sbyte to ulong, nint, nuint), float, " +
-        "double and void.");
+        "For now, use bool, the whole-number types (sbyte to ulong, nint, nuint), float, double, and the " +
+        "program's own structs and enums.");
 
-    /// <summary>True for a library method the program calls: it "is not available in M0" rather than "arrives after M0".</summary>
+    /// <summary>
+    /// When the feature is planned, as the end of <see cref="Heading"/>: "with M3 (the heap)" for what needs objects on
+    /// the heap, else "later".
+    /// </summary>
+    public string Arrival { get; private init; } = Later;
+
+    /// <summary>True for a library method the program calls: it "is not available yet", not "arrives later".</summary>
     public bool IsLibraryMethod { get; private init; }
 
-    /// <summary>True for a static field of the library the program reads or writes: it "is not available in M0" too.</summary>
+    /// <summary>True for a static field of the library the program uses: it "is not available yet" too.</summary>
     public bool IsLibraryField { get; private init; }
 
     /// <summary>
-    /// What is not supported, as a clause: "arrays arrive after M0",
-    /// "the library method System.Math.Abs(int) is not available in M0".
+    /// What is not supported, as a clause: "text strings arrive with M3 (the heap)", "checked arithmetic arrives
+    /// later", "the library method System.Math.Abs(int) is not available yet".
     /// </summary>
     public string Heading => IsRule ? What
-        : IsLibraryMethod || IsLibraryField ? $"{What} is not available in {SupportedSubset.Milestone}"
+        : IsLibraryMethod || IsLibraryField ? $"{What} is not available yet"
         : $"{What} {(IsPlural ? "arrive" : "arrives")} {Arrival}";
 
-    /// <summary>The sentence a problem line ends with: what arrives after the milestone, then the hint.</summary>
+    /// <summary>The sentence a problem line ends with: what is missing and when it arrives, then the hint.</summary>
     public string Message => Hint.Length == 0 ? $"{Heading}." : $"{Heading}. {Hint}";
 
     /// <summary>A call to a library method <see cref="KnownExternals"/> does not have, e.g. "System.Math.Abs(int)".</summary>
@@ -110,6 +127,10 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
     {
         Namespace: "System.Runtime.CompilerServices", Name: "DefaultInterpolatedStringHandler", IsDefinedInThisAssembly: false,
     };
+
+    /// <summary>A feature that needs objects on the heap, so it arrives <see cref="WithTheHeap"/>.</summary>
+    private static Unsupported Heap(string what, bool isPlural, string hint) =>
+        new(what, isPlural, hint) { Arrival = WithTheHeap };
 
     /// <summary>What an instruction outside <see cref="SupportedSubset.OpCodes"/> stands for in C#.</summary>
     public static Unsupported ForInstruction(IlOpCode opCode)

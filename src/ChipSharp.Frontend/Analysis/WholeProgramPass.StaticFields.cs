@@ -5,9 +5,9 @@ namespace ChipSharp.Frontend.Analysis;
 public static partial class WholeProgramPass
 {
     /// <summary>
-    /// Why M0 cannot compile the static field that <paramref name="instruction"/> (an <c>ldsfld</c>, <c>stsfld</c> or
-    /// <c>ldsflda</c>) reads, writes or takes the address of, or null, also for any other instruction. M0 compiles the
-    /// static fields of the program's own types that are not generic, of the types <see cref="ValueTypes.TryMapType"/>
+    /// Why ChipSharp cannot compile the static field that <paramref name="instruction"/> (an <c>ldsfld</c>,
+    /// <c>stsfld</c> or <c>ldsflda</c>) reads, writes or takes the address of, or null, also for any other instruction.
+    /// ChipSharp compiles the static fields of the program's own types that are not generic, of the types <see cref="ValueTypes.TryMapType"/>
     /// has; a field of another type is that type's problem, e.g. text strings for a <c>static string</c>.
     /// </summary>
     private static Unsupported? ForStaticField(IlInstruction instruction)

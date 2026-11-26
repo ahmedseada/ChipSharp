@@ -148,7 +148,7 @@ internal sealed partial class MethodLowering
         if (_body.ExceptionRegions.Count > 0)
         {
             throw LoweringErrors.At(_method, _body.ExceptionRegions[0].TryOffset,
-                $"try, catch and finally are not supported yet (they arrive after {SupportedSubset.Milestone})");
+                "try, catch and finally are not supported yet (they arrive later)");
         }
 
         if (_body.Instructions.FirstOrDefault(i => !SupportedSubset.OpCodes.Contains(i.OpCode)) is { } unsupported)
@@ -809,5 +809,5 @@ internal sealed partial class MethodLowering
     private ChipSharpException Error(string message) => LoweringErrors.At(_method, _instruction.Offset, message);
 
     private ChipSharpException Unsupported(IlInstruction instruction) => LoweringErrors.At(_method, instruction.Offset,
-        $"{instruction.Name} is not supported yet (it arrives after {SupportedSubset.Milestone})");
+        $"{instruction.Name} is not supported yet");
 }

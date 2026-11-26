@@ -9,7 +9,7 @@ namespace ChipSharp.Tests.Analysis;
 public sealed class StructCheckTests
 {
     private const string Strings = "For now, print numbers and bools with Console.WriteLine.";
-    private const string Objects = "For now, use static methods with whole-number and bool values.";
+    private const string Objects = "For now, use structs and static methods.";
 
     [Fact]
     public void Structs_enums_and_references_of_the_program_compile()
@@ -101,7 +101,7 @@ public sealed class StructCheckTests
 
         Assert.Equal(["Program.Main", "Point..ctor", "Point.Twice"], problems.Methods.Select(m => m.DisplayName));
         Assert.Equal(
-            [$"Program.Main() at IL_0011 (newobj): creating objects (new ...) arrives after M0. {Objects}"],
+            [$"Program.Main() at IL_0011 (newobj): creating objects (new ...) arrives with M3 (the heap). {Objects}"],
             problems.Problems.Select(problem => problem.Line));
     }
 
@@ -172,8 +172,8 @@ public sealed class StructCheckTests
             }
             """);
 
-        const string Name = $"text strings in the field Person.Name arrive after M0. {Strings}";
-        const string Letter = "characters (char) in the field Inner.Letter arrive after M0. For now, use whole numbers.";
+        const string Name = $"text strings in the field Person.Name arrive with M3 (the heap). {Strings}";
+        const string Letter = "characters (char) in the field Inner.Letter arrive with M3 (the heap). For now, use whole numbers.";
         Assert.Equal(
         [
             $"Program.Main(), local variable V_0 (Person): {Name}",
@@ -234,18 +234,19 @@ public sealed class StructCheckTests
         // each default(...) is a local that initobj clears
         Assert.Equal(
         [
-            "generic types arrive after M0: 3 places in Program.Main() (IL_0002 and local V_0) and "
-                + "Program.Value(Box<int>) (parameter 'box'). For now, put the method in a class that is not generic.",
-            "structs with an explicit layout (LayoutKind.Explicit) arrive after M0: 3 places in Program.Main() "
+            "generic types arrive with M3 (the heap): 3 places in Program.Main() (IL_0002 and local V_0) and "
+                + "Program.Value(Box<int>) (parameter 'box'). For now, write a type for each type argument you need.",
+            "structs with an explicit layout (LayoutKind.Explicit) arrive later: 3 places in Program.Main() "
                 + "(IL_0010 and local V_1) and Program.Low(Union) (parameter 'union'). "
                 + "For now, leave out [StructLayout(LayoutKind.Explicit)] and [FieldOffset].",
-            "unsafe code (pointers, &x, sizeof, fixed) arrives after M0: 3 places in Program.Main() (IL_001f and local V_2) "
+            "unsafe code (pointers, &x, sizeof, fixed) arrives later: 3 places in Program.Main() (IL_001f and local V_2) "
                 + "and Program.Length(Buffer) (parameter 'buffer'). For now, use ref parameters, ref locals and structs.",
-            "ref fields arrive after M0: 3 places in Program.Main() (IL_002e and local V_3) and Program.Start(Window) "
+            "ref fields arrive later: 3 places in Program.Main() (IL_002e and local V_3) and Program.Start(Window) "
                 + "(parameter 'window'). For now, keep references in parameters and locals.",
-            "the type System.TimeSpan arrives after M0: 3 places in Program.Main() (IL_003d and local V_4) and "
+            "the type System.TimeSpan arrives later: 3 places in Program.Main() (IL_003d and local V_4) and "
                 + "Program.Days(System.TimeSpan) (parameter 'span'). "
-                + "M0 supports bool, the whole-number types (sbyte to ulong, nint, nuint), float, double and void.",
+                + "For now, use bool, the whole-number types (sbyte to ulong, nint, nuint), float, double, and the "
+                + "program's own structs and enums.",
         ], analysis.Groups.Select(group => group.Line));
     }
 
@@ -280,16 +281,16 @@ public sealed class StructCheckTests
 
         Assert.Equal(
         [
-            $"Program.Main(), local variable V_0 (string): text strings arrive after M0. {Strings}",
-            $"Program.Main() at IL_0000 (newobj): creating objects (new ...) arrives after M0. {Objects}",
-            "Program.Main() at IL_0007 (stfld): instance fields (fields without static) arrive after M0. "
-                + "For now, make the fields static.",
-            "Program.Main() at IL_000c (callvirt): instance or virtual method calls arrive after M0. "
-                + "For now, call static methods of your own program.",
-            $"Program.Main() at IL_0016 (ldstr): text strings arrive after M0. {Strings}",
-            $"Program.Clear(ref string), parameter 'text' (ref string): text strings arrive after M0. {Strings}",
-            $"Program.Clear(ref string) at IL_0001 (ldnull): null arrives after M0. {Objects}",
-            $"Program.Clear(ref string) at IL_0002 (stind.ref): classes and objects arrive after M0. {Objects}",
+            $"Program.Main(), local variable V_0 (string): text strings arrive with M3 (the heap). {Strings}",
+            $"Program.Main() at IL_0000 (newobj): creating objects (new ...) arrives with M3 (the heap). {Objects}",
+            "Program.Main() at IL_0007 (stfld): instance fields of classes (fields without static) arrive with M3 (the heap). "
+                + "For now, make the fields static, or make the class a struct.",
+            "Program.Main() at IL_000c (callvirt): instance or virtual method calls arrive with M3 (the heap). "
+                + "For now, call static methods, or the methods of your own structs.",
+            $"Program.Main() at IL_0016 (ldstr): text strings arrive with M3 (the heap). {Strings}",
+            $"Program.Clear(ref string), parameter 'text' (ref string): text strings arrive with M3 (the heap). {Strings}",
+            $"Program.Clear(ref string) at IL_0001 (ldnull): null arrives with M3 (the heap). {Objects}",
+            $"Program.Clear(ref string) at IL_0002 (stind.ref): classes and objects arrive with M3 (the heap). {Objects}",
         ], problems);
     }
 
@@ -321,8 +322,8 @@ public sealed class StructCheckTests
 
         Assert.Equal(
         [
-            $"Program.Main() at IL_0000 (newobj): creating objects (new ...) arrives after M0. {Objects}",
-            "Counter.Next(): instance methods arrive after M0. For now, make the method static.",
+            $"Program.Main() at IL_0000 (newobj): creating objects (new ...) arrives with M3 (the heap). {Objects}",
+            "Counter.Next(): instance methods of classes arrive with M3 (the heap). For now, make the method static, or make the class a struct.",
         ], problems);
     }
 }

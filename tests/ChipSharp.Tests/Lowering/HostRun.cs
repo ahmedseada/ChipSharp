@@ -18,7 +18,7 @@ internal sealed record ProgramRun(byte[] Output, int ExitCode, string Errors)
 }
 
 /// <summary>
-/// Runs programs the way M0 checks them: a TIR module built for the real "host" target (the llvm code generator,
+/// Runs programs the way the tests check them: a TIR module built for the real "host" target (the llvm code generator,
 /// the windows-x64 runtime and the clang toolchain), and the same C# on real .NET for comparison.
 /// </summary>
 internal static class HostRun

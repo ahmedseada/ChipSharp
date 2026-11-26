@@ -26,7 +26,7 @@ internal sealed partial class MethodLowering
 
     /// <summary>
     /// volatile. changes the instruction after it, which must be an ldsfld, stsfld, ldfld or stfld (a volatile field of a
-    /// struct): M0 has no other access it applies to.
+    /// struct): ChipSharp has no other access it applies to.
     /// </summary>
     private void CheckVolatilePrefix()
     {
@@ -34,7 +34,7 @@ internal sealed partial class MethodLowering
         if (next >= _body.Instructions.Count
             || _body.Instructions[next].OpCode is not (IlOpCode.Ldsfld or IlOpCode.Stsfld or IlOpCode.Ldfld or IlOpCode.Stfld))
         {
-            throw Error($"volatile. must come right before ldsfld, stsfld, ldfld or stfld: {SupportedSubset.Milestone} " +
+            throw Error("volatile. must come right before ldsfld, stsfld, ldfld or stfld: ChipSharp " +
                 "has no other memory access it applies to");
         }
     }

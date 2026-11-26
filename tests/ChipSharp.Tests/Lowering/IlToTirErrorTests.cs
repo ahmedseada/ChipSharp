@@ -22,7 +22,7 @@ public sealed class IlToTirErrorTests
             }
             """);
 
-        Assert.Equal("Test.dll: Program.Main() at IL_0000: ldstr is not supported yet (it arrives after M0).",
+        Assert.Equal("Test.dll: Program.Main() at IL_0000: ldstr is not supported yet.",
             error.Message);
     }
 
@@ -38,9 +38,9 @@ public sealed class IlToTirErrorTests
             """;
 
         Assert.Equal("Test.dll: C.Code(char): parameter 'c' has type char, which is not supported yet " +
-            "(M0 compiles bool, whole numbers, float and double).", Error(Source, "C.Code").Message);
+            "(ChipSharp compiles bool, whole numbers, float and double).", Error(Source, "C.Code").Message);
         Assert.Equal("Test.dll: C.Letter(int32): it returns char, which is not supported yet " +
-            "(M0 compiles bool, whole numbers, float and double).", Error(Source, "C.Letter").Message);
+            "(ChipSharp compiles bool, whole numbers, float and double).", Error(Source, "C.Letter").Message);
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class IlToTirErrorTests
         var error = Assert.Throws<ChipSharpException>(() => Lower(emitted.Read(), "Program.F"));
 
         Assert.Equal("Emitted.dll: Program.F(): local V_1 has type string, which is not supported yet " +
-            "(M0 compiles bool, whole numbers, float and double).", error.Message);
+            "(ChipSharp compiles bool, whole numbers, float and double).", error.Message);
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public sealed class IlToTirErrorTests
             """);
 
         Assert.Equal("Test.dll: Program.Main() at IL_0002: the call to System.Math.Abs(int32) is not supported: " +
-            "of the library, M0 can call System.Console.WriteLine(), System.Console.WriteLine(int), " +
+            "of the library, ChipSharp can call System.Console.WriteLine(), System.Console.WriteLine(int), " +
             "System.Console.WriteLine(uint), System.Console.WriteLine(long), System.Console.WriteLine(ulong), " +
             "System.Console.WriteLine(bool), System.Console.WriteLine(float), System.Console.WriteLine(double), " +
             "System.Math.Abs(double), System.Math.Abs(float), System.Math.Min(double, double), " +
@@ -122,10 +122,10 @@ public sealed class IlToTirErrorTests
         var generic = Assert.Throws<ChipSharpException>(
             () => IlToTir.Lower(new IlProgram(assembly, [.. assembly.FindMethods("C.Same")])));
 
-        Assert.Equal("Test.dll: C.Field(): instance methods are not supported yet (M0 compiles static methods and the " +
-            "methods of structs).", instance.Message);
+        Assert.Equal("Test.dll: C.Field(): instance methods of classes are not supported yet (ChipSharp compiles static methods " +
+            "and the methods of structs).", instance.Message);
         Assert.Equal("Test.dll: C.Same(!!0): generic methods and the methods of generic types are not supported yet " +
-            "(they arrive after M0).", generic.Message);
+            "(they arrive with M3, the heap).", generic.Message);
     }
 
     [Fact]
@@ -149,7 +149,7 @@ public sealed class IlToTirErrorTests
             """);
 
         Assert.Equal("Test.dll: Program.Main() at IL_0000: try, catch and finally are not supported yet " +
-            "(they arrive after M0).", error.Message);
+            "(they arrive later).", error.Message);
     }
 
     [Fact]
@@ -162,8 +162,8 @@ public sealed class IlToTirErrorTests
             }
             """);
 
-        Assert.Equal("Test.dll: Program.Main(string[]) at IL_0000: the entry point uses its string[] args, and arrays " +
-            "are not supported yet (M0 leaves an unused args out).", error.Message);
+        Assert.Equal("Test.dll: Program.Main(string[]) at IL_0000: the entry point uses its string[] args, and strings " +
+            "are not supported yet (ChipSharp leaves an unused args out).", error.Message);
     }
 
     [Fact]
@@ -184,7 +184,7 @@ public sealed class IlToTirErrorTests
 
         Assert.Empty(module.EntryPoint!.Parameters);
         Assert.Equal("Test.dll: Program.Count(string[]): parameter 'items' has type string[], which is not " +
-            "supported yet (M0 compiles bool, whole numbers, float and double).", error.Message);
+            "supported yet (ChipSharp compiles bool, whole numbers, float and double).", error.Message);
     }
 
     [Fact]

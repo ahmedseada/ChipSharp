@@ -1,8 +1,9 @@
 // chipsharp: the command line. It builds programs, and shows what they go through on the way:
 //
 //   chipsharp build <assembly.dll>   compiles the program for a target; prints the file it wrote (.exe, .uf2, ...)
-//   chipsharp check <assembly.dll>   whether M0 can compile the program, and the methods it uses; if it cannot,
-//                                    the C# features it uses that M0 does not have, each with where and what to do
+//   chipsharp check <assembly.dll>   whether ChipSharp can compile the program, and the methods it uses; if it
+//                                    cannot, the C# features it uses that ChipSharp does not have yet, each with
+//                                    where, when it is planned and what to do for now
 //   chipsharp tir <assembly.dll>     the program's TIR, after the whole-program pass and the translation
 //   chipsharp il <assembly.dll>      the IL of every method, ildasm style
 //   chipsharp targets list           every target
@@ -12,7 +13,8 @@
 //                                program's interrupt handlers against it (and with tir, put them in its interrupts)
 //          -o, --output <folder>  with build: where to write the program (default: chipsharp-output\<target>)
 //          --keep                 with build: also write the program's TIR and generated code (.ll) there
-//          --details              with check: every place M0 cannot compile on a line of its own, not by feature
+//          --details              with check: every place ChipSharp cannot compile on a line of its own, not by
+//                                 feature, and every library method it can call, with its parameters
 //          --method <name>        with il and tir: only the methods with this display name, e.g. Program.Main
 //          --targets <folder>     (default: $env:CHIPSHARP_TARGETS, then the targets folder next to chipsharp.exe)
 
@@ -125,7 +127,7 @@ try
             var count = analysis.Methods.Count == 1
                 ? "1 method"
                 : string.Create(CultureInfo.InvariantCulture, $"{analysis.Methods.Count} methods");
-            Console.WriteLine($"{path}: supported by {SupportedSubset.Milestone}. The program uses {count}, entry point first:");
+            Console.WriteLine($"{path}: ChipSharp compiles it. The program uses {count}, entry point first:");
             foreach (var method in analysis.Methods)
             {
                 var handler = analysis.InterruptHandlers.FirstOrDefault(h => h.Method == method);
@@ -151,7 +153,8 @@ try
                                           whose interrupts the program's [Interrupt] methods are checked against
                   -o, --output <folder>   build: where to write the program (default: chipsharp-output\<target>)
                   --keep                  build: also write the program's TIR (.tir) and generated code (.ll) there
-                  --details               check: list every place M0 cannot compile, not one line per C# feature
+                  --details               check: list every place ChipSharp cannot compile, not one line per C#
+                                          feature, and every library method it can call
                   --method <name>         tir, il: only the methods with this display name, e.g. Program.Main
                   --targets <folder>      where the target files are (or set CHIPSHARP_TARGETS)
                 build finds LLVM's clang in its install folder or on the PATH, or set CHIPSHARP_LLVM_BIN to its bin folder.
