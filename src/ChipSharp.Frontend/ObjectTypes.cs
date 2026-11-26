@@ -26,10 +26,10 @@ namespace ChipSharp.Frontend;
 /// <item>Each class has one type descriptor per module, made with its base's first; System.Object's has no base (see
 /// <c>ProgramFunctions.ClassDescriptor</c>).</item>
 /// </list>
-/// It knows System.Object and the program's own classes that are not generic. The whole-program pass does not accept
-/// them yet: <see cref="SupportedSubset.TryMapType(IlType, IlAssembly, out TirType?)"/> does not ask this mapping until
-/// classes compile, so a program with classes still gets "arrives with M3". The translation asks it for the types of
-/// parameters, locals and return values (<c>LoweringErrors.MapType</c>).
+/// It knows System.Object and the program's own classes that are not generic. A parameter, local, return value, static
+/// field or struct field may be of any of them (<see cref="SupportedSubset.TryMapType(IlType, IlAssembly, out TirType?)"/>
+/// asks this mapping); what keeps a class from compiling (<see cref="ClassRules"/>) is reported where the program
+/// makes one, uses its fields or runs its methods.
 /// </summary>
 internal static class ObjectTypes
 {
@@ -120,15 +120,25 @@ internal static class ObjectTypes
     public static TirType FieldType(IlField field)
     {
         ArgumentNullException.ThrowIfNull(field);
-        var assembly = field.DeclaringType.Assembly;
-        if ((ValueTypes.TryMapType(field.Type, assembly, out var type) && type != TirType.Void)
-            || TryMapType(field.Type, assembly, out type) || FixedText.TryMapType(field.Type, out type))
+        if (TryFieldType(field, out var type))
         {
             return type;
         }
 
-        throw new ChipSharpException($"{assembly.FilePath}: the field {field.Name} of {Name(field.DeclaringType)} has " +
-            $"type {CSharpNames.Type(field.Type)}, which is not supported in an object yet");
+        throw new ChipSharpException($"{field.DeclaringType.Assembly.FilePath}: the field {field.Name} of " +
+            $"{Name(field.DeclaringType)} has type {CSharpNames.Type(field.Type)}, which is not supported in an object yet");
+    }
+
+    /// <summary>
+    /// The TIR type of an instance field of a class, when its type has one: a value (<see cref="ValueTypes"/>), an
+    /// object (<see cref="TryMapType"/>) or fixed text. The one test of which fields an object may have.
+    /// </summary>
+    public static bool TryFieldType(IlField field, [NotNullWhen(true)] out TirType? type)
+    {
+        ArgumentNullException.ThrowIfNull(field);
+        var assembly = field.DeclaringType.Assembly;
+        return (ValueTypes.TryMapType(field.Type, assembly, out type) && type != TirType.Void)
+            || TryMapType(field.Type, assembly, out type) || FixedText.TryMapType(field.Type, out type);
     }
 
     private static TirStructType CreateObjectType(IlTypeDefinition type)

@@ -195,6 +195,7 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
         { BaseType: IlNamedType { Namespace: "System", Name: "Enum" } } => Enums,
         { BaseType: IlNamedType { Namespace: "System", Name: "ValueType" } } => Structs,
         { BaseType: IlNamedType { Namespace: "System", Name: "MulticastDelegate" } } => Delegates,
+        { GenericParameters.Count: > 0 } => GenericClasses,
         _ => ClassesAndObjects,
     };
 }

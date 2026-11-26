@@ -1,0 +1,56 @@
+namespace ChipSharp.Frontend.Analysis;
+
+/// <summary>
+/// What of classes (see <see cref="ClassRules"/>) does not compile yet, in C# words. The features that come with the
+/// next pieces of M3 name the piece: virtual calls (virtual methods, object's own methods, records, casts and
+/// interfaces of classes) and generics over classes. Like everything that makes objects, they need a heap.
+/// </summary>
+internal sealed partial record Unsupported
+{
+    /// <summary>The <see cref="Arrival"/> of virtual methods and what is built on them.</summary>
+    private const string WithVirtualCalls = "with M3 (virtual calls)";
+
+    /// <summary>The <see cref="Arrival"/> of generic classes.</summary>
+    private const string WithGenericClasses = "with M3 (generics over classes)";
+
+    public static readonly Unsupported VirtualMethods = Coming("virtual methods (virtual, override, abstract)", true,
+        "For now, leave out virtual, override and abstract, and give a derived class's method a name of its own.",
+        WithVirtualCalls);
+
+    public static readonly Unsupported ObjectMethods = Coming("ToString, Equals and GetHashCode of objects", true,
+        "For now, give the class a method of its own for it, such as Describe() or SameAs(other), and call that.",
+        WithVirtualCalls);
+
+    public static readonly Unsupported Records = Coming("record classes", true,
+        "For now, write a class with its fields and a constructor (or a struct).", WithVirtualCalls);
+
+    public static readonly Unsupported GenericClasses = Coming("generic classes", true,
+        "For now, write a class for each type argument you need, or make it a generic struct.", WithGenericClasses);
+
+    public static readonly Unsupported ObjectReferences = Heap("references to objects (ref, out and in of a class, object or string)",
+        true, "For now, return the object, or keep it in a field.");
+
+    public static readonly Unsupported Finalizers = new("finalizers (~ClassName())", true,
+        "For now, give the class a method that lets go of what it holds, and call it when the program is done with the object.");
+
+    /// <summary>
+    /// A rule: an interrupt handler, or a method it calls, makes an object (<see cref="ClassRules.Allocates"/>). The
+    /// runtime stops such a program with the same words; this finds it before it runs.
+    /// </summary>
+    public static readonly Unsupported AllocationInHandler = Rule("an interrupt handler cannot create objects (new ...)",
+        "The heap may be in the middle of an allocation or a collection when the interrupt comes: create what the " +
+        "handler needs before, e.g. in a static field.");
+
+    /// <summary>A class of the program derived from a library class other than object, e.g. "System.Attribute".</summary>
+    public static Unsupported LibraryBaseClass(string name) => new($"classes derived from the library class {name}", true,
+        "For now, derive the class from object or from a class of your own.");
+
+    /// <summary>A <c>new</c> of a library type ChipSharp does not have, e.g. "System.Random".</summary>
+    public static Unsupported LibraryType(string name) => new($"the library type {name}", false, "") { IsLibraryMethod = true };
+
+    /// <summary>True for a feature of classes that comes with a later piece of M3 than classes: it needs a heap too.</summary>
+    private bool ComesWithLaterClasses => Arrival is WithVirtualCalls or WithGenericClasses;
+
+    private static Unsupported Coming(string what, bool isPlural, string hint, string arrival) =>
+        new(what, isPlural, hint) { Arrival = arrival };
+}

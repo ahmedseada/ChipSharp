@@ -67,9 +67,9 @@ public static partial class WholeProgramPass
     /// <summary>
     /// Adds a problem for every place in <paramref name="methods"/> (the program, with <paramref name="entryPoint"/>
     /// first) that breaks a rule of the <paramref name="handlers"/>: a call that starts an event no method is marked to
-    /// handle, a wait in what a handler runs, and every use of a static field that a handler and the rest of the
-    /// program share (one of them writing it) when it is not volatile. The type initializers run before Main, before
-    /// any interrupt can come, so what they alone do does not count.
+    /// handle, a wait or a new object in what a handler runs, and every use of a static field that a handler and the
+    /// rest of the program share (one of them writing it) when it is not volatile. The type initializers run before
+    /// Main, before any interrupt can come, so what they alone do does not count.
     /// </summary>
     private static void CheckHandlers(IlMethod entryPoint, IReadOnlyList<IlMethod> methods,
         IReadOnlyList<InterruptHandler> handlers, List<Problem> problems)
@@ -130,6 +130,12 @@ public static partial class WholeProgramPass
                         problems.Add(Problem.At(method, instruction, Unsupported.WaitInHandler));
                     }
                 }
+
+                // the runtime stops a program that makes an object in a handler: this finds it before it runs
+                if (inHandlers.Contains(method) && ClassRules.Allocates(instruction))
+                {
+                    problems.Add(Problem.At(method, instruction, Unsupported.AllocationInHandler));
+                }
             }
 
             if (main.Contains(method) || inHandlers.Contains(method))
@@ -142,7 +148,10 @@ public static partial class WholeProgramPass
         }
     }
 
-    /// <summary><paramref name="roots"/> and every method of <paramref name="program"/> they reach through calls.</summary>
+    /// <summary>
+    /// <paramref name="roots"/> and every method of <paramref name="program"/> they reach through calls (constructors
+    /// too, see <see cref="ValueTypes.CalledMethod"/>).
+    /// </summary>
     private static HashSet<IlMethod> Reach(IEnumerable<IlMethod> roots, HashSet<IlMethod> program)
     {
         var reached = new HashSet<IlMethod>();
@@ -156,8 +165,7 @@ public static partial class WholeProgramPass
 
             foreach (var instruction in method.Body?.Instructions ?? [])
             {
-                if (instruction is { OpCode: IlOpCode.Call, Operand: IlMethodOperand { Method.Definition: { } callee } }
-                    && program.Contains(callee))
+                if (ValueTypes.CalledMethod(instruction) is { } callee && program.Contains(callee))
                 {
                     pending.Push(callee);
                 }

@@ -28,11 +28,15 @@ internal static class StaticFields
         return type;
     }
 
-    /// <summary>The TIR type of the global the field becomes, when the field's type is supported.</summary>
+    /// <summary>
+    /// The TIR type of the global the field becomes, when the field's type is supported; an object's is a ref, which the
+    /// garbage collector reads as a root.
+    /// </summary>
     public static bool TryMapType(IlField field, [NotNullWhen(true)] out TirType? tirType)
     {
         if ((ValueTypes.TryMapType(Type(field), field.DeclaringType.Assembly, out tirType) && tirType != TirType.Void)
-            || FixedText.TryMapType(Type(field), out tirType))
+            || FixedText.TryMapType(Type(field), out tirType)
+            || ObjectTypes.TryMapType(Type(field), field.DeclaringType.Assembly, out tirType))
         {
             return true;
         }

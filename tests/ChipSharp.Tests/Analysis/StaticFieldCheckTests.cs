@@ -300,9 +300,8 @@ public sealed class StaticFieldCheckTests
             }
             """);
 
-        // ratio, color and origin compile: double, and the enums and structs of the program, are supported types (and
-        // so is string, for fixed text)
-        const string Objects = "classes and objects arrive with M3 (the heap). For now, use structs and static methods.";
+        // thing, ratio, color and origin compile: object, double, and the enums and structs of the program, are
+        // supported types (and so are string, for fixed text, and the program's classes)
         // an array in a static field needs no heap when its initializer gives it one, once (see StaticArrays); this one
         // is assigned in Main
         const string Arrays = "an array in a static field that is assigned again, or anywhere but in its field "
@@ -311,8 +310,6 @@ public sealed class StaticFieldCheckTests
         const string Characters = "characters (char) arrive with M3 (the heap). For now, use whole numbers.";
         Assert.Equal(
         [
-            $"Program.Main() at IL_0000 (ldsfld): {Objects}",
-            $"Program.Main() at IL_0005 (stsfld): {Objects}",
             $"Program.Main() at IL_0028 (ldsfld): {Arrays}",
             $"Program.Main() at IL_002d (stsfld): {Arrays}",
             $"Program.Main() at IL_0032 (ldsfld): {Characters}",
@@ -324,9 +321,9 @@ public sealed class StaticFieldCheckTests
     }
 
     [Fact]
-    public void The_fields_of_objects_and_library_fields_are_rejected()
+    public void Library_fields_are_rejected_and_the_fields_of_objects_compile()
     {
-        // origin's address and its X compile: origin is a struct
+        // origin's address and its X compile: origin is a struct; holder is an object in a static field
         var problems = Problems("""
             using System;
 
@@ -356,10 +353,6 @@ public sealed class StaticFieldCheckTests
 
         Assert.Equal(
         [
-            "Program.Main() at IL_000b (ldsfld): classes and objects arrive with M3 (the heap). "
-                + "For now, use structs and static methods.",
-            "Program.Main() at IL_001a (stfld): instance fields of classes (fields without static) arrive with M3 "
-                + "(the heap). For now, make the fields static, or make the class a struct.",
             "Program.Main() at IL_001f (ldsfld): the library field System.BitConverter.IsLittleEndian is not available "
                 + "yet. For now, use constants or the static fields of your own types.",
         ], problems);

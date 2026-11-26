@@ -175,6 +175,7 @@ public sealed partial class IlToTirOpCodeTests : IDisposable
             program.AddArgumentsLocalsAndConstants();
             program.AddArrays();
             program.AddText();
+            program.AddClasses();
             program.AddMain();
             return program;
         }
