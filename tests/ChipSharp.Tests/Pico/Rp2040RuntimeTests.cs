@@ -43,9 +43,11 @@ public sealed class Rp2040RuntimeTests
 
         Assert.Equal(
             ["armv6m_startup.c", "armv6m_helpers.c", "armv6m_divmod.S", "rp2040_boot2.S", "rp2040_runtime.c",
-                Rp2040Runtime.FloatTextFileName],
+                Rp2040Runtime.FloatTextFileName, "rp2040_failures.c"],
             files.Select(f => f.FileName));
-        Assert.Equal(WindowsX64Runtime.FloatText, files[^1].Content); // the very file the PC's runtime has
+        // the very file the PC's runtime has
+        Assert.Equal(WindowsX64Runtime.FloatText,
+            files.Single(f => f.FileName == Rp2040Runtime.FloatTextFileName).Content);
         Assert.Equal(["armv6m_vectors.c"], runtime.InterruptEntry(pico).Files.Select(f => f.FileName));
         Assert.Empty(runtime.Atomics(pico).Files);
         Assert.All(runtime.Startup(pico).Files.Concat(runtime.InterruptEntry(pico).Files),

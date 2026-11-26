@@ -68,7 +68,10 @@ public sealed class HostTargetTests
 
         var files = runtime.Startup(host).Files;
 
-        Assert.Equal(["chipsharp_runtime.c", "chipsharp_float_text.c"], files.Select(f => f.FileName));
+        Assert.Equal(
+            ["chipsharp_runtime.c", "chipsharp_float_text.c", "chipsharp_failures.c", "chipsharp_memory.c",
+                "chipsharp_chkstk.S"],
+            files.Select(f => f.FileName));
         var file = files[0];
         Assert.Equal(WindowsX64Runtime.Source, file.Content);
         Assert.Equal(WindowsX64Runtime.FloatText, files[1].Content);

@@ -141,6 +141,31 @@ public sealed class IlAssembly
     /// <summary>The type with this full name (e.g. "Demo.Outer+Inner"), or null.</summary>
     public IlTypeDefinition? FindType(string fullName) => _typesByFullName.GetValueOrDefault(fullName);
 
+    /// <summary>
+    /// The first <paramref name="length"/> bytes of the data <paramref name="field"/> has in the image (at its RVA),
+    /// e.g. the constants of an array initializer, which C# keeps in a field of &lt;PrivateImplementationDetails&gt;;
+    /// null when the field has no data there, or less than that.
+    /// </summary>
+    public byte[]? ReadFieldData(IlField field, int length)
+    {
+        ArgumentNullException.ThrowIfNull(field);
+        ArgumentOutOfRangeException.ThrowIfNegative(length);
+        if (field.DeclaringType.Assembly != this)
+        {
+            throw new ArgumentException($"{field} is a field of {field.DeclaringType.Assembly}, not of {this}.", nameof(field));
+        }
+
+        var rva = _reader.GetFieldDefinition(MetadataTokens.FieldDefinitionHandle(field.Token & 0xFFFFFF))
+            .GetRelativeVirtualAddress();
+        if (rva == 0)
+        {
+            return null;
+        }
+
+        var data = _pe.GetSectionData(rva);
+        return data.Length >= length ? [.. data.GetContent(0, length)] : null;
+    }
+
     public override string ToString() => Name;
 
     internal IlMethodBody ReadBody(IlMethod method, int relativeVirtualAddress)

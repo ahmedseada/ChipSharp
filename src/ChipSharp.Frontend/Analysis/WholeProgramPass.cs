@@ -83,7 +83,7 @@ public static partial class WholeProgramPass
     {
         Unsupported? ForType(IlType type)
         {
-            if (SupportedSubset.TryMapType(type, out _))
+            if (SupportedSubset.TryMapType(type, out _) || StackArrays.TryMapType(type, out _))
             {
                 return null;
             }
@@ -121,6 +121,7 @@ public static partial class WholeProgramPass
         }
 
         CheckSignature(method.ReturnType, "return type");
+        ArrayEscapeAnalysis.CheckReturnType(method, problems);
 
         // the entry point may take a string[] args it never uses: C#'s top-level statements always declare one
         int? argsArgument = null;
@@ -161,9 +162,14 @@ public static partial class WholeProgramPass
             problems.Add(Problem.AtTry(method, tryOffset, Unsupported.TryCatchFinally));
         }
 
+        // the verdict of the arrays' rule comes first for the instructions it is about
+        var arrays = ArrayEscapeAnalysis.Check(method);
         foreach (var instruction in body.Instructions)
         {
-            if (ForInstruction(instruction, argsArgument, interpolations) is { } unsupported)
+            var unsupported = arrays.TryGetValue(instruction, out var array)
+                ? array
+                : ForInstruction(instruction, argsArgument, interpolations);
+            if (unsupported is not null)
             {
                 problems.Add(Problem.At(method, instruction, unsupported));
             }

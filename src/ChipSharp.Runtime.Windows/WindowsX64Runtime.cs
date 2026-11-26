@@ -8,18 +8,29 @@ namespace ChipSharp.Runtime.Windows;
 /// functions (<c>ChipSharp_Runtime_WriteLine</c>, <c>ChipSharp_Runtime_WriteLineInt32</c>, ...) in
 /// <see cref="SourceFileName"/>, and the text of floats and doubles, shared with the other runtimes, in
 /// <see cref="FloatTextFileName"/>. It needs no C runtime, only kernel32. A PC has no interrupts to enter and its
-/// atomics are plain instructions, so those parts are empty.
+/// atomics are plain instructions, so those parts are empty. Next to it: what the program does where .NET would throw
+/// (<see cref="FailuresFileName"/>), and what a C runtime would give the code LLVM writes (<see cref="MemoryFileName"/>,
+/// <see cref="StackProbeFileName"/>).
 /// </summary>
 public sealed class WindowsX64Runtime : IArchRuntime
 {
-    /// <summary>The name of the C file with the entry point and the console output functions.</summary>
+    /// <summary>The name of the C file with the entry point and the console output: the first <see cref="Startup"/> returns.</summary>
     public const string SourceFileName = "chipsharp_runtime.c";
 
     /// <summary>The name of the C file that writes floats and doubles as .NET does (src/ChipSharp.Runtime.Shared).</summary>
     public const string FloatTextFileName = "chipsharp_float_text.c";
 
-    private static readonly Lazy<string> SourceText = new(() => ReadSource(SourceFileName));
-    private static readonly Lazy<string> FloatTextSource = new(() => ReadSource(FloatTextFileName));
+    /// <summary>What a program does where .NET would throw: <c>ChipSharp_Runtime_IndexOutOfRange</c> (exit code 1).</summary>
+    public const string FailuresFileName = "chipsharp_failures.c";
+
+    /// <summary>memset, memcpy and memmove, which LLVM calls for big blocks of memory.</summary>
+    public const string MemoryFileName = "chipsharp_memory.c";
+
+    /// <summary>__chkstk, which LLVM calls before a stack frame larger than a page.</summary>
+    public const string StackProbeFileName = "chipsharp_chkstk.S";
+
+    private static readonly Lazy<string> SourceText = new(() => Read(SourceFileName));
+    private static readonly Lazy<string> FloatTextSource = new(() => Read(FloatTextFileName));
 
     public string Name => "windows-x64";
 
@@ -32,7 +43,14 @@ public sealed class WindowsX64Runtime : IArchRuntime
     public RuntimeSources Startup(TargetDescription target)
     {
         ArgumentNullException.ThrowIfNull(target);
-        return new RuntimeSources([new GeneratedFile(SourceFileName, Source), new GeneratedFile(FloatTextFileName, FloatText)]);
+        return new RuntimeSources(
+        [
+            new GeneratedFile(SourceFileName, Source),
+            new GeneratedFile(FloatTextFileName, FloatText),
+            new GeneratedFile(FailuresFileName, Read(FailuresFileName)),
+            new GeneratedFile(MemoryFileName, Read(MemoryFileName)),
+            new GeneratedFile(StackProbeFileName, Read(StackProbeFileName)),
+        ]);
     }
 
     public RuntimeSources InterruptEntry(TargetDescription target)
@@ -47,7 +65,8 @@ public sealed class WindowsX64Runtime : IArchRuntime
         return new RuntimeSources([]);
     }
 
-    private static string ReadSource(string fileName)
+    /// <summary>One of the runtime's source files, e.g. <see cref="MemoryFileName"/>.</summary>
+    public static string Read(string fileName)
     {
         var assembly = typeof(WindowsX64Runtime).Assembly;
         using var stream = assembly.GetManifestResourceStream(fileName)

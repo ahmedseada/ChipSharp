@@ -10,7 +10,7 @@ namespace ChipSharp.Frontend.Analysis;
 /// <param name="What">The feature as C# programmers know it, e.g. "arrays" or "checked arithmetic".</param>
 /// <param name="IsPlural">True when <paramref name="What"/> takes "arrive" rather than "arrives".</param>
 /// <param name="Hint">What to do for now: a sentence; empty for a library method (the summary lists the ones there are).</param>
-internal sealed record Unsupported(string What, bool IsPlural, string Hint)
+internal sealed partial record Unsupported(string What, bool IsPlural, string Hint)
 {
     private const string StringsHint = "For now, print numbers and bools with Console.WriteLine.";
     private const string ObjectsHint = "For now, use static methods with whole-number and bool values.";
@@ -74,7 +74,7 @@ internal sealed record Unsupported(string What, bool IsPlural, string Hint)
     /// </summary>
     public string Heading => IsLibraryMethod || IsLibraryField
         ? $"{What} is not available in {SupportedSubset.Milestone}"
-        : $"{What} {(IsPlural ? "arrive" : "arrives")} after {SupportedSubset.Milestone}";
+        : $"{What} {(IsPlural ? "arrive" : "arrives")} {Arrival}";
 
     /// <summary>The sentence a problem line ends with: what arrives after the milestone, then the hint.</summary>
     public string Message => Hint.Length == 0 ? $"{Heading}." : $"{Heading}. {Hint}";
@@ -148,7 +148,7 @@ internal sealed record Unsupported(string What, bool IsPlural, string Hint)
         IlPrimitiveType { Kind: IlPrimitiveKind.String } => Strings,
         IlPrimitiveType { Kind: IlPrimitiveKind.Char } => Characters,
         IlPrimitiveType { Kind: IlPrimitiveKind.Object } => ClassesAndObjects,
-        IlArrayType or IlMultiDimensionalArrayType => Arrays,
+        IlArrayType or IlMultiDimensionalArrayType => ForArrayType(type, assembly),
         IlByRefType or IlPointerType or IlPinnedType => References,
         IlFunctionPointerType => Delegates,
         IlNamedType { IsDefinedInThisAssembly: true } named when assembly.FindType(named.FullName) is { } definition =>

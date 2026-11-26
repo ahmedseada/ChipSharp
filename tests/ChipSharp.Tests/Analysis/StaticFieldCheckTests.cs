@@ -308,7 +308,10 @@ public sealed class StaticFieldCheckTests
             + "For now, use whole numbers: int, long and the other integer types.";
         const string Enums = "enums arrive after M0. For now, use int constants.";
         const string Structs = "structs arrive after M0. For now, use separate whole-number and bool variables.";
-        const string Arrays = "arrays arrive after M0. For now, use separate variables.";
+        // an array kept in a static field outlives every method, so it is the "leaves its method" case of stack arrays
+        const string Arrays = "an array that leaves the method that creates it (returned, or stored in a field or in "
+            + "another array) arrives with the heap in M3. For now, keep each array in the method that creates it; "
+            + "the methods it calls can take it as a parameter.";
         const string Characters = "characters (char) arrive after M0. For now, use whole numbers.";
         Assert.Equal(
         [

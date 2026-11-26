@@ -151,12 +151,18 @@ internal sealed partial class MethodLowering
         {
             throw Unsupported(unsupported);
         }
+
+        CheckArrays();
     }
 
     private void Lower(IlInstruction instruction)
     {
         switch (instruction.OpCode)
         {
+            case var _ when IsArrayInstruction(instruction):
+                LowerArrayInstruction(instruction);
+                break;
+
             case IlOpCode.Nop:
                 break;
 

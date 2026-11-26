@@ -17,10 +17,9 @@ public sealed class RejectionTests
         {
             static void Main()
             {
-                int[] numbers = new int[3];
-                numbers[0] = 42;
-                Console.WriteLine(numbers[0]);
-                Console.WriteLine("done");
+                string[] words = new string[3];
+                words[0] = "done";
+                Console.WriteLine(words[0]);
             }
         }
         """;
@@ -32,9 +31,9 @@ public sealed class RejectionTests
 
         Assert.Equal($"""
             Test.dll uses 3 C# features that M0 does not compile yet (5 places):
-              arrays arrive after M0: 3 places in Program.Main() (IL_0001, IL_000a and IL_000c). For now, use separate variables.
-              text strings arrive after M0: 1 place in Program.Main() (IL_0012). For now, print numbers and bools with Console.WriteLine.
-              the library method System.Console.WriteLine(string) is not available in M0: 1 place in Program.Main() (IL_0017).
+              arrays of strings, objects or arrays arrive after M0: 3 places in Program.Main() (IL_0001, IL_000d and IL_000f). For now, use arrays of whole numbers or bools.
+              text strings arrive after M0: 1 place in Program.Main() (IL_0008). For now, print numbers and bools with Console.WriteLine.
+              the library method System.Console.WriteLine(string) is not available in M0: 1 place in Program.Main() (IL_0010).
             {LibraryCalls}
             For every place, run: chipsharp check Test.dll --details
             """.ReplaceLineEndings("\n"), error.Message);
@@ -48,14 +47,14 @@ public sealed class RejectionTests
 
         Assert.Equal($"""
             Test.dll uses 3 C# features that M0 does not compile yet (5 places):
-              Program.Main() at IL_0001 (newarr): arrays arrive after M0. For now, use separate variables.
-              Program.Main() at IL_000a (stelem.i4): arrays arrive after M0. For now, use separate variables.
-              Program.Main() at IL_000c (ldelem.i4): arrays arrive after M0. For now, use separate variables.
-              Program.Main() at IL_0012 (ldstr): text strings arrive after M0. For now, print numbers and bools with Console.WriteLine.
-              Program.Main() at IL_0017 (call): the library method System.Console.WriteLine(string) is not available in M0.
+              Program.Main() at IL_0001 (newarr): arrays of strings, objects or arrays arrive after M0. For now, use arrays of whole numbers or bools.
+              Program.Main() at IL_0008 (ldstr): text strings arrive after M0. For now, print numbers and bools with Console.WriteLine.
+              Program.Main() at IL_000d (stelem.ref): arrays of strings, objects or arrays arrive after M0. For now, use arrays of whole numbers or bools.
+              Program.Main() at IL_000f (ldelem.ref): arrays of strings, objects or arrays arrive after M0. For now, use arrays of whole numbers or bools.
+              Program.Main() at IL_0010 (call): the library method System.Console.WriteLine(string) is not available in M0.
             {LibraryCalls}
             """.ReplaceLineEndings("\n"), analysis.Details);
-        Assert.Equal([1, 10, 12, 18, 23], analysis.Problems.Select(problem => problem.Offset));
+        Assert.Equal([1, 8, 13, 15, 16], analysis.Problems.Select(problem => problem.Offset));
         Assert.All(analysis.Problems, problem => Assert.Equal("Program.Main", problem.Method.DisplayName));
     }
 
@@ -146,22 +145,23 @@ public sealed class RejectionTests
 
             class Program
             {
-                static int Sum(int[] values) => values[0] + values.Length;
+                static int[] Make(int size) => new int[size];
 
                 static void Main()
                 {
-                    Console.WriteLine(Sum(new int[2]));
+                    Console.WriteLine(Make(2).Length);
                 }
             }
             """);
 
-        const string Arrays = "arrays arrive after M0. For now, use separate variables.";
+        // arrays live on the stack of the method that makes them: of a fixed size, and never returned
         Assert.Equal(
         [
-            $"Program.Main() at IL_0001 (newarr): {Arrays}",
-            $"Program.Sum(int[]), parameter 'values' (int[]): {Arrays}",
-            $"Program.Sum(int[]) at IL_0002 (ldelem.i4): {Arrays}",
-            $"Program.Sum(int[]) at IL_0004 (ldlen): {Arrays}",
+            "Program.Make(int), return type (int[]): an array that leaves the method that creates it (returned, or "
+                + "stored in a field or in another array) arrives with the heap in M3. For now, keep each array in the "
+                + "method that creates it; the methods it calls can take it as a parameter.",
+            "Program.Make(int) at IL_0001 (newarr): an array whose size is known only when the program runs arrives "
+                + "with the heap in M3. For now, give the array a fixed size: a constant, such as new int[16].",
         ], problems);
     }
 
@@ -503,7 +503,6 @@ public sealed class RejectionTests
         [
             "Program.<Main>$(string[]) at IL_0000 (ldarg.0): using the command-line arguments (args) arrives after M0. "
                 + "For now, leave args unused: Main may take string[] args only if it never uses them.",
-            "Program.<Main>$(string[]) at IL_0001 (ldlen): arrays arrive after M0. For now, use separate variables.",
         ], problems);
     }
 
@@ -547,7 +546,8 @@ public sealed class RejectionTests
         Assert.Equal(
         [
             $"Program.Main() at IL_0000 (ldnull): null arrives after M0. {Objects}",
-            "Program.Count(string[]), parameter 'names' (string[]): arrays arrive after M0. For now, use separate variables.",
+            "Program.Count(string[]), parameter 'names' (string[]): arrays of strings, objects or arrays arrive after M0. "
+                + "For now, use arrays of whole numbers or bools.",
         ], problems);
     }
 

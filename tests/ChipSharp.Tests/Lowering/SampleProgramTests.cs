@@ -27,6 +27,9 @@ public sealed class SampleProgramTests : IDisposable
     public Task Arithmetic() => PrintsWhatDotnetPrints();
 
     [HostFact]
+    public Task Arrays() => PrintsWhatDotnetPrints();
+
+    [HostFact]
     public Task BitOps() => PrintsWhatDotnetPrints();
 
     [HostFact]
