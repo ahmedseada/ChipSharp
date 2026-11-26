@@ -19,6 +19,11 @@ internal sealed partial class MethodLowering
             return;
         }
 
+        if (LoadStaticArray())
+        {
+            return;
+        }
+
         var field = _program.StaticField(_method, _instruction);
         var address = _ir.AddressOf(field.Global);
         Push(ToStack(_ir.Load(field.Global.Type, address, IsVolatileAccess()), field.Type));

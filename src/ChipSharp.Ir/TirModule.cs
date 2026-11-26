@@ -178,6 +178,51 @@ public sealed class TirModule
     }
 
     /// <summary>
+    /// Adds a global array, printed as <c>global [4 x i32] @name = [1, 2, 0, 0]</c>, or as <c>constant ...</c> when
+    /// it is read-only: a table that nothing may write (the verifier refuses a store it can see), which a code
+    /// generator puts with the code, in flash on a chip, like <see cref="AddConstant"/>'s bytes. Either starts with
+    /// <paramref name="elements"/>, or at zero.
+    /// </summary>
+    /// <param name="name">The C# display name, e.g. "Program.Digits"; unique within the module.</param>
+    /// <param name="type">The array, of any element type (structs too, when it starts at zero).</param>
+    /// <param name="elements">
+    /// One constant of the element type per element, made with <c>new TirConst(...)</c> and not added to any block (so
+    /// the elements are bools, integers or floats); null for every element zero.
+    /// </param>
+    /// <param name="isConstant">True for read-only data.</param>
+    public TirGlobal AddArray(string name, TirArrayType type, IEnumerable<TirConst>? elements, bool isConstant)
+    {
+        CheckNewGlobal(name);
+        ArgumentNullException.ThrowIfNull(type);
+        TirConst[]? values = elements is null ? null : [.. elements];
+        if (values is not null && values.Length != type.Count)
+        {
+            throw new TirException($"Module '{Name}': global array @{name} is {type}, but it is given " +
+                $"{values.Length} elements.");
+        }
+
+        foreach (var value in values ?? [])
+        {
+            if (value.Type != type.Element)
+            {
+                throw new TirException($"Module '{Name}': global array @{name} holds {type.Element}, but one of its " +
+                    $"elements is {value.Type}.");
+            }
+
+            if (value.Block is { } block)
+            {
+                throw new TirException($"Module '{Name}': an element of global array @{name}, " +
+                    $"'{TirPrinter.Print(value)}', is an instruction of block '{block.Name}' of function " +
+                    $"'{block.Function.Name}'; give constants that are in no block.");
+            }
+        }
+
+        var global = new TirGlobal(this, _globals.Count, name, type, null, null, values, isConstant);
+        _globals.Add(global);
+        return global;
+    }
+
+    /// <summary>
     /// Every struct type the module uses (in its globals, function signatures, slots and instructions, also inside
     /// arrays and other structs), each once, in the order first met, with the structs a struct's fields hold before
     /// it. A code generator declares them in this order; <see cref="TirPrinter"/> lists them so.

@@ -46,7 +46,7 @@ that ChipSharp does not compile yet, where, when it is planned, and what to writ
 on a line of its own, and every library method ChipSharp can call). `tir` shows the program in TIR. `build` compiles
 it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` also keeps the `.tir` and `.ll` files.
 
-`dotnet test` runs 960 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
+`dotnet test` runs 1005 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
 `CHIPSHARP_LLVM_BIN`); the Pico tests also need the simulator (see below), and are skipped, saying why, without it.
 
 ## What C# compiles today
@@ -59,6 +59,7 @@ it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` 
 | Types | Structs, enums (`[Flags]` too), `ref`, `out` and `in` parameters, `ref` locals |
 | Static fields | Of the types above, `volatile` too, with field initializers and static constructors |
 | Arrays | Of numbers, bools, structs and enums, on the stack: a constant size, kept in the method that makes them and passed down to the methods it calls |
+| Static arrays | Arrays in static fields that the field's initializer gives once, with a constant size and constant elements: `static readonly byte[] Digits = { 0x3F, 0x06, ... };` is a constant table when nothing writes an element (in flash on a chip), `static int[] buffer = new int[16];` a fixed array in RAM; read, indexed and passed to methods like any array, with no heap |
 | Fixed text | String literals (`"road : 1"`, `string.Empty`) in locals, parameters, return values, static fields (`static readonly` too) and `const`, compared with `null`; printed part by part with `Console.Write` and `Console.WriteLine` (`null` as nothing, like .NET), as UTF-8. Each literal is in flash once on a chip |
 | Printed text | Text built and printed straight away, with no string ever made and no heap: `Console.WriteLine($"road : {lane}")`, `Console.Write("road : " + lane)`, `lane.ToString()`; holes of text and of every type `Console.Write` prints, worked out first, in order, like .NET; alignments (`{x,5}`, `{x,-5}`, not of floats) and the formats `D`, `D<n>`, `X<n>`, `x<n>` and `G` of whole numbers |
 | Library | `Console.Write` and `Console.WriteLine` of text, a number or a bool; `Math` and `MathF`: `Abs`, `Min`, `Max`, `Sqrt`; `TimeSpan`: its factories in any unit (`FromMilliseconds(500)`, `FromSeconds(1.5)`), parts, totals, arithmetic and comparisons; on a chip, `ChipSharp.Hardware`: pins, timing (`Timing.Delay(TimeSpan)` too), registers and interrupts |
@@ -93,7 +94,8 @@ ChipSharp can call these library methods (--details lists each one with its para
 
 The other samples show the rest of the table, e.g. `VendingMachine.cs` (structs, enums, an array of structs and static
 fields as a state machine), `Projectile.cs` (floats in structs, with operators), `TimeSpans.cs` (TimeSpan arithmetic),
-`TrafficLights.cs` (fixed text between numbers) and `PrintedText.cs` (text built and printed straight away).
+`TrafficLights.cs` (fixed text between numbers), `PrintedText.cs` (text built and printed straight away) and
+`LookupTables.cs` (a 7-segment display's tables in flash and a buffer of readings in RAM).
 
 ### Fixed text
 
@@ -131,6 +133,28 @@ temporaries are, and what Release makes of `string s = $"..."; Console.WriteLine
 method, measured (`.Length`) or chosen where ways join (`c ? $"a{x}" : "b"`), it is "keeping built text in a variable",
 which arrives with M3. An enum in a hole (.NET prints its name), the other formats (`F2`, `N0`) and an aligned float
 are rejected too, each saying what to write for now. `samples/PrintedText.cs` shows each form.
+
+### Arrays in static fields
+
+An array that a static field gets once, when the program starts, and keeps for good needs no heap either: it is a
+global, like any static field (`src/ChipSharp.Frontend/StaticArrays.cs`). The field's initializer (or the static
+constructor, where it runs exactly once) makes it with a constant size and constant elements (`new int[16]`,
+`{ 1, 2, 3 }`, `[]`), nothing else assigns the field, and nothing takes its `ref`. When nothing in the program writes an
+element, also not the methods it is passed to nor those they pass it on to, it is a constant table: read-only data, in
+flash on a chip, never copied to RAM. Otherwise it is a fixed array in RAM, which starts with its elements. Either way
+the code that made it is not compiled (a type initializer that did nothing else is gone), and reading the field gives
+the usual array, so it is indexed, measured and passed down like an array on the stack:
+
+```csharp
+static readonly byte[] Digits = { 0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F };   // flash
+static int[] readings = new int[6];                                                              // RAM
+static int count;
+
+static void Record(int value) => readings[count++ % readings.Length] = value;
+```
+
+Any other array in a static field (assigned again, made of computed elements or of a size known only when the program
+runs, never given one) arrives with the heap; `chipsharp check` says which, where, and what to write for now.
 
 ### Library substitutes
 

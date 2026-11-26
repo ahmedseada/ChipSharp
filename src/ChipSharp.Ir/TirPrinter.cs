@@ -192,11 +192,15 @@ public static class TirPrinter
 
     /// <summary>
     /// <c>global i32 @Program.counter</c>, or <c>global i32 @Program.limit = 10</c> with an initial value;
-    /// <c>constant [2 x i8] @&lt;text 0&gt; = c"A\00"</c> for read-only data.
+    /// <c>constant [2 x i8] @&lt;text 0&gt; = c"A\00"</c> for read-only data; an array with its elements,
+    /// <c>constant [3 x i8] @Program.Digits = [63, 6, 91]</c>.
     /// </summary>
     private static string GlobalText(TirGlobal global) => global switch
     {
         { Data: { } data } => $"constant {global.Type} {global} = {BytesText(data)}",
+        { Elements: { } elements } => $"{(global.IsConstant ? "constant" : "global")} {global.Type} {global} = " +
+            $"[{string.Join(", ", elements.Select(ConstantText))}]",
+        { IsConstant: true } => $"constant {global.Type} {global}",
         { InitialValue: { } initial } => $"global {global.Type} {global} = {ConstantText(initial)}",
         _ => $"global {global.Type} {global}",
     };

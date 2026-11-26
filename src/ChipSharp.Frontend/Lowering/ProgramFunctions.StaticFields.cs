@@ -37,7 +37,7 @@ internal sealed partial class ProgramFunctions
 
         if (!_foldedInitializers.ContainsKey(method.DeclaringType))
         {
-            if (FindConstants(method) is not { } constants)
+            if (FindConstants(method, StaticArrays) is not { } constants)
             {
                 return false;
             }
@@ -121,9 +121,10 @@ internal sealed partial class ProgramFunctions
     /// <summary>
     /// The constant <paramref name="initializer"/> leaves in each field of its own type, when that is all it does:
     /// nop, a constant (ldc, then maybe a conversion to int64 or native int) and the stsfld that stores it, over and
-    /// over, then ret. Null for any other code.
+    /// over, then ret. Null for any other code. What makes a static array (see <see cref="Frontend.StaticArrays"/>) is
+    /// in its global already, and counts for nothing.
     /// </summary>
-    private static Dictionary<IlField, TirConst>? FindConstants(IlMethod initializer)
+    private static Dictionary<IlField, TirConst>? FindConstants(IlMethod initializer, StaticArrays arrays)
     {
         if (initializer.Body is not { ExceptionRegions.Count: 0 } body)
         {
@@ -132,8 +133,14 @@ internal sealed partial class ProgramFunctions
 
         var constants = new Dictionary<IlField, TirConst>();
         (TirType Type, long Value)? pending = null;
-        foreach (var instruction in body.Instructions)
+        for (var index = 0; index < body.Instructions.Count; index++)
         {
+            var instruction = body.Instructions[index];
+            if (arrays.IsFolded(initializer, index))
+            {
+                continue;
+            }
+
             switch (instruction.OpCode)
             {
                 case IlOpCode.Nop or IlOpCode.Volatile:

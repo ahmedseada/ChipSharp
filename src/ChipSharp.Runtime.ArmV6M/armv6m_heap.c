@@ -9,8 +9,8 @@
 //   chipsharp_heap_check_thread   stops the program when it runs in an interrupt handler (IPSR is not 0): a handler
 //                                 may come in the middle of an allocation or a collection, so it never uses the heap
 //
-// The failures are the chip runtime's (rp2040_failures.c: ChipSharp_Runtime_OutOfMemory, _Overflow and
-// _HeapInInterrupt, which say what happened on its console); a chip runtime without them stops at a breakpoint.
+// The failures (ChipSharp_Runtime_OutOfMemory, _Overflow and _HeapInInterrupt) stop at a breakpoint
+// (armv6m_failures.c), after the chip runtime says what happened on its console (rp2040_failures.c).
 
 typedef __UINTPTR_TYPE__ uintptr_t;
 
@@ -71,30 +71,5 @@ void chipsharp_heap_check_thread(void)
     if (ipsr != 0)
     {
         ChipSharp_Runtime_HeapInInterrupt();
-    }
-}
-
-// Without a chip runtime's failures: stop where a debugger finds it.
-__attribute__((weak, noreturn)) void ChipSharp_Runtime_HeapInInterrupt(void)
-{
-    for (;;)
-    {
-        __asm__ volatile("bkpt #0\n\twfi");
-    }
-}
-
-__attribute__((weak, noreturn)) void ChipSharp_Runtime_OutOfMemory(void)
-{
-    for (;;)
-    {
-        __asm__ volatile("bkpt #0\n\twfi");
-    }
-}
-
-__attribute__((weak, noreturn)) void ChipSharp_Runtime_Overflow(void)
-{
-    for (;;)
-    {
-        __asm__ volatile("bkpt #0\n\twfi");
     }
 }

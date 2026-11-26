@@ -16,6 +16,9 @@ namespace ChipSharp.Runtime.ArmV6M;
 /// conversions LLVM calls (__aeabi_fadd, __aeabi_dmul, __aeabi_d2iz, ...), <see cref="FloatCompareFileName"/> for its
 /// comparisons, and <see cref="FloatMathFileName"/> (shared with the other runtimes) for fmod and the Math methods
 /// programs call.</item>
+/// <item><see cref="FailuresFileName"/>: what an index outside an array (and the other failures .NET throws an
+/// exception for) does on a chip whose runtime says nothing: stop at a breakpoint. Weak, so a chip runtime with a
+/// console replaces them.</item>
 /// <item><see cref="VectorsFileName"/>: the vector table (section .vectors) with weak handlers a chip runtime
 /// replaces, e.g. <c>chipsharp_isr_irq0</c>.</item>
 /// <item>For a target with a heap: objects, the allocator and the garbage collector, shared with the other runtimes
@@ -37,6 +40,9 @@ public sealed class ArmV6MRuntime : IArchRuntime
     /// <summary>The C file with the float and double comparisons LLVM calls (__aeabi_fcmplt and friends).</summary>
     public const string FloatCompareFileName = "armv6m_float_compare.c";
 
+    /// <summary>The C file with the weak failure functions (ChipSharp_Runtime_IndexOutOfRange and friends).</summary>
+    public const string FailuresFileName = "armv6m_failures.c";
+
     /// <summary>The C file with fmod and the Math methods (src/ChipSharp.Runtime.Shared).</summary>
     public const string FloatMathFileName = "chipsharp_float_math.c";
 
@@ -55,7 +61,7 @@ public sealed class ArmV6MRuntime : IArchRuntime
         return new RuntimeSources(
         [
             Source(StartupFileName), Source(HelpersFileName), Source(DivModFileName), Source(FloatCompareFileName),
-            Source(FloatMathFileName), .. CompilerRt.Sources(),
+            Source(FloatMathFileName), .. CompilerRt.Sources(), Source(FailuresFileName),
             .. target.HasHeap ? [Source(HeapFileName), Source(HeapChipFileName)] : Array.Empty<GeneratedFile>(),
         ]);
     }
