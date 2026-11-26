@@ -1,0 +1,89 @@
+using ChipSharp.Frontend;
+using ChipSharp.Frontend.Il;
+using ChipSharp.Frontend.Lowering;
+using ChipSharp.Ir;
+using ChipSharp.Tests.Support;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+
+namespace ChipSharp.Tests.Lowering;
+
+/// <summary>
+/// C# compiled with Roslyn, read back as IL and translated to TIR. The program is made here (the entry point, then
+/// every method of the assembly it calls, in the order first called), so the tests do not need the whole-program pass.
+/// </summary>
+internal static class Lowered
+{
+    /// <summary>The shared framework's assemblies, the references <see cref="CSharpCompiler"/> uses too.</summary>
+    private static readonly Lazy<MetadataReference[]> FrameworkReferences = new(() =>
+    {
+        var trusted = (string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!;
+        var framework = Path.GetDirectoryName(typeof(object).Assembly.Location);
+        return
+        [
+            .. trusted.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+                .Where(file => string.Equals(Path.GetDirectoryName(file), framework, StringComparison.OrdinalIgnoreCase))
+                .Select(file => MetadataReference.CreateFromFile(file)),
+        ];
+    });
+
+    /// <summary>Compiles <paramref name="source"/> and reads it back; the file is called "&lt;assemblyName&gt;.dll".</summary>
+    public static IlAssembly Compile(string source, string assemblyName = "Test") =>
+        IlAssembly.Load(CSharpCompiler.Compile(source, assemblyName), assemblyName + ".dll");
+
+    /// <summary>
+    /// Compiles a program the way <c>dotnet build</c> does in Debug: unoptimized IL, with nops, every value in a
+    /// local, bools kept in locals before each branch, and so on. Reads it back like <see cref="Compile"/>.
+    /// </summary>
+    public static IlAssembly CompileDebug(string source, string assemblyName)
+    {
+        var compilation = CSharpCompilation.Create(assemblyName,
+            [CSharpSyntaxTree.ParseText(source, CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest))],
+            FrameworkReferences.Value,
+            new CSharpCompilationOptions(OutputKind.ConsoleApplication, optimizationLevel: OptimizationLevel.Debug));
+        using var image = new MemoryStream();
+        var result = compilation.Emit(image);
+        Assert.True(result.Success, string.Join("\n", result.Diagnostics));
+        return IlAssembly.Load(image.ToArray(), assemblyName + ".dll");
+    }
+
+    /// <summary>
+    /// The program that starts at <paramref name="entryPoint"/> (a display name such as "C.Run"), or at the
+    /// assembly's own entry point when it is null.
+    /// </summary>
+    public static IlProgram Program(IlAssembly assembly, string? entryPoint = null)
+    {
+        var start = entryPoint is null
+            ? assembly.EntryPoint ?? throw new InvalidOperationException("The assembly has no entry point.")
+            : Assert.Single(assembly.FindMethods(entryPoint));
+        var methods = new List<IlMethod> { start };
+        for (var i = 0; i < methods.Count; i++)
+        {
+            foreach (var instruction in methods[i].Body?.Instructions ?? [])
+            {
+                if (instruction.Operand is IlMethodOperand { Method.Definition: { } callee } && !methods.Contains(callee))
+                {
+                    methods.Add(callee);
+                }
+            }
+        }
+
+        return new IlProgram(assembly, methods);
+    }
+
+    /// <summary>Compiles, translates and verifies a program; see <see cref="Program"/> for <paramref name="entryPoint"/>.</summary>
+    public static TirModule Module(string source, string? entryPoint = null, string assemblyName = "Test") =>
+        Lower(Program(Compile(source, assemblyName), entryPoint));
+
+    /// <summary>Translates <paramref name="program"/> and checks that the result is well-formed TIR.</summary>
+    public static TirModule Lower(IlProgram program)
+    {
+        var module = IlToTir.Lower(program);
+        TirVerifier.Verify(module);
+        return module;
+    }
+
+    /// <summary>The TIR of one method, as the printer writes it, in a program that starts there.</summary>
+    public static string Function(string source, string method) =>
+        TirPrinter.Print(Assert.Single(Module(source, method).Functions, f => f.Name == method));
+}
