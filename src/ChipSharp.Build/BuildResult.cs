@@ -11,4 +11,6 @@ namespace ChipSharp.Build;
 /// The files kept with <see cref="BuildOptions.KeepIntermediates"/>, in the order they were written; empty without it.
 /// </param>
 /// <param name="Target">The target the program was built for, with everything it inherits merged in.</param>
-public sealed record BuildResult(string OutputPath, IReadOnlyList<string> IntermediatePaths, TargetDescription Target);
+/// <param name="Memory">How much of the target's flash and RAM the program takes (for a PC, how big it is).</param>
+public sealed record BuildResult(string OutputPath, IReadOnlyList<string> IntermediatePaths, TargetDescription Target,
+    MemoryReport Memory);

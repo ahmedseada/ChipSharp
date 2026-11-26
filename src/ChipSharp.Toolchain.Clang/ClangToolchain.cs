@@ -100,7 +100,8 @@ public sealed class ClangToolchain : IToolchain
 
     /// <summary>
     /// A chip program: the linker script (<see cref="LinkerScript"/>) is written next to the sources as
-    /// &lt;name&gt;.ld, and ld.lld also writes a map of where everything went, &lt;name&gt;.map.
+    /// &lt;name&gt;.ld, and ld.lld also writes a map of where everything went, &lt;name&gt;.map. A program too big for
+    /// the target's memory fails with how much it needs and how much the target has (<see cref="MemoryOverflow"/>).
     /// </summary>
     private LinkedBinary BuildChipProgram(GeneratedCode code, TargetDescription target)
     {
@@ -131,7 +132,14 @@ public sealed class ClangToolchain : IToolchain
             "-Xlinker", $"-Map={name}.map",
             .. settings.LinkFlags.SelectMany(flag => new[] { "-Xlinker", flag }),
         ];
-        return Link(clang, arguments, folder, program);
+        try
+        {
+            return Link(clang, arguments, folder, program);
+        }
+        catch (ChipSharpException e) when (MemoryOverflow.Message(e.Message, name, target, settings) is { } message)
+        {
+            throw new ChipSharpException(message, e);
+        }
     }
 
     /// <summary>The files clang compiles; checks the names of all of them first.</summary>

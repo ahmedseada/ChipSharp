@@ -6,6 +6,10 @@
   "toolchain": "clang",
   "runtime": "windows-x64",
   "triple": "x86_64-pc-windows-msvc",
+  "capabilities": {
+    "heap": "256M",       // the most memory the program's heap may take (M3), taken from Windows as it grows
+    "console": true       // Console.Write and Console.WriteLine go to standard output
+  },
   "clang": {
     // passed to clang after --target; -nostdlib: no C runtime, the windows-x64 runtime is all the program needs
     "flags": ["-O2", "-nostdlib", "-fuse-ld=lld", "-Wno-override-module"]

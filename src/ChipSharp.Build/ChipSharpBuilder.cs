@@ -30,7 +30,7 @@ public static class ChipSharpBuilder
     /// <item>Read the assembly, and find the parts the target names in the registry.</item>
     /// <item>Check the program (the whole-program pass) and translate it into TIR.</item>
     /// <item>Generate code, add the runtime's startup, interrupt entry and atomics files, and link it all with the
-    /// toolchain.</item>
+    /// toolchain; then see how much of the target's memory the program takes (<see cref="MemoryReport"/>).</item>
     /// <item>When the target names an image format, package the linked program into the output folder as
     /// &lt;program&gt;.&lt;image name&gt;, e.g. Blink.uf2; otherwise copy the linked program itself there.</item>
     /// </list>
@@ -77,6 +77,7 @@ public static class ChipSharpBuilder
             .. parts.Runtime.InterruptEntry(target).Files,
             .. parts.Runtime.Atomics(target).Files,
         ]), target);
+        var memory = MemoryReport.Read(binary, target);
 
         string output;
         if (parts.Image is null)
@@ -94,7 +95,7 @@ public static class ChipSharpBuilder
         }
 
         DeleteFolder(workFolder);
-        return new BuildResult(output, kept, target);
+        return new BuildResult(output, kept, target, memory);
     }
 
     /// <summary>

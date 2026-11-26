@@ -135,14 +135,24 @@ internal sealed record ChipSettings(
             throw Error($"'link.vectorAlign' is {vectorAlign}; it must be a power of two, e.g. 256.");
         }
 
+        var entryPoint = Text("entry");
+        var code = Region("code");
+        var data = Region("data");
+        var stack = Size(link["stack"], "link.stack", 0);
+        if (stack > data.Region.Size)
+        {
+            throw Error($"'link.stack' is {MemorySize.Text(stack)}, more than the {MemorySize.Text(data.Region.Size)} " +
+                $"of {data.Name} ('link.data') it is kept in.");
+        }
+
         return new ChipSettings(
             triple,
             string.IsNullOrWhiteSpace(target.Cpu) ? null : target.Cpu,
             clangFlags,
-            Text("entry"),
-            Region("code"),
-            Region("data"),
-            Size(link["stack"], "link.stack", 0),
+            entryPoint,
+            code,
+            data,
+            stack,
             vectorAlign,
             head,
             TextList(link["flags"], "link.flags"));

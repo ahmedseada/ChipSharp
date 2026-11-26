@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using ChipSharp.Abstractions;
 
@@ -36,6 +37,7 @@ internal static class TargetParser
 
         var missing = new List<string>();
         var memory = ParseMemory(json["memory"], missing, Error);
+        var capabilities = ParseValues(json["capabilities"], "capabilities", Error);
 
         return new TargetDescription
         {
@@ -52,7 +54,8 @@ internal static class TargetParser
             Flasher = OptionalText("flasher"),
             Memory = memory,
             Pins = ParseValues(json["pins"], "pins", Error),
-            Capabilities = ParseValues(json["capabilities"], "capabilities", Error),
+            Capabilities = capabilities,
+            HeapSize = ParseHeap(json, memory, Error),
             Settings = json.DeepClone().AsObject(),
             MissingValues = missing,
         };
@@ -92,6 +95,42 @@ internal static class TargetParser
         }
 
         return regions;
+    }
+
+    /// <summary>
+    /// The heap's budget, the capability "heap": false (or not given) for none, else the most the heap may take, e.g.
+    /// "224K". With the stack ("link.stack") it must leave room for the static fields in the RAM ("link.data"'s region).
+    /// </summary>
+    private static ulong? ParseHeap(JsonObject json, Dictionary<string, MemoryRegion> memory,
+        Func<string, ChipSharpException> error)
+    {
+        const string Key = "capabilities.heap";
+        var node = json["capabilities"]?["heap"];
+        var kind = node?.GetValueKind();
+        if (kind is null or JsonValueKind.False)
+        {
+            return null;
+        }
+
+        var budget = kind is JsonValueKind.String or JsonValueKind.Number ? Size(node, Key, [], error) : null;
+        if (budget is null or 0)
+        {
+            throw error($"'{Key}' must be false (no heap) or the most the heap may take, e.g. \"224K\".");
+        }
+
+        var link = json["link"] as JsonObject;
+        var dataName = link?["data"] is JsonValue data && data.TryGetValue(out string? name) ? name : "ram";
+        if (!memory.TryGetValue(dataName, out var ram))
+        {
+            return budget;
+        }
+
+        var stack = link?["stack"] is { } stackNode ? Size(stackNode, "link.stack", [], error) ?? 0 : 0;
+        return budget.Value + stack < ram.Size
+            ? budget
+            : throw error($"'{Key}' is {MemorySize.Text(budget.Value)}, and with the stack ({MemorySize.Text(stack)}, " +
+                $"link.stack) that leaves nothing of the {MemorySize.Text(ram.Size)} of {dataName} for the static " +
+                "fields: make the heap smaller.");
     }
 
     private static ulong? Size(JsonNode? node, string path, List<string> missing,

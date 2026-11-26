@@ -1,6 +1,7 @@
 // chipsharp: the command line. It builds programs, and shows what they go through on the way:
 //
 //   chipsharp build <assembly.dll>   compiles the program for a target; prints the file it wrote (.exe, .uf2, ...)
+//                                    and how much of the chip's flash and RAM the program takes
 //   chipsharp check <assembly.dll>   whether ChipSharp can compile the program, and the methods it uses; if it
 //                                    cannot, the C# features it uses that ChipSharp does not have yet, each with
 //                                    where, when it is planned and what to do for now
@@ -10,7 +11,8 @@
 //   chipsharp targets show <name>    one target, with everything it inherits merged in
 //
 // Options: -t, --target <name>    with build: the target to build for (default: host); with check and tir: check the
-//                                program's interrupt handlers against it (and with tir, put them in its interrupts)
+//                                program for it: what it has (a heap, a console) and its interrupts (with tir, put
+//                                the handlers in them)
 //          -o, --output <folder>  with build: where to write the program (default: chipsharp-output\<target>)
 //          --keep                 with build: also write the program's TIR and generated code (.ll) there
 //          --details              with check: every place ChipSharp cannot compile on a line of its own, not by
@@ -56,6 +58,7 @@ try
                 Console.WriteLine(file);
             }
 
+            Console.WriteLine(result.Memory.Text);
             return 0;
         }
 
@@ -117,8 +120,8 @@ try
 
         case ["check", var path]:
         {
-            var analysis = WholeProgramPass.Check(IlAssembly.Load(path),
-                target is null ? null : new TargetLoader(folder).Load(target));
+            var checkedFor = target is null ? null : new TargetLoader(folder).Load(target);
+            var analysis = WholeProgramPass.Check(IlAssembly.Load(path), checkedFor);
             if (!analysis.IsSupported)
             {
                 throw new ChipSharpException(details ? analysis.Details : analysis.Summary);
@@ -127,7 +130,8 @@ try
             var count = analysis.Methods.Count == 1
                 ? "1 method"
                 : string.Create(CultureInfo.InvariantCulture, $"{analysis.Methods.Count} methods");
-            Console.WriteLine($"{path}: ChipSharp compiles it. The program uses {count}, entry point first:");
+            var forTarget = checkedFor is null ? "" : $" for target '{checkedFor.Name}'";
+            Console.WriteLine($"{path}: ChipSharp compiles it{forTarget}. The program uses {count}, entry point first:");
             foreach (var method in analysis.Methods)
             {
                 var handler = analysis.InterruptHandlers.FirstOrDefault(h => h.Method == method);
@@ -150,7 +154,7 @@ try
                   chipsharp targets show <name>
                 options:
                   -t, --target <name>     build: the target to build for (default: host); check, tir: the target
-                                          whose interrupts the program's [Interrupt] methods are checked against
+                                          to check the program for: its heap, console and interrupts
                   -o, --output <folder>   build: where to write the program (default: chipsharp-output\<target>)
                   --keep                  build: also write the program's TIR (.tir) and generated code (.ll) there
                   --details               check: list every place ChipSharp cannot compile, not one line per C#
