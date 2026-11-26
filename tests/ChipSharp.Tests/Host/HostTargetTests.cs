@@ -61,16 +61,18 @@ public sealed class HostTargetTests
     }
 
     [Fact]
-    public void The_runtime_is_one_freestanding_C_file_with_the_entry_point_and_every_print_function()
+    public void The_runtime_is_freestanding_C_with_the_entry_point_every_print_function_and_the_shared_float_text()
     {
         var host = Targets.Load("host");
         var runtime = new WindowsX64Runtime();
 
-        var file = Assert.Single(runtime.Startup(host).Files);
+        var files = runtime.Startup(host).Files;
 
-        Assert.Equal("chipsharp_runtime.c", file.FileName);
+        Assert.Equal(["chipsharp_runtime.c", "chipsharp_float_text.c"], files.Select(f => f.FileName));
+        var file = files[0];
         Assert.Equal(WindowsX64Runtime.Source, file.Content);
-        Assert.DoesNotContain("#include", file.Content);
+        Assert.Equal(WindowsX64Runtime.FloatText, files[1].Content);
+        Assert.All(files, f => Assert.DoesNotContain("#include", f.Content));
         string[] functions =
         [
             "void chipsharp_start(void)",
@@ -81,8 +83,12 @@ public sealed class HostTargetTests
             "void ChipSharp_Runtime_WriteLineInt64(long long value)",
             "void ChipSharp_Runtime_WriteLineUInt64(unsigned long long value)",
             "void ChipSharp_Runtime_WriteLineBool(int value)",
+            "void ChipSharp_Runtime_WriteLineFloat32(float value)",
+            "void ChipSharp_Runtime_WriteLineFloat64(double value)",
         ];
         Assert.All(functions, f => Assert.Contains(f, file.Content));
+        Assert.Contains("int chipsharp_float64_text(u64 bits, char *text)", files[1].Content);
+        Assert.Contains("int chipsharp_float32_text(u32 bits, char *text)", files[1].Content);
         Assert.Empty(runtime.InterruptEntry(host).Files);
         Assert.Empty(runtime.Atomics(host).Files);
     }

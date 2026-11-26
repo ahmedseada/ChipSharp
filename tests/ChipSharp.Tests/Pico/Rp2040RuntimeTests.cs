@@ -6,6 +6,7 @@ using ChipSharp.Frontend;
 using ChipSharp.Image.Uf2;
 using ChipSharp.Runtime.ArmV6M;
 using ChipSharp.Runtime.Rp2040;
+using ChipSharp.Runtime.Windows;
 using ChipSharp.Targets;
 using ChipSharp.Toolchain.Clang;
 
@@ -33,14 +34,18 @@ public sealed class Rp2040RuntimeTests
     }
 
     [Fact]
-    public void The_runtime_is_the_armv6m_files_plus_boot2_and_the_chips_own_C()
+    public void The_runtime_is_the_armv6m_files_plus_boot2_the_chips_own_C_and_the_shared_float_text()
     {
         var pico = Targets.Load("pico");
         var runtime = new Rp2040Runtime();
 
+        var files = runtime.Startup(pico).Files;
+
         Assert.Equal(
-            ["armv6m_startup.c", "armv6m_helpers.c", "armv6m_divmod.S", "rp2040_boot2.S", "rp2040_runtime.c"],
-            runtime.Startup(pico).Files.Select(f => f.FileName));
+            ["armv6m_startup.c", "armv6m_helpers.c", "armv6m_divmod.S", "rp2040_boot2.S", "rp2040_runtime.c",
+                Rp2040Runtime.FloatTextFileName],
+            files.Select(f => f.FileName));
+        Assert.Equal(WindowsX64Runtime.FloatText, files[^1].Content); // the very file the PC's runtime has
         Assert.Equal(["armv6m_vectors.c"], runtime.InterruptEntry(pico).Files.Select(f => f.FileName));
         Assert.Empty(runtime.Atomics(pico).Files);
         Assert.All(runtime.Startup(pico).Files.Concat(runtime.InterruptEntry(pico).Files),

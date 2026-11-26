@@ -12,7 +12,8 @@ internal static class WholeProgram
     /// <summary>The line a message ends with when the program calls a library method M0 does not have.</summary>
     public const string LibraryCalls = "M0 supports these library calls: System.Console.WriteLine(), "
         + "System.Console.WriteLine(int), System.Console.WriteLine(uint), System.Console.WriteLine(long), "
-        + "System.Console.WriteLine(ulong), System.Console.WriteLine(bool), " + HardwareCalls + ".";
+        + "System.Console.WriteLine(ulong), System.Console.WriteLine(bool), System.Console.WriteLine(float), "
+        + "System.Console.WriteLine(double), " + HardwareCalls + ".";
 
     private const string HardwareCalls = "ChipSharp.Hardware.Pin.Output(int), ChipSharp.Hardware.Pin.Input(int), "
         + "ChipSharp.Hardware.Pin.Write(int, bool), ChipSharp.Hardware.Pin.Toggle(int), ChipSharp.Hardware.Pin.Read(int), "

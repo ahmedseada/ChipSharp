@@ -10,6 +10,9 @@
     run with dotnet, and its standard output saved byte for byte. The temporary folder is deleted at the end;
     nothing but the .expected.txt files is written here. An .expected.txt whose .cs is gone is deleted.
 
+    The samples run in the invariant culture, as ChipSharp's programs print (e.g. 1.5, not 1,5), so the regional
+    settings of the PC that runs this script never change the expected files.
+
     Run it on Windows: the expected files hold .NET's Windows output, whose lines end with \r\n.
 
 .PARAMETER TargetFramework
@@ -62,6 +65,8 @@ New-Item -ItemType Directory -Path $work | Out-Null
 try {
     # One console project, built once per sample with that sample as its only source file. The empty
     # Directory.Build files stop MSBuild from looking for settings in the folders above the temp folder.
+    # InvariantGlobalization: every culture is the invariant culture when the sample runs (the setting goes into
+    # its runtimeconfig.json, which no environment variable overrides).
     $project = @"
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
@@ -70,6 +75,7 @@ try {
     <AssemblyName>Sample</AssemblyName>
     <ImplicitUsings>disable</ImplicitUsings>
     <Nullable>disable</Nullable>
+    <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 </Project>
 "@

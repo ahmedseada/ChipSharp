@@ -4,7 +4,8 @@
 // the toolchain makes their import library from the target's "link.imports".
 //
 //   chipsharp_start                      the program's entry point: runs chipsharp_entry, exits with its result
-//   ChipSharp_Runtime_WriteLine...       Console.WriteLine for each type, written like .NET on Windows ("\r\n")
+//   ChipSharp_Runtime_WriteLine...       Console.WriteLine for each type, written like .NET on Windows ("\r\n");
+//                                        floats and doubles as text come from chipsharp_float_text.c
 
 typedef void *HANDLE;
 typedef unsigned long DWORD;
@@ -19,6 +20,10 @@ __declspec(dllimport) __declspec(noreturn) void __stdcall ExitProcess(unsigned i
 
 // Written by the code generator: calls the program's Main and returns its result (0 for a void Main).
 int chipsharp_entry(void);
+
+// In chipsharp_float_text.c: a double or a float, given by its bits, as .NET writes it; returns the length.
+int chipsharp_float64_text(unsigned long long bits, char *text);
+int chipsharp_float32_text(unsigned int bits, char *text);
 
 // The linker looks for this symbol when a program uses floating point; nothing reads it.
 int _fltused = 0;
@@ -108,4 +113,36 @@ void ChipSharp_Runtime_WriteLineBool(int value)
     {
         write_bytes("False\r\n", 7);
     }
+}
+
+// Ends the line after the text in text[0..length) (the buffer has room for two more characters) and writes it.
+static void write_line_text(char *text, int length)
+{
+    text[length++] = '\r';
+    text[length++] = '\n';
+    write_bytes(text, (DWORD)length);
+}
+
+// The shortest text that reads back as the same value, as .NET writes it. The bits are read through a union, so
+// the number itself is never used in a calculation.
+void ChipSharp_Runtime_WriteLineFloat64(double value)
+{
+    union
+    {
+        double value;
+        unsigned long long bits;
+    } number = {value};
+    char text[26]; // at most 24 characters, "\r\n"
+    write_line_text(text, chipsharp_float64_text(number.bits, text));
+}
+
+void ChipSharp_Runtime_WriteLineFloat32(float value)
+{
+    union
+    {
+        float value;
+        unsigned int bits;
+    } number = {value};
+    char text[17]; // at most 15 characters, "\r\n"
+    write_line_text(text, chipsharp_float32_text(number.bits, text));
 }

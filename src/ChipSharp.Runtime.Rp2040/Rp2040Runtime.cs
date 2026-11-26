@@ -13,12 +13,17 @@ namespace ChipSharp.Runtime.Rp2040;
 /// runtime functions programs call: <c>ChipSharp_Runtime_Pin*</c>, <c>ChipSharp_Runtime_Delay*</c>,
 /// <c>ChipSharp_Runtime_Register*</c> (ChipSharp.Hardware) and <c>ChipSharp_Runtime_WriteLine*</c>
 /// (Console.WriteLine on UART0: GPIO 0, 115200 baud).</item>
+/// <item><see cref="FloatTextFileName"/>: floats and doubles as text, as .NET writes them, shared with the other
+/// runtimes (src/ChipSharp.Runtime.Shared).</item>
 /// </list>
 /// </summary>
 public sealed class Rp2040Runtime : IArchRuntime
 {
     /// <summary>The C file with the chip's start-up and runtime functions.</summary>
     public const string SourceFileName = "rp2040_runtime.c";
+
+    /// <summary>The C file that writes floats and doubles as .NET does, for Console.WriteLine.</summary>
+    public const string FloatTextFileName = "chipsharp_float_text.c";
 
     /// <summary>The assembly file with the padded boot2.</summary>
     public const string Boot2FileName = "rp2040_boot2.S";
@@ -30,7 +35,9 @@ public sealed class Rp2040Runtime : IArchRuntime
 
     public string Name => "rp2040";
 
-    /// <summary>The ARMv6-M start-up and helpers, boot2, and the chip's own start-up and runtime functions.</summary>
+    /// <summary>
+    /// The ARMv6-M start-up and helpers, boot2, the chip's own start-up and runtime functions, and the text of floats.
+    /// </summary>
     public RuntimeSources Startup(TargetDescription target)
     {
         ArgumentNullException.ThrowIfNull(target);
@@ -38,7 +45,8 @@ public sealed class Rp2040Runtime : IArchRuntime
         [
             .. _armv6m.Startup(target).Files,
             Boot2(target),
-            new GeneratedFile(SourceFileName, EmbeddedText.Read(typeof(Rp2040Runtime), SourceFileName)),
+            Source(SourceFileName),
+            Source(FloatTextFileName),
         ]);
     }
 
@@ -54,6 +62,9 @@ public sealed class Rp2040Runtime : IArchRuntime
         var name = Boot2Name(target);
         return Boot2Image.Pad(EmbeddedText.ReadBytes(typeof(Rp2040Runtime), name), name);
     }
+
+    /// <summary>One of this runtime's C files by name, e.g. <see cref="FloatTextFileName"/>.</summary>
+    public static GeneratedFile Source(string fileName) => new(fileName, EmbeddedText.Read(typeof(Rp2040Runtime), fileName));
 
     private static GeneratedFile Boot2(TargetDescription target) =>
         new(Boot2FileName, Boot2Image.ToAssembly(Boot2Bytes(target), Boot2Name(target)));
