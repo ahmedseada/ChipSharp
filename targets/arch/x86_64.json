@@ -1,0 +1,13 @@
+{
+  // x86-64 (AMD64): the 64-bit PC processor; milestone M0 runs programs here first and compares them with .NET
+  "name": "x86_64",
+  "backend": "llvm",
+  "pointerSize": 8,
+  "endian": "little",
+  "capabilities": {
+    "hwMultiply": true,   // integer multiply instruction (imul)
+    "hwDivide": true,     // integer divide instruction (idiv / div)
+    "fpu": true,          // float hardware (SSE2)
+    "atomics": "full"     // atomic read-modify-write instructions (lock prefix, cmpxchg)
+  }
+}

@@ -5,7 +5,9 @@
     <Project Path="src/ChipSharp.Cli/ChipSharp.Cli.csproj" />
     <Project Path="src/ChipSharp.Frontend/ChipSharp.Frontend.csproj" />
     <Project Path="src/ChipSharp.Ir/ChipSharp.Ir.csproj" />
+    <Project Path="src/ChipSharp.Runtime.Windows/ChipSharp.Runtime.Windows.csproj" />
     <Project Path="src/ChipSharp.Targets/ChipSharp.Targets.csproj" />
+    <Project Path="src/ChipSharp.Toolchain.Clang/ChipSharp.Toolchain.Clang.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ChipSharp.Tests/ChipSharp.Tests.csproj" />
