@@ -58,9 +58,11 @@ internal static class StaticInitialization
 
     /// <summary>
     /// The initializers among <paramref name="methods"/>, the methods of a program with its entry point first, in the
-    /// order they run (see the remarks).
+    /// order they run (see the remarks). The types that only <paramref name="alsoStarted"/> use (interrupt handlers,
+    /// which the chip starts, not the program) come after the entry point's, in that order: they too are initialized
+    /// before Main, so before any handler can run.
     /// </summary>
-    public static IReadOnlyList<IlMethod> RunOrder(IReadOnlyList<IlMethod> methods)
+    public static IReadOnlyList<IlMethod> RunOrder(IReadOnlyList<IlMethod> methods, IEnumerable<IlMethod>? alsoStarted = null)
     {
         ArgumentNullException.ThrowIfNull(methods);
 
@@ -81,9 +83,9 @@ internal static class StaticInitialization
             }
         }
 
-        if (methods.Count > 0)
+        foreach (var start in methods.Take(1).Concat(alsoStarted ?? []))
         {
-            foreach (var type in TypesUsedByRunning(methods[0], program, isStart: true))
+            foreach (var type in TypesUsedByRunning(start, program, isStart: true))
             {
                 Initialize(type);
             }

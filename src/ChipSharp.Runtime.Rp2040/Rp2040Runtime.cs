@@ -16,6 +16,9 @@ namespace ChipSharp.Runtime.Rp2040;
 /// <item><see cref="FloatTextFileName"/>: floats and doubles as text, as .NET writes them, shared with the other
 /// runtimes (src/ChipSharp.Runtime.Shared).</item>
 /// <item><see cref="FailuresFileName"/>: what the program does where .NET would throw.</item>
+/// <item><see cref="InterruptsFileName"/>, with the vector table: the timer and pin events of the program's
+/// <c>[Interrupt]</c> methods (<c>ChipSharp_Runtime_Timer*</c>, <c>ChipSharp_Runtime_Pin*Watch</c>), and the functions
+/// that clear them, which the target's "interrupts" table names.</item>
 /// </list>
 /// </summary>
 public sealed class Rp2040Runtime : IArchRuntime
@@ -34,6 +37,9 @@ public sealed class Rp2040Runtime : IArchRuntime
     /// says so on UART0 and stops at a breakpoint.
     /// </summary>
     public const string FailuresFileName = "rp2040_failures.c";
+
+    /// <summary>The C file with the events of <c>[Interrupt]</c> methods: the timer (alarm 1) and pin changes.</summary>
+    public const string InterruptsFileName = "rp2040_interrupts.c";
 
     /// <summary>The second-stage bootloaders this runtime ships, as a target's "boot.stage2" names them.</summary>
     public static IReadOnlyList<string> Boot2Names { get; } = ["boot2_w25q080.bin", "boot2_generic_03h.bin"];
@@ -58,8 +64,12 @@ public sealed class Rp2040Runtime : IArchRuntime
         ]);
     }
 
-    /// <summary>The ARMv6-M vector table; the timer interrupt's handler is in <see cref="SourceFileName"/>.</summary>
-    public RuntimeSources InterruptEntry(TargetDescription target) => _armv6m.InterruptEntry(target);
+    /// <summary>
+    /// The ARMv6-M vector table and the events of <c>[Interrupt]</c> methods (<see cref="InterruptsFileName"/>); the
+    /// handler of the delays' timer interrupt is in <see cref="SourceFileName"/>.
+    /// </summary>
+    public RuntimeSources InterruptEntry(TargetDescription target) =>
+        new([.. _armv6m.InterruptEntry(target).Files, Source(InterruptsFileName)]);
 
     public RuntimeSources Atomics(TargetDescription target) => _armv6m.Atomics(target);
 

@@ -48,7 +48,8 @@ public sealed class Rp2040RuntimeTests
         // the very file the PC's runtime has
         Assert.Equal(WindowsX64Runtime.FloatText,
             files.Single(f => f.FileName == Rp2040Runtime.FloatTextFileName).Content);
-        Assert.Equal(["armv6m_vectors.c"], runtime.InterruptEntry(pico).Files.Select(f => f.FileName));
+        Assert.Equal(["armv6m_vectors.c", Rp2040Runtime.InterruptsFileName],
+            runtime.InterruptEntry(pico).Files.Select(f => f.FileName));
         Assert.Empty(runtime.Atomics(pico).Files);
         Assert.All(runtime.Startup(pico).Files.Concat(runtime.InterruptEntry(pico).Files),
             file => Assert.DoesNotContain("#include", file.Content));
@@ -58,12 +59,15 @@ public sealed class Rp2040RuntimeTests
     public void The_runtime_defines_every_function_a_library_call_becomes()
     {
         var pico = Targets.Load("pico");
-        var source = new Rp2040Runtime().Startup(pico).Files.Single(f => f.FileName == Rp2040Runtime.SourceFileName).Content;
+        var runtime = new Rp2040Runtime();
+        var source = runtime.Startup(pico).Files.Single(f => f.FileName == Rp2040Runtime.SourceFileName).Content;
+        var interrupts = runtime.InterruptEntry(pico).Files
+            .Single(f => f.FileName == Rp2040Runtime.InterruptsFileName).Content;
 
         Assert.All(KnownExternals.All, function =>
         {
             var symbol = LlvmCodeGenerator.SymbolName(function.DisplayName);
-            Assert.Contains($" {symbol}(", source);
+            Assert.Contains($" {symbol}(", source + interrupts);
         });
         Assert.Contains("void chipsharp_chip_init(void)", source);
         Assert.Contains("void chipsharp_isr_irq0(void)", source);

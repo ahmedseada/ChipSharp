@@ -18,7 +18,11 @@ internal static class WholeProgram
     private const string HardwareCalls = "ChipSharp.Hardware.Pin.Output(int), ChipSharp.Hardware.Pin.Input(int), "
         + "ChipSharp.Hardware.Pin.Write(int, bool), ChipSharp.Hardware.Pin.Toggle(int), ChipSharp.Hardware.Pin.Read(int), "
         + "ChipSharp.Hardware.Timing.DelayMilliseconds(int), ChipSharp.Hardware.Timing.DelayMicroseconds(int), "
-        + "ChipSharp.Hardware.Registers.Read(uint), ChipSharp.Hardware.Registers.Write(uint, uint)";
+        + "ChipSharp.Hardware.Registers.Read(uint), ChipSharp.Hardware.Registers.Write(uint, uint), "
+        + "ChipSharp.Hardware.Timing.EveryMilliseconds(int), ChipSharp.Hardware.Timing.EveryMicroseconds(int), "
+        + "ChipSharp.Hardware.Timing.AfterMilliseconds(int), ChipSharp.Hardware.Timing.AfterMicroseconds(int), "
+        + "ChipSharp.Hardware.Timing.Stop(), ChipSharp.Hardware.Pin.Watch(int), ChipSharp.Hardware.Pin.WatchRising(int), "
+        + "ChipSharp.Hardware.Pin.WatchFalling(int), ChipSharp.Hardware.Pin.Unwatch(int)";
 
     public static IlProgram Analyze(string source) => WholeProgramPass.Analyze(Load(source));
 

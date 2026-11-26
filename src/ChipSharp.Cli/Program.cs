@@ -8,7 +8,8 @@
 //   chipsharp targets list           every target
 //   chipsharp targets show <name>    one target, with everything it inherits merged in
 //
-// Options: -t, --target <name>    with build: the target to build for (default: host)
+// Options: -t, --target <name>    with build: the target to build for (default: host); with check and tir: check the
+//                                program's interrupt handlers against it (and with tir, put them in its interrupts)
 //          -o, --output <folder>  with build: where to write the program (default: chipsharp-output\<target>)
 //          --keep                 with build: also write the program's TIR and generated code (.ll) there
 //          --details              with check: every place M0 cannot compile on a line of its own, not by feature
@@ -58,7 +59,7 @@ try
 
         case ["tir", var path]:
         {
-            var module = ChipSharpBuilder.Translate(path);
+            var module = ChipSharpBuilder.Translate(path, target is null ? null : new TargetLoader(folder).Load(target));
             if (methodName is null)
             {
                 Console.Write(TirPrinter.Print(module));
@@ -114,7 +115,8 @@ try
 
         case ["check", var path]:
         {
-            var analysis = WholeProgramPass.Check(IlAssembly.Load(path));
+            var analysis = WholeProgramPass.Check(IlAssembly.Load(path),
+                target is null ? null : new TargetLoader(folder).Load(target));
             if (!analysis.IsSupported)
             {
                 throw new ChipSharpException(details ? analysis.Details : analysis.Summary);
@@ -126,7 +128,9 @@ try
             Console.WriteLine($"{path}: supported by {SupportedSubset.Milestone}. The program uses {count}, entry point first:");
             foreach (var method in analysis.Methods)
             {
-                Console.WriteLine($"  {CSharpNames.Method(method)}");
+                var handler = analysis.InterruptHandlers.FirstOrDefault(h => h.Method == method);
+                var handles = handler is null ? "" : $" (handles the {handler.Event} event)";
+                Console.WriteLine($"  {CSharpNames.Method(method)}{handles}");
             }
 
             return 0;
@@ -137,13 +141,14 @@ try
             Console.WriteLine("""
                 usage:
                   chipsharp build <assembly.dll> [-t|--target <name>] [-o|--output <folder>] [--keep]
-                  chipsharp check <assembly.dll> [--details]
-                  chipsharp tir <assembly.dll> [--method <name>]
+                  chipsharp check <assembly.dll> [--details] [-t|--target <name>]
+                  chipsharp tir <assembly.dll> [--method <name>] [-t|--target <name>]
                   chipsharp il <assembly.dll> [--method <name>]
                   chipsharp targets list
                   chipsharp targets show <name>
                 options:
-                  -t, --target <name>     build: the target to build for (default: host)
+                  -t, --target <name>     build: the target to build for (default: host); check, tir: the target
+                                          whose interrupts the program's [Interrupt] methods are checked against
                   -o, --output <folder>   build: where to write the program (default: chipsharp-output\<target>)
                   --keep                  build: also write the program's TIR (.tir) and generated code (.ll) there
                   --details               check: list every place M0 cannot compile, not one line per C# feature
@@ -222,6 +227,7 @@ static void Print(TargetDescription t)
 
     Row("capabilities", string.Join(", ", t.Capabilities.Select(c => $"{c.Key}={c.Value}")));
     Row("pins", string.Join(", ", t.Pins.Select(p => $"{p.Key}={p.Value}")));
+    Row("interrupts", string.Join(", ", Interrupts.ForTarget(t).Values.Select(i => $"{i.Event}=IRQ {i.Number}")));
     Row("incomplete", t.IsComplete
         ? null
         : $"{string.Join(", ", t.MissingValues)} (a target that inherits this one must set it; build a board instead)");

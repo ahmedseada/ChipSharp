@@ -41,6 +41,11 @@ namespace ChipSharp.Frontend.Lowering;
 /// then the entry point. An initializer that only sets its type's fields to constants is not compiled at all: the
 /// fields' globals start with those values.
 /// </para>
+/// <para>
+/// An interrupt handler (<see cref="IlProgram.InterruptHandlers"/>) is a function like any other. When the target gave
+/// its interrupt, an entry function such as <c>&lt;Interrupt timer&gt;</c>, exported under the interrupt's symbol
+/// (<c>chipsharp_isr_irq1</c>), calls the runtime function that clears the event, then the handler.
+/// </para>
 /// </remarks>
 public static class IlToTir
 {
@@ -69,6 +74,7 @@ public static class IlToTir
             new MethodLowering(functions, functions.Get(method)).Lower();
         }
 
+        functions.AddInterruptEntries(program);
         module.EntryPoint = functions.Start(program);
         return module;
     }
