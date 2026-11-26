@@ -60,6 +60,9 @@ public sealed class SampleProgramTests : IDisposable
     public Task Primes() => PrintsWhatDotnetPrints();
 
     [HostFact]
+    public Task PrintedText() => PrintsWhatDotnetPrints();
+
+    [HostFact]
     public Task Projectile() => PrintsWhatDotnetPrints();
 
     [HostFact]

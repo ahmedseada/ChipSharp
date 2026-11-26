@@ -24,7 +24,8 @@ internal sealed partial class MethodLowering
 
     /// <summary>
     /// Rejects arrays that break the rule of <see cref="StackArrays"/>, with the analysis the whole-program pass uses
-    /// (<see cref="ArrayEscapeAnalysis"/>), so the two always agree.
+    /// (<see cref="ArrayEscapeAnalysis"/>), so the two always agree. The array of strings of a <c>string.Concat</c> of
+    /// printed text is no array (see <see cref="PrintedText"/>).
     /// </summary>
     private void CheckArrays()
     {
@@ -33,7 +34,8 @@ internal sealed partial class MethodLowering
             throw LoweringErrors.In(_method, $"it returns {_method.ReturnType}, and {returned.Heading}");
         }
 
-        var problem = ArrayEscapeAnalysis.Check(_method).Where(verdict => verdict.Value is not null)
+        var problem = ArrayEscapeAnalysis.Check(_method)
+            .Where(verdict => verdict.Value is not null && !IsPrintedText(verdict.Key))
             .OrderBy(verdict => verdict.Key.Offset).FirstOrDefault();
         if (problem.Value is { } unsupported)
         {

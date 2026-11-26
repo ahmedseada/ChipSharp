@@ -174,15 +174,15 @@ public sealed class SummaryTests
             static int Twice(int x) => checked(x * 2);
 
             Console.WriteLine(Twice(21));
-            Console.WriteLine("done" + Twice(1));
+            Console.WriteLine("done".ToUpper() + Twice(1));
             """);
 
         Assert.Equal(
         [
-            $"{Building}: 2 places in the top-level statements (IL_001a and IL_001f). {BuildingHint}",
+            $"{Building}: 1 place in the top-level statements (IL_0011). {BuildingHint}",
             $"checked arithmetic arrives later: 1 place in local function Twice (IL_0002). {Checked}",
         ], analysis.Groups.Select(group => group.Line));
-        Assert.Contains($"\n  Program.<Main>$(string[]) at IL_001a (call): {Building}.", analysis.Details);
+        Assert.Contains($"\n  Program.<Main>$(string[]) at IL_0011 (call): {Building}.", analysis.Details);
         Assert.Contains("\n  Program.<<Main>$>g__Twice|0_0(int) at IL_0002 (mul.ovf): checked arithmetic arrives later.",
             analysis.Details);
     }
@@ -212,8 +212,9 @@ public sealed class SummaryTests
     [Fact]
     public void A_SquareDemo_like_program_gets_a_short_summary()
     {
-        // top-level statements, float arrays, a local function and string interpolation: 9 places, 1 feature (the
-        // floats, the arrays of them, the literal "Logit result: " and printing text are fine)
+        // top-level statements, float arrays and local functions, and a $"..." that one of them returns: 1 place, 1
+        // feature (the floats, the arrays of them and the text, which Console.WriteLine($"Logit result: {result}")
+        // would print straight away, are fine)
         var analysis = Check("""
             using System;
 
@@ -222,22 +223,23 @@ public sealed class SummaryTests
                 return (weights[0] * features[0]) + (weights[1] * features[1]);
             }
 
+            static string Report(float result) => $"Logit result: {result}";
+
             float[] weights = { 0.5f, -0.25f };
             float[] features = { 1.0f, 2.0f };
 
             float result = Logit(weights, features);
-            Console.WriteLine($"Logit result: {result}");
+            Console.WriteLine(Report(result));
             """);
 
-        Assert.Equal([BuildingFeature], analysis.Groups.Select(group => group.Feature));
-        Assert.Equal([9], analysis.Groups.Select(group => group.Problems.Count));
+        Assert.Equal(["keeping built text in a variable"], analysis.Groups.Select(group => group.Feature));
         Assert.Equal($"""
-            Test.dll uses 1 C# feature that ChipSharp does not compile yet (9 places):
-              {Building}: 9 places in the top-level statements (IL_0036, IL_003b, IL_0040 and 6 more). {BuildingHint}
+            Test.dll uses 1 C# feature that ChipSharp does not compile yet (1 place):
+              keeping built text in a variable arrives with M3 (the heap): 1 place in local function Report (IL_0025). For now, print it straight away: Console.WriteLine($"...").
             For every place, run: chipsharp check Test.dll --details
             """.ReplaceLineEndings("\n"), analysis.Summary);
         Assert.InRange(analysis.Summary.Split('\n').Length, 1, 11);
-        Assert.Equal(10, analysis.Details.Split('\n').Length);
+        Assert.Equal(2, analysis.Details.Split('\n').Length);
     }
 
     [Fact]

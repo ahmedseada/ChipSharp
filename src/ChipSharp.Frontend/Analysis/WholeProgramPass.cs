@@ -158,11 +158,12 @@ public static partial class WholeProgramPass
             return;
         }
 
-        // the locals C# builds interpolated strings in: taking their address is part of building the text
+        // the locals C# builds interpolated strings in: taking their address is part of building the text, which
+        // printed text (PrintedText) judges where it is used, not as a local
         var interpolations = new HashSet<int>();
         foreach (var local in body.Locals)
         {
-            if (ForType(local.Type) is { } unsupported)
+            if (ForType(local.Type) is { } unsupported && !Unsupported.IsInterpolatedStringHandler(local.Type))
             {
                 problems.Add(Problem.InLocal(method, local, unsupported));
             }
@@ -178,14 +179,15 @@ public static partial class WholeProgramPass
             problems.Add(Problem.AtTry(method, tryOffset, Unsupported.TryCatchFinally));
         }
 
-        // the verdict of the arrays' rule comes first for the instructions it is about
+        // the verdict of printed text comes first for the instructions it is about, then the arrays' rule's
+        var printed = PrintedText.Of(method);
         var arrays = ArrayEscapeAnalysis.Check(method);
         foreach (var instruction in body.Instructions)
         {
-            // what the array escape analysis found for this instruction, else building text, else the struct/reference
-            // rules, else the rest
-            var unsupported = arrays.TryGetValue(instruction, out var array)
-                ? array
+            // what printed text or the array escape analysis found for this instruction, else building text, else the
+            // struct/reference rules, else the rest
+            var unsupported = printed.Verdicts.TryGetValue(instruction, out var text) ? text
+                : arrays.TryGetValue(instruction, out var array) ? array
                 : ForText(method, instruction) ?? ForStructOrReference(method, instruction)
                     ?? ForInstruction(instruction, argsArgument, interpolations);
             if (unsupported is not null)
