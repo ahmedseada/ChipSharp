@@ -46,7 +46,7 @@ internal sealed partial class ProgramFunctions(TirModule module)
     /// <summary>The functions arrays use (making one, its length, the bounds check), shared by every method.</summary>
     public ArrayFunctions Arrays => _arrays ??= new ArrayFunctions(module);
 
-    /// <summary>Adds the TIR function of <paramref name="method"/>, checking that M0 can compile its signature.</summary>
+    /// <summary>Adds the TIR function of <paramref name="method"/>, checking that its signature can be compiled.</summary>
     public void Declare(IlMethod method, bool isEntryPoint)
     {
         if (_methods.ContainsKey(method))
@@ -56,14 +56,14 @@ internal sealed partial class ProgramFunctions(TirModule module)
 
         if (!method.IsStatic && !ValueTypes.IsStructInstanceMethod(method))
         {
-            throw LoweringErrors.In(method, $"instance methods are not supported yet ({SupportedSubset.Milestone} " +
+            throw LoweringErrors.In(method, "instance methods of classes are not supported yet (ChipSharp " +
                 "compiles static methods and the methods of structs)");
         }
 
         if (method.GenericParameters.Count > 0 || method.DeclaringType.GenericParameters.Count > 0)
         {
             throw LoweringErrors.In(method, "generic methods and the methods of generic types are not supported yet " +
-                $"(they arrive after {SupportedSubset.Milestone})");
+                "(they arrive with M3, the heap)");
         }
 
         if (method.Signature.CallingConvention != IlCallingConvention.Default)
@@ -88,12 +88,12 @@ internal sealed partial class ProgramFunctions(TirModule module)
         {
             if (isEntryPoint && parameter.Type == StringArray)
             {
-                // C#'s top-level statements give Main a string[] args; M0 has no arrays, so an unused one is left out
+                // C#'s top-level statements give Main a string[] args: one that is never used is left out
                 if (body.Instructions.FirstOrDefault(i => i.ArgumentIndex == parameter.Index) is { } use)
                 {
                     throw LoweringErrors.At(method, use.Offset,
-                        $"the entry point uses its string[] {parameter.Name}, and arrays are not supported yet " +
-                        $"({SupportedSubset.Milestone} leaves an unused args out)");
+                        $"the entry point uses its string[] {parameter.Name}, and strings are not supported yet " +
+                        "(ChipSharp leaves an unused args out)");
                 }
 
                 leftOut.Add(parameter.Index);
@@ -159,7 +159,7 @@ internal sealed partial class ProgramFunctions(TirModule module)
         var known = string.Join(", ", KnownExternals.All.Select(f => f.LibraryMethod));
         throw LoweringErrors.At(caller, call.Offset,
             $"the call to {reference.DisplayName}({string.Join(", ", reference.ParameterTypes)}) is not supported: " +
-            $"of the library, {SupportedSubset.Milestone} can call {known}");
+            $"of the library, ChipSharp can call {known}");
     }
 
     private TirFunction External(ExternalFunction external)

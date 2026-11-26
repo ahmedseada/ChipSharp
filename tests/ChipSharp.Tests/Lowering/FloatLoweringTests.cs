@@ -282,7 +282,7 @@ public sealed class FloatLoweringTests
 
         var error = Assert.Throws<ChipSharpException>(() => Lowered.Lower(Lowered.Program(emitted.Read(), "Program.F")));
 
-        Assert.Equal("Test.dll: Program.F(float64) at IL_0001: ckfinite is not supported yet (it arrives after M0).",
+        Assert.Equal("Test.dll: Program.F(float64) at IL_0001: ckfinite is not supported yet.",
             error.Message);
     }
 }

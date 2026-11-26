@@ -1,3 +1,5 @@
+using ChipSharp.Frontend;
+using Calls = ChipSharp.Frontend.Analysis.LibraryCalls;
 using static ChipSharp.Tests.Analysis.WholeProgram;
 
 namespace ChipSharp.Tests.Analysis;
@@ -8,8 +10,8 @@ namespace ChipSharp.Tests.Analysis;
 /// </summary>
 public sealed class SummaryTests
 {
-    private const string Characters = "characters (char) arrive after M0";
-    private const string Checked = "For now, leave out checked: M0 arithmetic wraps around on overflow, like unchecked C#.";
+    private const string Characters = "characters (char) arrive with M3 (the heap)";
+    private const string Checked = "For now, leave out checked: ChipSharp's arithmetic wraps around on overflow, like unchecked C#.";
 
     [Fact]
     public void Several_places_of_one_feature_are_one_entry_with_their_count()
@@ -35,7 +37,7 @@ public sealed class SummaryTests
         Assert.Equal(["Program.Main"], group.Methods.Select(method => method.DisplayName));
         Assert.False(group.IsLibraryCall);
         Assert.Equal($"""
-            Test.dll uses 1 C# feature that M0 does not compile yet (3 places):
+            Test.dll uses 1 C# feature that ChipSharp does not compile yet (3 places):
               {Characters}: 3 places in Program.Main() (IL_0000, IL_0008 and IL_000d). For now, use whole numbers.
             For every place, run: chipsharp check Test.dll --details
             """.ReplaceLineEndings("\n"), analysis.Summary);
@@ -66,9 +68,9 @@ public sealed class SummaryTests
         Assert.Equal(["Program.First", "Program.Third"], analysis.Groups[0].Methods.Select(method => method.DisplayName));
         Assert.Equal(
         [
-            $"checked arithmetic arrives after M0: 2 places in Program.First(int) (IL_0002) and Program.Third(int) (IL_0002). {Checked}",
-            "text strings arrive after M0: 1 place in Program.Second() (IL_0000). For now, print numbers and bools with Console.WriteLine.",
-            "the library method string.get_Length() is not available in M0: 1 place in Program.Second() (IL_0005).",
+            $"checked arithmetic arrives later: 2 places in Program.First(int) (IL_0002) and Program.Third(int) (IL_0002). {Checked}",
+            "text strings arrive with M3 (the heap): 1 place in Program.Second() (IL_0000). For now, print numbers and bools with Console.WriteLine.",
+            "the library method string.get_Length() is not available yet: 1 place in Program.Second() (IL_0005).",
         ], analysis.Groups.Select(group => group.Line));
     }
 
@@ -157,9 +159,9 @@ public sealed class SummaryTests
         Assert.All(analysis.Groups, group => Assert.True(group.IsLibraryCall));
         Assert.Equal([2, 1], analysis.Groups.Select(group => group.Problems.Count));
         Assert.Equal($"""
-            Test.dll uses 2 C# features that M0 does not compile yet (3 places):
-              the library method System.Math.Abs(int) is not available in M0: 2 places in Program.Main() (IL_0002 and IL_001a).
-              the library method System.Math.Max(int, int) is not available in M0: 1 place in Program.Main() (IL_000e).
+            Test.dll uses 2 C# features that ChipSharp does not compile yet (3 places):
+              the library method System.Math.Abs(int) is not available yet: 2 places in Program.Main() (IL_0002 and IL_001a).
+              the library method System.Math.Max(int, int) is not available yet: 1 place in Program.Main() (IL_000e).
             {LibraryCalls}
             For every place, run: chipsharp check Test.dll --details
             """.ReplaceLineEndings("\n"), analysis.Summary);
@@ -179,13 +181,13 @@ public sealed class SummaryTests
 
         Assert.Equal(
         [
-            "text strings arrive after M0: 1 place in the top-level statements (IL_000c). "
+            "text strings arrive with M3 (the heap): 1 place in the top-level statements (IL_000c). "
                 + "For now, print numbers and bools with Console.WriteLine.",
-            "the library method System.Console.WriteLine(string) is not available in M0: 1 place in the top-level statements (IL_0011).",
-            $"checked arithmetic arrives after M0: 1 place in local function Twice (IL_0002). {Checked}",
+            "the library method System.Console.WriteLine(string) is not available yet: 1 place in the top-level statements (IL_0011).",
+            $"checked arithmetic arrives later: 1 place in local function Twice (IL_0002). {Checked}",
         ], analysis.Groups.Select(group => group.Line));
-        Assert.Contains("\n  Program.<Main>$(string[]) at IL_000c (ldstr): text strings arrive after M0.", analysis.Details);
-        Assert.Contains("\n  Program.<<Main>$>g__Twice|0_0(int) at IL_0002 (mul.ovf): checked arithmetic arrives after M0.",
+        Assert.Contains("\n  Program.<Main>$(string[]) at IL_000c (ldstr): text strings arrive with M3 (the heap).", analysis.Details);
+        Assert.Contains("\n  Program.<<Main>$>g__Twice|0_0(int) at IL_0002 (mul.ovf): checked arithmetic arrives later.",
             analysis.Details);
     }
 
@@ -205,9 +207,9 @@ public sealed class SummaryTests
 
         var types = analysis.Groups.Where(group => group.Feature.StartsWith("the type ", StringComparison.Ordinal)).ToList();
         Assert.Equal(["the type System.TimeSpan", "the type System.Random"], types.Select(group => group.Feature));
-        Assert.Equal("the type System.Random arrives after M0: 2 places in Program.Next(System.Random, System.TimeSpan, "
-            + "System.Random) (parameter 'random' and parameter 'other'). M0 supports bool, the whole-number types "
-            + "(sbyte to ulong, nint, nuint), float, double and void.", types[1].Line);
+        Assert.Equal("the type System.Random arrives later: 2 places in Program.Next(System.Random, System.TimeSpan, "
+            + "System.Random) (parameter 'random' and parameter 'other'). For now, use bool, the whole-number types "
+            + "(sbyte to ulong, nint, nuint), float, double, and the program's own structs and enums.", types[1].Line);
     }
 
     [Fact]
@@ -234,15 +236,15 @@ public sealed class SummaryTests
             "the library method System.Console.WriteLine(string)"], analysis.Groups.Select(group => group.Feature));
         Assert.Equal([9, 1, 1], analysis.Groups.Select(group => group.Problems.Count));
         Assert.Equal($"""
-            Test.dll uses 3 C# features that M0 does not compile yet (11 places):
-              string interpolation ($"...") arrives after M0: 9 places in the top-level statements (IL_0036, IL_003b, IL_0040 and 6 more). For now, print numbers and bools with Console.WriteLine.
-              text strings arrive after M0: 1 place in the top-level statements (IL_0042). For now, print numbers and bools with Console.WriteLine.
-              the library method System.Console.WriteLine(string) is not available in M0: 1 place in the top-level statements (IL_005b).
+            Test.dll uses 3 C# features that ChipSharp does not compile yet (11 places):
+              string interpolation ($"...") arrives with M3 (the heap): 9 places in the top-level statements (IL_0036, IL_003b, IL_0040 and 6 more). For now, print numbers and bools with Console.WriteLine.
+              text strings arrive with M3 (the heap): 1 place in the top-level statements (IL_0042). For now, print numbers and bools with Console.WriteLine.
+              the library method System.Console.WriteLine(string) is not available yet: 1 place in the top-level statements (IL_005b).
             {LibraryCalls}
             For every place, run: chipsharp check Test.dll --details
             """.ReplaceLineEndings("\n"), analysis.Summary);
         Assert.InRange(analysis.Summary.Split('\n').Length, 1, 11);
-        Assert.Equal(13, analysis.Details.Split('\n').Length);
+        Assert.Equal(19, analysis.Details.Split('\n').Length);
     }
 
     [Fact]
@@ -261,5 +263,37 @@ public sealed class SummaryTests
         Assert.Equal("", analysis.Summary);
         Assert.Equal("", analysis.Details);
         Assert.Equal(["Program.Main"], analysis.ToProgram().Methods.Select(method => method.DisplayName));
+    }
+
+    [Fact]
+    public void The_library_calls_come_from_the_known_methods_so_a_new_one_shows_up_on_its_own()
+    {
+        string[] methods =
+        [
+            "System.Console.WriteLine()", "System.Console.WriteLine(int)", "System.Math.Abs(double)",
+            "System.Math.Clamp(int, int, int)", "System.MathF.Abs(float)", "System.TimeSpan.FromMilliseconds(double)",
+            "System.TimeSpan.FromSeconds(double)", "ChipSharp.Hardware.Pin.Toggle(int)",
+            "ChipSharp.Hardware.Timing.Delay(System.TimeSpan)",
+        ];
+
+        Assert.Equal("""
+            ChipSharp can call these library methods (--details lists each one with its parameters):
+              Console.WriteLine of (nothing), int
+              Math: Abs, Clamp
+              MathF.Abs of float
+              TimeSpan: FromMilliseconds, FromSeconds
+              ChipSharp.Hardware: Pin, Timing (see the README)
+            """.ReplaceLineEndings("\n"), Calls.Summarize(methods));
+        Assert.Equal("""
+            ChipSharp can call these library methods:
+              System.Console: WriteLine(), WriteLine(int)
+              System.Math: Abs(double), Clamp(int, int, int)
+              System.MathF: Abs(float)
+              System.TimeSpan: FromMilliseconds(double), FromSeconds(double)
+              ChipSharp.Hardware.Pin: Toggle(int)
+              ChipSharp.Hardware.Timing: Delay(System.TimeSpan)
+            """.ReplaceLineEndings("\n"), Calls.List(methods));
+        Assert.Equal(Calls.Summarize(KnownExternals.All.Select(function => function.LibraryMethod)),
+            Calls.Summary);
     }
 }

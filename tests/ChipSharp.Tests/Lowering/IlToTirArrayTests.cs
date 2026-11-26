@@ -410,12 +410,12 @@ public sealed class IlToTirArrayTests
             """;
 
         Assert.Equal("Test.dll: C.Make(): it returns int32[], and an array that leaves the method that creates it " +
-            "(returned, or stored in a field or in another array) arrives with the heap in M3.",
+            "(returned, or stored in a field or in another array) arrives with M3 (the heap).",
             Error(Source, "C.Make").Message);
         Assert.Equal("Test.dll: C.Sized(int32) at IL_0001: newarr: an array whose size is known only when the program " +
-            "runs arrives with the heap in M3.", Error(Source, "C.Sized").Message);
+            "runs arrives with M3 (the heap).", Error(Source, "C.Sized").Message);
         Assert.Equal("Test.dll: C.First() at IL_000c: ret: an array that leaves the method that creates it (returned, " +
-            "or stored in a field or in another array) arrives with the heap in M3.", Error(Source, "C.First").Message);
+            "or stored in a field or in another array) arrives with M3 (the heap).", Error(Source, "C.First").Message);
     }
 
     private static string Function(string name) =>

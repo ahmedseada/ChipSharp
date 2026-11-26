@@ -8,7 +8,7 @@ namespace ChipSharp.Tests.Analysis;
 /// </summary>
 public sealed class RejectionTests
 {
-    private const string Objects = "For now, use static methods with whole-number and bool values.";
+    private const string Objects = "For now, use structs and static methods.";
 
     private const string Source = """
         using System;
@@ -30,10 +30,10 @@ public sealed class RejectionTests
         var error = Error(Source);
 
         Assert.Equal($"""
-            Test.dll uses 3 C# features that M0 does not compile yet (5 places):
-              arrays of strings, objects or arrays arrive after M0: 3 places in Program.Main() (IL_0001, IL_000d and IL_000f). For now, use arrays of whole numbers or bools.
-              text strings arrive after M0: 1 place in Program.Main() (IL_0008). For now, print numbers and bools with Console.WriteLine.
-              the library method System.Console.WriteLine(string) is not available in M0: 1 place in Program.Main() (IL_0010).
+            Test.dll uses 3 C# features that ChipSharp does not compile yet (5 places):
+              arrays of strings, objects or arrays arrive with M3 (the heap): 3 places in Program.Main() (IL_0001, IL_000d and IL_000f). For now, use arrays of numbers, bools, structs or enums.
+              text strings arrive with M3 (the heap): 1 place in Program.Main() (IL_0008). For now, print numbers and bools with Console.WriteLine.
+              the library method System.Console.WriteLine(string) is not available yet: 1 place in Program.Main() (IL_0010).
             {LibraryCalls}
             For every place, run: chipsharp check Test.dll --details
             """.ReplaceLineEndings("\n"), error.Message);
@@ -46,13 +46,13 @@ public sealed class RejectionTests
         var analysis = Check(Source);
 
         Assert.Equal($"""
-            Test.dll uses 3 C# features that M0 does not compile yet (5 places):
-              Program.Main() at IL_0001 (newarr): arrays of strings, objects or arrays arrive after M0. For now, use arrays of whole numbers or bools.
-              Program.Main() at IL_0008 (ldstr): text strings arrive after M0. For now, print numbers and bools with Console.WriteLine.
-              Program.Main() at IL_000d (stelem.ref): arrays of strings, objects or arrays arrive after M0. For now, use arrays of whole numbers or bools.
-              Program.Main() at IL_000f (ldelem.ref): arrays of strings, objects or arrays arrive after M0. For now, use arrays of whole numbers or bools.
-              Program.Main() at IL_0010 (call): the library method System.Console.WriteLine(string) is not available in M0.
-            {LibraryCalls}
+            Test.dll uses 3 C# features that ChipSharp does not compile yet (5 places):
+              Program.Main() at IL_0001 (newarr): arrays of strings, objects or arrays arrive with M3 (the heap). For now, use arrays of numbers, bools, structs or enums.
+              Program.Main() at IL_0008 (ldstr): text strings arrive with M3 (the heap). For now, print numbers and bools with Console.WriteLine.
+              Program.Main() at IL_000d (stelem.ref): arrays of strings, objects or arrays arrive with M3 (the heap). For now, use arrays of numbers, bools, structs or enums.
+              Program.Main() at IL_000f (ldelem.ref): arrays of strings, objects or arrays arrive with M3 (the heap). For now, use arrays of numbers, bools, structs or enums.
+              Program.Main() at IL_0010 (call): the library method System.Console.WriteLine(string) is not available yet.
+            {LibraryCallDetails}
             """.ReplaceLineEndings("\n"), analysis.Details);
         Assert.Equal([1, 8, 13, 15, 16], analysis.Problems.Select(problem => problem.Offset));
         Assert.All(analysis.Problems, problem => Assert.Equal("Program.Main", problem.Method.DisplayName));
@@ -78,11 +78,11 @@ public sealed class RejectionTests
 
         Assert.Equal(
         [
-            "Program.First(int) at IL_0002 (add.ovf): checked arithmetic arrives after M0. "
-                + "For now, leave out checked: M0 arithmetic wraps around on overflow, like unchecked C#.",
-            "Program.Second() at IL_0000 (ldstr): text strings arrive after M0. "
+            "Program.First(int) at IL_0002 (add.ovf): checked arithmetic arrives later. "
+                + "For now, leave out checked: ChipSharp's arithmetic wraps around on overflow, like unchecked C#.",
+            "Program.Second() at IL_0000 (ldstr): text strings arrive with M3 (the heap). "
                 + "For now, print numbers and bools with Console.WriteLine.",
-            "Program.Second() at IL_0005 (call): the library method string.get_Length() is not available in M0.",
+            "Program.Second() at IL_0005 (call): the library method string.get_Length() is not available yet.",
         ], problems);
     }
 
@@ -103,9 +103,9 @@ public sealed class RejectionTests
 
         Assert.Equal(
         [
-            $"Program.Main() at IL_0001 (newobj): creating objects (new ...) arrives after M0. {Objects}",
-            "Program.Main() at IL_0008 (callvirt): instance or virtual method calls arrive after M0. "
-                + "For now, call static methods of your own program.",
+            $"Program.Main() at IL_0001 (newobj): creating objects (new ...) arrives with M3 (the heap). {Objects}",
+            "Program.Main() at IL_0008 (callvirt): instance or virtual method calls arrive with M3 (the heap). "
+                + "For now, call static methods, or the methods of your own structs.",
         ], problems);
     }
 
@@ -129,10 +129,10 @@ public sealed class RejectionTests
 
         Assert.Equal(
         [
-            "Program.Main() at IL_0000 (ldstr): text strings arrive after M0. For now, print numbers and bools with Console.WriteLine.",
-            "Program.Main() at IL_0005 (call): the library method System.Console.WriteLine(string) is not available in M0.",
-            $"Program.Main() at IL_000a (ldnull): null arrives after M0. {Objects}",
-            "Program.Length(string), parameter 'text' (string): text strings arrive after M0. "
+            "Program.Main() at IL_0000 (ldstr): text strings arrive with M3 (the heap). For now, print numbers and bools with Console.WriteLine.",
+            "Program.Main() at IL_0005 (call): the library method System.Console.WriteLine(string) is not available yet.",
+            $"Program.Main() at IL_000a (ldnull): null arrives with M3 (the heap). {Objects}",
+            "Program.Length(string), parameter 'text' (string): text strings arrive with M3 (the heap). "
                 + "For now, print numbers and bools with Console.WriteLine.",
         ], problems);
     }
@@ -158,10 +158,10 @@ public sealed class RejectionTests
         Assert.Equal(
         [
             "Program.Make(int), return type (int[]): an array that leaves the method that creates it (returned, or "
-                + "stored in a field or in another array) arrives with the heap in M3. For now, keep each array in the "
+                + "stored in a field or in another array) arrives with M3 (the heap). For now, keep each array in the "
                 + "method that creates it; the methods it calls can take it as a parameter.",
             "Program.Make(int) at IL_0001 (newarr): an array whose size is known only when the program runs arrives "
-                + "with the heap in M3. For now, give the array a fixed size: a constant, such as new int[16].",
+                + "with M3 (the heap). For now, give the array a fixed size: a constant, such as new int[16].",
         ], problems);
     }
 
@@ -190,8 +190,8 @@ public sealed class RejectionTests
         Assert.Equal(
         [
             "Program.Main() at IL_0005 (call): the library method System.Threading.Interlocked.Increment(ref int) "
-                + "is not available in M0.",
-            "Program.Main() at IL_001a (ldsfld): the library field nint.Zero is not available in M0. "
+                + "is not available yet.",
+            "Program.Main() at IL_001a (ldsfld): the library field nint.Zero is not available yet. "
                 + "For now, use constants or the static fields of your own types.",
         ], problems);
     }
@@ -215,8 +215,8 @@ public sealed class RejectionTests
             }
             """);
 
-        const string Checked = "checked arithmetic arrives after M0. "
-            + "For now, leave out checked: M0 arithmetic wraps around on overflow, like unchecked C#.";
+        const string Checked = "checked arithmetic arrives later. "
+            + "For now, leave out checked: ChipSharp's arithmetic wraps around on overflow, like unchecked C#.";
         Assert.Equal(
         [
             $"Program.Twice(int) at IL_0002 (mul.ovf): {Checked}",
@@ -246,9 +246,9 @@ public sealed class RejectionTests
 
         Assert.Equal(
         [
-            "Program.Main() at IL_0017 (call): the library method System.Math.Sin(double) is not available in M0.",
-            "Program.Main() at IL_0027 (conv.ovf.i4): checked arithmetic arrives after M0. For now, leave out " +
-                "checked: M0 arithmetic wraps around on overflow, like unchecked C#.",
+            "Program.Main() at IL_0017 (call): the library method System.Math.Sin(double) is not available yet.",
+            "Program.Main() at IL_0027 (conv.ovf.i4): checked arithmetic arrives later. For now, leave out " +
+                "checked: ChipSharp's arithmetic wraps around on overflow, like unchecked C#.",
         ], problems);
     }
 
@@ -284,14 +284,14 @@ public sealed class RejectionTests
             }
             """);
 
-        const string Exceptions = "exceptions arrive after M0. For now, report failures through return values.";
+        const string Exceptions = "exceptions arrive later. For now, report failures through return values.";
         Assert.Equal(
         [
-            "Program.Main() at IL_0000: try/catch/finally arrive after M0. For now, report failures through return values; "
+            "Program.Main() at IL_0000: try/catch/finally arrive later. For now, report failures through return values; "
                 + "using, lock and foreach over a collection make a try/finally too.",
             $"Program.Main() at IL_000b (leave.s): {Exceptions}",
             $"Program.Main() at IL_0012 (endfinally): {Exceptions}",
-            $"Program.Check(int) at IL_0004 (newobj): creating objects (new ...) arrives after M0. {Objects}",
+            $"Program.Check(int) at IL_0004 (newobj): creating objects (new ...) arrives with M3 (the heap). {Objects}",
             $"Program.Check(int) at IL_0009 (throw): {Exceptions}",
         ], problems);
     }
@@ -315,9 +315,9 @@ public sealed class RejectionTests
 
         Assert.Equal(
         [
-            "Program.Main() at IL_0006 (call): the library method System.Console.WriteLine(object) is not available in M0.",
-            $"Program.Wrap(int), return type (object): classes and objects arrive after M0. {Objects}",
-            "Program.Wrap(int) at IL_0001 (box): boxing (using a value as an object) arrives after M0. "
+            "Program.Main() at IL_0006 (call): the library method System.Console.WriteLine(object) is not available yet.",
+            $"Program.Wrap(int), return type (object): classes and objects arrive with M3 (the heap). {Objects}",
+            "Program.Wrap(int) at IL_0001 (box): boxing (using a value as an object) arrives with M3 (the heap). "
                 + "For now, keep values in their own types, such as int and bool.",
         ], problems);
     }
@@ -348,7 +348,7 @@ public sealed class RejectionTests
             }
             """);
 
-        const string Unsafe = "unsafe code (pointers, &x, sizeof, fixed) arrives after M0. "
+        const string Unsafe = "unsafe code (pointers, &x, sizeof, fixed) arrives later. "
             + "For now, use ref parameters, ref locals and structs.";
         Assert.Equal(
         [
@@ -383,15 +383,15 @@ public sealed class RejectionTests
             }
             """);
 
-        const string InstanceCalls = "instance or virtual method calls arrive after M0. "
-            + "For now, call static methods of your own program.";
+        const string InstanceCalls = "instance or virtual method calls arrive with M3 (the heap). "
+            + "For now, call static methods, or the methods of your own structs.";
         Assert.Equal(
         [
             $"Program.Main() at IL_0017 (constrained.): {InstanceCalls}",
             $"Program.Main() at IL_001d (callvirt): {InstanceCalls}",
-            "Program.Main() at IL_0028 (box): boxing (using a value as an object) arrives after M0. "
+            "Program.Main() at IL_0028 (box): boxing (using a value as an object) arrives with M3 (the heap). "
                 + "For now, keep values in their own types, such as int and bool.",
-            "Program.Main() at IL_002d (call): the library method System.Console.WriteLine(object) is not available in M0.",
+            "Program.Main() at IL_002d (call): the library method System.Console.WriteLine(object) is not available yet.",
         ], problems);
     }
 
@@ -415,14 +415,14 @@ public sealed class RejectionTests
             }
             """);
 
-        const string NewObject = $"creating objects (new ...) arrives after M0. {Objects}";
+        const string NewObject = $"creating objects (new ...) arrives with M3 (the heap). {Objects}";
         Assert.Equal(
         [
             $"Program.Main() at IL_0000 (newobj): {NewObject}",
-            "Program.Main() at IL_0005 (callvirt): instance or virtual method calls arrive after M0. "
-                + "For now, call static methods of your own program.",
+            "Program.Main() at IL_0005 (callvirt): instance or virtual method calls arrive with M3 (the heap). "
+                + "For now, call static methods, or the methods of your own structs.",
             $"Program.Main() at IL_000f (newobj): {NewObject}",
-            "Program.Get(): instance methods arrive after M0. For now, make the method static.",
+            "Program.Get(): instance methods of classes arrive with M3 (the heap). For now, make the method static, or make the class a struct.",
         ], problems);
     }
 
@@ -443,7 +443,7 @@ public sealed class RejectionTests
             }
             """);
 
-        Assert.Equal(["Program.Id<T>(T): generic methods arrive after M0. For now, write a method for each type you need."], problems);
+        Assert.Equal(["Program.Id<T>(T): generic methods arrive with M3 (the heap). For now, write a method for each type you need."], problems);
     }
 
     [Fact]
@@ -466,7 +466,7 @@ public sealed class RejectionTests
             }
             """);
 
-        Assert.Equal(["Box`1.Count(int): generic types arrive after M0. For now, put the method in a class that is not generic."], problems);
+        Assert.Equal(["Box`1.Count(int): generic types arrive with M3 (the heap). For now, write a type for each type argument you need."], problems);
     }
 
     [Fact]
@@ -485,7 +485,7 @@ public sealed class RejectionTests
             """);
 
         Assert.Equal(
-            ["Program.Main() at IL_0002 (call): the library method System.Math.Max(int, int) is not available in M0."],
+            ["Program.Main() at IL_0002 (call): the library method System.Math.Max(int, int) is not available yet."],
             problems);
     }
 
@@ -500,7 +500,7 @@ public sealed class RejectionTests
 
         Assert.Equal(
         [
-            "Program.<Main>$(string[]) at IL_0000 (ldarg.0): using the command-line arguments (args) arrives after M0. "
+            "Program.<Main>$(string[]) at IL_0000 (ldarg.0): using the command-line arguments (args) arrives later. "
                 + "For now, leave args unused: Main may take string[] args only if it never uses them.",
         ], problems);
     }
@@ -521,8 +521,8 @@ public sealed class RejectionTests
 
         Assert.Equal(
         [
-            $"Program.Main(string[]) at IL_0000 (ldnull): null arrives after M0. {Objects}",
-            "Program.Main(string[]) at IL_0001 (starg.s): using the command-line arguments (args) arrives after M0. "
+            $"Program.Main(string[]) at IL_0000 (ldnull): null arrives with M3 (the heap). {Objects}",
+            "Program.Main(string[]) at IL_0001 (starg.s): using the command-line arguments (args) arrives later. "
                 + "For now, leave args unused: Main may take string[] args only if it never uses them.",
         ], problems);
     }
@@ -544,9 +544,9 @@ public sealed class RejectionTests
 
         Assert.Equal(
         [
-            $"Program.Main() at IL_0000 (ldnull): null arrives after M0. {Objects}",
-            "Program.Count(string[]), parameter 'names' (string[]): arrays of strings, objects or arrays arrive after M0. "
-                + "For now, use arrays of whole numbers or bools.",
+            $"Program.Main() at IL_0000 (ldnull): null arrives with M3 (the heap). {Objects}",
+            "Program.Count(string[]), parameter 'names' (string[]): arrays of strings, objects or arrays arrive with M3 (the heap). "
+                + "For now, use arrays of numbers, bools, structs or enums.",
         ], problems);
     }
 
@@ -573,7 +573,7 @@ public sealed class RejectionTests
             """);
 
         Assert.Equal(
-            ["Program.Code(char), parameter 'c' (char): characters (char) arrive after M0. For now, use whole numbers."],
+            ["Program.Code(char), parameter 'c' (char): characters (char) arrive with M3 (the heap). For now, use whole numbers."],
             problems);
     }
 
@@ -596,7 +596,7 @@ public sealed class RejectionTests
             }
             """);
 
-        Assert.Equal(["Program.GetTickCount(): methods without a body (extern, DllImport) arrive after M0. For now, write the method in C#."],
+        Assert.Equal(["Program.GetTickCount(): methods without a body (extern, DllImport) arrive later. For now, write the method in C#."],
             problems);
     }
 
@@ -617,7 +617,7 @@ public sealed class RejectionTests
             """);
 
         Assert.Contains(problems, line => line.EndsWith(
-            "(ldftn): delegates, lambdas and function pointers arrive after M0. For now, call methods directly.",
+            "(ldftn): delegates, lambdas and function pointers arrive later. For now, call methods directly.",
             StringComparison.Ordinal));
         Assert.DoesNotContain(problems, line => line.StartsWith("Program.<>c", StringComparison.Ordinal));
     }

@@ -27,7 +27,7 @@ public sealed class ProblemGroup
     /// <summary>What is not supported, as C# programmers know it: "arrays", "the library method System.Math.Abs(int)".</summary>
     public string Feature => Problems[0].Feature;
 
-    /// <summary>True for the calls to one library method M0 does not have.</summary>
+    /// <summary>True for the calls to one library method ChipSharp does not have.</summary>
     public bool IsLibraryCall => Problems[0].IsLibraryCall;
 
     /// <summary>The places, in the order of the detailed list: method by method in the program's order.</summary>
@@ -37,8 +37,8 @@ public sealed class ProblemGroup
     public IReadOnlyList<IlMethod> Methods { get; }
 
     /// <summary>
-    /// E.g. "arrays arrive after M0: 6 places in the top-level statements (IL_0001, IL_000d, IL_0015 and 3 more).
-    /// For now, use separate variables."
+    /// E.g. "checked arithmetic arrives later: 6 places in the top-level statements (IL_0001, IL_000d, IL_0015 and 3
+    /// more). For now, leave out checked: ChipSharp's arithmetic wraps around on overflow, like unchecked C#."
     /// </summary>
     public string Line { get; }
 

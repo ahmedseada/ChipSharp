@@ -9,7 +9,7 @@ namespace ChipSharp.Tests.Analysis;
 public sealed class ArrayRejectionTests
 {
     private const string Escapes = "an array that leaves the method that creates it (returned, or stored in a field or "
-        + "in another array) arrives with the heap in M3. For now, keep each array in the method that creates it; the "
+        + "in another array) arrives with M3 (the heap). For now, keep each array in the method that creates it; the "
         + "methods it calls can take it as a parameter.";
 
     [Theory]
@@ -184,7 +184,7 @@ public sealed class ArrayRejectionTests
             """));
 
         Assert.Equal(["Program.Main() at IL_0012 (newarr): an array made in a loop while the one made there before is "
-            + "still in use arrives with the heap in M3. For now, make the array once, before the loop, and reuse it."],
+            + "still in use arrives with M3 (the heap). For now, make the array once, before the loop, and reuse it."],
             problems);
     }
 
@@ -208,10 +208,10 @@ public sealed class ArrayRejectionTests
             }
             """));
 
-        const string Name = "text strings in the field Program.Person.Name arrive after M0. For now, print numbers "
+        const string Name = "text strings in the field Program.Person.Name arrive with M3 (the heap). For now, print numbers "
             + "and bools with Console.WriteLine.";
         const string Children = "an array that leaves the method that creates it (returned, or stored in a field or in "
-            + "another array) in the field Program.Node.Children arrives with the heap in M3. For now, keep each array in "
+            + "another array) in the field Program.Node.Children arrives with M3 (the heap). For now, keep each array in "
             + "the method that creates it; the methods it calls can take it as a parameter.";
         Assert.Equal(
         [
@@ -262,8 +262,8 @@ public sealed class ArrayRejectionTests
             Console.WriteLine(grid[0].Length);
             """));
 
-        const string References = "arrays of strings, objects or arrays arrive after M0. For now, use arrays of whole "
-            + "numbers or bools.";
+        const string References = "arrays of strings, objects or arrays arrive with M3 (the heap). For now, use arrays "
+            + "of numbers, bools, structs or enums.";
         Assert.Equal(
         [
             $"Program.Main() at IL_0001 (newarr): {References}",
@@ -282,7 +282,7 @@ public sealed class ArrayRejectionTests
             """));
 
         Assert.Equal(["Program.Main() at IL_0007 (call): the library method System.Array.Clear(System.Array) is not "
-            + "available in M0."], problems);
+            + "available yet."], problems);
     }
 
     [Fact]
@@ -297,7 +297,7 @@ public sealed class ArrayRejectionTests
             """));
 
         Assert.Equal(["Program.Sized(int) at IL_0001 (newarr): an array whose size is known only when the program runs "
-            + "arrives with the heap in M3. For now, give the array a fixed size: a constant, such as new int[16]."],
+            + "arrives with M3 (the heap). For now, give the array a fixed size: a constant, such as new int[16]."],
             problems);
     }
 
@@ -318,7 +318,7 @@ public sealed class ArrayRejectionTests
             """));
 
         Assert.Equal(["Program.Main() at IL_000c (newarr): an array made in a loop while the one made there before is "
-            + "still in use arrives with the heap in M3. For now, make the array once, before the loop, and reuse it."],
+            + "still in use arrives with M3 (the heap). For now, make the array once, before the loop, and reuse it."],
             problems);
     }
 
@@ -337,7 +337,7 @@ public sealed class ArrayRejectionTests
             }
             """));
 
-        const string Comparisons = "comparing arrays (or an array with null) arrives after M0. For now, leave the "
+        const string Comparisons = "comparing arrays (or an array with null) arrives with M3 (the heap). For now, leave the "
             + "comparison out: an array on the stack is never null.";
         Assert.Equal(
         [
@@ -357,7 +357,7 @@ public sealed class ArrayRejectionTests
             """));
 
         Assert.Equal(
-            ["Program.Main() at IL_0018 (newarr): characters (char) arrive after M0. For now, use whole numbers."],
+            ["Program.Main() at IL_0018 (newarr): characters (char) arrive with M3 (the heap). For now, use whole numbers."],
             problems);
     }
 
@@ -370,7 +370,7 @@ public sealed class ArrayRejectionTests
             Console.WriteLine(grid[1, 2]);
             """));
 
-        const string Grids = "multi-dimensional arrays (int[,]) arrive after M0. For now, use a one-dimensional array "
+        const string Grids = "multi-dimensional arrays (int[,]) arrive later. For now, use a one-dimensional array "
             + "and compute the index: row * width + column.";
         Assert.Equal(
         [
@@ -389,9 +389,9 @@ public sealed class ArrayRejectionTests
             static int Kind() => typeof(int) == typeof(long) ? 1 : 0;
             """));
 
-        Assert.Contains("Program.Narrow(long) at IL_0001 (conv.ovf.i): checked arithmetic arrives after M0. For now, "
-            + "leave out checked: M0 arithmetic wraps around on overflow, like unchecked C#.", problems);
-        Assert.Contains("Program.Kind() at IL_0000 (ldtoken): typeof and type handles arrive after M0. For now, leave "
+        Assert.Contains("Program.Narrow(long) at IL_0001 (conv.ovf.i): checked arithmetic arrives later. For now, "
+            + "leave out checked: ChipSharp's arithmetic wraps around on overflow, like unchecked C#.", problems);
+        Assert.Contains("Program.Kind() at IL_0000 (ldtoken): typeof and type handles arrive later. For now, leave "
             + "them out.", problems);
     }
 
@@ -410,9 +410,9 @@ public sealed class ArrayRejectionTests
         Assert.Equal("an array that leaves the method that creates it (returned, or stored in a field or in another "
             + "array): 2 places in Program.Keep(int[]) (IL_0001) and Program.Make() (return type). For now, keep "
             + "each array in the method that creates it; the methods it calls can take it as a parameter.",
-            group.Line.Replace(" arrives with the heap in M3", "", StringComparison.Ordinal));
+            group.Line.Replace(" arrives with M3 (the heap)", "", StringComparison.Ordinal));
         Assert.StartsWith("an array that leaves the method that creates it (returned, or stored in a field or in "
-            + "another array) arrives with the heap in M3: 2 places", group.Line);
+            + "another array) arrives with M3 (the heap): 2 places", group.Line);
     }
 
     /// <summary>A class Program with <paramref name="main"/> as its Main and <paramref name="members"/> beside it.</summary>

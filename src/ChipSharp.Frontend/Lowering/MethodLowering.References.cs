@@ -267,6 +267,6 @@ internal sealed partial class MethodLowering
         type == TirType.Ptr ? "a reference (&)" : type.IsAggregate ? $"a {type.Name}" : LoweringErrors.StackTypeName(type);
 
     private static string UnsafeHint(TirType type) => type == TirType.Ptr
-        ? $" (turning a reference into a number is unsafe code, which {SupportedSubset.Milestone} does not compile)"
+        ? " (turning a reference into a number is unsafe code, which ChipSharp does not compile)"
         : "";
 }

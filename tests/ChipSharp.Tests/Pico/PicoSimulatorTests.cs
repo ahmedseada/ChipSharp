@@ -97,7 +97,7 @@ public sealed class PicoSimulatorTests : IDisposable
     }
 
     /// <summary>
-    /// Every M0 sample, built for the Pico, prints over UART0 exactly what .NET prints (its .expected.txt): this
+    /// Every sample, built for the Pico, prints over UART0 exactly what .NET prints (its .expected.txt): this
     /// runs the runtime's division, remainder and 64-bit helpers on the Cortex-M0+ the way programs use them.
     /// </summary>
     [SimulatorTheory]

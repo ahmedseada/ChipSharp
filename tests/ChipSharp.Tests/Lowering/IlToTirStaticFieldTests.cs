@@ -359,7 +359,7 @@ public sealed class IlToTirStaticFieldTests
         var error = Assert.Throws<ChipSharpException>(() => Lowered.Lower(Lowered.Program(emitted.Read(), "Program.F")));
 
         Assert.Equal("Emitted.dll: Program.F() at IL_0000: volatile. must come right before ldsfld, stsfld, ldfld or " +
-            "stfld: M0 has no other memory access it applies to.", error.Message);
+            "stfld: ChipSharp has no other memory access it applies to.", error.Message);
     }
 
     [Fact]
@@ -377,7 +377,7 @@ public sealed class IlToTirStaticFieldTests
         var error = Assert.Throws<ChipSharpException>(() => Lowered.Lower(Lowered.Program(emitted.Read(), "Program.F")));
 
         Assert.Equal("Emitted.dll: Program.F() at IL_0000: the field Program.name has type string, which is not " +
-            "supported yet (M0 compiles bool, whole numbers, float, double, and the structs and enums of the program).",
+            "supported yet (ChipSharp compiles bool, whole numbers, float, double, and the structs and enums of the program).",
             error.Message);
     }
 
@@ -409,7 +409,7 @@ public sealed class IlToTirStaticFieldTests
             }
             """));
 
-        Assert.Equal("Test.dll: Program.Main() at IL_0000: ldsfld of System.IntPtr.Zero is not supported: M0 compiles " +
+        Assert.Equal("Test.dll: Program.Main() at IL_0000: ldsfld of System.IntPtr.Zero is not supported: ChipSharp compiles " +
             "the static fields of the program's own types.", error.Message);
     }
 

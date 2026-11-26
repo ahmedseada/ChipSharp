@@ -4,7 +4,7 @@ using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Analysis;
 
-/// <summary>Every sample program in samples/ is inside the M0 subset, so the whole-program pass accepts it.</summary>
+/// <summary>The whole-program pass accepts every sample program in samples/.</summary>
 public sealed class SampleCheckTests
 {
     public static TheoryData<string> Samples() => new(SampleNames());

@@ -81,10 +81,10 @@ public sealed class FloatCheckTests
 
         Assert.Equal(
         [
-            "Program.Main() at IL_000f (call): the library method System.Math.Sin(double) is not available in M0.",
-            "Program.Main() at IL_001a (call): the library method System.Math.Floor(double) is not available in M0.",
-            "Program.Main() at IL_0024 (call): the library method double.IsNaN(double) is not available in M0.",
-            "Program.Main() at IL_0030 (call): the library method System.Math.Abs(int) is not available in M0.",
+            "Program.Main() at IL_000f (call): the library method System.Math.Sin(double) is not available yet.",
+            "Program.Main() at IL_001a (call): the library method System.Math.Floor(double) is not available yet.",
+            "Program.Main() at IL_0024 (call): the library method double.IsNaN(double) is not available yet.",
+            "Program.Main() at IL_0030 (call): the library method System.Math.Abs(int) is not available yet.",
         ], problems);
     }
 
@@ -93,7 +93,7 @@ public sealed class FloatCheckTests
     {
         var ckfinite = Unsupported.ForInstruction(IlOpCode.Ckfinite);
 
-        Assert.Equal("checking that a float is finite (ckfinite) arrives after M0. For now, compare it: " +
+        Assert.Equal("checking that a float is finite (ckfinite) arrives later. For now, compare it: " +
             "x >= -double.MaxValue && x <= double.MaxValue is false for NaN and the infinities.", ckfinite.Message);
     }
 }

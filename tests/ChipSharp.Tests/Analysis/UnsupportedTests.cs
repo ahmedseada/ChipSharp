@@ -4,7 +4,7 @@ using ChipSharp.Frontend.Il;
 
 namespace ChipSharp.Tests.Analysis;
 
-/// <summary>The C# words for every IL instruction M0 does not compile.</summary>
+/// <summary>The C# words for every IL instruction ChipSharp does not compile, and when each is planned.</summary>
 public sealed class UnsupportedTests
 {
     [Theory]
@@ -16,9 +16,9 @@ public sealed class UnsupportedTests
     [InlineData(IlOpCode.Ldelema, "arrays")]
     [InlineData(IlOpCode.Stelem_Ref, "arrays")]
     [InlineData(IlOpCode.Ldlen, "arrays")]
-    [InlineData(IlOpCode.Ldfld, "instance fields (fields without static)")]
-    [InlineData(IlOpCode.Stfld, "instance fields (fields without static)")]
-    [InlineData(IlOpCode.Ldflda, "instance fields (fields without static)")]
+    [InlineData(IlOpCode.Ldfld, "instance fields of classes (fields without static)")]
+    [InlineData(IlOpCode.Stfld, "instance fields of classes (fields without static)")]
+    [InlineData(IlOpCode.Ldflda, "instance fields of classes (fields without static)")]
     [InlineData(IlOpCode.Ldsflda, "taking addresses (ref, out, struct methods)")]
     [InlineData(IlOpCode.Add_Ovf, "checked arithmetic")]
     [InlineData(IlOpCode.Sub_Ovf_Un, "checked arithmetic")]
@@ -48,12 +48,12 @@ public sealed class UnsupportedTests
     }
 
     [Fact]
-    public void Every_instruction_outside_the_subset_says_it_arrives_after_M0()
+    public void Every_instruction_outside_the_subset_says_when_it_arrives_and_what_to_do_for_now()
     {
         Assert.All(IlOpCodes.All.Where(op => !SupportedSubset.OpCodes.Contains(op)), op =>
         {
             var message = Unsupported.ForInstruction(op).Message;
-            Assert.Matches(@"^.+ arrives? after M0\. .+\.$", message);
+            Assert.Matches(@"^.+ arrives? (later|with M3 \(the heap\))\. For now, .+\.$", message);
         });
     }
 

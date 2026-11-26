@@ -135,7 +135,7 @@ public sealed class BuildErrorTests : IDisposable
             new BuildOptions { TargetsFolder = ShippedTargets, OutputFolder = output, KeepIntermediates = true }));
 
         Assert.Equal(WholeProgramPass.Check(IlAssembly.Load(dll)).Summary, error.Message);
-        Assert.StartsWith($"{dll} uses 2 C# features that M0 does not compile yet (2 places):\n  text strings arrive after M0: "
+        Assert.StartsWith($"{dll} uses 2 C# features that ChipSharp does not compile yet (2 places):\n  text strings arrive with M3 (the heap): "
             + "1 place in Program.Main() (IL_0000).", error.Message);
         Assert.EndsWith($"\nFor every place, run: chipsharp check {ChipSharpCli.Quoted(dll)} --details", error.Message);
         Assert.False(Directory.Exists(output));

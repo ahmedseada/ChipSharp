@@ -1,3 +1,4 @@
+using ChipSharp.Tests.Analysis;
 using ChipSharp.Tests.Host;
 using ChipSharp.Tests.Lowering;
 using ChipSharp.Tests.Support;
@@ -91,17 +92,17 @@ public sealed class BuildCliTests : IDisposable
         Assert.Equal(1, build.ExitCode);
         Assert.Equal("", build.Output);
         var lines = build.Error.ReplaceLineEndings("\n").TrimEnd().Split('\n');
-        Assert.Equal($"error: {dll} uses 2 C# features that M0 does not compile yet (4 places):", lines[0]);
+        Assert.Equal($"error: {dll} uses 2 C# features that ChipSharp does not compile yet (4 places):", lines[0]);
         Assert.Equal(
         [
-            "  text strings arrive after M0: 2 places in Program.Main() (IL_0000 and IL_0011). "
+            "  text strings arrive with M3 (the heap): 2 places in Program.Main() (IL_0000 and IL_0011). "
                 + "For now, print numbers and bools with Console.WriteLine.",
-            "  the library method System.Console.WriteLine(string) is not available in M0: 2 places in Program.Main() "
+            "  the library method System.Console.WriteLine(string) is not available yet: 2 places in Program.Main() "
                 + "(IL_0005 and IL_0016).",
         ], lines[1..3]);
-        Assert.StartsWith("M0 supports these library calls: System.Console.WriteLine(), ", lines[3]);
-        Assert.Equal($"For every place, run: chipsharp check {ChipSharpCli.Quoted(dll)} --details", lines[4]);
-        Assert.Equal(5, lines.Length);
+        Assert.Equal(WholeProgram.LibraryCalls.Split('\n'), lines[3..7]);
+        Assert.Equal($"For every place, run: chipsharp check {ChipSharpCli.Quoted(dll)} --details", lines[7]);
+        Assert.Equal(8, lines.Length);
         Assert.Equal(check.Error, build.Error);
         Assert.Equal(check.ExitCode, build.ExitCode);
         Assert.False(Directory.Exists(Path.Combine(_scratch, "chipsharp-output")));

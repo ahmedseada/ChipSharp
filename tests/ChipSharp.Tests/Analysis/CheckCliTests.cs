@@ -40,7 +40,7 @@ public sealed class CheckCliTests : IDisposable
         Assert.Equal("", error);
         Assert.Equal(0, exitCode);
         Assert.Equal($"""
-            {dll}: supported by M0. The program uses 3 methods, entry point first:
+            {dll}: ChipSharp compiles it. The program uses 3 methods, entry point first:
               Program.Main()
               Program.Square(int)
               Program.IsBig(long)
@@ -49,7 +49,7 @@ public sealed class CheckCliTests : IDisposable
     }
 
     [Fact]
-    public async Task Check_lists_the_CSharp_features_of_a_program_M0_cannot_compile()
+    public async Task Check_lists_the_CSharp_features_of_a_program_ChipSharp_cannot_compile_yet()
     {
         var dll = CompileHalf();
 
@@ -58,9 +58,9 @@ public sealed class CheckCliTests : IDisposable
         Assert.Equal("", output);
         Assert.Equal(1, exitCode);
         Assert.Equal($"""
-            error: {dll} uses 2 C# features that M0 does not compile yet (2 places):
-              the library method System.Math.Abs(int) is not available in M0: 1 place in Program.Main() (IL_000e).
-              checked arithmetic arrives after M0: 1 place in Program.Half(int) (IL_000c). For now, leave out checked: M0 arithmetic wraps around on overflow, like unchecked C#.
+            error: {dll} uses 2 C# features that ChipSharp does not compile yet (2 places):
+              the library method System.Math.Abs(int) is not available yet: 1 place in Program.Main() (IL_000e).
+              checked arithmetic arrives later: 1 place in Program.Half(int) (IL_000c). For now, leave out checked: ChipSharp's arithmetic wraps around on overflow, like unchecked C#.
             {WholeProgram.LibraryCalls}
             For every place, run: chipsharp check {ChipSharpCli.Quoted(dll)} --details
 
@@ -77,10 +77,10 @@ public sealed class CheckCliTests : IDisposable
         Assert.Equal("", output);
         Assert.Equal(1, exitCode);
         Assert.Equal($"""
-            error: {dll} uses 2 C# features that M0 does not compile yet (2 places):
-              Program.Main() at IL_000e (call): the library method System.Math.Abs(int) is not available in M0.
-              Program.Half(int) at IL_000c (conv.ovf.i4): checked arithmetic arrives after M0. For now, leave out checked: M0 arithmetic wraps around on overflow, like unchecked C#.
-            {WholeProgram.LibraryCalls}
+            error: {dll} uses 2 C# features that ChipSharp does not compile yet (2 places):
+              Program.Main() at IL_000e (call): the library method System.Math.Abs(int) is not available yet.
+              Program.Half(int) at IL_000c (conv.ovf.i4): checked arithmetic arrives later. For now, leave out checked: ChipSharp's arithmetic wraps around on overflow, like unchecked C#.
+            {WholeProgram.LibraryCallDetails}
 
             """.ReplaceLineEndings("\n"), error.ReplaceLineEndings("\n"));
     }
@@ -95,7 +95,7 @@ public sealed class CheckCliTests : IDisposable
 
         Assert.Equal("", error);
         Assert.Equal(0, exitCode);
-        Assert.StartsWith($"{dll}: supported by M0. The program uses 1 method, entry point first:", output);
+        Assert.StartsWith($"{dll}: ChipSharp compiles it. The program uses 1 method, entry point first:", output);
     }
 
     [Fact]

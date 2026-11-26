@@ -43,12 +43,13 @@ public sealed class Problem
     /// <summary>What is not supported, as C# programmers know it: "arrays", "the library method System.Math.Abs(int)".</summary>
     public string Feature => Unsupported.What;
 
-    /// <summary>True for a call to a library method M0 does not have; every such method is a feature of its own.</summary>
+    /// <summary>True for a call to a library method ChipSharp lacks; every such method is a feature of its own.</summary>
     public bool IsLibraryCall => Unsupported.IsLibraryMethod;
 
     /// <summary>
     /// The method, the place and the message, e.g.
-    /// "Program.Main() at IL_0001 (newarr): arrays arrive after M0. For now, use separate variables."
+    /// "Program.Main() at IL_0008 (ldstr): text strings arrive with M3 (the heap). For now, print numbers and bools
+    /// with Console.WriteLine."
     /// </summary>
     public string Line { get; }
 
@@ -58,7 +59,7 @@ public sealed class Problem
 
     public override string ToString() => Line;
 
-    /// <summary>The method itself: "Counter.Next(int): instance methods arrive after M0. ...".</summary>
+    /// <summary>The method itself: "Counter.Next(int): instance methods of classes arrive with M3 (the heap) ...".</summary>
     internal static Problem InMethod(IlMethod method, Unsupported unsupported) =>
         new(method, PlaceKind.Method, "", "", null, unsupported);
 

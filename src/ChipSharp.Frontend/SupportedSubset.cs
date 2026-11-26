@@ -6,16 +6,14 @@ using ChipSharp.Ir;
 namespace ChipSharp.Frontend;
 
 /// <summary>
-/// What milestone M0 compiles: static methods (and the methods of structs) over whole numbers, floats and bools, the
-/// program's structs and enums, references to them and arrays of them on the stack, with branches, loops, switch and
-/// calls, printing through <see cref="KnownExternals"/>. The whole-program pass rejects anything else with a clear
-/// message; the IL-to-TIR translation handles exactly this set. Later milestones grow it.
+/// What ChipSharp compiles today: static methods (and the methods of structs) over whole numbers, floats and bools,
+/// the program's structs and enums, references to them and arrays of them on the stack, static fields, with branches,
+/// loops, switch and calls, printing and the hardware through <see cref="KnownExternals"/>. The whole-program pass
+/// rejects anything else with a clear message that says when it is planned; the IL-to-TIR translation handles exactly
+/// this set. Later milestones grow it.
 /// </summary>
 public static class SupportedSubset
 {
-    /// <summary>The milestone this subset belongs to, for messages ("... arrives after M0").</summary>
-    public const string Milestone = "M0";
-
     /// <summary>The IL instructions compiled today. Checked arithmetic (<c>*.ovf</c>), objects, arrays (but those of
     /// <see cref="StackArrays"/>), strings, pointers, exceptions and ckfinite are not in it; newobj and the field
     /// instructions are there for structs only.</summary>
@@ -81,7 +79,7 @@ public static class SupportedSubset
     }
 
     /// <summary>
-    /// The TIR type of a primitive type M0 supports: bool, the whole numbers of every width (TIR types carry no sign;
+    /// The TIR type of a primitive type ChipSharp has: bool, the whole numbers of every width (TIR types carry no sign;
     /// signed and unsigned share one), nint/nuint, float, double and void. The other types a program may use build on
     /// these: see <see cref="TryMapType(IlType, IlAssembly, out TirType?)"/>.
     /// </summary>
