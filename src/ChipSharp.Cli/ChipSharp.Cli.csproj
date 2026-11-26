@@ -8,6 +8,7 @@
     <ToolCommandName>chipsharp</ToolCommandName>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Frontend\ChipSharp.Frontend.csproj" />
     <ProjectReference Include="..\ChipSharp.Targets\ChipSharp.Targets.csproj" />
   </ItemGroup>
   <ItemGroup>
