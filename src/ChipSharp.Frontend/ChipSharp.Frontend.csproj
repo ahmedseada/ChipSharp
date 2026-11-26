@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The frontend: reads the IL of a compiled C# assembly (and translates it to TIR) -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ChipSharp.Tests" />
+  </ItemGroup>
+</Project>

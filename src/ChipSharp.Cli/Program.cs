@@ -1,12 +1,15 @@
-// chipsharp: the command line. For now it knows the target files:
+// chipsharp: the command line. For now it knows the target files and reads IL:
 //
 //   chipsharp targets list           every target
 //   chipsharp targets show <name>    one target, with everything it inherits merged in
+//   chipsharp il <assembly.dll>      the IL of every method, ildasm style
 //
-// Option: --targets <folder>  (default: $env:CHIPSHARP_TARGETS, then the targets folder next to chipsharp.exe)
+// Options: --targets <folder>  (default: $env:CHIPSHARP_TARGETS, then the targets folder next to chipsharp.exe)
+//          --method <name>     with il: only the methods with this display name, e.g. Program.Main
 
 using System.Globalization;
 using ChipSharp.Abstractions;
+using ChipSharp.Frontend.Il;
 using ChipSharp.Targets;
 
 try
@@ -15,6 +18,7 @@ try
     var folder = TakeOption(rest, "--targets")
         ?? Environment.GetEnvironmentVariable(TargetLoader.EnvironmentVariable)
         ?? Path.Combine(AppContext.BaseDirectory, "targets");
+    var methodName = TakeOption(rest, "--method");
 
     switch (rest)
     {
@@ -34,14 +38,35 @@ try
             return 0;
         }
 
+        case ["il", var path]:
+        {
+            var assembly = IlAssembly.Load(path);
+            if (methodName is null)
+            {
+                Console.Write(IlPrinter.Print(assembly));
+                return 0;
+            }
+
+            var methods = assembly.FindMethods(methodName);
+            if (methods.Count == 0)
+            {
+                throw new ChipSharpException($"{path} has no method named '{methodName}' (write it as Type.Method, e.g. Program.Main).");
+            }
+
+            Console.Write(IlPrinter.Print(methods));
+            return 0;
+        }
+
         default:
         {
             Console.WriteLine("""
                 usage:
                   chipsharp targets list
                   chipsharp targets show <name>
-                option:
+                  chipsharp il <assembly.dll> [--method <name>]
+                options:
                   --targets <folder>   where the target files are (or set CHIPSHARP_TARGETS)
+                  --method <name>      il: only the methods with this display name, e.g. Program.Main
                 """);
             return 2;
         }
