@@ -14,7 +14,7 @@ namespace ChipSharp.Frontend.Il;
 /// (<see cref="IlMethod.Body"/>). The whole file is read into memory, so nothing needs disposing.
 /// Problems are reported as <see cref="ChipSharpException"/>s that name the file (and the method and offset).
 /// </summary>
-public sealed class IlAssembly
+public sealed partial class IlAssembly
 {
     private readonly PEReader _pe;
     private readonly MetadataReader _reader;

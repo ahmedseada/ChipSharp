@@ -20,10 +20,12 @@ public sealed class HardwareLibraryTests
     {
         Assert.Equal(
             [
-                "Pin.Input(Int32)", "Pin.Output(Int32)", "Pin.Read(Int32)", "Pin.Toggle(Int32)",
-                "Pin.Write(Int32, Boolean)",
+                "Pin.Input(Int32)", "Pin.Output(Int32)", "Pin.Read(Int32)", "Pin.Toggle(Int32)", "Pin.Unwatch(Int32)",
+                "Pin.Watch(Int32)", "Pin.WatchFalling(Int32)", "Pin.WatchRising(Int32)", "Pin.Write(Int32, Boolean)",
                 "Registers.Read(UInt32)", "Registers.Write(UInt32, UInt32)",
-                "Timing.DelayMicroseconds(Int32)", "Timing.DelayMilliseconds(Int32)",
+                "Timing.AfterMicroseconds(Int32)", "Timing.AfterMilliseconds(Int32)", "Timing.DelayMicroseconds(Int32)",
+                "Timing.DelayMilliseconds(Int32)", "Timing.EveryMicroseconds(Int32)", "Timing.EveryMilliseconds(Int32)",
+                "Timing.Stop()",
             ],
             HardwareMethods.Select(m => $"{m.DeclaringType!.Name}.{m.Name}({string.Join(", ", m.GetParameters().Select(p => p.ParameterType.Name))})")
                 .Order(StringComparer.Ordinal));

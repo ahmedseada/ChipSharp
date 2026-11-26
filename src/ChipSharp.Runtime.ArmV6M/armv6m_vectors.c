@@ -2,8 +2,9 @@
 //
 // The table has the 16 entries every Cortex-M has, then 32 interrupts (the most ARMv6-M allows). It lives in the
 // section .vectors, which the linker script places where the chip looks for it. A chip runtime handles an
-// interrupt by defining its handler, e.g. chipsharp_isr_irq0; every handler nobody defines sleeps forever, so a
-// debugger (or the simulator) finds the core stopped in that exception.
+// interrupt by defining its handler, e.g. chipsharp_isr_irq0, and so does a program with an [Interrupt] method: the
+// compiler exports its entry as chipsharp_isr_irq<n>, n from the target's "interrupts" table. Every handler nobody
+// defines sleeps forever, so a debugger (or the simulator) finds the core stopped in that exception.
 
 void chipsharp_reset(void);
 

@@ -13,6 +13,12 @@
     // boot2 fills the first 256 bytes of flash, so the vector table lands at 0x10000100, where boot2 jumps
     "head": [ { "section": ".boot2", "size": 256 } ]
   },
+  "interrupts": {
+    // the events an [Interrupt] method can handle: the interrupt (IRQ) whose vector runs it, and the runtime function
+    // that runs first, which clears the event (and arms a repeating timer's next time)
+    "timer": { "irq": 1, "clear": "chipsharp_clear_timer_event" },   // TIMER_IRQ_1: alarm 1 (the delays use alarm 0)
+    "pin": { "irq": 13, "clear": "chipsharp_clear_pin_event" }       // IO_IRQ_BANK0: GPIO 0-29 edges
+  },
   "image": "uf2",
   "uf2FamilyId": "0xe48bff56",
   "flasher": "uf2-copy",

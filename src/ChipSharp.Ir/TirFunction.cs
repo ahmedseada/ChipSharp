@@ -18,6 +18,7 @@ public sealed class TirFunction
 {
     private readonly List<TirSlot> _slots = [];
     private readonly List<TirBlock> _blocks = [];
+    private string? _exportName;
 
     internal TirFunction(TirModule module, TirFunctionKind kind, string name, TirType returnType,
         IEnumerable<(string Name, TirType Type)> parameters)
@@ -64,6 +65,21 @@ public sealed class TirFunction
 
     /// <summary>What the function returns; <see cref="TirType.Void"/> when it returns nothing.</summary>
     public TirType ReturnType { get; }
+
+    /// <summary>
+    /// The symbol a defined function is exported under, so that the runtime can call it, e.g. <c>chipsharp_isr_irq1</c>
+    /// for an interrupt handler the vector table names; it is printed as <c>export chipsharp_isr_irq1</c>. Null (the
+    /// default) for a function only the program calls, whose symbol the code generator makes from <see cref="Name"/>.
+    /// A symbol is a C name: letters, digits and _, not starting with a digit.
+    /// </summary>
+    public string? ExportName
+    {
+        get => _exportName;
+        set => _exportName = value is null || (value.Length > 0 && !char.IsAsciiDigit(value[0])
+            && value.All(c => char.IsAsciiLetterOrDigit(c) || c == '_'))
+            ? value
+            : throw new TirException($"Function '{Name}': '{value}' cannot be a symbol; use letters, digits and _.");
+    }
 
     public IReadOnlyList<TirParameter> Parameters { get; }
 

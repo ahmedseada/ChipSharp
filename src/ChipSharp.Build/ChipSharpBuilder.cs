@@ -57,7 +57,7 @@ public static class ChipSharpBuilder
             ?? throw new InvalidOperationException("The registry factory returned no registry.");
         var parts = Parts.Find(registry, target);
 
-        var module = IlToTir.Lower(WholeProgramPass.Analyze(assembly));
+        var module = IlToTir.Lower(WholeProgramPass.Analyze(assembly, target));
         var kept = new List<string>();
         if (options.KeepIntermediates)
         {
@@ -99,13 +99,15 @@ public static class ChipSharpBuilder
 
     /// <summary>
     /// The program in the assembly at <paramref name="assemblyPath"/> as TIR: read, checked by the whole-program pass
-    /// and translated, as a build does before it generates code. (Generating code also verifies the TIR; this does
-    /// not, so even TIR that is not well formed can be looked at.)
+    /// and translated, as a build for <paramref name="target"/> does before it generates code. (Generating code also
+    /// verifies the TIR; this does not, so even TIR that is not well formed can be looked at.) Without a target, the
+    /// interrupt handlers are not put in any interrupt.
     /// </summary>
-    public static TirModule Translate(string assemblyPath)
+    public static TirModule Translate(string assemblyPath, TargetDescription? target = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(assemblyPath);
-        return IlToTir.Lower(WholeProgramPass.Analyze(IlAssembly.Load(assemblyPath)));
+        var assembly = IlAssembly.Load(assemblyPath);
+        return IlToTir.Lower(target is null ? WholeProgramPass.Analyze(assembly) : WholeProgramPass.Analyze(assembly, target));
     }
 
     /// <summary>The option, else the environment variable CHIPSHARP_TARGETS, else "targets" next to the running program.</summary>

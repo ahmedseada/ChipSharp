@@ -28,11 +28,18 @@ public sealed class AnalysisResult
     /// <summary>
     /// Every method of the program the entry point can reach, itself included: the entry point first, then in the
     /// order they are first called. Methods nothing calls are left out, and not checked. The initializers (.cctor) of
-    /// the types the program uses are in it too (see <see cref="IlProgram.TypeInitializers"/>).
+    /// the types the program uses are in it too (see <see cref="IlProgram.TypeInitializers"/>), and so are the
+    /// interrupt handlers, after the entry point, and what they reach.
     /// </summary>
     public IReadOnlyList<IlMethod> Methods { get; }
 
-    /// <summary>Every problem, one per place: method by method in the order of <see cref="Methods"/>.</summary>
+    /// <summary>The methods marked <c>[Interrupt(...)]</c> that handle an event (see <see cref="IlProgram.InterruptHandlers"/>).</summary>
+    public IReadOnlyList<InterruptHandler> InterruptHandlers { get; internal init; } = [];
+
+    /// <summary>
+    /// Every problem, one per place: method by method in the order of <see cref="Methods"/>, then the places that
+    /// break a rule of interrupt handlers.
+    /// </summary>
     public IReadOnlyList<Problem> Problems { get; }
 
     /// <summary>The problems by feature, in the order each feature first appears in <see cref="Problems"/>.</summary>
@@ -65,7 +72,9 @@ public sealed class AnalysisResult
 
     /// <summary>The program, for the IL-to-TIR translation.</summary>
     /// <exception cref="ChipSharpException">The program has problems; the message is the <see cref="Summary"/>.</exception>
-    public IlProgram ToProgram() => IsSupported ? new IlProgram(Assembly, Methods) : throw new ChipSharpException(Summary);
+    public IlProgram ToProgram() => IsSupported
+        ? new IlProgram(Assembly, Methods) { InterruptHandlers = InterruptHandlers }
+        : throw new ChipSharpException(Summary);
 
     /// <summary>The heading, the lines indented, the library calls there are if they matter, and <paramref name="last"/>.</summary>
     private string Message(IEnumerable<string> lines, string? last)

@@ -15,7 +15,8 @@ namespace ChipSharp.Ir;
 /// slots as $name, globals as @name, blocks by name. A value that does not belong to the function prints as %?.
 /// A module lists the structs it uses (<c>struct Program.Point { i32 X, i32 Y }</c>) and its globals
 /// (<c>global i32 @Program.counter = 5</c>) before its functions. Memory at an address is written in brackets:
-/// <c>%1 = load i32 [%0]</c>, <c>store volatile i32 [%0], %1</c>.
+/// <c>%1 = load i32 [%0]</c>, <c>store volatile i32 [%0], %1</c>. An exported function says its symbol after its
+/// signature: <c>function void &lt;Interrupt timer&gt;() export chipsharp_isr_irq1</c>.
 /// </summary>
 public static class TirPrinter
 {
@@ -145,7 +146,8 @@ public static class TirPrinter
             text.Append("external ");
         }
 
-        text.Append($"function {function.ReturnType} {function.Name}({parameters})\n");
+        var export = function.ExportName is { } symbol ? $" export {symbol}" : "";
+        text.Append($"function {function.ReturnType} {function.Name}({parameters}){export}\n");
         foreach (var slot in function.Slots)
         {
             text.Append($"  {slot}: {slot.Type}\n");

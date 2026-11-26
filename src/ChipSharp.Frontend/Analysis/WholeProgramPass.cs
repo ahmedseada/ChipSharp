@@ -13,29 +13,39 @@ public static partial class WholeProgramPass
     private static readonly IlArrayType StringArray = new(IlType.String);
 
     /// <summary>
-    /// The program in <paramref name="assembly"/>: its entry point and every method of the assembly the entry point
-    /// reaches through calls. Methods nothing calls are left out, and not checked.
+    /// The program in <paramref name="assembly"/>: its entry point, its interrupt handlers (see <see cref="Interrupts"/>)
+    /// and every method of the assembly they reach through calls. Methods nothing calls are left out, and not checked.
     /// </summary>
     /// <exception cref="ChipSharpException">
     /// The assembly has no entry point, or its methods use C# that <see cref="SupportedSubset"/> does not have. The
-    /// message then is the <see cref="AnalysisResult.Summary"/> of <see cref="Check"/>: every feature in C# words, with
-    /// how many places use it and where, and a hint.
+    /// message then is the <see cref="AnalysisResult.Summary"/> of <see cref="Check(IlAssembly)"/>: every feature in C#
+    /// words, with how many places use it and where, and a hint.
     /// </exception>
     public static IlProgram Analyze(IlAssembly assembly) => Check(assembly).ToProgram();
 
     /// <summary>
-    /// The methods of the program in <paramref name="assembly"/>, found as <see cref="Analyze"/> finds them, and every
-    /// place they use C# that <see cref="SupportedSubset"/> does not have, as data: one problem per place (the method,
-    /// the IL offset where there is one, what is not supported in C# words, and a hint), and the problems by feature.
+    /// The methods of the program in <paramref name="assembly"/>, found as <see cref="Analyze(IlAssembly)"/> finds them,
+    /// and every place they use C# that <see cref="SupportedSubset"/> does not have, as data: one problem per place (the
+    /// method, the IL offset where there is one, what is not supported in C# words, and a hint), and the problems by
+    /// feature. Interrupt handlers must name one of ChipSharp.Hardware's events.
     /// </summary>
     /// <exception cref="ChipSharpException">The assembly has no entry point.</exception>
-    public static AnalysisResult Check(IlAssembly assembly)
+    public static AnalysisResult Check(IlAssembly assembly) => Check(assembly, null);
+
+    /// <summary>
+    /// Like <see cref="Check(IlAssembly)"/>, for <paramref name="target"/>: interrupt handlers must name an event the
+    /// target has an interrupt for (none on a PC). Null checks them against ChipSharp.Hardware's events instead.
+    /// </summary>
+    /// <exception cref="ChipSharpException">The assembly has no entry point, or the target's "interrupts" are not well formed.</exception>
+    public static AnalysisResult Check(IlAssembly assembly, TargetDescription? target)
     {
         ArgumentNullException.ThrowIfNull(assembly);
 
         var entryPoint = assembly.EntryPoint ?? throw new ChipSharpException(
             $"{assembly.FilePath} has no entry point: a program needs a static void Main() (or top-level statements) to start from.");
-        var methods = FindReachableMethods(entryPoint);
+        var interruptProblems = new List<Problem>();
+        var handlers = FindHandlers(assembly, target, interruptProblems);
+        var methods = FindReachableMethods(entryPoint, handlers.Select(handler => handler.Method));
 
         var problems = new List<Problem>();
         foreach (var method in methods)
@@ -43,18 +53,22 @@ public static partial class WholeProgramPass
             CheckMethod(method, problems);
         }
 
-        return new AnalysisResult(assembly, methods, problems);
+        CheckHandlers(entryPoint, methods, handlers, interruptProblems);
+        problems.AddRange(interruptProblems);
+        return new AnalysisResult(assembly, methods, problems) { InterruptHandlers = handlers };
     }
 
     /// <summary>
-    /// The entry point, then every method of the assembly it reaches through <c>call</c>, each once, in the order
-    /// they are first called when the methods are scanned in this same order, instruction by instruction. The type
-    /// initializers each method makes run (see <see cref="StaticInitialization"/>) come before the methods it calls.
+    /// The entry point, then the interrupt handlers (<paramref name="handlers"/>), then every method of the assembly
+    /// they reach through <c>call</c>, each once, in the order they are first called when the methods are scanned in
+    /// this same order, instruction by instruction. The type initializers each method makes run (see
+    /// <see cref="StaticInitialization"/>) come before the methods it calls.
     /// </summary>
-    private static IlMethod[] FindReachableMethods(IlMethod entryPoint)
+    private static IlMethod[] FindReachableMethods(IlMethod entryPoint, IEnumerable<IlMethod> handlers)
     {
         var methods = new List<IlMethod> { entryPoint };
         var found = new HashSet<IlMethod> { entryPoint };
+        methods.AddRange(handlers.Where(found.Add));
         for (var i = 0; i < methods.Count; i++)
         {
             foreach (var initializer in StaticInitialization.InitializersRunBy(methods[i], isStart: i == 0))

@@ -36,13 +36,22 @@ public sealed class IlProgram
     /// <summary>
     /// Every method of the program the entry point can reach, itself included: the entry point first, then in the
     /// order they are first called. Each appears once. Library calls (see <see cref="KnownExternals"/>) are not in it.
-    /// The initializers (<c>.cctor</c>) of the types the program uses are in it too, where their type is first used.
+    /// The initializers (<c>.cctor</c>) of the types the program uses are in it too, where their type is first used, and
+    /// so are the <see cref="InterruptHandlers"/>, right after the entry point, and the methods they reach.
     /// </summary>
     public IReadOnlyList<IlMethod> Methods { get; }
 
     /// <summary>
-    /// The type initializers among <see cref="Methods"/> (static field initializers and static constructors), in the
-    /// order the program runs them when it starts, before the entry point (see <see cref="StaticInitialization"/>).
+    /// The methods the chip runs when an event happens (see <see cref="Interrupts"/>), at most one per event, each among
+    /// <see cref="Methods"/>. Nothing in the program needs to call them.
     /// </summary>
-    public IReadOnlyList<IlMethod> TypeInitializers => _typeInitializers ??= StaticInitialization.RunOrder(Methods);
+    public IReadOnlyList<InterruptHandler> InterruptHandlers { get; init; } = [];
+
+    /// <summary>
+    /// The type initializers among <see cref="Methods"/> (static field initializers and static constructors), in the
+    /// order the program runs them when it starts, before the entry point (see <see cref="StaticInitialization"/>):
+    /// those of the types the entry point uses, then those of the types only the interrupt handlers use.
+    /// </summary>
+    public IReadOnlyList<IlMethod> TypeInitializers => _typeInitializers ??=
+        StaticInitialization.RunOrder(Methods, InterruptHandlers.Select(handler => handler.Method));
 }
