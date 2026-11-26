@@ -220,6 +220,10 @@ internal sealed partial class MethodLowering
                 LowerStruct(instruction);
                 break;
 
+            case IlOpCode.Ldstr or IlOpCode.Ldnull:
+                LowerText(instruction);
+                break;
+
             case >= IlOpCode.Ldc_I4_M1 and <= IlOpCode.Ldc_I4_8:
                 Push(StackValue.OfConstant(TirType.I32, (int)instruction.OpCode - (int)IlOpCode.Ldc_I4_0));
                 break;
@@ -315,12 +319,12 @@ internal sealed partial class MethodLowering
                 }
                 else if (CompareOp(instruction.OpCode) is { } comparison)
                 {
-                    var (left, right) = PopOperands();
+                    var (left, right) = PopComparands(comparison);
                     Push(StackValue.OfBool(_ir.Compare(comparison, left, right)));
                 }
                 else if (BranchOp(instruction.OpCode) is { } branch)
                 {
-                    var (left, right) = PopOperands();
+                    var (left, right) = PopComparands(branch);
                     Branch(_ir.Compare(branch, left, right));
                 }
                 else
@@ -440,10 +444,19 @@ internal sealed partial class MethodLowering
         }
     }
 
-    /// <summary>brtrue and brfalse: a bool is tested as it is, any other value is compared with zero.</summary>
+    /// <summary>
+    /// brtrue and brfalse: a bool is tested as it is, any other value is compared with zero, a string (or a reference)
+    /// with null.
+    /// </summary>
     private void BranchOnValue(bool jumpWhenTrue)
     {
         var value = PopValue();
+        if (value.Type == TirType.Ptr)
+        {
+            BranchOnAddress(value, jumpWhenTrue);
+            return;
+        }
+
         CheckNumber(value);
         if (value.Condition is { } condition)
         {

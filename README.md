@@ -21,7 +21,7 @@ C# --Roslyn--> IL --ChipSharp--> TIR --code generator--> LLVM IR / C --toolchain
 | `src/ChipSharp.Runtime.Windows` | The `windows-x64` runtime for PC programs: start-up and console output, no C runtime needed |
 | `src/ChipSharp.Cli` | The `chipsharp` command |
 | `targets/arch`, `chip`, `board` | Target files: board -> chip -> architecture, e.g. `pico` -> `rp2040` -> `armv6m`, `host` -> `x86_64` |
-| `samples` | Small C# programs (e.g. `Logit`, `VendingMachine`, `Projectile`) with their expected .NET output; `update-expected.ps1` regenerates the outputs |
+| `samples` | Small C# programs (e.g. `Logit`, `VendingMachine`, `TrafficLights`) with their expected .NET output; `update-expected.ps1` regenerates the outputs |
 | `examples` | Projects for the Raspberry Pi Pico: `pico-blink`, `pico-timer-blink`, `pico-button` |
 | `tests/ChipSharp.Tests` | Tests |
 
@@ -46,7 +46,7 @@ that ChipSharp does not compile yet, where, when it is planned, and what to writ
 on a line of its own, and every library method ChipSharp can call). `tir` shows the program in TIR. `build` compiles
 it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` also keeps the `.tir` and `.ll` files.
 
-`dotnet test` runs 862 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
+`dotnet test` runs 885 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
 `CHIPSHARP_LLVM_BIN`); the Pico tests also need the simulator (see below), and are skipped, saying why, without it.
 
 ## What C# compiles today
@@ -59,33 +59,55 @@ it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` 
 | Types | Structs, enums (`[Flags]` too), `ref`, `out` and `in` parameters, `ref` locals |
 | Static fields | Of the types above, `volatile` too, with field initializers and static constructors |
 | Arrays | Of numbers, bools, structs and enums, on the stack: a constant size, kept in the method that makes them and passed down to the methods it calls |
-| Library | `Console.WriteLine` of a number or a bool; `Math` and `MathF`: `Abs`, `Min`, `Max`, `Sqrt`; `TimeSpan`: its factories in any unit (`FromMilliseconds(500)`, `FromSeconds(1.5)`), parts, totals, arithmetic and comparisons; on a chip, `ChipSharp.Hardware`: pins, timing (`Timing.Delay(TimeSpan)` too), registers and interrupts |
+| Fixed text | String literals (`"road : 1"`, `string.Empty`) in locals, parameters, return values, static fields (`static readonly` too) and `const`, compared with `null`; printed part by part with `Console.Write` and `Console.WriteLine` (`null` as nothing, like .NET), as UTF-8. Each literal is in flash once on a chip |
+| Library | `Console.Write` and `Console.WriteLine` of text, a number or a bool; `Math` and `MathF`: `Abs`, `Min`, `Max`, `Sqrt`; `TimeSpan`: its factories in any unit (`FromMilliseconds(500)`, `FromSeconds(1.5)`), parts, totals, arithmetic and comparisons; on a chip, `ChipSharp.Hardware`: pins, timing (`Timing.Delay(TimeSpan)` too), registers and interrupts |
 
 | Not yet | When |
 |---|---|
-| Classes and objects, `null`, interfaces, virtual calls, boxing, generics (`Span<T>`, `List<T>`), strings and `$"..."`, `char`; arrays that leave their method, whose size is known only when the program runs, or that hold strings or objects | With M3 (the heap) |
+| Classes and objects, interfaces, virtual calls, boxing, generics (`Span<T>`, `List<T>`); building text (`+`, `$"..."`, `string.Format`, `ToString()`, the methods of string, `==` on text), text in the fields of structs, `char`; arrays that leave their method, whose size is known only when the program runs, that are `null`, or that hold strings or objects | With M3 (the heap) |
 | Exceptions (`try`, `catch`, `finally`, `throw`, `using`), `checked` arithmetic, multi-dimensional arrays, unsafe code and `stackalloc`, delegates and lambdas, `typeof` | Later |
 | Other library types and methods (`decimal`, `Random`, `Math.Sin`, ...) | Not yet: `chipsharp check` lists the methods there are |
 
 `chipsharp check` (and `build`) say so for each feature a program uses, with what to write for now. The first program
-ChipSharp was asked to run printed its result with `Console.WriteLine($"Logit result: {result}")`:
+ChipSharp was asked to run printed its result with `Console.WriteLine($"Logit result: {result}")`, which builds text
+while the program runs:
 
 ```
-error: Logit.dll uses 3 C# features that ChipSharp does not compile yet (11 places):
-  string interpolation ($"...") arrives with M3 (the heap): 9 places in the top-level statements (IL_0036, IL_003b, IL_0040 and 6 more). For now, print numbers and bools with Console.WriteLine.
-  text strings arrive with M3 (the heap): 1 place in the top-level statements (IL_0042). For now, print numbers and bools with Console.WriteLine.
-  the library method System.Console.WriteLine(string) is not available yet: 1 place in the top-level statements (IL_005b).
-ChipSharp can call these library methods (--details lists each one with its parameters):
-  Console.WriteLine of (nothing), int, uint, long, ulong, bool, float, double
-  Math and MathF: Abs, Min, Max, Sqrt
-  TimeSpan: FromTicks, FromDays, FromHours, FromMinutes, FromSeconds, FromMilliseconds, FromMicroseconds, Add, Subtract, Negate, Multiply, Divide, Duration, Compare, CompareTo, Equals, its constructors, properties and operators
-  ChipSharp.Hardware: Pin, Timing, Registers (see the README)
+error: Logit.dll uses 1 C# feature that ChipSharp does not compile yet (9 places):
+  building text ($"...", +, ToString, string.Format and the other methods of string) arrives with M3 (the heap): 9 places in the top-level statements (IL_0036, IL_003b, IL_0040 and 6 more). For now, print the parts one after another with Console.Write.
 For every place, run: chipsharp check Logit.dll --details
 ```
 
-With `Console.WriteLine(result)` it compiles, and prints what .NET prints: that is `samples/Logit.cs`. The other
-samples show the rest of the table, e.g. `VendingMachine.cs` (structs, enums, an array of structs and static fields as
-a state machine), `Projectile.cs` (floats in structs, with operators) and `TimeSpans.cs` (TimeSpan arithmetic).
+With `Console.Write("Logit result: ")` and then `Console.WriteLine(result)` it compiles, and prints what .NET prints:
+that is `samples/Logit.cs`. A call to a library method ChipSharp does not have lists the ones it has:
+
+```
+ChipSharp can call these library methods (--details lists each one with its parameters):
+  Console.Write and Console.WriteLine of (nothing), text, int, uint, long, ulong, bool, float, double
+  Math and MathF: Abs, Min, Max, Sqrt
+  TimeSpan: FromTicks, FromDays, FromHours, FromMinutes, FromSeconds, FromMilliseconds, FromMicroseconds, Add, Subtract, Negate, Multiply, Divide, Duration, Compare, CompareTo, Equals, its constructors, properties and operators
+  ChipSharp.Hardware: Pin, Timing, Registers (see the README)
+```
+
+The other samples show the rest of the table, e.g. `VendingMachine.cs` (structs, enums, an array of structs and static
+fields as a state machine), `Projectile.cs` (floats in structs, with operators), `TimeSpans.cs` (TimeSpan arithmetic)
+and `TrafficLights.cs` (fixed text between numbers).
+
+### Fixed text
+
+A string literal is fixed text: it never changes, so it needs no heap. Each distinct literal is one constant record
+in read-only data (flash on a chip, once however often the program uses it): its length as .NET counts it (UTF-16
+code units), its number of UTF-8 bytes, then those bytes; a string is the record's address, or null
+(`src/ChipSharp.Frontend/FixedText.cs`). Text is written as UTF-8 on every target, the bytes .NET writes with a UTF-8
+console; a Windows console shows non-ASCII text right when its code page is UTF-8 (`chcp 65001`), and there .NET
+itself writes in the console's code page. Building text while the program runs (`"lane " + lane`) arrives with the
+heap; until then, print the parts one after another:
+
+```csharp
+Console.WriteLine("road : 1");
+Console.Write("    green "); Console.WriteLine(seconds);
+Console.Write("lane : "); Console.Write(lane); Console.Write(" interrupted, move to lane "); Console.WriteLine(next);
+```
 
 Where .NET would throw an exception (an index outside an array, a `TimeSpan` too long), the program stops with the
 message .NET prints for it: on standard error with exit code 1 on a PC, over UART0 and at a breakpoint on a chip.
@@ -131,7 +153,7 @@ That makes `chipsharp-output\pico\PicoBlink.uf2`. To run it:
   to UART0 (one-time setup: `cd tools\rp2040-sim; npm ci`). The Pico tests use it and skip when it isn't set up.
 - **Wokwi** (wokwi.com): start a Raspberry Pi Pico project, press F1, "Upload Firmware and Start Simulation".
 - **The real board**: hold BOOTSEL while plugging it in, then copy the `.uf2` onto the drive that appears.
-  `Console.WriteLine` goes to UART0 (GPIO 0, 115200 baud).
+  `Console.Write` and `Console.WriteLine` go to UART0 (GPIO 0, 115200 baud).
 
 The three examples blink the LED in three ways: `examples/pico-blink` with a delay loop, `examples/pico-timer-blink`
 from a timer interrupt, and `examples/pico-button` from a pin interrupt, at each press of a button on GPIO 15. They are

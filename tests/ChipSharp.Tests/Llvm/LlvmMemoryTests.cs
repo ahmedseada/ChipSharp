@@ -62,6 +62,22 @@ public sealed class LlvmMemoryTests
     }
 
     [Fact]
+    public void A_constant_is_private_read_only_data_of_bytes_on_every_target()
+    {
+        var module = TirSamples.WithMain(new TirModule("Demo"));
+        module.AddGlobal("Program.counter", TirType.I32);
+        module.AddConstant("<text 0>", [4, 0, 0, 0, 5, 0, 0, 0, .. "caf\u00e9"u8]);
+        const string Constant = """
+            @_text_0_ = private unnamed_addr constant [13 x i8] c"\04\00\00\00\05\00\00\00caf\C3\A9", align 1
+
+            """;
+
+        Assert.Contains("@Program_counter = internal global i32 0, align 4\n" + Text(Constant), Generate(module));
+        Assert.Contains("@Program_counter = internal global i32 0, align 4\n" + Text(Constant),
+            Generate(module, LlvmTargets.Pico));
+    }
+
+    [Fact]
     public void Globals_are_aligned_for_4_byte_pointers_on_the_pico()
     {
         var module = TirSamples.WithMain(new TirModule("Demo"));

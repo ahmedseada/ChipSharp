@@ -48,8 +48,8 @@ public sealed class Problem
 
     /// <summary>
     /// The method, the place and the message, e.g.
-    /// "Program.Main() at IL_0008 (ldstr): text strings arrive with M3 (the heap). For now, print numbers and bools
-    /// with Console.WriteLine."
+    /// "Program.Main() at IL_0002 (add.ovf): checked arithmetic arrives later. For now, leave out checked: ChipSharp's
+    /// arithmetic wraps around on overflow, like unchecked C#."
     /// </summary>
     public string Line { get; }
 

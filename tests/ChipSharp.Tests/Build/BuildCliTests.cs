@@ -70,7 +70,7 @@ public sealed class BuildCliTests : IDisposable
     }
 
     [Fact]
-    public async Task Build_of_a_program_using_a_string_fails_with_the_summary_check_gives()
+    public async Task Build_of_a_program_that_builds_text_fails_with_the_summary_check_gives()
     {
         var dll = CSharpCompiler.CompileToFile("""
             using System;
@@ -79,9 +79,10 @@ public sealed class BuildCliTests : IDisposable
             {
                 static void Main()
                 {
-                    Console.WriteLine("Hello");
-                    Console.WriteLine(42);
-                    Console.WriteLine("Bye");
+                    int answer = 42;
+                    Console.WriteLine("Hello " + answer);
+                    Console.WriteLine(answer);
+                    Console.WriteLine(Math.Abs(answer).ToString());
                 }
             }
             """, Path.Combine(_scratch, "Hello.dll"));
@@ -95,10 +96,10 @@ public sealed class BuildCliTests : IDisposable
         Assert.Equal($"error: {dll} uses 2 C# features that ChipSharp does not compile yet (4 places):", lines[0]);
         Assert.Equal(
         [
-            "  text strings arrive with M3 (the heap): 2 places in Program.Main() (IL_0000 and IL_0011). "
-                + "For now, print numbers and bools with Console.WriteLine.",
-            "  the library method System.Console.WriteLine(string) is not available yet: 2 places in Program.Main() "
-                + "(IL_0005 and IL_0016).",
+            "  building text ($\"...\", +, ToString, string.Format and the other methods of string) arrives with M3 "
+                + "(the heap): 3 places in Program.Main() (IL_000a, IL_000f and IL_0028). For now, print the parts one "
+                + "after another with Console.Write.",
+            "  the library method System.Math.Abs(int) is not available yet: 1 place in Program.Main() (IL_0020).",
         ], lines[1..3]);
         Assert.Equal(WholeProgram.LibraryCalls.Split('\n'), lines[3..8]);
         Assert.Equal($"For every place, run: chipsharp check {ChipSharpCli.Quoted(dll)} --details", lines[8]);

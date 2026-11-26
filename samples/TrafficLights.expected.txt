@@ -1,0 +1,19 @@
+crossroads
+
+road : 1 (north)
+    green 13
+    cut short True
+lane : 1 interrupted, move to lane 3
+road : 2 (east)
+    green 15
+    cut short False
+road : 3 (south)
+    green 30
+    cut short False
+road : 4 (west)
+    green 15
+    cut short False
+cycle 73 s, 18.25 s a road
+against a 90 s cycle: -17
+road 5 is [], no road at all
+True

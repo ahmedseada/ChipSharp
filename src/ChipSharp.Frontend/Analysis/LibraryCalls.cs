@@ -19,7 +19,7 @@ internal static class LibraryCalls
     /// The library methods by type, the .NET ones with their names and ChipSharp's own by type only:
     /// <code>
     /// ChipSharp can call these library methods (--details lists each one with its parameters):
-    ///   Console.WriteLine of (nothing), int, uint, long, ulong, bool, float, double
+    ///   Console.Write and Console.WriteLine of (nothing), text, int, uint, long, ulong, bool, float, double
     ///   Math and MathF: Abs, Min, Max, Sqrt
     ///   TimeSpan: FromTicks, FromDays, ..., Equals, its constructors, properties and operators
     ///   ChipSharp.Hardware: Pin, Timing, Registers (see the README)
@@ -31,7 +31,7 @@ internal static class LibraryCalls
     /// Every library method with its parameters, one line per type:
     /// <code>
     /// ChipSharp can call these library methods:
-    ///   System.Console: WriteLine(), WriteLine(int), ...
+    ///   System.Console: Write(string), Write(int), ..., WriteLine(), WriteLine(string), ...
     /// </code>
     /// </summary>
     public static string Details { get; } = List(Known);
@@ -55,15 +55,15 @@ internal static class LibraryCalls
                 continue;
             }
 
-            // types with the same methods share a line: "Math and MathF: Abs, Min, Max, Sqrt"
+            // types with the same methods share a line: "Math and MathF: Abs, Min, Max, Sqrt"; a type whose methods are
+            // overloads of the same parameters lists those: "Console.Write and Console.WriteLine of (nothing), text, ..."
             var sameNames = space.GroupBy(method => method.Type).GroupBy(type => Names(type));
             foreach (var same in sameNames)
             {
-                var names = And([.. same.Select(type => type.Key)]);
-                var overloads = same.First().ToList();
-                lines.Add(same.Count() == 1 && overloads.All(method => method.Name == overloads[0].Name)
-                    ? $"  {names}.{overloads[0].Name} of {string.Join(", ", overloads.Select(Parameters))}"
-                    : $"  {names}: {same.Key}");
+                var types = And([.. same.Select(type => type.Key)]);
+                lines.Add(same.Count() == 1 && SharedParameters([.. same.First()]) is var (names, parameters)
+                    ? $"  {And([.. names.Select(name => $"{types}.{name}")])} of {string.Join(", ", parameters)}"
+                    : $"  {types}: {same.Key}");
             }
         }
 
@@ -82,10 +82,38 @@ internal static class LibraryCalls
                     method.IsProperty ? method.Name : $"{method.Name}({method.Parameters})"))}"),
         ]);
 
-    /// <summary>"int", "(nothing)" for no parameters, "(int, bool)" for several.</summary>
-    private static string Parameters(Method method) => method.Parameters.Length == 0 ? "(nothing)"
-        : method.Parameters.Contains(',', StringComparison.Ordinal) ? $"({method.Parameters})"
-        : method.Parameters;
+    /// <summary>
+    /// For the methods of one type that are overloads of the same parameters (Console.Write and Console.WriteLine,
+    /// where WriteLine also takes nothing), their names and those parameters as <see cref="Parameters"/> writes them,
+    /// those of the name with the most overloads; null when the methods take different parameters (Math), or the
+    /// type has constructors, properties or operators.
+    /// </summary>
+    private static (List<string> Names, List<string> Parameters)? SharedParameters(List<Method> methods)
+    {
+        if (methods.Any(method => method.IsProperty || IsConstructor(method) || IsOperator(method)))
+        {
+            return null;
+        }
+
+        var byName = methods.GroupBy(method => method.Name).ToList();
+        var widest = byName.MaxBy(overloads => overloads.Count())!.ToList();
+        return byName.All(overloads => overloads.All(method => widest.Any(other => other.Parameters == method.Parameters)))
+            ? ([.. byName.Select(overloads => overloads.Key)], [.. widest.Select(Parameters)])
+            : null;
+    }
+
+    /// <summary>"int", "text" for a string, "(nothing)" for no parameters, "(int, bool)" for several.</summary>
+    private static string Parameters(Method method) => method.Parameters switch
+    {
+        "" => "(nothing)",
+        "string" => "text",
+        var parameters when parameters.Contains(',', StringComparison.Ordinal) => $"({parameters})",
+        var parameters => parameters,
+    };
+
+    private static bool IsConstructor(Method method) => method.Name.StartsWith("new ", StringComparison.Ordinal);
+
+    private static bool IsOperator(Method method) => method.Name.StartsWith("operator ", StringComparison.Ordinal);
 
     /// <summary>
     /// The names of a type's methods, each once, and its constructors, properties (and fields) and operators in a few
@@ -94,9 +122,6 @@ internal static class LibraryCalls
     private static string Names(IEnumerable<Method> methods)
     {
         var list = methods.ToList();
-        bool IsConstructor(Method method) => method.Name.StartsWith("new ", StringComparison.Ordinal);
-        bool IsOperator(Method method) => method.Name.StartsWith("operator ", StringComparison.Ordinal);
-
         var kinds = new List<string>();
         if (list.Any(IsConstructor))
         {

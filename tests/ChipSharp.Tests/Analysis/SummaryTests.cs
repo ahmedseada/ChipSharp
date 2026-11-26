@@ -63,14 +63,12 @@ public sealed class SummaryTests
             }
             """);
 
-        Assert.Equal(["checked arithmetic", "text strings", "the library method string.get_Length()"],
-            analysis.Groups.Select(group => group.Feature));
+        Assert.Equal(["checked arithmetic", BuildingFeature], analysis.Groups.Select(group => group.Feature));
         Assert.Equal(["Program.First", "Program.Third"], analysis.Groups[0].Methods.Select(method => method.DisplayName));
         Assert.Equal(
         [
             $"checked arithmetic arrives later: 2 places in Program.First(int) (IL_0002) and Program.Third(int) (IL_0002). {Checked}",
-            "text strings arrive with M3 (the heap): 1 place in Program.Second() (IL_0000). For now, print numbers and bools with Console.WriteLine.",
-            "the library method string.get_Length() is not available yet: 1 place in Program.Second() (IL_0005).",
+            $"{Building}: 1 place in Program.Second() (IL_0005). {BuildingHint}",
         ], analysis.Groups.Select(group => group.Line));
     }
 
@@ -176,17 +174,15 @@ public sealed class SummaryTests
             static int Twice(int x) => checked(x * 2);
 
             Console.WriteLine(Twice(21));
-            Console.WriteLine("done");
+            Console.WriteLine("done" + Twice(1));
             """);
 
         Assert.Equal(
         [
-            "text strings arrive with M3 (the heap): 1 place in the top-level statements (IL_000c). "
-                + "For now, print numbers and bools with Console.WriteLine.",
-            "the library method System.Console.WriteLine(string) is not available yet: 1 place in the top-level statements (IL_0011).",
+            $"{Building}: 2 places in the top-level statements (IL_001a and IL_001f). {BuildingHint}",
             $"checked arithmetic arrives later: 1 place in local function Twice (IL_0002). {Checked}",
         ], analysis.Groups.Select(group => group.Line));
-        Assert.Contains("\n  Program.<Main>$(string[]) at IL_000c (ldstr): text strings arrive with M3 (the heap).", analysis.Details);
+        Assert.Contains($"\n  Program.<Main>$(string[]) at IL_001a (call): {Building}.", analysis.Details);
         Assert.Contains("\n  Program.<<Main>$>g__Twice|0_0(int) at IL_0002 (mul.ovf): checked arithmetic arrives later.",
             analysis.Details);
     }
@@ -209,14 +205,15 @@ public sealed class SummaryTests
         Assert.Equal(["the type System.DateTime", "the type System.Random"], types.Select(group => group.Feature));
         Assert.Equal("the type System.Random arrives later: 2 places in Program.Next(System.Random, System.DateTime, "
             + "System.Random) (parameter 'random' and parameter 'other'). For now, use bool, the whole-number types "
-            + "(sbyte to ulong, nint, nuint), float, double, and the program's own structs and enums.", types[1].Line);
+            + "(sbyte to ulong, nint, nuint), float, double, string (for fixed text), and the program's own structs and "
+            + "enums.", types[1].Line);
     }
 
     [Fact]
     public void A_SquareDemo_like_program_gets_a_short_summary()
     {
-        // top-level statements, float arrays, a local function and string interpolation: 11 places, 3 features (the
-        // floats and the arrays of them are fine)
+        // top-level statements, float arrays, a local function and string interpolation: 9 places, 1 feature (the
+        // floats, the arrays of them, the literal "Logit result: " and printing text are fine)
         var analysis = Check("""
             using System;
 
@@ -232,19 +229,15 @@ public sealed class SummaryTests
             Console.WriteLine($"Logit result: {result}");
             """);
 
-        Assert.Equal(["string interpolation ($\"...\")", "text strings",
-            "the library method System.Console.WriteLine(string)"], analysis.Groups.Select(group => group.Feature));
-        Assert.Equal([9, 1, 1], analysis.Groups.Select(group => group.Problems.Count));
+        Assert.Equal([BuildingFeature], analysis.Groups.Select(group => group.Feature));
+        Assert.Equal([9], analysis.Groups.Select(group => group.Problems.Count));
         Assert.Equal($"""
-            Test.dll uses 3 C# features that ChipSharp does not compile yet (11 places):
-              string interpolation ($"...") arrives with M3 (the heap): 9 places in the top-level statements (IL_0036, IL_003b, IL_0040 and 6 more). For now, print numbers and bools with Console.WriteLine.
-              text strings arrive with M3 (the heap): 1 place in the top-level statements (IL_0042). For now, print numbers and bools with Console.WriteLine.
-              the library method System.Console.WriteLine(string) is not available yet: 1 place in the top-level statements (IL_005b).
-            {LibraryCalls}
+            Test.dll uses 1 C# feature that ChipSharp does not compile yet (9 places):
+              {Building}: 9 places in the top-level statements (IL_0036, IL_003b, IL_0040 and 6 more). {BuildingHint}
             For every place, run: chipsharp check Test.dll --details
             """.ReplaceLineEndings("\n"), analysis.Summary);
         Assert.InRange(analysis.Summary.Split('\n').Length, 1, 11);
-        Assert.Equal(20, analysis.Details.Split('\n').Length);
+        Assert.Equal(10, analysis.Details.Split('\n').Length);
     }
 
     [Fact]
@@ -263,6 +256,29 @@ public sealed class SummaryTests
         Assert.Equal("", analysis.Summary);
         Assert.Equal("", analysis.Details);
         Assert.Equal(["Program.Main"], analysis.ToProgram().Methods.Select(method => method.DisplayName));
+    }
+
+    [Fact]
+    public void Methods_of_one_type_that_take_the_same_parameters_share_them_and_text_is_called_text()
+    {
+        // Write takes what WriteLine takes, so they share; Beep takes other parameters than Write, so names do
+        string[] shared =
+        [
+            "System.Console.Write(string)", "System.Console.Write(int)", "System.Console.WriteLine()",
+            "System.Console.WriteLine(string)", "System.Console.WriteLine(int)",
+        ];
+        string[] apart = ["System.Console.Write(string)", "System.Console.Beep(int, int)"];
+
+        Assert.Equal("""
+            ChipSharp can call these library methods (--details lists each one with its parameters):
+              Console.Write and Console.WriteLine of (nothing), text, int
+            """.ReplaceLineEndings("\n"), Calls.Summarize(shared));
+        Assert.Equal("""
+            ChipSharp can call these library methods (--details lists each one with its parameters):
+              Console: Write, Beep
+            """.ReplaceLineEndings("\n"), Calls.Summarize(apart));
+        Assert.Contains("\n  Console.Write and Console.WriteLine of (nothing), text, int, uint, long, ulong, bool, float, "
+            + "double\n", Calls.Summary);
     }
 
     [Fact]

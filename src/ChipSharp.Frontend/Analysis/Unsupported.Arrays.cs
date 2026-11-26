@@ -20,6 +20,9 @@ internal sealed partial record Unsupported
     public static readonly Unsupported ArrayComparisons = Heap("comparing arrays (or an array with null)", false,
         "For now, leave the comparison out: an array on the stack is never null.");
 
+    public static readonly Unsupported NullArrays = Heap("null in place of an array", false,
+        "For now, use an empty array (new int[0]): an array on the stack is never null.");
+
     public static readonly Unsupported ArraysOfReferences = Heap("arrays of strings, objects or arrays", true,
         "For now, use arrays of numbers, bools, structs or enums.");
 

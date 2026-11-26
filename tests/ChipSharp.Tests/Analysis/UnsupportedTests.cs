@@ -9,7 +9,6 @@ public sealed class UnsupportedTests
 {
     [Theory]
     [InlineData(IlOpCode.Newobj, "creating objects (new ...)")]
-    [InlineData(IlOpCode.Ldstr, "text strings")]
     [InlineData(IlOpCode.Newarr, "arrays")]
     [InlineData(IlOpCode.Ldelem_I4, "arrays")]
     [InlineData(IlOpCode.Ldelem, "arrays")]
@@ -35,7 +34,6 @@ public sealed class UnsupportedTests
     [InlineData(IlOpCode.Ldarga, "taking addresses (ref, out, struct methods)")]
     [InlineData(IlOpCode.Ldind_I4, "references and pointers (ref, out, in, *)")]
     [InlineData(IlOpCode.Stind_I8, "references and pointers (ref, out, in, *)")]
-    [InlineData(IlOpCode.Ldnull, "null")]
     [InlineData(IlOpCode.Isinst, "type tests and casts on objects (is, as, (T)x)")]
     [InlineData(IlOpCode.Initobj, "structs")]
     [InlineData(IlOpCode.Localloc, "stackalloc")]

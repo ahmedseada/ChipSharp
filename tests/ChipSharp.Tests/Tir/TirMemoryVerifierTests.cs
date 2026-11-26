@@ -493,6 +493,27 @@ public sealed class TirMemoryVerifierTests
             "the value is Program.Other, but slot $p holds Program.Point.");
     }
 
+    [Fact]
+    public void A_constant_can_be_read_but_a_store_into_it_fails()
+    {
+        // through its own address or that of one of its bytes; a store through an address it cannot see passes
+        var text = _module.AddConstant("<text 0>", [1, 2, 3, 4]);
+        var (f, b) = Function(TirType.I8, ("p", TirType.Ptr));
+        var first = b.AddressOf(text);
+        var third = b.ElementAddress(first, TirType.I8, b.Const(TirType.I32, 2));
+        var value = b.Load(TirType.I8, third);
+        b.Store(third, value);
+        b.Store(first, b.Zero(text.Type));
+        b.Store(f.Parameters[0], value);
+        b.Return(value);
+
+        AssertError(
+            "Function 'Program.F', block 'entry', 'store i8 [%2], %3': stores into @<text 0>, which is constant: " +
+                "nothing may write it.",
+            "Function 'Program.F', block 'entry', 'store [4 x i8] [%0], %4': stores into @<text 0>, which is " +
+                "constant: nothing may write it.");
+    }
+
     /// <summary>Adds <c>Program.F</c> with an empty entry block and a builder positioned there.</summary>
     private (TirFunction Function, TirBuilder Builder) Function(TirType returnType,
         params (string Name, TirType Type)[] parameters)

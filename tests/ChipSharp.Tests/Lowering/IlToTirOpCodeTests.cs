@@ -174,6 +174,7 @@ public sealed partial class IlToTirOpCodeTests : IDisposable
             program.AddComparisonsAndBranches();
             program.AddArgumentsLocalsAndConstants();
             program.AddArrays();
+            program.AddText();
             program.AddMain();
             return program;
         }
@@ -850,6 +851,12 @@ public sealed partial class IlToTirOpCodeTests : IDisposable
                 {
                     switch (argument)
                     {
+                        case null:
+                            il.Emit(OpCodes.Ldnull);
+                            break;
+                        case string text:
+                            il.Emit(OpCodes.Ldstr, text);
+                            break;
                         case long l:
                             il.Emit(OpCodes.Ldc_I8, l);
                             break;
@@ -878,6 +885,7 @@ public sealed partial class IlToTirOpCodeTests : IDisposable
                 var result = method.ReturnType;
                 il.Emit(OpCodes.Call, result == typeof(bool) || result == typeof(uint) || result == typeof(long)
                     || result == typeof(ulong) || result == typeof(float) || result == typeof(double)
+                    || result == typeof(string)
                     ? WriteLine(result)
                     : WriteLineInt32);
             }

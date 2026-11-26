@@ -4,9 +4,9 @@ namespace ChipSharp.Frontend.Analysis;
 
 /// <summary>
 /// A C# feature the program uses that <see cref="SupportedSubset"/> does not have yet, in C# words, with when it is
-/// planned and a hint for what to write instead. <see cref="Message"/> is e.g. "text strings arrive with M3 (the heap).
-/// For now, print numbers and bools with Console.WriteLine." The problems of a check that have equal features are one
-/// group in its summary.
+/// planned and a hint for what to write instead. <see cref="Message"/> is e.g. "building text ($"...", +, ...) arrives
+/// with M3 (the heap). For now, print the parts one after another with Console.Write." The problems of a check that
+/// have equal features are one group in its summary.
 /// </summary>
 /// <param name="What">The feature as C# programmers know it, e.g. "arrays" or "checked arithmetic".</param>
 /// <param name="IsPlural">True when <paramref name="What"/> takes "arrive" rather than "arrives".</param>
@@ -19,7 +19,6 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
     /// <summary>The <see cref="Arrival"/> of the rest: planned, without a milestone yet.</summary>
     private const string Later = "later";
 
-    private const string StringsHint = "For now, print numbers and bools with Console.WriteLine.";
     private const string ObjectsHint = "For now, use structs and static methods.";
     private const string ReferencesHint = "For now, pass values in and return results.";
     private const string FailuresHint = "For now, report failures through return values";
@@ -27,7 +26,6 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
     public static readonly Unsupported CreatingObjects = Heap("creating objects (new ...)", false, ObjectsHint);
     public static readonly Unsupported ClassesAndObjects = Heap("classes and objects", true, ObjectsHint);
     public static readonly Unsupported Interfaces = Heap("interfaces", true, ObjectsHint);
-    public static readonly Unsupported Null = Heap("null", false, ObjectsHint);
     public static readonly Unsupported TypeTests = Heap("type tests and casts on objects (is, as, (T)x)", true,
         ObjectsHint);
     public static readonly Unsupported Boxing = Heap("boxing (using a value as an object)", false,
@@ -42,9 +40,13 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
         "For now, write a type for each type argument you need.");
     public static readonly Unsupported MethodsWithoutBody = new("methods without a body (extern, DllImport)", true,
         "For now, write the method in C#.");
-    public static readonly Unsupported Strings = Heap("text strings", true, StringsHint);
-    public static readonly Unsupported StringInterpolation = Heap("string interpolation ($\"...\")", false,
-        StringsHint);
+    public static readonly Unsupported Strings = Heap("text strings", true,
+        "For now, keep text in locals, parameters, return values and static fields.");
+    public static readonly Unsupported TextReferences = Heap("references to text (ref string, out string)", true,
+        "For now, return the text instead.");
+    public static readonly Unsupported BuildingText = Heap(
+        "building text ($\"...\", +, ToString, string.Format and the other methods of string)", false,
+        "For now, print the parts one after another with Console.Write.");
     public static readonly Unsupported Characters = Heap("characters (char)", true, "For now, use whole numbers.");
     public static readonly Unsupported Arrays = Heap("arrays", true,
         "For now, use arrays of numbers, bools, structs or enums, each kept in the method that creates it.");
@@ -76,8 +78,8 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
     public static readonly Unsupported OtherInstruction = new("this IL instruction", false,
         "For now, write that code another way.");
     public static readonly Unsupported OtherType = new("this type", false,
-        "For now, use bool, the whole-number types (sbyte to ulong, nint, nuint), float, double, and the " +
-        "program's own structs and enums.");
+        "For now, use bool, the whole-number types (sbyte to ulong, nint, nuint), float, double, string (for fixed " +
+        "text), and the program's own structs and enums.");
 
     /// <summary>
     /// When the feature is planned, as the end of <see cref="Heading"/>: "with M3 (the heap)" for what needs objects on
@@ -92,7 +94,7 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
     public bool IsLibraryField { get; private init; }
 
     /// <summary>
-    /// What is not supported, as a clause: "text strings arrive with M3 (the heap)", "checked arithmetic arrives
+    /// What is not supported, as a clause: "classes and objects arrive with M3 (the heap)", "checked arithmetic arrives
     /// later", "the library method System.Math.Abs(int) is not available yet".
     /// </summary>
     public string Heading => IsRule ? What
@@ -121,7 +123,7 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
 
     /// <summary>
     /// True for the type C# builds an interpolated string (<c>$"..."</c>) with. Its local, the address of that local
-    /// and the calls on it are all one feature: <see cref="StringInterpolation"/>.
+    /// and the calls on it are all one feature: <see cref="BuildingText"/>.
     /// </summary>
     public static bool IsInterpolatedStringHandler(IlType type) => type is IlNamedType
     {
@@ -139,11 +141,9 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
         return opCode switch
         {
             IlOpCode.Newobj => CreatingObjects,
-            IlOpCode.Ldnull => Null,
             IlOpCode.Castclass or IlOpCode.Isinst => TypeTests,
             IlOpCode.Box or IlOpCode.Unbox or IlOpCode.Unbox_Any => Boxing,
             IlOpCode.Callvirt or IlOpCode.Constrained => InstanceCalls,
-            IlOpCode.Ldstr => Strings,
             IlOpCode.Newarr or IlOpCode.Ldlen => Arrays,
             IlOpCode.Localloc => Stackalloc,
             IlOpCode.Ldfld or IlOpCode.Ldflda or IlOpCode.Stfld => Fields,
@@ -179,7 +179,7 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
         IlFunctionPointerType => Delegates,
         IlNamedType { IsDefinedInThisAssembly: true } named when assembly.FindType(named.FullName) is { } definition =>
             ForDefinition(definition),
-        _ when IsInterpolatedStringHandler(type) => StringInterpolation,
+        _ when IsInterpolatedStringHandler(type) => BuildingText,
         IlGenericInstanceType { Definition: IlNamedType { IsDefinedInThisAssembly: true } } => GenericTypes,
         _ => OtherType,
     };

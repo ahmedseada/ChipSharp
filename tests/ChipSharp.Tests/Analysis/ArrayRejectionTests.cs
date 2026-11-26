@@ -208,8 +208,8 @@ public sealed class ArrayRejectionTests
             }
             """));
 
-        const string Name = "text strings in the field Program.Person.Name arrive with M3 (the heap). For now, print numbers "
-            + "and bools with Console.WriteLine.";
+        const string Name = "text strings in the field Program.Person.Name arrive with M3 (the heap). For now, keep text "
+            + "in locals, parameters, return values and static fields.";
         const string Children = "an array that leaves the method that creates it (returned, or stored in a field or in "
             + "another array) in the field Program.Node.Children arrives with M3 (the heap). For now, keep each array in "
             + "the method that creates it; the methods it calls can take it as a parameter.";

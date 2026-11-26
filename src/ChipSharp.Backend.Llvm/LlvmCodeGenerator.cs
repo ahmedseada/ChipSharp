@@ -12,7 +12,8 @@ namespace ChipSharp.Backend.Llvm;
 /// functions keep exactly that symbol, since the runtime implements them under it, and so do exported functions
 /// (<see cref="TirFunction.ExportName"/>), which the runtime calls by it; another defined function or a global whose
 /// symbol is already taken gets _2, _3, ... after it. A global is an <c>internal global</c> that starts at
-/// zero or at its initial value. Each slot becomes an alloca that starts at zero, in a block of its own in front
+/// zero or at its initial value; a constant global (read-only data) is a <c>private unnamed_addr constant</c>
+/// array of bytes, <c>c"..."</c>. Each slot becomes an alloca that starts at zero, in a block of its own in front
 /// of the TIR entry block. Struct types become named LLVM struct types (<c>%struct.Program_Point</c>), and every
 /// alignment comes from <see cref="TirLayout"/>. <see cref="EntrySymbol"/> calls the module's entry point and
 /// returns its int result (0 when it returns nothing); the runtime's startup code calls it.
@@ -63,9 +64,17 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
 
         foreach (var global in module.Globals)
         {
-            // internal, like the defined functions: only this module uses it
-            var value = global.InitialValue is { } initial ? LlvmText.Constant(initial) : LlvmText.Zero(global.Type);
+            // internal, like the defined functions: only this module uses it; read-only data is private (it needs no
+            // symbol at all) and constant, so the linker puts it with the code (.rodata, in flash on a chip)
             var align = types.Alignment(global.Type).ToString(CultureInfo.InvariantCulture);
+            if (global.Data is { } data)
+            {
+                text.Append($"@{globalSymbols[global]} = private unnamed_addr constant {types.Of(global.Type)} " +
+                    $"{LlvmText.Bytes(data)}, align {align}\n");
+                continue;
+            }
+
+            var value = global.InitialValue is { } initial ? LlvmText.Constant(initial) : LlvmText.Zero(global.Type);
             text.Append($"@{globalSymbols[global]} = internal global {types.Of(global.Type)} {value}, align {align}\n");
         }
 

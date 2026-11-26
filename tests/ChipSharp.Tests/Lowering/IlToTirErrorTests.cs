@@ -18,11 +18,11 @@ public sealed class IlToTirErrorTests
         var error = Error("""
             class Program
             {
-                static void Main() => System.Console.WriteLine("hello");
+                static void Main() => System.Console.WriteLine((object)1);
             }
             """);
 
-        Assert.Equal("Test.dll: Program.Main() at IL_0000: ldstr is not supported yet.",
+        Assert.Equal("Test.dll: Program.Main() at IL_0001: box is not supported yet.",
             error.Message);
     }
 
@@ -38,9 +38,9 @@ public sealed class IlToTirErrorTests
             """;
 
         Assert.Equal("Test.dll: C.Code(char): parameter 'c' has type char, which is not supported yet " +
-            "(ChipSharp compiles bool, whole numbers, float and double).", Error(Source, "C.Code").Message);
+            "(ChipSharp compiles bool, whole numbers, float, double and fixed text (string)).", Error(Source, "C.Code").Message);
         Assert.Equal("Test.dll: C.Letter(int32): it returns char, which is not supported yet " +
-            "(ChipSharp compiles bool, whole numbers, float and double).", Error(Source, "C.Letter").Message);
+            "(ChipSharp compiles bool, whole numbers, float, double and fixed text (string)).", Error(Source, "C.Letter").Message);
     }
 
     [Fact]
@@ -50,14 +50,14 @@ public sealed class IlToTirErrorTests
         emitted.Method("F", typeof(void), [], il =>
         {
             il.DeclareLocal(typeof(int));
-            il.DeclareLocal(typeof(string));
+            il.DeclareLocal(typeof(object));
             il.Emit(OpCodes.Ret);
         });
 
         var error = Assert.Throws<ChipSharpException>(() => Lower(emitted.Read(), "Program.F"));
 
-        Assert.Equal("Emitted.dll: Program.F(): local V_1 has type string, which is not supported yet " +
-            "(ChipSharp compiles bool, whole numbers, float and double).", error.Message);
+        Assert.Equal("Emitted.dll: Program.F(): local V_1 has type object, which is not supported yet " +
+            "(ChipSharp compiles bool, whole numbers, float, double and fixed text (string)).", error.Message);
     }
 
     [Fact]
@@ -71,7 +71,10 @@ public sealed class IlToTirErrorTests
             """);
 
         Assert.Equal("Test.dll: Program.Main() at IL_0002: the call to System.Math.Abs(int32) is not supported: " +
-            "of the library, ChipSharp can call System.Console.WriteLine(), System.Console.WriteLine(int), " +
+            "of the library, ChipSharp can call System.Console.Write(string), System.Console.Write(int), " +
+            "System.Console.Write(uint), System.Console.Write(long), System.Console.Write(ulong), " +
+            "System.Console.Write(bool), System.Console.Write(float), System.Console.Write(double), " +
+            "System.Console.WriteLine(), System.Console.WriteLine(string), System.Console.WriteLine(int), " +
             "System.Console.WriteLine(uint), System.Console.WriteLine(long), System.Console.WriteLine(ulong), " +
             "System.Console.WriteLine(bool), System.Console.WriteLine(float), System.Console.WriteLine(double), " +
             "System.Math.Abs(double), System.Math.Abs(float), System.Math.Min(double, double), " +
@@ -162,8 +165,8 @@ public sealed class IlToTirErrorTests
             }
             """);
 
-        Assert.Equal("Test.dll: Program.Main(string[]) at IL_0000: the entry point uses its string[] args, and strings " +
-            "are not supported yet (ChipSharp leaves an unused args out).", error.Message);
+        Assert.Equal("Test.dll: Program.Main(string[]) at IL_0000: the entry point uses its string[] args, and arrays " +
+            "of strings are not supported yet (ChipSharp leaves an unused args out).", error.Message);
     }
 
     [Fact]
@@ -184,7 +187,7 @@ public sealed class IlToTirErrorTests
 
         Assert.Empty(module.EntryPoint!.Parameters);
         Assert.Equal("Test.dll: Program.Count(string[]): parameter 'items' has type string[], which is not " +
-            "supported yet (ChipSharp compiles bool, whole numbers, float and double).", error.Message);
+            "supported yet (ChipSharp compiles bool, whole numbers, float, double and fixed text (string)).", error.Message);
     }
 
     [Fact]

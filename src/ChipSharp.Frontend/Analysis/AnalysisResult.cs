@@ -50,9 +50,9 @@ public sealed class AnalysisResult
     /// <code>
     /// Demo.dll uses 2 C# features that ChipSharp does not compile yet (3 places):
     ///   the library method System.Math.Abs(int) is not available yet: 1 place in Program.Main() (IL_000e).
-    ///   text strings arrive with M3 (the heap): 2 places in Program.Main() (IL_0001 and IL_0014). For now, ...
+    ///   building text ($"...", +, ...) arrives with M3 (the heap): 2 places in Program.Main() (IL_0001 and IL_0014). For now, ...
     /// ChipSharp can call these library methods (--details lists each one with its parameters):
-    ///   Console.WriteLine of (nothing), int, uint, long, ulong, bool, float, double
+    ///   Console.Write and Console.WriteLine of (nothing), text, int, uint, long, ulong, bool, float, double
     ///   ...
     /// For every place, run: chipsharp check Demo.dll --details
     /// </code>

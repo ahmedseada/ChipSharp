@@ -15,11 +15,13 @@ class Program
         float[] features = { 1.0f, 2.0f };
 
         float result = Logit(weights, features);
+        Console.Write("Logit result: ");
         Console.WriteLine(result);
 
         // other features, the same weights
         features[0] = 3.0f;
         features[1] = 0.5f;
+        Console.Write("Logit result: ");
         Console.WriteLine(Logit(weights, features));
     }
 }

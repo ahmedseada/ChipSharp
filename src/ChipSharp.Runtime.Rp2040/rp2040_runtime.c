@@ -11,9 +11,10 @@
 //                                      Write, Toggle, Read); other pin numbers are ignored
 //   ChipSharp_Runtime_Delay...         ChipSharp.Hardware.Timing: sleeps on timer alarm 0 (TIMER_IRQ_0, IRQ 0)
 //   ChipSharp_Runtime_Register...      ChipSharp.Hardware.Registers: 32-bit reads and writes of any address
-//   ChipSharp_Runtime_WriteLine...     Console.WriteLine: UART0 on GPIO 0 (TX) and 1 (RX), 115200 baud, 8N1, lines
-//                                      end with "\r\n" like .NET on Windows; UART0 is set up on the first write.
-//                                      Floats and doubles as text come from chipsharp_float_text.c
+//   chipsharp_console_write            where Console.Write and Console.WriteLine write: UART0 on GPIO 0 (TX) and 1
+//                                      (RX), 115200 baud, 8N1, set up on the first write (the text they write, with
+//                                      lines that end with "\r\n" like .NET's on Windows, comes from
+//                                      chipsharp_console.c)
 
 #define REG(address) (*(volatile unsigned int *)(address))
 
@@ -337,11 +338,7 @@ void ChipSharp_Runtime_RegisterWrite(unsigned int address, unsigned int value)
     REG(address) = value;
 }
 
-// ---- Console.WriteLine on UART0 ----------------------------------------------------------------------------------
-
-// In chipsharp_float_text.c: a double or a float, given by its bits, as .NET writes it; returns the length.
-int chipsharp_float64_text(unsigned long long bits, char *text);
-int chipsharp_float32_text(unsigned int bits, char *text);
+// ---- Console.Write and Console.WriteLine on UART0 ----------------------------------------------------------------
 
 static unsigned int uart_started;
 
@@ -374,107 +371,14 @@ static void write_bytes(const char *bytes, unsigned int count)
     }
 }
 
-// The same output for the runtime's other files (rp2040_failures.c).
-void chipsharp_uart0_write(const char *bytes, unsigned int count)
+// Console.Write and Console.WriteLine (chipsharp_console.c) write here: text as the UTF-8 bytes of its literal.
+void chipsharp_console_write(const char *bytes, unsigned int count)
 {
     write_bytes(bytes, count);
 }
 
-// Writes the number in decimal, with a minus sign in front when negative is set, and ends the line.
-static void write_line_number(unsigned long long magnitude, int negative)
+// The same output for the runtime's other files (rp2040_failures.c).
+void chipsharp_uart0_write(const char *bytes, unsigned int count)
 {
-    char text[24]; // "-", up to 20 digits, "\r\n"
-    int start = (int)sizeof text;
-    text[--start] = '\n';
-    text[--start] = '\r';
-    do
-    {
-        text[--start] = (char)('0' + (int)(magnitude % 10));
-        magnitude /= 10;
-    } while (magnitude != 0);
-
-    if (negative)
-    {
-        text[--start] = '-';
-    }
-
-    write_bytes(text + start, (unsigned int)((int)sizeof text - start));
-}
-
-// The magnitude of a negative number, computed in unsigned arithmetic so that the most negative value
-// (int.MinValue, long.MinValue) has one too: 0 - (unsigned)value never overflows.
-static unsigned long long magnitude_of(long long value)
-{
-    return value < 0 ? 0ULL - (unsigned long long)value : (unsigned long long)value;
-}
-
-void ChipSharp_Runtime_WriteLine(void)
-{
-    write_bytes("\r\n", 2);
-}
-
-void ChipSharp_Runtime_WriteLineInt32(int value)
-{
-    write_line_number(magnitude_of(value), value < 0);
-}
-
-void ChipSharp_Runtime_WriteLineUInt32(unsigned int value)
-{
-    write_line_number(value, 0);
-}
-
-void ChipSharp_Runtime_WriteLineInt64(long long value)
-{
-    write_line_number(magnitude_of(value), value < 0);
-}
-
-void ChipSharp_Runtime_WriteLineUInt64(unsigned long long value)
-{
-    write_line_number(value, 0);
-}
-
-// A bool arrives as an int; like .NET, anything but 0 is True.
-void ChipSharp_Runtime_WriteLineBool(int value)
-{
-    if (value != 0)
-    {
-        write_bytes("True\r\n", 6);
-    }
-    else
-    {
-        write_bytes("False\r\n", 7);
-    }
-}
-
-// Ends the line after the text in text[0..length) (the buffer has room for two more characters) and writes it.
-static void write_line_text(char *text, int length)
-{
-    text[length++] = '\r';
-    text[length++] = '\n';
-    write_bytes(text, (unsigned int)length);
-}
-
-// The shortest text that reads back as the same value, as .NET writes it. The bits are read through a union, so
-// the number itself is never used in a calculation: the Cortex-M0+ has no float hardware, and the runtime has
-// none of the routines that would stand in for it.
-void ChipSharp_Runtime_WriteLineFloat64(double value)
-{
-    union
-    {
-        double value;
-        unsigned long long bits;
-    } number = {value};
-    char text[26]; // at most 24 characters, "\r\n"
-    write_line_text(text, chipsharp_float64_text(number.bits, text));
-}
-
-void ChipSharp_Runtime_WriteLineFloat32(float value)
-{
-    union
-    {
-        float value;
-        unsigned int bits;
-    } number = {value};
-    char text[17]; // at most 15 characters, "\r\n"
-    write_line_text(text, chipsharp_float32_text(number.bits, text));
+    write_bytes(bytes, count);
 }

@@ -7,7 +7,7 @@ namespace ChipSharp.Frontend;
 /// <summary>
 /// The static fields a program may read and write (<c>ldsfld</c>, <c>stsfld</c>) and take the address of
 /// (<c>ldsflda</c>): those of its own types that are not generic, of a type <see cref="ValueTypes.TryMapType"/> supports
-/// (its structs and enums too). Each becomes a TIR global.
+/// (its structs and enums too), or of fixed text (a string, see <see cref="FixedText"/>). Each becomes a TIR global.
 /// </summary>
 internal static class StaticFields
 {
@@ -31,7 +31,8 @@ internal static class StaticFields
     /// <summary>The TIR type of the global the field becomes, when the field's type is supported.</summary>
     public static bool TryMapType(IlField field, [NotNullWhen(true)] out TirType? tirType)
     {
-        if (ValueTypes.TryMapType(Type(field), field.DeclaringType.Assembly, out tirType) && tirType != TirType.Void)
+        if ((ValueTypes.TryMapType(Type(field), field.DeclaringType.Assembly, out tirType) && tirType != TirType.Void)
+            || FixedText.TryMapType(Type(field), out tirType))
         {
             return true;
         }

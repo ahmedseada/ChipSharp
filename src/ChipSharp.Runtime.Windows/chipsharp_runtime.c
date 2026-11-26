@@ -4,8 +4,9 @@
 // the toolchain makes their import library from the target's "link.imports".
 //
 //   chipsharp_start                      the program's entry point: runs chipsharp_entry, exits with its result
-//   ChipSharp_Runtime_WriteLine...       Console.WriteLine for each type, written like .NET on Windows ("\r\n");
-//                                        floats and doubles as text come from chipsharp_float_text.c
+//   chipsharp_console_write              where Console.Write and Console.WriteLine write: standard output (the
+//                                        text they write, with lines that end with "\r\n" like .NET's on Windows,
+//                                        comes from chipsharp_console.c)
 // memcpy, memmove and memset (which LLVM calls to copy and clear large structs and arrays) are in chipsharp_memory.c.
 
 typedef void *HANDLE;
@@ -22,10 +23,6 @@ __declspec(dllimport) __declspec(noreturn) void __stdcall ExitProcess(unsigned i
 // Written by the code generator: calls the program's Main and returns its result (0 for a void Main).
 int chipsharp_entry(void);
 
-// In chipsharp_float_text.c: a double or a float, given by its bits, as .NET writes it; returns the length.
-int chipsharp_float64_text(unsigned long long bits, char *text);
-int chipsharp_float32_text(unsigned int bits, char *text);
-
 // The linker looks for this symbol when a program uses floating point; nothing reads it.
 int _fltused = 0;
 
@@ -34,7 +31,9 @@ __declspec(noreturn) void chipsharp_start(void)
     ExitProcess((unsigned int)chipsharp_entry());
 }
 
-static void write_bytes(const char *bytes, DWORD count)
+// Console.Write and Console.WriteLine (chipsharp_console.c) write here: text as the UTF-8 bytes of its literal,
+// whatever the console's code page.
+void chipsharp_console_write(const char *bytes, unsigned int count)
 {
     HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);
     while (count > 0)
@@ -48,102 +47,4 @@ static void write_bytes(const char *bytes, DWORD count)
         bytes += written;
         count -= written;
     }
-}
-
-// Writes the number in decimal, with a minus sign in front when negative is set, and ends the line.
-static void write_line_number(unsigned long long magnitude, int negative)
-{
-    char text[24]; // "-", up to 20 digits, "\r\n"
-    int start = (int)sizeof text;
-    text[--start] = '\n';
-    text[--start] = '\r';
-    do
-    {
-        text[--start] = (char)('0' + (int)(magnitude % 10));
-        magnitude /= 10;
-    } while (magnitude != 0);
-
-    if (negative)
-    {
-        text[--start] = '-';
-    }
-
-    write_bytes(text + start, (DWORD)((int)sizeof text - start));
-}
-
-// The magnitude of a negative number, computed in unsigned arithmetic so that the most negative value
-// (int.MinValue, long.MinValue) has one too: 0 - (unsigned)value never overflows.
-static unsigned long long magnitude_of(long long value)
-{
-    return value < 0 ? 0ULL - (unsigned long long)value : (unsigned long long)value;
-}
-
-void ChipSharp_Runtime_WriteLine(void)
-{
-    write_bytes("\r\n", 2);
-}
-
-void ChipSharp_Runtime_WriteLineInt32(int value)
-{
-    write_line_number(magnitude_of(value), value < 0);
-}
-
-void ChipSharp_Runtime_WriteLineUInt32(unsigned int value)
-{
-    write_line_number(value, 0);
-}
-
-void ChipSharp_Runtime_WriteLineInt64(long long value)
-{
-    write_line_number(magnitude_of(value), value < 0);
-}
-
-void ChipSharp_Runtime_WriteLineUInt64(unsigned long long value)
-{
-    write_line_number(value, 0);
-}
-
-// A bool arrives as an int; like .NET, anything but 0 is True.
-void ChipSharp_Runtime_WriteLineBool(int value)
-{
-    if (value != 0)
-    {
-        write_bytes("True\r\n", 6);
-    }
-    else
-    {
-        write_bytes("False\r\n", 7);
-    }
-}
-
-// Ends the line after the text in text[0..length) (the buffer has room for two more characters) and writes it.
-static void write_line_text(char *text, int length)
-{
-    text[length++] = '\r';
-    text[length++] = '\n';
-    write_bytes(text, (DWORD)length);
-}
-
-// The shortest text that reads back as the same value, as .NET writes it. The bits are read through a union, so
-// the number itself is never used in a calculation.
-void ChipSharp_Runtime_WriteLineFloat64(double value)
-{
-    union
-    {
-        double value;
-        unsigned long long bits;
-    } number = {value};
-    char text[26]; // at most 24 characters, "\r\n"
-    write_line_text(text, chipsharp_float64_text(number.bits, text));
-}
-
-void ChipSharp_Runtime_WriteLineFloat32(float value)
-{
-    union
-    {
-        float value;
-        unsigned int bits;
-    } number = {value};
-    char text[17]; // at most 15 characters, "\r\n"
-    write_line_text(text, chipsharp_float32_text(number.bits, text));
 }

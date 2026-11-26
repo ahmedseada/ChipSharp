@@ -11,10 +11,13 @@ namespace ChipSharp.Runtime.Rp2040;
 /// checksummed (<see cref="Boot2Image"/>), in the section .boot2 the target's link settings put first in flash.</item>
 /// <item><see cref="SourceFileName"/>: chip start-up (crystal, PLL, 125 MHz clocks, the microsecond timer) and the
 /// runtime functions programs call: <c>ChipSharp_Runtime_Pin*</c>, <c>ChipSharp_Runtime_Delay*</c>,
-/// <c>ChipSharp_Runtime_Register*</c> (ChipSharp.Hardware) and <c>ChipSharp_Runtime_WriteLine*</c>
-/// (Console.WriteLine on UART0: GPIO 0, 115200 baud).</item>
+/// <c>ChipSharp_Runtime_Register*</c> (ChipSharp.Hardware), and <c>chipsharp_console_write</c>, where the console
+/// output goes: UART0 (GPIO 0, 115200 baud).</item>
+/// <item><see cref="ConsoleFileName"/>: Console.Write and Console.WriteLine of every type
+/// (<c>ChipSharp_Runtime_Write*</c>, <c>ChipSharp_Runtime_WriteLine*</c>), shared with the other runtimes
+/// (src/ChipSharp.Runtime.Shared).</item>
 /// <item><see cref="FloatTextFileName"/>: floats and doubles as text, as .NET writes them, shared with the other
-/// runtimes (src/ChipSharp.Runtime.Shared).</item>
+/// runtimes.</item>
 /// <item><see cref="FailuresFileName"/>: what the program does where .NET would throw.</item>
 /// <item><see cref="InterruptsFileName"/>, with the vector table: the timer and pin events of the program's
 /// <c>[Interrupt]</c> methods (<c>ChipSharp_Runtime_Timer*</c>, <c>ChipSharp_Runtime_Pin*Watch</c>), and the functions
@@ -26,7 +29,10 @@ public sealed class Rp2040Runtime : IArchRuntime
     /// <summary>The C file with the chip's start-up and runtime functions.</summary>
     public const string SourceFileName = "rp2040_runtime.c";
 
-    /// <summary>The C file that writes floats and doubles as .NET does, for Console.WriteLine.</summary>
+    /// <summary>The C file with Console.Write and Console.WriteLine, which write through <see cref="SourceFileName"/>.</summary>
+    public const string ConsoleFileName = "chipsharp_console.c";
+
+    /// <summary>The C file that writes floats and doubles as .NET does, for Console.Write and Console.WriteLine.</summary>
     public const string FloatTextFileName = "chipsharp_float_text.c";
 
     /// <summary>The assembly file with the padded boot2.</summary>
@@ -49,7 +55,8 @@ public sealed class Rp2040Runtime : IArchRuntime
     public string Name => "rp2040";
 
     /// <summary>
-    /// The ARMv6-M start-up and helpers, boot2, the chip's own start-up and runtime functions, and the text of floats.
+    /// The ARMv6-M start-up and helpers, boot2, the chip's own start-up and runtime functions, the console output and
+    /// the text of floats.
     /// </summary>
     public RuntimeSources Startup(TargetDescription target)
     {
@@ -59,6 +66,7 @@ public sealed class Rp2040Runtime : IArchRuntime
             .. _armv6m.Startup(target).Files,
             Boot2(target),
             Source(SourceFileName),
+            Source(ConsoleFileName),
             Source(FloatTextFileName),
             Source(FailuresFileName),
         ]);

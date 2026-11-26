@@ -76,8 +76,8 @@ internal sealed partial class ProgramFunctions
             if (!StaticFields.TryMapType(field, out var type))
             {
                 throw LoweringErrors.At(user, instruction.Offset, $"the field {name} has type {StaticFields.Type(field)}, " +
-                    "which is not supported yet (ChipSharp compiles bool, whole numbers, float, double, " +
-                    "and the structs and enums of the program)");
+                    "which is not supported yet (ChipSharp compiles bool, whole numbers, float, double, fixed text " +
+                    "(string), and the structs and enums of the program)");
             }
 
             // a global without an initial value starts at zero, like a field the initializer does not set

@@ -8,7 +8,7 @@ namespace ChipSharp.Tests.Analysis;
 /// </summary>
 public sealed class StructCheckTests
 {
-    private const string Strings = "For now, print numbers and bools with Console.WriteLine.";
+    private const string Strings = "For now, keep text in locals, parameters, return values and static fields.";
     private const string Objects = "For now, use structs and static methods.";
 
     [Fact]
@@ -245,15 +245,15 @@ public sealed class StructCheckTests
                 + "(parameter 'window'). For now, keep references in parameters and locals.",
             "the type System.DateTime arrives later: 3 places in Program.Main() (IL_003d and local V_4) and "
                 + "Program.Days(System.DateTime) (parameter 'date'). "
-                + "For now, use bool, the whole-number types (sbyte to ulong, nint, nuint), float, double, and the "
-                + "program's own structs and enums.",
+                + "For now, use bool, the whole-number types (sbyte to ulong, nint, nuint), float, double, string (for "
+                + "fixed text), and the program's own structs and enums.",
         ], analysis.Groups.Select(group => group.Line));
     }
 
     [Fact]
     public void Objects_stay_out_next_to_structs()
     {
-        // a class's field, constructor and methods, and a reference to a string
+        // a class's field, constructor and methods, and a reference to a string (text itself compiles)
         var problems = Problems("""
             using System;
 
@@ -281,15 +281,13 @@ public sealed class StructCheckTests
 
         Assert.Equal(
         [
-            $"Program.Main(), local variable V_0 (string): text strings arrive with M3 (the heap). {Strings}",
             $"Program.Main() at IL_0000 (newobj): creating objects (new ...) arrives with M3 (the heap). {Objects}",
             "Program.Main() at IL_0007 (stfld): instance fields of classes (fields without static) arrive with M3 (the heap). "
                 + "For now, make the fields static, or make the class a struct.",
             "Program.Main() at IL_000c (callvirt): instance or virtual method calls arrive with M3 (the heap). "
                 + "For now, call static methods, or the methods of your own structs.",
-            $"Program.Main() at IL_0016 (ldstr): text strings arrive with M3 (the heap). {Strings}",
-            $"Program.Clear(ref string), parameter 'text' (ref string): text strings arrive with M3 (the heap). {Strings}",
-            $"Program.Clear(ref string) at IL_0001 (ldnull): null arrives with M3 (the heap). {Objects}",
+            "Program.Clear(ref string), parameter 'text' (ref string): references to text (ref string, out string) "
+                + "arrive with M3 (the heap). For now, return the text instead.",
             $"Program.Clear(ref string) at IL_0002 (stind.ref): classes and objects arrive with M3 (the heap). {Objects}",
         ], problems);
     }

@@ -6,12 +6,19 @@ namespace ChipSharp.Frontend.Lowering;
 /// Static fields: each is a global (see <see cref="ProgramFunctions.StaticField"/>), reached through its address,
 /// taken again at every use: <c>ldsfld</c> is <c>addr</c> then <c>load</c>, <c>stsfld</c> is <c>addr</c> then
 /// <c>store</c>. The values are widened and narrowed as for a local. After <c>volatile.</c> (a C# <c>volatile</c>
-/// field) the load or store is volatile: it happens exactly once, where the IL has it.
+/// field) the load or store is volatile: it happens exactly once, where the IL has it. <c>string.Empty</c> is no field
+/// of the program: it is the literal "" (see <see cref="FixedText"/>).
 /// </summary>
 internal sealed partial class MethodLowering
 {
     private void LoadStaticField()
     {
+        if (FixedText.IsEmpty(((IlFieldOperand)_instruction.Operand!).Field))
+        {
+            Push(Text(""));
+            return;
+        }
+
         var field = _program.StaticField(_method, _instruction);
         var address = _ir.AddressOf(field.Global);
         Push(ToStack(_ir.Load(field.Global.Type, address, IsVolatileAccess()), field.Type));

@@ -58,16 +58,11 @@ public sealed class TirModule
     /// </param>
     public TirGlobal AddGlobal(string name, TirType type, TirConst? initialValue = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        CheckNewGlobal(name);
         ArgumentNullException.ThrowIfNull(type);
         if (type == TirType.Void)
         {
             throw new TirException($"Module '{Name}': global @{name} cannot have type void.");
-        }
-
-        if (_globals.Any(g => g.Name == name))
-        {
-            throw new TirException($"Module '{Name}' already has a global named @{name}.");
         }
 
         if (initialValue is not null && initialValue.Type != type)
@@ -83,7 +78,30 @@ public sealed class TirModule
                 $"'{block.Function.Name}'; give a constant that is in no block.");
         }
 
-        var global = new TirGlobal(this, _globals.Count, name, type, initialValue);
+        var global = new TirGlobal(this, _globals.Count, name, type, initialValue, data: null);
+        _globals.Add(global);
+        return global;
+    }
+
+    /// <summary>
+    /// Adds read-only data, printed as <c>constant [5 x i8] @name = c"hello"</c>: a global of type <c>[n x i8]</c>
+    /// that holds <paramref name="data"/> from the start, and that nothing may write (the verifier refuses a store
+    /// it can see). A code generator puts it with the code: in flash on a chip. Code reaches it through its address,
+    /// like any global's.
+    /// </summary>
+    /// <param name="name">A display name, unique within the module among all globals, e.g. "&lt;text 0&gt;".</param>
+    /// <param name="data">Its bytes: at least one.</param>
+    public TirGlobal AddConstant(string name, IEnumerable<byte> data)
+    {
+        CheckNewGlobal(name);
+        ArgumentNullException.ThrowIfNull(data);
+        byte[] bytes = [.. data];
+        if (bytes.Length == 0)
+        {
+            throw new TirException($"Module '{Name}': constant @{name} has no bytes; it needs at least one.");
+        }
+
+        var global = new TirGlobal(this, _globals.Count, name, new TirArrayType(TirType.I8, bytes.Length), null, bytes);
         _globals.Add(global);
         return global;
     }
@@ -164,6 +182,15 @@ public sealed class TirModule
     }
 
     public override string ToString() => Name;
+
+    private void CheckNewGlobal(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        if (_globals.Any(g => g.Name == name))
+        {
+            throw new TirException($"Module '{Name}' already has a global named @{name}.");
+        }
+    }
 
     private TirFunction Add(TirFunction function)
     {

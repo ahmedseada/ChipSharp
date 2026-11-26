@@ -60,10 +60,18 @@ internal static class LlvmText
     /// A quoted LLVM string, e.g. for <c>source_filename</c>: printable ASCII stays as it is, and every other
     /// byte of the UTF-8 text (and the quote and backslash) is written as <c>\XX</c>.
     /// </summary>
-    public static string Quoted(string text)
+    public static string Quoted(string text) => Escaped("\"", Encoding.UTF8.GetBytes(text));
+
+    /// <summary>
+    /// An array of bytes as an LLVM constant, <c>c"..."</c>, escaped as <see cref="Quoted"/> escapes, e.g.
+    /// <c>c"caf\C3\A9"</c>.
+    /// </summary>
+    public static string Bytes(IEnumerable<byte> bytes) => Escaped("c\"", bytes);
+
+    private static string Escaped(string start, IEnumerable<byte> bytes)
     {
-        var quoted = new StringBuilder("\"");
-        foreach (var b in Encoding.UTF8.GetBytes(text))
+        var quoted = new StringBuilder(start);
+        foreach (var b in bytes)
         {
             if (b is >= 0x20 and < 0x7F && b != '"' && b != '\\')
             {

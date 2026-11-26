@@ -228,7 +228,8 @@ public static class TirVerifier
             TirSizeOf { OfType.Kind: TirTypeKind.Void } => "void takes no memory, so it has no size.",
             TirPointerLoad { Type.Kind: TirTypeKind.Void } => "load cannot produce void.",
             TirPointerLoad l => AddressProblem(l.Address) ?? PointeeProblem("loads", l.Type, l.Address),
-            TirPointerStore s => AddressProblem(s.Address) ?? PointeeProblem("stores", s.Value.Type, s.Address),
+            TirPointerStore s => AddressProblem(s.Address) ?? ConstantProblem(s.Address)
+                ?? PointeeProblem("stores", s.Value.Type, s.Address),
             TirFieldAddress f => AddressProblem(f.Address) ?? FieldProblem(f),
             TirElementAddress e => AddressProblem(e.Address) ?? ElementProblem(e),
             TirPtrToInt p when p.Address.Type != TirType.Ptr => $"ptrtoint takes a ptr, not {p.Address.Type}.",
@@ -277,6 +278,22 @@ public static class TirVerifier
         /// <summary>An address operand that is not a ptr.</summary>
         private string? AddressProblem(TirValue address) =>
             address.Type == TirType.Ptr ? null : $"the address {names.Of(address)} is {address.Type}; it must be ptr.";
+
+        /// <summary>
+        /// A store into a constant global, where that can be seen: the address is the global's (addr), or an element's
+        /// or a field's in it (elementaddr, fieldaddr), all in this block.
+        /// </summary>
+        private static string? ConstantProblem(TirValue address)
+        {
+            while (address is TirElementAddress or TirFieldAddress)
+            {
+                address = address is TirElementAddress element ? element.Address : ((TirFieldAddress)address).Address;
+            }
+
+            return address is TirGlobalAddress { Global: { IsConstant: true } global }
+                ? $"stores into {global}, which is constant: nothing may write it."
+                : null;
+        }
 
         /// <summary>A load or store of another type than the one the address is known to point to.</summary>
         private string? PointeeProblem(string verb, TirType type, TirValue address) =>

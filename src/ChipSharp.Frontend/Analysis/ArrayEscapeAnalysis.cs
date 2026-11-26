@@ -69,6 +69,12 @@ internal static class ArrayEscapeAnalysis
 
         /// <summary>A field token (ldtoken); <see cref="Value.Set"/> holds the ldtoken instructions.</summary>
         Token,
+
+        /// <summary>
+        /// Null (ldnull), or where ways join, null or an array: fine as text (see <see cref="FixedText"/>), but not in
+        /// place of an array, which on the stack is never null; <see cref="Value.Set"/> holds the ldnull instructions.
+        /// </summary>
+        Null,
     }
 
     /// <summary>What a value on the stack can be, as far as arrays care.</summary>
@@ -82,12 +88,15 @@ internal static class ArrayEscapeAnalysis
 
         /// <summary>
         /// What either can be. A reference into an array that meets another reference where ways join (C#'s
-        /// <c>ref c ? ref a[0] : ref x</c>) may still be into the array; any other two kinds are just something.
+        /// <c>ref c ? ref a[0] : ref x</c>) may still be into the array, and null that meets an array (C#'s
+        /// <c>c ? a : null</c>) may still be null; any other two kinds are just something.
         /// </summary>
         public static Value Merge(Value a, Value b) => (a.Kind, b.Kind) switch
         {
             (Kind.ElementAddress, Kind.Other) => a,
             (Kind.Other, Kind.ElementAddress) => b,
+            (Kind.Null, Kind.Array) => a,
+            (Kind.Array, Kind.Null) => b,
             _ when a.Kind != b.Kind => Other,
             (Kind.Constant, _) => a.Constant == b.Constant ? a : Other,
             (Kind.Other, _) => a,
@@ -439,15 +448,19 @@ internal static class ArrayEscapeAnalysis
                     NewArray(instruction, Pop(), state);
                     break;
 
+                case IlOpCode.Ldnull:
+                    stack.Add(Value.Of(Kind.Null, [instruction.Offset]));
+                    break;
+
                 case IlOpCode.Ldlen:
-                    Pop();
-                    Verdict(instruction, null);
+                    Verdict(instruction, Pop().Kind == Kind.Null ? Unsupported.NullArrays : null);
                     stack.Add(Value.Other);
                     break;
 
                 case IlOpCode.Ldelema or (>= IlOpCode.Ldelem_I1 and <= IlOpCode.Ldelem_Ref) or IlOpCode.Ldelem:
                     var index1 = Pop();
                     var array = Pop();
+                    NotNull(instruction, array);
                     Element(instruction, index1);
                     stack.Add(instruction.OpCode == IlOpCode.Ldelema
                         ? Value.Of(Kind.ElementAddress, array.Kind == Kind.Array ? array.Set : [])
@@ -457,7 +470,7 @@ internal static class ArrayEscapeAnalysis
                 case (>= IlOpCode.Stelem_I and <= IlOpCode.Stelem_Ref) or IlOpCode.Stelem:
                     var element = Pop();
                     Element(instruction, Pop());
-                    Pop();
+                    NotNull(instruction, Pop());
                     if (element.Kind == Kind.Array)
                     {
                         Verdict(instruction, Unsupported.ArrayEscapes);
@@ -545,6 +558,11 @@ internal static class ArrayEscapeAnalysis
                         else
                         {
                             var stored = Pop();
+                            if (_isArray[variable])
+                            {
+                                NotNull(instruction, stored);
+                            }
+
                             state.Variables[variable] = stored.Kind is Kind.Array or Kind.ElementAddress ? stored.Set : [];
                             if (stored.Kind is Kind.Index or Kind.Token)
                             {
@@ -614,6 +632,12 @@ internal static class ArrayEscapeAnalysis
             for (var i = 0; i < pops; i++)
             {
                 var value = pop();
+                if (callee is not null && ParameterType(instruction, callee, pops - 1 - i) is { } parameter
+                    && StackArrays.TryMapType(parameter, _method.Assembly, out _))
+                {
+                    NotNull(instruction, value);
+                }
+
                 if (value.Kind == Kind.Array && IsComparison(instruction.OpCode))
                 {
                     Verdict(instruction, Unsupported.ArrayComparisons);
@@ -638,6 +662,25 @@ internal static class ArrayEscapeAnalysis
             for (var i = 0; i < pushes; i++)
             {
                 stack.Add(returnsReference ? Value.Of(Kind.ElementAddress, given) : Value.Other);
+            }
+        }
+
+        /// <summary>
+        /// The type of the value a call takes at <paramref name="position"/> (from 0, <c>this</c> first, which a newobj
+        /// makes rather than takes); null for <c>this</c>.
+        /// </summary>
+        private static IlType? ParameterType(IlInstruction call, IlMethodReference callee, int position)
+        {
+            var index = position - (callee.HasThis && call.OpCode != IlOpCode.Newobj ? 1 : 0);
+            return index >= 0 && index < callee.ParameterTypes.Count ? callee.ParameterTypes[index] : null;
+        }
+
+        /// <summary>An array an instruction takes, which must not be null: one on the stack never is.</summary>
+        private void NotNull(IlInstruction instruction, Value array)
+        {
+            if (array.Kind == Kind.Null)
+            {
+                Verdict(instruction, Unsupported.NullArrays);
             }
         }
 

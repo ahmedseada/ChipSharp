@@ -45,6 +45,28 @@ public sealed class TirMemoryPrinterTests
     }
 
     [Fact]
+    public void A_constant_prints_its_bytes_printable_ASCII_as_it_is_and_the_others_in_hex()
+    {
+        var module = TirSamples.WithMain(new TirModule("Demo"));
+        module.AddGlobal("Program.counter", TirType.I32);
+        module.AddConstant("<text 0>", [.. "say \"hi\"\\\n"u8, 0xC3, 0xA9]);
+
+        TirVerifier.Verify(module);
+        Assert.Equal(Text("""
+            module Demo
+            entrypoint Program.Main
+
+            global i32 @Program.counter
+            constant [12 x i8] @<text 0> = c"say \22hi\22\5C\0A\C3\A9"
+
+            function void Program.Main()
+            entry:
+              return
+
+            """), TirPrinter.Print(module));
+    }
+
+    [Fact]
     public void A_module_without_structs_or_globals_prints_as_before()
     {
         var module = TirSamples.WithMain(new TirModule("Demo"));

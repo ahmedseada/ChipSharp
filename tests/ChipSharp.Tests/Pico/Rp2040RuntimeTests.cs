@@ -45,10 +45,12 @@ public sealed class Rp2040RuntimeTests
         Assert.Equal(
             ["armv6m_startup.c", "armv6m_helpers.c", "armv6m_divmod.S", "armv6m_float_compare.c",
                 ArmV6MRuntime.FloatMathFileName, .. softFloat, "rp2040_boot2.S", "rp2040_runtime.c",
-                Rp2040Runtime.FloatTextFileName, "rp2040_failures.c"],
+                Rp2040Runtime.ConsoleFileName, Rp2040Runtime.FloatTextFileName, "rp2040_failures.c"],
             files.Select(f => f.FileName));
 
         // the very files the PC's runtime has
+        Assert.Equal(WindowsX64Runtime.Console,
+            files.Single(f => f.FileName == Rp2040Runtime.ConsoleFileName).Content);
         Assert.Equal(WindowsX64Runtime.FloatText,
             files.Single(f => f.FileName == Rp2040Runtime.FloatTextFileName).Content);
         Assert.Equal(WindowsX64Runtime.FloatMath,
@@ -97,17 +99,22 @@ public sealed class Rp2040RuntimeTests
         var runtime = new Rp2040Runtime();
         var files = runtime.Startup(pico).Files;
         var source = files.Single(f => f.FileName == Rp2040Runtime.SourceFileName).Content;
+        var console = files.Single(f => f.FileName == Rp2040Runtime.ConsoleFileName).Content;
         var floatMath = files.Single(f => f.FileName == ArmV6MRuntime.FloatMathFileName).Content;
         var interrupts = runtime.InterruptEntry(pico).Files
             .Single(f => f.FileName == Rp2040Runtime.InterruptsFileName).Content;
 
-        // the Math methods are in the float math every runtime shares; the rest is the chip's own
+        // the Math methods are in the float math every runtime shares, and Console's in the console output every
+        // runtime shares, which writes through the chip's own chipsharp_console_write; the rest is the chip's own
         Assert.All(KnownExternals.All, function =>
         {
             var symbol = LlvmCodeGenerator.SymbolName(function.DisplayName);
-            var math = function.LibraryMethod.StartsWith("System.Math", StringComparison.Ordinal);
-            Assert.Contains($" {symbol}(", math ? floatMath : source + interrupts);
+            var file = function.LibraryMethod.StartsWith("System.Math", StringComparison.Ordinal) ? floatMath
+                : function.LibraryMethod.StartsWith("System.Console", StringComparison.Ordinal) ? console
+                : source + interrupts;
+            Assert.Contains($" {symbol}(", file);
         });
+        Assert.Contains("void chipsharp_console_write(const char *bytes, unsigned int count)", source);
         Assert.Contains("void chipsharp_chip_init(void)", source);
         Assert.Contains("void chipsharp_isr_irq0(void)", source);
     }

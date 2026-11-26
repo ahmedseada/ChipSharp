@@ -9,13 +9,22 @@ namespace ChipSharp.Tests.Analysis;
 /// <summary>Compiles C# with Roslyn and runs the whole-program pass on it; the assembly is called Test.dll in messages.</summary>
 internal static class WholeProgram
 {
+    /// <summary>What building text (concatenation, interpolation, ToString, the methods of string) is called.</summary>
+    public const string BuildingFeature = "building text ($\"...\", +, ToString, string.Format and the other methods of string)";
+
+    /// <summary>The heading of a building-text problem: its feature and when it arrives.</summary>
+    public const string Building = $"{BuildingFeature} arrives with M3 (the heap)";
+
+    /// <summary>The hint of a building-text problem.</summary>
+    public const string BuildingHint = "For now, print the parts one after another with Console.Write.";
+
     /// <summary>
     /// The lines a summary ends with, before how to see every place, when the program calls a library method ChipSharp
     /// does not have.
     /// </summary>
     public static readonly string LibraryCalls = """
         ChipSharp can call these library methods (--details lists each one with its parameters):
-          Console.WriteLine of (nothing), int, uint, long, ulong, bool, float, double
+          Console.Write and Console.WriteLine of (nothing), text, int, uint, long, ulong, bool, float, double
           Math and MathF: Abs, Min, Max, Sqrt
           TimeSpan: FromTicks, FromDays, FromHours, FromMinutes, FromSeconds, FromMilliseconds, FromMicroseconds, Add, Subtract, Negate, Multiply, Divide, Duration, Compare, CompareTo, Equals, its constructors, properties and operators
           ChipSharp.Hardware: Pin, Timing, Registers (see the README)
@@ -24,7 +33,7 @@ internal static class WholeProgram
     /// <summary>The lines the details end with when the program calls a library method ChipSharp does not have.</summary>
     public static readonly string LibraryCallDetails = """
         ChipSharp can call these library methods:
-          System.Console: WriteLine(), WriteLine(int), WriteLine(uint), WriteLine(long), WriteLine(ulong), WriteLine(bool), WriteLine(float), WriteLine(double)
+          System.Console: Write(string), Write(int), Write(uint), Write(long), Write(ulong), Write(bool), Write(float), Write(double), WriteLine(), WriteLine(string), WriteLine(int), WriteLine(uint), WriteLine(long), WriteLine(ulong), WriteLine(bool), WriteLine(float), WriteLine(double)
           System.Math: Abs(double), Abs(float), Min(double, double), Min(float, float), Max(double, double), Max(float, float), Sqrt(double)
           System.MathF: Abs(float), Min(float, float), Max(float, float), Sqrt(float)
           System.TimeSpan: Zero, MaxValue, MinValue, new TimeSpan(long), new TimeSpan(int, int, int), new TimeSpan(int, int, int, int), new TimeSpan(int, int, int, int, int), new TimeSpan(int, int, int, int, int, int), Ticks, Days, Hours, Minutes, Seconds, Milliseconds, Microseconds, Nanoseconds, TotalDays, TotalHours, TotalMinutes, TotalSeconds, TotalMilliseconds, TotalMicroseconds, TotalNanoseconds, FromTicks(long), FromDays(int), FromHours(int), FromMinutes(long), FromSeconds(long), FromMilliseconds(long), FromMicroseconds(long), FromDays(double), FromHours(double), FromMinutes(double), FromSeconds(double), FromMilliseconds(double), FromMicroseconds(double), Add(System.TimeSpan), Subtract(System.TimeSpan), Negate(), Multiply(double), Divide(double), Divide(System.TimeSpan), Duration(), Compare(System.TimeSpan, System.TimeSpan), CompareTo(System.TimeSpan), Equals(System.TimeSpan), Equals(System.TimeSpan, System.TimeSpan), operator -(System.TimeSpan), operator -(System.TimeSpan, System.TimeSpan), operator +(System.TimeSpan), operator +(System.TimeSpan, System.TimeSpan), operator *(System.TimeSpan, double), operator *(double, System.TimeSpan), operator /(System.TimeSpan, double), operator /(System.TimeSpan, System.TimeSpan), operator ==(System.TimeSpan, System.TimeSpan), operator !=(System.TimeSpan, System.TimeSpan), operator <(System.TimeSpan, System.TimeSpan), operator <=(System.TimeSpan, System.TimeSpan), operator >(System.TimeSpan, System.TimeSpan), operator >=(System.TimeSpan, System.TimeSpan)
