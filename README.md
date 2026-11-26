@@ -46,7 +46,7 @@ that ChipSharp does not compile yet, where, when it is planned, and what to writ
 on a line of its own, and every library method ChipSharp can call). `tir` shows the program in TIR. `build` compiles
 it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` also keeps the `.tir` and `.ll` files.
 
-`dotnet test` runs 885 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
+`dotnet test` runs 960 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
 `CHIPSHARP_LLVM_BIN`); the Pico tests also need the simulator (see below), and are skipped, saying why, without it.
 
 ## What C# compiles today
@@ -60,26 +60,28 @@ it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` 
 | Static fields | Of the types above, `volatile` too, with field initializers and static constructors |
 | Arrays | Of numbers, bools, structs and enums, on the stack: a constant size, kept in the method that makes them and passed down to the methods it calls |
 | Fixed text | String literals (`"road : 1"`, `string.Empty`) in locals, parameters, return values, static fields (`static readonly` too) and `const`, compared with `null`; printed part by part with `Console.Write` and `Console.WriteLine` (`null` as nothing, like .NET), as UTF-8. Each literal is in flash once on a chip |
+| Printed text | Text built and printed straight away, with no string ever made and no heap: `Console.WriteLine($"road : {lane}")`, `Console.Write("road : " + lane)`, `lane.ToString()`; holes of text and of every type `Console.Write` prints, worked out first, in order, like .NET; alignments (`{x,5}`, `{x,-5}`, not of floats) and the formats `D`, `D<n>`, `X<n>`, `x<n>` and `G` of whole numbers |
 | Library | `Console.Write` and `Console.WriteLine` of text, a number or a bool; `Math` and `MathF`: `Abs`, `Min`, `Max`, `Sqrt`; `TimeSpan`: its factories in any unit (`FromMilliseconds(500)`, `FromSeconds(1.5)`), parts, totals, arithmetic and comparisons; on a chip, `ChipSharp.Hardware`: pins, timing (`Timing.Delay(TimeSpan)` too), registers and interrupts |
 
 | Not yet | When |
 |---|---|
-| Classes and objects, interfaces, virtual calls, boxing, generics (`Span<T>`, `List<T>`); building text (`+`, `$"..."`, `string.Format`, `ToString()`, the methods of string, `==` on text), text in the fields of structs, `char`; arrays that leave their method, whose size is known only when the program runs, that are `null`, or that hold strings or objects | With M3 (the heap) |
+| Classes and objects, interfaces, virtual calls, boxing, generics (`Span<T>`, `List<T>`); keeping built text (in a variable, a field, a return value), `string.Format` and the other methods of string, `==` on text, enum names in text, text in the fields of structs, `char`; arrays that leave their method, whose size is known only when the program runs, that are `null`, or that hold strings or objects | With M3 (the heap) |
 | Exceptions (`try`, `catch`, `finally`, `throw`, `using`), `checked` arithmetic, multi-dimensional arrays, unsafe code and `stackalloc`, delegates and lambdas, `typeof` | Later |
 | Other library types and methods (`decimal`, `Random`, `Math.Sin`, ...) | Not yet: `chipsharp check` lists the methods there are |
 
 `chipsharp check` (and `build`) say so for each feature a program uses, with what to write for now. The first program
-ChipSharp was asked to run printed its result with `Console.WriteLine($"Logit result: {result}")`, which builds text
-while the program runs:
+ChipSharp was asked to run printed its result with `Console.WriteLine($"Logit result: {result}")`: printed text, which
+compiles and prints what .NET prints (`samples/Logit.cs` prints the parts one after another, as it had to before). Made
+in a method that returns it, `static string Report(float result) => $"Logit result: {result}";`, the text is kept,
+which needs the heap:
 
 ```
-error: Logit.dll uses 1 C# feature that ChipSharp does not compile yet (9 places):
-  building text ($"...", +, ToString, string.Format and the other methods of string) arrives with M3 (the heap): 9 places in the top-level statements (IL_0036, IL_003b, IL_0040 and 6 more). For now, print the parts one after another with Console.Write.
+error: Logit.dll uses 1 C# feature that ChipSharp does not compile yet (1 place):
+  keeping built text in a variable arrives with M3 (the heap): 1 place in local function Report (IL_0025). For now, print it straight away: Console.WriteLine($"...").
 For every place, run: chipsharp check Logit.dll --details
 ```
 
-With `Console.Write("Logit result: ")` and then `Console.WriteLine(result)` it compiles, and prints what .NET prints:
-that is `samples/Logit.cs`. A call to a library method ChipSharp does not have lists the ones it has:
+A call to a library method ChipSharp does not have lists the ones it has:
 
 ```
 ChipSharp can call these library methods (--details lists each one with its parameters):
@@ -90,8 +92,8 @@ ChipSharp can call these library methods (--details lists each one with its para
 ```
 
 The other samples show the rest of the table, e.g. `VendingMachine.cs` (structs, enums, an array of structs and static
-fields as a state machine), `Projectile.cs` (floats in structs, with operators), `TimeSpans.cs` (TimeSpan arithmetic)
-and `TrafficLights.cs` (fixed text between numbers).
+fields as a state machine), `Projectile.cs` (floats in structs, with operators), `TimeSpans.cs` (TimeSpan arithmetic),
+`TrafficLights.cs` (fixed text between numbers) and `PrintedText.cs` (text built and printed straight away).
 
 ### Fixed text
 
@@ -100,17 +102,35 @@ in read-only data (flash on a chip, once however often the program uses it): its
 code units), its number of UTF-8 bytes, then those bytes; a string is the record's address, or null
 (`src/ChipSharp.Frontend/FixedText.cs`). Text is written as UTF-8 on every target, the bytes .NET writes with a UTF-8
 console; a Windows console shows non-ASCII text right when its code page is UTF-8 (`chcp 65001`), and there .NET
-itself writes in the console's code page. Building text while the program runs (`"lane " + lane`) arrives with the
-heap; until then, print the parts one after another:
-
-```csharp
-Console.WriteLine("road : 1");
-Console.Write("    green "); Console.WriteLine(seconds);
-Console.Write("lane : "); Console.Write(lane); Console.Write(" interrupted, move to lane "); Console.WriteLine(next);
-```
+itself writes in the console's code page. Text built from it and printed straight away is printed text (below).
 
 Where .NET would throw an exception (an index outside an array, a `TimeSpan` too long), the program stops with the
 message .NET prints for it: on standard error with exit code 1 on a PC, over UART0 and at a breakpoint on a chip.
+
+### Printed text
+
+Text built and printed straight away needs no heap either, because no string is made. C# turns `$"..."`, `+` and
+`ToString()` into a `DefaultInterpolatedStringHandler` with its `AppendLiteral` and `AppendFormatted` calls, or into
+`string.Concat` of two to four strings or of an array of them, with `x.ToString()` for each number; ChipSharp follows
+these on IL's evaluation stack (`src/ChipSharp.Frontend/PrintedText.cs`) to the `Console.Write` or `Console.WriteLine`
+that prints the text. Where the IL hands a hole's value to the text, the value waits in a slot; the print then writes
+the literals and those values one after another, with the functions of `Console.Write`. So, as in .NET, every hole is
+worked out first, in order, and a hole that prints something prints before its line:
+
+```csharp
+Console.WriteLine($"road : {lane}");
+Console.WriteLine($"{Name(road),-6}|{cars,5}|{busy,-6}| {cars * 100f / total} %");
+Console.WriteLine("lane " + lane + (cut ? " cut" : "") + ", next " + next.ToString("D2"));
+```
+
+An alignment pads with spaces like .NET, to the length .NET counts (UTF-16 code units). The formats are those written
+exactly like .NET: `D`, `D<n>`, `X`, `X<n>`, `x<n>` and `G` for whole numbers (hex of the value's own width: an `sbyte`
+-1 is `FF`), `G` and `R` for floats; a format of text or of a bool is ignored, as .NET ignores it. Text that is kept
+needs the heap: stored in a field or in a variable (but a variable written once and read once, which is what C#'s own
+temporaries are, and what Release makes of `string s = $"..."; Console.WriteLine(s);`), returned, passed to another
+method, measured (`.Length`) or chosen where ways join (`c ? $"a{x}" : "b"`), it is "keeping built text in a variable",
+which arrives with M3. An enum in a hole (.NET prints its name), the other formats (`F2`, `N0`) and an aligned float
+are rejected too, each saying what to write for now. `samples/PrintedText.cs` shows each form.
 
 ### Library substitutes
 
@@ -190,7 +210,7 @@ input pin at a set time with `--input 15=high@100ms`.
 ### What a target allows, and what a program takes
 
 A target file's `"capabilities"` say what a program may use on it: `"heap"`, the most RAM the heap may take (objects,
-text built while the program runs, collections: M3), or `false` for none; and `"console"`, whether `Console.Write` has
+text kept while the program runs, collections: M3), or `false` for none (printed text needs none); and `"console"`, whether `Console.Write` has
 somewhere to go. The PC has a 256 MB heap and its console; the Pico a 224 KB heap (264 KB of RAM less 8 KB of stack and
 32 KB for static fields) and UART0; a new chip inherits `armv6m`'s: neither, until its file says so.
 `chipsharp check -t <target>` and `build` judge the program for that chip, so on one without a heap a class is not

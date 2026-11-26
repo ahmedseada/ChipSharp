@@ -60,20 +60,14 @@ public sealed class TextCheckTests
     }
 
     [Fact]
-    public void Building_text_is_one_feature_whatever_builds_it()
+    public void Building_text_with_the_methods_of_string_is_one_feature_whatever_builds_it()
     {
-        // +, $"...", string.Format, ToString of a number, a struct and an enum (constrained. callvirt, the prefix too),
-        // the properties and methods of string, == on text, StringBuilder, and Console.WriteLine's formatting overloads
+        // string.Format, the properties and methods of string, == on text, StringBuilder, and Console.WriteLine's
+        // formatting overloads; text built with $"...", + and ToString and printed straight away is printed text
+        // (PrintedTextCheckTests)
         var analysis = Check("""
             using System;
             using System.Text;
-
-            enum Color { Red, Green }
-
-            struct Point
-            {
-                public int X;
-            }
 
             class Program
             {
@@ -81,14 +75,7 @@ public sealed class TextCheckTests
                 {
                     int lane = 2;
                     string name = "lane";
-                    Point point = default;
-                    Color color = Color.Green;
-                    Console.WriteLine(name + lane);
-                    Console.WriteLine($"lane {lane}");
                     Console.WriteLine(string.Format("{0}", lane));
-                    Console.WriteLine(lane.ToString());
-                    Console.WriteLine(point.ToString());
-                    Console.WriteLine(color.ToString());
                     Console.WriteLine(name.Length);
                     Console.WriteLine(name.Substring(1));
                     Console.WriteLine(name == "road");
@@ -98,20 +85,18 @@ public sealed class TextCheckTests
             }
             """);
 
-        Assert.Equal([BuildingFeature, "boxing (using a value as an object)"],
+        Assert.Equal(["boxing (using a value as an object)", BuildingFeature],
             analysis.Groups.Select(group => group.Feature));
-        Assert.Equal([24, 2], analysis.Groups.Select(group => group.Problems.Count));
-        Assert.Equal($"{Building}: 24 places in Program.Main() (IL_0015, IL_001a, IL_0024 and 21 more). {BuildingHint}",
-            analysis.Groups[0].Line);
+        Assert.Equal([2, 8], analysis.Groups.Select(group => group.Problems.Count));
+        Assert.Equal($"{Building}: 8 places in Program.Main() (IL_0013, IL_001e, IL_002a and 5 more). {BuildingHint}",
+            analysis.Groups[1].Line);
         Assert.Equal(
         [
-            $"Program.Main() at IL_0070 (constrained.): {Building}. {BuildingHint}",
-            $"Program.Main() at IL_0076 (callvirt): {Building}. {BuildingHint}",
-            $"Program.Main() at IL_0093 (callvirt): {Building}. {BuildingHint}",
-            $"Program.Main() at IL_00af (call): {Building}. {BuildingHint}",
-            $"Program.Main() at IL_00b9 (newobj): {Building}. {BuildingHint}",
-            $"Program.Main() at IL_00da (call): {Building}. {BuildingHint}",
-        ], analysis.Problems.Where(problem => problem.Offset is 0x70 or 0x76 or 0x93 or 0xaf or 0xb9 or 0xda)
+            $"Program.Main() at IL_001e (callvirt): {Building}. {BuildingHint}",
+            $"Program.Main() at IL_003a (call): {Building}. {BuildingHint}",
+            $"Program.Main() at IL_0044 (newobj): {Building}. {BuildingHint}",
+            $"Program.Main() at IL_0065 (call): {Building}. {BuildingHint}",
+        ], analysis.Problems.Where(problem => problem.Offset is 0x1e or 0x3a or 0x44 or 0x65)
             .Select(problem => problem.Line));
     }
 

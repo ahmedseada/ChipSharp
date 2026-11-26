@@ -11,8 +11,9 @@ namespace ChipSharp.Frontend;
 /// the program, which never changes, so it lives in read-only data (flash on a chip) and needs no heap. It may be
 /// printed (<c>Console.Write</c>, <c>Console.WriteLine</c>), kept in locals, parameters, return values and static
 /// fields (a <c>const</c> too, which C# puts in at each use), and compared with null. Text built while the program
-/// runs (<c>+</c>, <c>$"..."</c>, <c>string.Format</c>, <c>ToString()</c>, the methods of string) needs the heap: it
-/// arrives with M3, and the whole-program pass says so.
+/// runs (<c>+</c>, <c>$"..."</c>, <c>ToString()</c>) and printed straight away is printed text (see
+/// <see cref="PrintedText"/>); kept, or built with <c>string.Format</c> and the other methods of string, it needs the
+/// heap: it arrives with M3, and the whole-program pass says so.
 /// </summary>
 /// <remarks>
 /// <para>

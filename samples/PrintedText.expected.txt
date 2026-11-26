@@ -1,0 +1,15 @@
+road : 1
+road : 2
+road  | cars|busy  | share
+north |   15|True  | 25.862068 %
+east  |    7|False | 12.068966 %
+south |   22|True  | 37.931034 %
+west  |   14|False | 24.137932 %
+against the average: 001 -007 008 000 
+sensors: 0x303A, 0xfffffffd, 0xFD
+[check 1] [check 2] checked 58 cars on 4 roads
+total 58, busiest south, a quiet day: False
+road 5 is [], [    ] wide
+at this rate: 30484800 cars a year, 0.9666666666666667 a second
+58
+103True

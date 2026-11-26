@@ -66,8 +66,7 @@ internal sealed partial class MethodLowering
             }
         }
 
-        _localSlots = [.. _body.Locals.Select(local => AddSlot($"V_{local.Index}",
-            LoweringErrors.MapType(_method, local.Type, $"local V_{local.Index} has type")))];
+        _localSlots = [.. _body.Locals.Select(local => AddSlot($"V_{local.Index}", LocalSlotType(local)))];
 
         // the assigned arguments are copied into their slots once, so not in a block that a loop jumps back to
         var copies = _argumentSlots.Any(s => s is not null);
@@ -137,7 +136,10 @@ internal sealed partial class MethodLowering
         }
     }
 
-    /// <summary>Rejects a body with exception handling or an instruction outside <see cref="SupportedSubset"/>.</summary>
+    /// <summary>
+    /// Rejects a body with exception handling, printed text that is not supported, or an instruction outside
+    /// <see cref="SupportedSubset"/> (but those of printed text).
+    /// </summary>
     private void CheckSupported()
     {
         if (_body.Instructions.Count == 0)
@@ -151,7 +153,9 @@ internal sealed partial class MethodLowering
                 "try, catch and finally are not supported yet (they arrive later)");
         }
 
-        if (_body.Instructions.FirstOrDefault(i => !SupportedSubset.OpCodes.Contains(i.OpCode)) is { } unsupported)
+        CheckPrintedText();
+        if (_body.Instructions.FirstOrDefault(i => !SupportedSubset.OpCodes.Contains(i.OpCode) && !IsPrintedText(i))
+            is { } unsupported)
         {
             throw Unsupported(unsupported);
         }
@@ -161,7 +165,7 @@ internal sealed partial class MethodLowering
 
     private void Lower(IlInstruction instruction)
     {
-        if (LowerFloat(instruction))
+        if (LowerPrintedText(instruction) || LowerFloat(instruction))
         {
             return;
         }
@@ -802,8 +806,8 @@ internal sealed partial class MethodLowering
         return value;
     }
 
-    /// <summary>The value as TIR: a pending constant becomes a constant, a pending bool its 0 or 1, a value in a
-    /// stack slot a load.</summary>
+    /// <summary>The value as TIR: a pending constant becomes a constant (a ptr one, which only printed text makes, a null
+    /// ptr), a pending bool its 0 or 1, a value in a stack slot a load.</summary>
     private TirValue Materialize(StackValue value)
     {
         if (value.Value is { } tir)
@@ -816,7 +820,9 @@ internal sealed partial class MethodLowering
             return _ir.Convert(condition, TirType.I32);
         }
 
-        return value.Slot is { } slot ? _ir.Load(slot) : _ir.Const(value.Type, value.Constant);
+        return value.Slot is { } slot ? _ir.Load(slot)
+            : value.Type == TirType.Ptr ? _ir.Zero(TirType.Ptr)
+            : _ir.Const(value.Type, value.Constant);
     }
 
     private ChipSharpException Error(string message) => LoweringErrors.At(_method, _instruction.Offset, message);
