@@ -39,7 +39,8 @@ public sealed class Rp2040RuntimeTests
         var runtime = new Rp2040Runtime();
 
         Assert.Equal(
-            ["armv6m_startup.c", "armv6m_helpers.c", "armv6m_divmod.S", "rp2040_boot2.S", "rp2040_runtime.c"],
+            ["armv6m_startup.c", "armv6m_helpers.c", "armv6m_divmod.S", "rp2040_boot2.S", "rp2040_runtime.c",
+                "rp2040_failures.c"],
             runtime.Startup(pico).Files.Select(f => f.FileName));
         Assert.Equal(["armv6m_vectors.c"], runtime.InterruptEntry(pico).Files.Select(f => f.FileName));
         Assert.Empty(runtime.Atomics(pico).Files);

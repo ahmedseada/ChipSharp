@@ -14,7 +14,7 @@ namespace ChipSharp.Tests.Lowering;
 /// (C# never emits nop or the long forms in small methods). Each method is pure, so .NET can run it in this process;
 /// the same calls compiled by ChipSharp must print what .NET computes.
 /// </summary>
-public sealed class IlToTirOpCodeTests : IDisposable
+public sealed partial class IlToTirOpCodeTests : IDisposable
 {
     private readonly string _scratch = Path.Combine(Path.GetTempPath(), "chipsharp-tests", Guid.NewGuid().ToString("N"));
 
@@ -36,7 +36,8 @@ public sealed class IlToTirOpCodeTests : IDisposable
         var module = Lowered.Lower(Lowered.Program(assembly, "Program.Main"));
 
         Assert.Empty(SupportedSubset.OpCodes.Except(used));
-        Assert.Equal(assembly.Methods.Count, module.Functions.Count(f => f.Kind == TirFunctionKind.Defined));
+        Assert.Equal(assembly.Methods.Count, module.Functions.Count(f => f.Kind == TirFunctionKind.Defined
+            && !f.Name.StartsWith("ChipSharp.Array.", StringComparison.Ordinal)));
         Assert.Empty(TirVerifier.FindErrors(module));
     }
 
@@ -149,7 +150,7 @@ public sealed class IlToTirOpCodeTests : IDisposable
     /// Pure static methods that together use every instruction of the subset, and a Main that calls each with a few
     /// inputs and prints the result with Console.WriteLine.
     /// </summary>
-    private sealed class OpCodeProgram
+    private sealed partial class OpCodeProgram
     {
         private static readonly MethodInfo WriteLineInt32 = WriteLine(typeof(int));
 
@@ -168,6 +169,7 @@ public sealed class IlToTirOpCodeTests : IDisposable
             program.AddConversions();
             program.AddComparisonsAndBranches();
             program.AddArgumentsLocalsAndConstants();
+            program.AddArrays();
             program.AddMain();
             return program;
         }

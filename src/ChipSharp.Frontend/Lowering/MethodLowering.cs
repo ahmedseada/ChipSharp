@@ -8,7 +8,7 @@ namespace ChipSharp.Frontend.Lowering;
 /// Translates the IL of one method into the blocks of its TIR function, simulating IL's evaluation stack with TIR
 /// values (see <see cref="IlToTir"/> for the approach). Used once per method.
 /// </summary>
-internal sealed class MethodLowering
+internal sealed partial class MethodLowering
 {
     private readonly ProgramFunctions _program;
     private readonly IlMethod _method;
@@ -151,12 +151,18 @@ internal sealed class MethodLowering
         {
             throw Unsupported(unsupported);
         }
+
+        CheckArrays();
     }
 
     private void Lower(IlInstruction instruction)
     {
         switch (instruction.OpCode)
         {
+            case var _ when IsArrayInstruction(instruction):
+                LowerArrayInstruction(instruction);
+                break;
+
             case IlOpCode.Nop:
                 break;
 

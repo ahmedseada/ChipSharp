@@ -15,8 +15,8 @@ public static class SupportedSubset
     /// <summary>The milestone this subset belongs to, for messages ("... arrives after M0").</summary>
     public const string Milestone = "M0";
 
-    /// <summary>The IL instructions M0 compiles. Checked arithmetic (<c>*.ovf</c>), objects, arrays, strings,
-    /// fields, floats, addresses and exceptions are not in it.</summary>
+    /// <summary>The IL instructions M0 compiles. Checked arithmetic (<c>*.ovf</c>), objects, arrays (but those of
+    /// <see cref="StackArrays"/>), strings, fields, floats, addresses and exceptions are not in it.</summary>
     public static FrozenSet<IlOpCode> OpCodes { get; } = new[]
     {
         IlOpCode.Nop,
@@ -39,6 +39,17 @@ public static class SupportedSubset
         IlOpCode.Conv_I1, IlOpCode.Conv_I2, IlOpCode.Conv_I4, IlOpCode.Conv_I8, IlOpCode.Conv_I,
         IlOpCode.Conv_U1, IlOpCode.Conv_U2, IlOpCode.Conv_U4, IlOpCode.Conv_U8, IlOpCode.Conv_U,
         IlOpCode.Ceq, IlOpCode.Cgt, IlOpCode.Cgt_Un, IlOpCode.Clt, IlOpCode.Clt_Un,
+
+        // arrays on the stack: see StackArrays, whose rule the whole-program pass checks for each of these
+        IlOpCode.Newarr, IlOpCode.Ldlen, IlOpCode.Ldelema,
+        IlOpCode.Ldelem_I1, IlOpCode.Ldelem_U1, IlOpCode.Ldelem_I2, IlOpCode.Ldelem_U2, IlOpCode.Ldelem_I4,
+        IlOpCode.Ldelem_U4, IlOpCode.Ldelem_I8, IlOpCode.Ldelem_I, IlOpCode.Ldelem,
+        IlOpCode.Stelem_I1, IlOpCode.Stelem_I2, IlOpCode.Stelem_I4, IlOpCode.Stelem_I8, IlOpCode.Stelem_I,
+        IlOpCode.Stelem,
+        IlOpCode.Ldind_I1, IlOpCode.Ldind_U1, IlOpCode.Ldind_I2, IlOpCode.Ldind_U2, IlOpCode.Ldind_I4,
+        IlOpCode.Ldind_U4, IlOpCode.Ldind_I8, IlOpCode.Ldind_I,
+        IlOpCode.Stind_I1, IlOpCode.Stind_I2, IlOpCode.Stind_I4, IlOpCode.Stind_I8, IlOpCode.Stind_I,
+        IlOpCode.Conv_Ovf_I, IlOpCode.Conv_Ovf_I_Un, IlOpCode.Ldtoken,
     }.ToFrozenSet();
 
     /// <summary>

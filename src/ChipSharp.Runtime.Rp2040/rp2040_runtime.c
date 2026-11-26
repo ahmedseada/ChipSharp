@@ -369,6 +369,12 @@ static void write_bytes(const char *bytes, unsigned int count)
     }
 }
 
+// The same output for the runtime's other files (rp2040_failures.c).
+void chipsharp_uart0_write(const char *bytes, unsigned int count)
+{
+    write_bytes(bytes, count);
+}
+
 // Writes the number in decimal, with a minus sign in front when negative is set, and ends the line.
 static void write_line_number(unsigned long long magnitude, int negative)
 {

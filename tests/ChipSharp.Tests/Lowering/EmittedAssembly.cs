@@ -39,6 +39,13 @@ internal sealed class EmittedAssembly
         return method;
     }
 
+    /// <summary>
+    /// Adds a static field of Program whose bytes are <paramref name="data"/> in the image (at its RVA), as C# keeps
+    /// the constants of an array initializer; <c>ldtoken</c> it for <c>RuntimeHelpers.InitializeArray</c>.
+    /// </summary>
+    public FieldBuilder Data(string name, byte[] data) =>
+        _type.DefineInitializedData(name, data, FieldAttributes.Private | FieldAttributes.Static);
+
     /// <summary>The assembly's bytes; no method can be added after this.</summary>
     public byte[] Save()
     {

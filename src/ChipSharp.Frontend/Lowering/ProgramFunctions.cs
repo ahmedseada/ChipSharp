@@ -41,6 +41,11 @@ internal sealed class ProgramFunctions(TirModule module)
     private readonly Dictionary<IlMethod, LoweredMethod> _methods = [];
     private readonly Dictionary<string, TirFunction> _externals = new(StringComparer.Ordinal);
 
+    private ArrayFunctions? _arrays;
+
+    /// <summary>The functions arrays use (making one, its length, the bounds check), shared by every method.</summary>
+    public ArrayFunctions Arrays => _arrays ??= new ArrayFunctions(module);
+
     /// <summary>Adds the TIR function of <paramref name="method"/>, checking that M0 can compile its signature.</summary>
     public void Declare(IlMethod method, bool isEntryPoint)
     {

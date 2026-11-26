@@ -13,6 +13,7 @@ namespace ChipSharp.Runtime.Rp2040;
 /// runtime functions programs call: <c>ChipSharp_Runtime_Pin*</c>, <c>ChipSharp_Runtime_Delay*</c>,
 /// <c>ChipSharp_Runtime_Register*</c> (ChipSharp.Hardware) and <c>ChipSharp_Runtime_WriteLine*</c>
 /// (Console.WriteLine on UART0: GPIO 0, 115200 baud).</item>
+/// <item><see cref="FailuresFileName"/>: what the program does where .NET would throw.</item>
 /// </list>
 /// </summary>
 public sealed class Rp2040Runtime : IArchRuntime
@@ -22,6 +23,12 @@ public sealed class Rp2040Runtime : IArchRuntime
 
     /// <summary>The assembly file with the padded boot2.</summary>
     public const string Boot2FileName = "rp2040_boot2.S";
+
+    /// <summary>
+    /// The C file with what a program does where .NET would throw: <c>ChipSharp_Runtime_IndexOutOfRange</c>, which
+    /// says so on UART0 and stops at a breakpoint.
+    /// </summary>
+    public const string FailuresFileName = "rp2040_failures.c";
 
     /// <summary>The second-stage bootloaders this runtime ships, as a target's "boot.stage2" names them.</summary>
     public static IReadOnlyList<string> Boot2Names { get; } = ["boot2_w25q080.bin", "boot2_generic_03h.bin"];
@@ -39,6 +46,7 @@ public sealed class Rp2040Runtime : IArchRuntime
             .. _armv6m.Startup(target).Files,
             Boot2(target),
             new GeneratedFile(SourceFileName, EmbeddedText.Read(typeof(Rp2040Runtime), SourceFileName)),
+            new GeneratedFile(FailuresFileName, EmbeddedText.Read(typeof(Rp2040Runtime), FailuresFileName)),
         ]);
     }
 

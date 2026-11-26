@@ -5,5 +5,8 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="chipsharp_runtime.c" LogicalName="chipsharp_runtime.c" />
+    <EmbeddedResource Include="chipsharp_failures.c" LogicalName="chipsharp_failures.c" />
+    <EmbeddedResource Include="chipsharp_memory.c" LogicalName="chipsharp_memory.c" />
+    <EmbeddedResource Include="chipsharp_chkstk.S" LogicalName="chipsharp_chkstk.S" />
   </ItemGroup>
 </Project>

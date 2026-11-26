@@ -23,7 +23,7 @@ internal static class LoweringErrors
     /// e.g. "parameter 'x' has type" or "it returns".
     /// </summary>
     public static TirType MapType(IlMethod method, IlType type, string subject) =>
-        SupportedSubset.TryMapType(type, out var tirType)
+        SupportedSubset.TryMapType(type, out var tirType) || StackArrays.TryMapType(type, out tirType)
             ? tirType
             : throw In(method, $"{subject} {type}, which is not supported yet " +
                 $"({SupportedSubset.Milestone} compiles bool and whole numbers)");

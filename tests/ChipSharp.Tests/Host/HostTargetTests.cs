@@ -66,7 +66,7 @@ public sealed class HostTargetTests
         var host = Targets.Load("host");
         var runtime = new WindowsX64Runtime();
 
-        var file = Assert.Single(runtime.Startup(host).Files);
+        var file = runtime.Startup(host).Files[0];
 
         Assert.Equal("chipsharp_runtime.c", file.FileName);
         Assert.Equal(WindowsX64Runtime.Source, file.Content);
