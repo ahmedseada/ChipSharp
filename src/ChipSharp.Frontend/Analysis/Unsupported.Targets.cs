@@ -13,10 +13,11 @@ internal sealed partial record Unsupported
 
     /// <summary>
     /// True for a feature that needs a heap: one that arrives with M3 (the heap) because it makes objects, or text, while
-    /// the program runs. Generic methods and types, char, references to text and enum names (printed from fixed text)
-    /// arrive with M3 too, but need no heap.
+    /// the program runs, or with a later piece of M3 built on objects (virtual calls, generics over classes). Generic
+    /// methods and types, char, references to text and enum names (printed from fixed text) arrive with M3 too, but need
+    /// no heap.
     /// </summary>
-    public bool NeedsHeap => Arrival == WithTheHeap
+    public bool NeedsHeap => (Arrival == WithTheHeap || ComesWithLaterClasses)
         && !new[] { GenericMethods, GenericTypes, Characters, TextReferences, EnumNames }.Any(
             feature => What.StartsWith(feature.What, StringComparison.Ordinal));
 

@@ -68,6 +68,17 @@ internal sealed class EmittedAssembly
         return type;
     }
 
+    /// <summary>
+    /// Adds a class named <paramref name="name"/>, derived from object; its fields, constructors and methods are defined
+    /// on what this returns.
+    /// </summary>
+    public TypeBuilder Class(string name)
+    {
+        var type = _module.DefineType(name, TypeAttributes.Public | TypeAttributes.Class, typeof(object));
+        _structs.Add(type);
+        return type;
+    }
+
     /// <summary>The assembly's bytes; no method can be added after this.</summary>
     public byte[] Save()
     {

@@ -46,17 +46,18 @@ that ChipSharp does not compile yet, where, when it is planned, and what to writ
 on a line of its own, and every library method ChipSharp can call). `tir` shows the program in TIR. `build` compiles
 it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` also keeps the `.tir` and `.ll` files.
 
-`dotnet test` runs 1086 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
+`dotnet test` runs 1139 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
 `CHIPSHARP_LLVM_BIN`); the Pico tests also need the simulator (see below), and are skipped, saying why, without it.
 
 ## What C# compiles today
 
 | C# | Today |
 |---|---|
-| Methods | Static methods, top-level statements, static local functions, recursion; the methods, constructors, properties and operators of structs |
+| Methods | Static methods, top-level statements, static local functions, recursion; the methods, constructors, properties and operators of structs and classes |
 | Values | `bool`, every whole number (`sbyte` to `ulong`, `nint`, `nuint`), `float` and `double` (computed and printed bit for bit like .NET) |
 | Code | `if`, `switch`, `for`, `while`, `do`, `foreach` over arrays, `&&`, `\|\|`, `?:`, patterns on numbers; arithmetic wraps around like unchecked C# |
 | Types | Structs, enums (`[Flags]` too), `ref`, `out` and `in` parameters, `ref` locals |
+| Classes | On a target with a heap: the program's classes, `sealed` or not, nested, derived from each other (and from an `abstract` class): `new`, fields of the types above, of objects (the class itself too: lists, trees) and of structs holding objects, field initializers, constructors (overloads, `this(...)`, `base(...)`), instance and static methods and properties, `this`, a method hidden with `new`; objects in locals, parameters, return values, the fields of objects and of structs, and static fields; `null`, `==`, `!=`, `is null`, `ReferenceEquals`, `?.` and `??` (`??=` too), object initializers (`new Node { Value = 1 }`), `object`. The garbage collector frees what the program no longer reaches |
 | Generics | Generic methods, structs and static classes over values (numbers, bools, enums, structs, generic structs, fixed text), nested in each other: `static T Max<T>(T a, T b) where T : IComparable<T>`, `static void Swap<T>(ref T a, ref T b)`, `struct Pair<T>`, made once for each type argument, with no heap. Interfaces implemented by structs, through a constraint (`static void Run<T>(ref T device) where T : struct, IDevice`, explicit implementations and static abstract members too) or called on the struct itself; `CompareTo`, `Equals`, `GetHashCode` and `ToString` of a number `T`; generic math (`INumber<T>`): the operators, comparisons, `T.Zero`, `T.One`, `MinValue`, `MaxValue`; `default(T)`, `typeof(T) == typeof(int)`, `sizeof(T)`; a `T` printed and in printed text |
 | Static fields | Of the types above, `volatile` too, with field initializers and static constructors |
 | Arrays | Of numbers, bools, structs and enums, on the stack: a constant size, kept in the method that makes them and passed down to the methods it calls |
@@ -67,8 +68,8 @@ it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` 
 
 | Not yet | When |
 |---|---|
-| Classes and objects, variables of an interface type and a struct turned into one (boxing), virtual calls, generics over classes (`List<T>`, `Span<T>`, a class, `object` or an array as a type argument); keeping built text (in a variable, a field, a return value), `string.Format` and the other methods of string, `==` on text, enum names in text, text in the fields of structs, `char`; arrays that leave their method, whose size is known only when the program runs, that are `null`, or that hold strings or objects | With M3 (the heap) |
-| Exceptions (`try`, `catch`, `finally`, `throw`, `using`), `checked` arithmetic, multi-dimensional arrays, unsafe code and `stackalloc`, delegates and lambdas, `typeof` | Later |
+| Virtual methods (`virtual`, `override`, `abstract`), object's `ToString`, `Equals` and `GetHashCode`, records, casts and type tests (`is`, `as`, `(T)x`), variables of an interface type and a struct turned into one (boxing), generics over classes (`List<T>`, `Span<T>`, generic classes, a class, `object` or an array as a type argument), `ref` and `out` of an object, `?.` that gives a number (an `int?`); keeping built text (in a variable, a field, a return value), `string.Format` and the other methods of string, `==` on text, enum names in text, text in the fields of structs, `char`; arrays that leave their method (in the field of an object too), whose size is known only when the program runs, that are `null`, or that hold strings or objects | With M3 (the heap) |
+| Exceptions (`try`, `catch`, `finally`, `throw`, `using`), `checked` arithmetic, multi-dimensional arrays, unsafe code and `stackalloc`, delegates and lambdas, `typeof`, finalizers, classes derived from library classes | Later |
 | Other library types and methods (`decimal`, `Random`, `Math.Sin`, ...) | Not yet: `chipsharp check` lists the methods there are |
 
 `chipsharp check` (and `build`) say so for each feature a program uses, with what to write for now. The first program
@@ -96,8 +97,10 @@ ChipSharp can call these library methods (--details lists each one with its para
 The other samples show the rest of the table, e.g. `VendingMachine.cs` (structs, enums, an array of structs and static
 fields as a state machine), `Projectile.cs` (floats in structs, with operators), `TimeSpans.cs` (TimeSpan arithmetic),
 `TrafficLights.cs` (fixed text between numbers), `PrintedText.cs` (text built and printed straight away),
-`LookupTables.cs` (a 7-segment display's tables in flash and a buffer of readings in RAM) and `Generics.cs` (generic
-methods and structs, devices used through a constraint, generic math).
+`LookupTables.cs` (a 7-segment display's tables in flash and a buffer of readings in RAM), `Generics.cs` (generic
+methods and structs, devices used through a constraint, generic math) and `Classes.cs` (a linked list and a tree of
+objects, constructors calling each other, a derived class, objects in static fields, and enough short-lived objects to
+make the Pico's garbage collector run again and again).
 
 ### Fixed text
 
@@ -192,10 +195,48 @@ compiles, may use other substitutes, and stops the program where .NET throws by 
 `..._failures.c` has one per method). So a new library type is C# in `src/ChipSharp.Library`, not compiler code; its
 tests compare it with .NET's, value by value.
 
+### Classes
+
+The objects of the program's classes live on the heap (`src/ChipSharp.Frontend/ClassRules.cs`, `ObjectTypes.cs`).
+`new Node(1, list)` makes a zeroed object of the class, whose header is the address of the class's descriptor, and runs
+the constructor on it; an object has the fields of its base classes first, then its own, so a field is at the same place
+in the objects of every class derived from its own. A call of an instance method on an object is C#'s `callvirt`:
+ChipSharp checks the object for null, as .NET does, then calls the method like any other (`this` is never null, so its
+fields need no check). A field of null, or a method called on null, stops the program with .NET's
+NullReferenceException message.
+
+```csharp
+class Node
+{
+    public int Value;
+    public Node Next;
+
+    public Node(int value, Node next)
+    {
+        Value = value;
+        Next = next;
+    }
+}
+
+static Node list;                     // a static field: a root of the garbage collector
+
+for (int i = 0; i < 5; i++)
+{
+    list = new Node(i, list);
+}
+```
+
+On the Pico a `Node` takes 16 bytes of the heap (its header, an int and a reference, 12 bytes, rounded up to 8). Virtual
+methods (`virtual`, `override`, `abstract`), object's `ToString`, `Equals` and `GetHashCode`, records, casts and type
+tests arrive with M3's virtual calls, generic classes with generics over classes: `chipsharp check` says so for each
+place. A class that implements an interface compiles when the program calls its methods on the class itself, not
+through the interface. On a target without a heap the classes themselves compile (their static members, a reference
+that stays null); each place that makes an object needs a heap. `samples/Classes.cs` shows the rest.
+
 ### The heap
 
-The heap is where objects live: what classes, strings, boxes and collections need (M3 brings them; today the
-compiler's own tests make objects, and `new object()` translates). Its parts are in place for every target with a heap:
+The heap is where objects live: what classes, strings, boxes and collections need (classes make them today; M3 brings
+the rest). Its parts are in place for every target with a heap:
 
 - An object starts with its header, the address of its type's descriptor, then its fields, those of its base classes
   first; an array has its length and then its elements. A descriptor (in flash on a chip) says the object's size,
@@ -207,8 +248,9 @@ compiler's own tests make objects, and `new object()` translates). Its parts are
   other live objects reach stays, the rest is free again. When there is still not enough, the program stops with .NET's
   OutOfMemoryException message; a field of `null` stops it with NullReferenceException's.
 - On a chip the heap is the target's `"heap"` bytes of RAM between the variables and the stack, and the collector runs
-  with interrupts off; an `[Interrupt]` method never makes an object (the program stops, saying so). On the PC the heap
-  is the target's 256 MB, taken from Windows at the start.
+  with interrupts off; an `[Interrupt]` method, and every method it calls, never makes an object (`chipsharp check`
+  says where; the program would stop there, saying so). On the PC the heap is the target's 256 MB, taken from Windows at
+  the start.
 
 ## Raspberry Pi Pico
 
@@ -279,8 +321,8 @@ A target file's `"capabilities"` say what a program may use on it: `"heap"`, the
 text kept while the program runs, collections: M3), or `false` for none (printed text needs none); and `"console"`, whether `Console.Write` has
 somewhere to go. The PC has a 256 MB heap and its console; the Pico a 224 KB heap (264 KB of RAM less 8 KB of stack and
 32 KB for static fields) and UART0; a new chip inherits `armv6m`'s: neither, until its file says so.
-`chipsharp check -t <target>` and `build` judge the program for that chip, so on one without a heap a class is not
-"for M3" but out of reach:
+`chipsharp check -t <target>` and `build` judge the program for that chip, so on one without a heap an object is out
+of reach (a class whose objects are never made still compiles):
 
 ```
 creating objects (new ...) needs a heap, and the target 'tiny' (2 KB RAM) has no heap: 1 place in Program.Main() (IL_0000). Use structs and static methods.

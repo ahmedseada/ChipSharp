@@ -14,8 +14,8 @@ namespace ChipSharp.Tests.Heap;
 /// <summary>
 /// The translation's helpers for objects (MethodLowering.Objects.cs) and the mapping of classes (<see cref="ObjectTypes"/>),
 /// through what they translate today: <c>new object()</c>, objects in locals, parameters and return values, null, and
-/// comparisons by reference. The whole-program pass does not accept objects yet, so these programs are translated
-/// straight from their IL (<see cref="Lowered"/>).
+/// comparisons by reference, translated straight from their IL (<see cref="Lowered"/>). The program's own classes are
+/// the tests in Classes/.
 /// </summary>
 public sealed class ObjectLoweringTests : IDisposable
 {

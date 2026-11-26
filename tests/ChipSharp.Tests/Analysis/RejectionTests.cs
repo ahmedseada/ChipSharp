@@ -8,8 +8,6 @@ namespace ChipSharp.Tests.Analysis;
 /// </summary>
 public sealed class RejectionTests
 {
-    private const string Objects = "For now, use structs and static methods.";
-
     private const string Source = """
         using System;
 
@@ -85,7 +83,7 @@ public sealed class RejectionTests
     }
 
     [Fact]
-    public void Creating_objects_and_calling_their_methods()
+    public void Creating_objects_of_the_library_and_calling_their_methods()
     {
         var problems = Problems("""
             using System;
@@ -101,9 +99,8 @@ public sealed class RejectionTests
 
         Assert.Equal(
         [
-            $"Program.Main() at IL_0001 (newobj): creating objects (new ...) arrives with M3 (the heap). {Objects}",
-            "Program.Main() at IL_0008 (callvirt): instance or virtual method calls arrive with M3 (the heap). "
-                + "For now, call static methods, or the methods of your own structs.",
+            "Program.Main() at IL_0001 (newobj): the library type System.Random is not available yet.",
+            "Program.Main() at IL_0008 (callvirt): the library method System.Random.Next(int) is not available yet.",
         ], problems);
     }
 
@@ -261,7 +258,7 @@ public sealed class RejectionTests
                 + "using, lock and foreach over a collection make a try/finally too.",
             $"Program.Main() at IL_000b (leave.s): {Exceptions}",
             $"Program.Main() at IL_0012 (endfinally): {Exceptions}",
-            $"Program.Check(int) at IL_0004 (newobj): creating objects (new ...) arrives with M3 (the heap). {Objects}",
+            $"Program.Check(int) at IL_0004 (newobj): {Exceptions}",
             $"Program.Check(int) at IL_0009 (throw): {Exceptions}",
         ], problems);
     }
@@ -269,6 +266,7 @@ public sealed class RejectionTests
     [Fact]
     public void Boxing_and_objects()
     {
+        // an object compiles; a value turned into one does not, nor does object's Equals
         var problems = Problems("""
             using System;
 
@@ -279,6 +277,7 @@ public sealed class RejectionTests
                 static void Main()
                 {
                     Console.WriteLine(Wrap(1));
+                    Console.WriteLine(new object().Equals(null));
                 }
             }
             """);
@@ -286,7 +285,9 @@ public sealed class RejectionTests
         Assert.Equal(
         [
             "Program.Main() at IL_0006 (call): the library method System.Console.WriteLine(object) is not available yet.",
-            $"Program.Wrap(int), return type (object): classes and objects arrive with M3 (the heap). {Objects}",
+            "Program.Main() at IL_0011 (callvirt): ToString, Equals and GetHashCode of objects arrive with M3 (virtual "
+                + "calls). For now, give the class a method of its own for it, such as Describe() or SameAs(other), and "
+                + "call that.",
             "Program.Wrap(int) at IL_0001 (box): boxing (using a value as an object) arrives with M3 (the heap). "
                 + "For now, keep values in their own types, such as int and bool.",
         ], problems);
@@ -366,34 +367,32 @@ public sealed class RejectionTests
     }
 
     [Fact]
-    public void An_instance_method_is_followed_through_call_but_not_through_callvirt()
+    public void An_instance_method_is_followed_through_call_and_through_callvirt()
     {
-        // Roslyn calls Get with call when the object is known not to be null (new Program()), else with callvirt
-        var problems = Problems("""
+        // Roslyn calls Get with call when the object is known not to be null (new Program()), else with callvirt; Set
+        // only through callvirt
+        var methods = MethodNames("""
             using System;
 
             class Program
             {
-                int Get() => 1;
+                int value;
+
+                int Get() => value;
+
+                void Set(int to) => value = to;
 
                 static void Main()
                 {
                     var program = new Program();
+                    program.Set(2);
                     Console.WriteLine(program.Get());
                     Console.WriteLine(new Program().Get());
                 }
             }
             """);
 
-        const string NewObject = $"creating objects (new ...) arrives with M3 (the heap). {Objects}";
-        Assert.Equal(
-        [
-            $"Program.Main() at IL_0000 (newobj): {NewObject}",
-            "Program.Main() at IL_0005 (callvirt): instance or virtual method calls arrive with M3 (the heap). "
-                + "For now, call static methods, or the methods of your own structs.",
-            $"Program.Main() at IL_000f (newobj): {NewObject}",
-            "Program.Get(): instance methods of classes arrive with M3 (the heap). For now, make the method static, or make the class a struct.",
-        ], problems);
+        Assert.Equal(["Program.Main", "Program..ctor", "Program.Set", "Program.Get"], methods);
     }
 
     [Fact]

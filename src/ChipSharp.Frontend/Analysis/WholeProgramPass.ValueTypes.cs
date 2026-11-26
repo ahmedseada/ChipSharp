@@ -36,6 +36,8 @@ public static partial class WholeProgramPass
         {
             IlPointerType or IlPinnedType => Unsupported.UnsafeCode,
             IlByRefType reference when FixedText.IsText(reference.ElementType) => Unsupported.TextReferences,
+            IlByRefType reference when ObjectTypes.TryMapType(reference.ElementType, assembly, out _) =>
+                Unsupported.ObjectReferences,
             IlByRefType reference => ForAnyType(reference.ElementType, assembly, method),
             var plain when ValueTypes.Definition(plain, assembly) is { } definition => ForStruct(definition),
             _ => null,
@@ -100,20 +102,20 @@ public static partial class WholeProgramPass
     }
 
     /// <summary>
-    /// Why an instance method cannot be compiled: one of a class is an object's (<see cref="Unsupported.InstanceMethods"/>);
-    /// one of a struct only when the struct cannot be compiled. Null for one of a generic struct: the generic type is
-    /// reported on its own.
+    /// Why an instance method cannot be compiled: one of a class when it is virtual or its class cannot be compiled
+    /// (<see cref="ForClassMethod"/>); one of a struct only when the struct cannot be compiled. Null for one of a generic
+    /// struct: the generic type is reported on its own.
     /// </summary>
     private static Unsupported? ForInstanceMethod(IlMethod method) =>
-        !ValueTypes.IsStruct(method.DeclaringType) ? Unsupported.InstanceMethods
+        !ValueTypes.IsStruct(method.DeclaringType) ? ForClassMethod(method)
         : method.DeclaringType.GenericParameters.Count > 0 ? null
         : ForStruct(method.DeclaringType);
 
     /// <summary>
-    /// What an instruction does with structs and references that cannot be compiled: a field of an object, of a
-    /// library type or of a struct that cannot be compiled; a <c>newobj</c> that creates an object; a reference to an
-    /// object (<c>ldind.ref</c>); an address turned into a number (unsafe code). Null for anything else, which
-    /// <see cref="ForInstruction"/> checks.
+    /// What an instruction does with structs and references that cannot be compiled: a field of a library type or of a
+    /// struct that cannot be compiled; a <c>newobj</c> of a library type; a reference to an object (<c>ldind.ref</c>); an
+    /// address turned into a number (unsafe code). Null for anything else, which <see cref="ForInstruction"/> checks.
+    /// (The objects of the program's classes and their fields are <see cref="ForClasses"/>'.)
     /// </summary>
     private static Unsupported? ForStructOrReference(IlMethod method, IlInstruction instruction)
     {
@@ -128,12 +130,13 @@ public static partial class WholeProgramPass
                 return ForAnyType(type, assembly, method);
 
             case { OpCode: IlOpCode.Newobj, Operand: IlMethodOperand { Method: var constructor } }:
-                return constructor.Definition is { } definition && ValueTypes.IsStruct(definition.DeclaringType)
-                    ? ForStruct(definition.DeclaringType)
-                    : Unsupported.CreatingObjects;
+                // the objects of classes have their verdicts already (ForClasses)
+                return constructor.Definition is { } definition
+                    ? ValueTypes.IsStruct(definition.DeclaringType) ? ForStruct(definition.DeclaringType) : Unsupported.CreatingObjects
+                    : ForLibraryNew(constructor);
 
             case { OpCode: IlOpCode.Ldind_Ref or IlOpCode.Stind_Ref }:
-                return Unsupported.ClassesAndObjects;
+                return Unsupported.ObjectReferences;
 
             case { Name: var name } when name.StartsWith("conv.", StringComparison.Ordinal) && TakesAddress(Previous(method, instruction)):
                 // &x: the address of a local or field, as a number

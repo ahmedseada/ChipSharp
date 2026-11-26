@@ -111,12 +111,12 @@ public sealed class IlToTirErrorTests
     }
 
     [Fact]
-    public void Instance_and_generic_methods_are_errors()
+    public void Virtual_and_generic_methods_are_errors()
     {
         var assembly = Lowered.Compile("""
             class C
             {
-                int Field() => 1;
+                protected virtual int Field() => 1;
                 static T Same<T>(T value) => value;
             }
             """);
@@ -126,8 +126,8 @@ public sealed class IlToTirErrorTests
         var generic = Assert.Throws<ChipSharpException>(
             () => IlToTir.Lower(new IlProgram(assembly, [.. assembly.FindMethods("C.Same")])));
 
-        Assert.Equal("Test.dll: C.Field(): instance methods of classes are not supported yet (ChipSharp compiles static methods " +
-            "and the methods of structs).", instance.Message);
+        Assert.Equal("Test.dll: C.Field(): virtual methods (virtual, override, abstract) are not supported yet (they " +
+            "arrive with M3, virtual calls).", instance.Message);
         Assert.Equal("Test.dll: C.Same(!!0): generic methods and the methods of generic types are not supported yet " +
             "(they arrive with M3, the heap).", generic.Message);
     }
