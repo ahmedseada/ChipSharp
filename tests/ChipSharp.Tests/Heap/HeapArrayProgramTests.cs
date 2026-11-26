@@ -41,6 +41,10 @@ public sealed class HeapArrayProgramTests(ITestOutputHelper output) : IDisposabl
         PrintsWhatDotnetPrints(HeapArrayPrograms.Survivors(20_000), "host-16K");
 
     [HostFact]
+    public Task Arrays_in_the_fields_of_objects_and_arrays_of_objects_live_through_collections_in_a_small_heap() =>
+        PrintsWhatDotnetPrints(HeapArrayPrograms.Classes(3000), "host-16K");
+
+    [HostFact]
     public async Task Null_a_negative_length_and_an_index_out_of_range_stop_the_program_with_dotnets_messages()
     {
         foreach (var what in HeapArrayPrograms.Failures)

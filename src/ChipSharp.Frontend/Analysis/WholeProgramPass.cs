@@ -52,13 +52,14 @@ public static partial class WholeProgramPass
         var problems = new List<Problem>();
         var statics = StaticArrays.Find(methods);
         var heap = HeapArrays.Find(methods, statics);
+        var heapArrays = new HashSet<IlInstruction>(); // the newarr instructions that make an array on the heap
         foreach (var method in methods)
         {
-            CheckMethod(method, problems, statics, heap);
+            CheckMethod(method, problems, statics, heap, heapArrays);
         }
 
         var forTarget = TargetRules.Apply(target, methods, problems);
-        CheckHandlers(entryPoint, methods, handlers, interruptProblems);
+        CheckHandlers(entryPoint, methods, handlers, interruptProblems, heapArrays);
         problems.AddRange(interruptProblems);
         return new AnalysisResult(assembly, methods, problems)
         {
@@ -69,10 +70,10 @@ public static partial class WholeProgramPass
 
     /// <summary>
     /// The entry point, then the interrupt handlers (<paramref name="handlers"/>), then every method of the assembly
-    /// they reach through <c>call</c> (and through <c>newobj</c> of a struct, which calls the struct's constructor; see
-    /// <see cref="ValueTypes.CalledMethod"/>), each once, in the order they are first called when the methods are
-    /// scanned in this same order, instruction by instruction. The type initializers each method makes run (see
-    /// <see cref="StaticInitialization"/>) come before the methods it calls.
+    /// they reach through <c>call</c> and <c>callvirt</c> (and through <c>newobj</c> of a struct or a class, which calls
+    /// its constructor; see <see cref="ValueTypes.CalledMethod"/>), each once, in the order they are first called when
+    /// the methods are scanned in this same order, instruction by instruction. The type initializers each method makes
+    /// run (see <see cref="StaticInitialization"/>) come before the methods it calls.
     /// </summary>
     private static IlMethod[] FindReachableMethods(IlMethod entryPoint, IEnumerable<IlMethod> handlers)
     {
@@ -106,9 +107,11 @@ public static partial class WholeProgramPass
     /// <summary>
     /// Adds a problem to <paramref name="problems"/> for every place in <paramref name="method"/> that ChipSharp cannot
     /// compile. <paramref name="statics"/> are the program's arrays in static fields, <paramref name="heap"/> what it
-    /// keeps of the arrays its methods are given (see <see cref="HeapArrays"/>).
+    /// keeps of the arrays its methods are given (see <see cref="HeapArrays"/>); the newarr instructions that make an
+    /// array on the heap are added to <paramref name="heapArrays"/>.
     /// </summary>
-    private static void CheckMethod(IlMethod method, List<Problem> problems, StaticArrays statics, HeapArrays heap)
+    private static void CheckMethod(IlMethod method, List<Problem> problems, StaticArrays statics, HeapArrays heap,
+        HashSet<IlInstruction> heapArrays)
     {
         // an array of references compiles only with a heap: a heap use
         Unsupported? ForType(IlType type) => SupportedSubset.TryMapType(type, method.Assembly, out _)
@@ -138,7 +141,8 @@ public static partial class WholeProgramPass
             problems.Add(Problem.InMethod(method, Unsupported.GenericTypes));
         }
 
-        if (!method.HasBody)
+        // an abstract method has no body: only its overrides run (it is a virtual method, reported above)
+        if (!method.HasBody && !ClassRules.IsAbstract(method))
         {
             problems.Add(Problem.InMethod(method, Unsupported.MethodsWithoutBody));
         }
@@ -186,17 +190,22 @@ public static partial class WholeProgramPass
             problems.Add(Problem.AtTry(method, tryOffset, Unsupported.TryCatchFinally));
         }
 
-        // the verdict of printed text comes first for the instructions it is about, then the arrays' rule's, then generics'
+        // the verdict of printed text comes first for the instructions it is about, then the arrays' rule's, then
+        // generics', then classes'
         var printed = PrintedText.Of(method);
-        var arrays = ArrayEscapeAnalysis.Analyze(method, statics, heap).Verdicts;
+        var analyzed = ArrayEscapeAnalysis.Analyze(method, statics, heap);
+        var arrays = analyzed.Verdicts;
+        heapArrays.UnionWith(body.Instructions.Where(i => i.OpCode == IlOpCode.Newarr && analyzed.HeapArrays.Contains(i.Offset)));
         var generics = ForGenerics(method);
+        var classes = ForClasses(method);
         foreach (var instruction in body.Instructions)
         {
-            // what printed text, the array escape analysis or generics found for this instruction, else building text,
-            // else the struct/reference rules, else the rest
+            // what printed text, the array escape analysis, generics or classes found for this instruction, else
+            // building text, else the struct/reference rules, else the rest
             var unsupported = printed.Verdicts.TryGetValue(instruction, out var text) ? text
                 : arrays.TryGetValue(instruction, out var array) ? array
                 : generics.TryGetValue(instruction, out var generic) ? generic
+                : classes.TryGetValue(instruction, out var forClasses) ? forClasses
                 : ForText(method, instruction) ?? ForStructOrReference(method, instruction)
                     ?? ForInstruction(instruction, argsArgument, interpolations);
             if (unsupported is not null)
@@ -234,8 +243,10 @@ public static partial class WholeProgramPass
             return field;
         }
 
-        if (instruction is { OpCode: IlOpCode.Call, Operand: IlMethodOperand { Method: { Definition: null } callee } }
-            && !KnownExternals.TryMap(callee, out _))
+        if (instruction is
+            {
+                OpCode: IlOpCode.Call or IlOpCode.Callvirt, Operand: IlMethodOperand { Method: { Definition: null } callee },
+            } && !KnownExternals.TryMap(callee, out _))
         {
             return Unsupported.LibraryMethod(CSharpNames.Method(callee));
         }

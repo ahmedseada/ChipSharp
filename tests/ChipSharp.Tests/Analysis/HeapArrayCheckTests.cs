@@ -3,6 +3,7 @@ using ChipSharp.Frontend.Analysis;
 using ChipSharp.Frontend.Il;
 using ChipSharp.Targets;
 using ChipSharp.Tests.Lowering;
+using ChipSharp.Tests.Pico;
 using ChipSharp.Tests.Support;
 using static ChipSharp.Tests.Analysis.WholeProgram;
 
@@ -209,8 +210,8 @@ public sealed class HeapArrayCheckTests : IDisposable
             $"Program.Main() at IL_0016 (newarr): {Strings}",
             "Program.Replace(ref int[]), parameter 'values' (ref int[]): references to arrays (ref int[], out int[]) "
                 + "arrive later. For now, return the array, or keep it in a field.",
-            "Program.Replace(ref int[]) at IL_0007 (stind.ref): classes and objects arrive with M3 (the heap). For now, "
-                + "use structs and static methods.",
+            "Program.Replace(ref int[]) at IL_0007 (stind.ref): references to objects (ref, out and in of a class, object "
+                + "or string) arrive with M3 (the heap). For now, return the object, or keep it in a field.",
             "Program.Get() at IL_0005 (ret): an array in a static field that needs no heap (a constant table, or a fixed "
                 + "array) kept outside its field: returned, stored in another field or array, or passed to a method that "
                 + "keeps it arrives later. For now, read it through its field where it is needed, or copy it into an "
@@ -251,6 +252,44 @@ public sealed class HeapArrayCheckTests : IDisposable
             + "and the target 'tiny' (2 KB RAM) has no heap. Use arrays of numbers, bools, structs or enums.", tiny);
         Assert.Contains("Program.Things(int) at IL_0008 (newobj): creating objects (new ...) needs a heap, and the target "
             + "'tiny' (2 KB RAM) has no heap. Use structs and static methods.", tiny);
+    }
+
+    [Fact]
+    public void An_interrupt_handler_makes_arrays_on_the_stack_but_none_on_the_heap()
+    {
+        var analysis = WholeProgramPass.Check(InterruptCheckTests.Load("""
+            using ChipSharp.Hardware;
+
+            class Program
+            {
+                static volatile int[] samples = new int[4];
+                static volatile int count;
+
+                static void Main()
+                {
+                    Timing.EveryMilliseconds(10);
+                    while (true)
+                    {
+                    }
+                }
+
+                [Interrupt(Event.Timer)]
+                static void Tick()
+                {
+                    int[] pins = { 2, 3 };
+                    Pin.Toggle(pins[count % pins.Length]);
+                    if (count++ % 100 == 0)
+                    {
+                        samples = new int[count % 8 + 1];
+                    }
+                }
+            }
+            """), PicoBuild.Pico);
+
+        // the pins are on the stack; the samples, of a size known only when the program runs, would be on the heap
+        Assert.Equal(["Program.Tick() at IL_0042 (newarr): an interrupt handler cannot create objects (new ...). The heap "
+            + "may be in the middle of an allocation or a collection when the interrupt comes: create what the handler "
+            + "needs before, e.g. in a static field."], analysis.Problems.Select(problem => problem.Line));
     }
 
     /// <summary>"Program.Passes: heap, stack": where each newarr of each method makes its array, in their order.</summary>

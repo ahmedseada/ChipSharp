@@ -13,9 +13,11 @@ internal static class TargetRules
 {
     /// <summary>
     /// Changes <paramref name="problems"/>, the places in <paramref name="methods"/> that ChipSharp cannot compile, for
-    /// <paramref name="target"/>: a heap use is no problem on a target with a heap (or for any target, when
-    /// <paramref name="target"/> is null); on a target without a heap, a feature that needs one does not arrive with M3, it needs
-    /// a heap the target does not have (<see cref="Unsupported.WithoutHeap"/>); on a target without a console, every
+    /// <paramref name="target"/>: a heap use (<see cref="Unsupported.IsHeapUse"/>) is no problem on a target with a heap
+    /// (or for any target, when <paramref name="target"/> is null); on a target without a heap, a feature that needs one
+    /// does not arrive with M3, it needs a heap the target does not have (<see cref="Unsupported.WithoutHeap"/>), and so
+    /// does every place that makes an object of a class, which compiles on a target with a heap; on a target without a
+    /// console, every
     /// call of Console.Write and Console.WriteLine is a problem too, added after the others. True when a problem says
     /// so: the target's own rules found something.
     /// </summary>
@@ -40,6 +42,8 @@ internal static class TargetRules
                     found = true;
                 }
             }
+
+            found |= AddObjectsWithoutHeap(target, ram, methods, problems);
         }
 
         if (!target.HasConsole)
@@ -52,6 +56,54 @@ internal static class TargetRules
                     problems.Add(Problem.At(method, instruction, noConsole));
                     found = true;
                 }
+            }
+        }
+
+        return found;
+    }
+
+    /// <summary>
+    /// On a target without a heap, every place that makes an object (<see cref="ClassRules.Allocates"/>: the classes
+    /// themselves compile, their objects need the heap) and has no problem yet is one, among the other problems of its
+    /// method's code by offset. True when there is one.
+    /// </summary>
+    private static bool AddObjectsWithoutHeap(TargetDescription target, ulong? ram, IReadOnlyList<IlMethod> methods,
+        List<Problem> problems)
+    {
+        var withoutHeap = Unsupported.WithoutHeap(Unsupported.CreatingObjects, target.Name, ram);
+        var found = false;
+
+        // the problems so far are the methods', method by method in their order, those of a method's code by offset
+        var end = 0;
+        foreach (var method in methods)
+        {
+            var start = end;
+            while (end < problems.Count && problems[end].Method == method)
+            {
+                end++;
+            }
+
+            if (LibrarySubstitutes.Defines(method))
+            {
+                continue;
+            }
+
+            foreach (var instruction in (method.Body?.Instructions ?? []).Where(ClassRules.Allocates))
+            {
+                if (problems.Skip(start).Take(end - start).Any(problem => problem.Offset == instruction.Offset))
+                {
+                    continue;
+                }
+
+                var at = start;
+                while (at < end && (problems[at].Offset is not { } offset || offset < instruction.Offset))
+                {
+                    at++;
+                }
+
+                problems.Insert(at, Problem.At(method, instruction, withoutHeap));
+                end++;
+                found = true;
             }
         }
 

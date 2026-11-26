@@ -54,10 +54,10 @@ internal sealed partial class ProgramFunctions(TirModule module)
             throw new ArgumentException($"{method} appears twice among the program's methods.", nameof(method));
         }
 
-        if (!method.IsStatic && !ValueTypes.IsStructInstanceMethod(method))
+        if (!method.IsStatic && !ValueTypes.IsStructInstanceMethod(method) && !ObjectTypes.IsClass(method.DeclaringType))
         {
-            throw LoweringErrors.In(method, "instance methods of classes are not supported yet (ChipSharp " +
-                "compiles static methods and the methods of structs)");
+            throw LoweringErrors.In(method, "the methods of interfaces and delegates are not supported yet (ChipSharp " +
+                "compiles static methods and the methods of structs and classes)");
         }
 
         if (method.GenericParameters.Count > 0 || method.DeclaringType.GenericParameters.Count > 0)
@@ -77,7 +77,7 @@ internal sealed partial class ProgramFunctions(TirModule module)
         var returnType = LoweringErrors.MapType(method, method.ReturnType, "it returns");
 
         var parameters = new List<(string Name, TirType Type)>();
-        var self = ThisParameter(method);
+        var self = ThisParameter(method) ?? ClassThisParameter(method);
         if (self is { } thisParameter)
         {
             parameters.Add(thisParameter);
@@ -109,7 +109,7 @@ internal sealed partial class ProgramFunctions(TirModule module)
         var next = 0;
         if (self is { } thisArgument)
         {
-            arguments.Add(new LoweredArgument(thisArgument.Name, ValueTypes.ThisType(method), function.Parameters[next++]));
+            arguments.Add(new LoweredArgument(thisArgument.Name, ThisType(method), function.Parameters[next++]));
         }
 
         foreach (var parameter in method.Parameters)
@@ -145,7 +145,7 @@ internal sealed partial class ProgramFunctions(TirModule module)
                     $"the call to {definition} is not supported: it passes the string[] the entry point leaves out");
             }
 
-            // a struct method's this comes first
+            // the this of a struct's or a class's method comes first
             return new CallTarget(callee.Function, [.. callee.Arguments.Select(argument => argument.Type)],
                 definition.ReturnType, definition.ToString());
         }

@@ -77,7 +77,7 @@ internal sealed partial class ProgramFunctions
             {
                 throw LoweringErrors.At(user, instruction.Offset, $"the field {name} has type {StaticFields.Type(field)}, " +
                     "which is not supported yet (ChipSharp compiles bool, whole numbers, float, double, fixed text " +
-                    "(string), and the structs and enums of the program)");
+                    "(string), the structs and enums of the program, and objects of its classes)");
             }
 
             // a global without an initial value starts at zero, like a field the initializer does not set

@@ -145,8 +145,8 @@ public sealed class TextCheckTests
                 + "in a variable or a static field of its own, or pick it with a switch.",
             "Program.Clear(ref string), parameter 'text' (ref string): references to text (ref string, out string) "
                 + "arrive with M3 (the heap). For now, return the text instead.",
-            "Program.Clear(ref string) at IL_0006 (stind.ref): classes and objects arrive with M3 (the heap). "
-                + "For now, use structs and static methods.",
+            "Program.Clear(ref string) at IL_0006 (stind.ref): references to objects (ref, out and in of a class, object "
+                + "or string) arrive with M3 (the heap). For now, return the object, or keep it in a field.",
         ], problems);
     }
 

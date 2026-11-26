@@ -39,6 +39,10 @@ public sealed class HeapArraySimulatorTests(ITestOutputHelper output) : IDisposa
         PrintsWhatDotnetPrints(HeapArrayPrograms.Survivors(4000), "pico-16K");
 
     [SimulatorFact]
+    public Task Arrays_in_the_fields_of_objects_and_arrays_of_objects_live_through_collections_in_a_small_heap() =>
+        PrintsWhatDotnetPrints(HeapArrayPrograms.Classes(500), "pico-16K");
+
+    [SimulatorFact]
     public async Task Null_and_a_negative_length_stop_the_program_with_dotnets_messages_on_UART0()
     {
         foreach (var what in new[] { "element of null", "negative length" })

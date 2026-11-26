@@ -15,8 +15,7 @@ namespace ChipSharp.Frontend.Lowering;
 /// <see cref="PopObjectNotNull"/> with its null check.</item>
 /// <item>Null, as <c>ldnull</c> pushes it, is pending (<see cref="StackValue.IsNull"/>): where an object is wanted it is
 /// <c>zero ref</c>, where text is <c>zero ptr</c>, as before. A null that goes through a stack slot to another block is
-/// a ptr there, so a block that one way reaches with null and another with an object (C#'s <c>c ? x : null</c>) is not
-/// translated yet.</item>
+/// a ref there when an object comes in too (C#'s <c>c ? x : null</c>, see MethodLowering.Classes.cs), else a ptr.</item>
 /// <item><c>brtrue</c> and <c>brfalse</c> test an object against null; <c>ceq</c>, <c>cgt.un</c>, <c>beq</c> and
 /// <c>bne.un</c> compare two objects, or an object and null, by reference (<see cref="PopObjectComparands"/>).</item>
 /// <item><see cref="NullCheck"/> comes before every use of an object's fields, elements, header or methods, as .NET checks
@@ -26,16 +25,19 @@ namespace ChipSharp.Frontend.Lowering;
 /// <see cref="ProgramFunctions.ArrayDescriptor"/> give the descriptors, made once per module.</item>
 /// </list>
 /// What this file translates by itself is <c>new object()</c> (<c>newobj System.Object::.ctor()</c>: System.Object has
-/// nothing to construct), which is how a program makes an object until its own classes compile. An interrupt handler
-/// never makes one: the runtime stops the program there.
+/// nothing to construct); the program's classes are MethodLowering.Classes.cs'. An interrupt handler never makes an
+/// object: the whole-program pass rejects it, and the runtime stops the program there.
 /// </summary>
 internal sealed partial class MethodLowering
 {
     /// <summary>The refs known not to be null: checked already, or just made.</summary>
     private readonly HashSet<TirValue> _notNull = [];
 
-    /// <summary>True for the instructions <see cref="LowerObjectInstruction"/> translates: <c>new object()</c>.</summary>
-    private static bool IsObjectInstruction(IlInstruction instruction) => instruction is
+    /// <summary>
+    /// True for the instructions <see cref="LowerObjectInstruction"/> translates: <c>new object()</c>, and those of the
+    /// program's classes (MethodLowering.Classes.cs).
+    /// </summary>
+    private static bool IsObjectInstruction(IlInstruction instruction) => IsClassInstruction(instruction) || instruction is
     {
         OpCode: IlOpCode.Newobj,
         Operand: IlMethodOperand { Method: { Name: ".ctor", Definition: null, ParameterTypes.Count: 0 } constructor },
@@ -43,6 +45,12 @@ internal sealed partial class MethodLowering
 
     private void LowerObjectInstruction(IlInstruction instruction)
     {
+        if (IsClassInstruction(instruction))
+        {
+            LowerClassInstruction(instruction);
+            return;
+        }
+
         if (!IsObjectInstruction(instruction))
         {
             throw Unsupported(instruction);

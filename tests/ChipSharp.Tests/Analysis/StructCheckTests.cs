@@ -74,7 +74,7 @@ public sealed class StructCheckTests
     }
 
     [Fact]
-    public void A_struct_constructor_that_newobj_calls_is_a_method_of_the_program_and_a_class_constructor_is_not()
+    public void A_struct_constructor_that_newobj_calls_is_a_method_of_the_program_and_so_is_a_class_constructor()
     {
         var problems = Check("""
             struct Point
@@ -99,10 +99,8 @@ public sealed class StructCheckTests
             }
             """);
 
-        Assert.Equal(["Program.Main", "Point..ctor", "Point.Twice"], problems.Methods.Select(m => m.DisplayName));
-        Assert.Equal(
-            [$"Program.Main() at IL_0011 (newobj): creating objects (new ...) arrives with M3 (the heap). {Objects}"],
-            problems.Problems.Select(problem => problem.Line));
+        Assert.Equal(["Program.Main", "Point..ctor", "Box..ctor", "Point.Twice"], problems.Methods.Select(m => m.DisplayName));
+        Assert.Empty(problems.Problems);
     }
 
     [Fact]
@@ -253,9 +251,9 @@ public sealed class StructCheckTests
     }
 
     [Fact]
-    public void Objects_stay_out_next_to_structs()
+    public void Objects_compile_next_to_structs_but_references_to_them_do_not_yet()
     {
-        // a class's field, constructor and methods, and a reference to a string (text itself compiles)
+        // a class's field, constructor and methods compile; a reference to a string does not (text itself compiles)
         var problems = Problems("""
             using System;
 
@@ -283,24 +281,22 @@ public sealed class StructCheckTests
 
         Assert.Equal(
         [
-            $"Program.Main() at IL_0000 (newobj): creating objects (new ...) arrives with M3 (the heap). {Objects}",
-            "Program.Main() at IL_0007 (stfld): instance fields of classes (fields without static) arrive with M3 (the heap). "
-                + "For now, make the fields static, or make the class a struct.",
-            "Program.Main() at IL_000c (callvirt): instance or virtual method calls arrive with M3 (the heap). "
-                + "For now, call static methods, or the methods of your own structs.",
             "Program.Clear(ref string), parameter 'text' (ref string): references to text (ref string, out string) "
                 + "arrive with M3 (the heap). For now, return the text instead.",
-            $"Program.Clear(ref string) at IL_0002 (stind.ref): classes and objects arrive with M3 (the heap). {Objects}",
+            "Program.Clear(ref string) at IL_0002 (stind.ref): references to objects (ref, out and in of a class, object "
+                + "or string) arrive with M3 (the heap). For now, return the object, or keep it in a field.",
         ], problems);
     }
 
     [Fact]
-    public void A_class_instance_method_reached_through_call_is_rejected_but_a_struct_one_is_not()
+    public void A_class_instance_method_reached_through_call_compiles_like_a_struct_one_but_a_virtual_one_does_not()
     {
         var problems = Problems("""
             class Counter
             {
                 public int Next() => 1;
+
+                public virtual int Last() => 2;
             }
 
             struct Step
@@ -316,14 +312,17 @@ public sealed class StructCheckTests
                 {
                     System.Console.WriteLine(new Counter().Next());
                     System.Console.WriteLine(new Step().Next());
+                    System.Console.WriteLine(new Counter().Last());
                 }
             }
             """);
 
+        const string Virtual = "virtual methods (virtual, override, abstract) arrive with M3 (virtual calls). For now, " +
+            "leave out virtual, override and abstract, and give a derived class's method a name of its own.";
         Assert.Equal(
         [
-            $"Program.Main() at IL_0000 (newobj): creating objects (new ...) arrives with M3 (the heap). {Objects}",
-            "Counter.Next(): instance methods of classes arrive with M3 (the heap). For now, make the method static, or make the class a struct.",
+            $"Program.Main() at IL_0027 (callvirt): {Virtual}",
+            $"Counter.Last(): {Virtual}",
         ], problems);
     }
 }

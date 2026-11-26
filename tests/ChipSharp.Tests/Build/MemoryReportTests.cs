@@ -234,20 +234,17 @@ public sealed class MemoryReportTests : IDisposable
 
         Assert.Equal((1, ""), (tiny.ExitCode, tiny.Output));
         Assert.Equal($"""
-            error: {dll} uses 3 C# features that ChipSharp does not compile yet (3 places):
+            error: {dll} uses 2 C# features that ChipSharp does not compile yet (2 places):
               creating objects (new ...) needs a heap, and the target 'tiny' (2 KB RAM) has no heap: 1 place in Program.Main() (IL_0000). Use structs and static methods.
-              instance fields of classes (fields without static) need a heap, and the target 'tiny' (2 KB RAM) has no heap: 1 place in Program.Main() (IL_0005). Make the fields static, or make the class a struct.
               Console.Write and Console.WriteLine need a console, and the target 'tiny' has none: 1 place in Program.Main() (IL_000a). Show what the program does another way, e.g. on a pin with ChipSharp.Hardware.Pin.
             For every place, run: chipsharp check {ChipSharpCli.Quoted(dll)} -t tiny --details
 
             """.ReplaceLineEndings("\n"), tiny.Error.ReplaceLineEndings("\n"));
 
-        // a target with a heap and a console, and no target: the objects arrive with M3, the console is there
-        Assert.Equal(1, pico.ExitCode);
-        Assert.Equal(neutral.Error, pico.Error);
-        Assert.Contains("creating objects (new ...) arrives with M3 (the heap): 1 place in Program.Main() (IL_0000). " +
-            "For now, use structs and static methods.", pico.Error);
-        Assert.DoesNotContain("console", pico.Error);
+        // a target with a heap and a console, and no target: the objects compile, the console is there
+        Assert.Equal((0, ""), (pico.ExitCode, pico.Error));
+        Assert.StartsWith($"{dll}: ChipSharp compiles it for target 'pico'.", pico.Output);
+        Assert.Equal((0, ""), (neutral.ExitCode, neutral.Error));
     }
 
     [Fact]

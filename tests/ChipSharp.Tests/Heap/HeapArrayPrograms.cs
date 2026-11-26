@@ -296,6 +296,104 @@ internal static class HeapArrayPrograms
         """;
 
     /// <summary>
+    /// Arrays and objects of the program's classes: arrays in the fields of objects (held only there), arrays of objects
+    /// (in a static field, on the stack, of a base class holding a derived one), and trees of both made and dropped
+    /// <paramref name="trees"/> times, so that the collector follows objects into arrays and arrays into objects.
+    /// </summary>
+    public static string Classes(int trees) => $$"""
+        using System;
+
+        class Node
+        {
+            public int Value;
+            public int[] Data;
+            public Node[] Children;
+
+            public Node(int value)
+            {
+                Value = value;
+                Data = new int[value];
+                Data[value - 1] = value * 10;
+            }
+
+            public int Sum()
+            {
+                int total = Value;
+                if (Children != null)
+                {
+                    foreach (Node child in Children)
+                    {
+                        if (child != null)
+                        {
+                            total += child.Sum();
+                        }
+                    }
+                }
+
+                return total;
+            }
+        }
+
+        class Shape
+        {
+            public int Corners;
+        }
+
+        class Square : Shape
+        {
+            public Square() => Corners = 4;
+        }
+
+        class Program
+        {
+            static Node[] nodes;
+
+            static Node Tree(int depth)
+            {
+                Node node = new Node(depth);
+                if (depth > 1)
+                {
+                    node.Children = new Node[2];
+                    node.Children[0] = Tree(depth - 1);
+                    node.Children[1] = Tree(depth - 1);
+                }
+
+                return node;
+            }
+
+            static void Main()
+            {
+                nodes = new Node[3];
+                for (int i = 0; i < nodes.Length; i++)
+                {
+                    nodes[i] = new Node(i + 1);
+                }
+
+                nodes[2].Data[1] = 5;
+                Node root = new Node(2);
+                root.Children = nodes;
+                Console.WriteLine(root.Children[2].Data.Length + root.Children[2].Data[1] + root.Children[2].Data[2]);
+                Node[] local = { new Node(4), null };
+                Console.WriteLine(local[1] == null);
+                Console.WriteLine(local[0].Data[3]);
+                Console.WriteLine(root.Sum());
+                long total = 0;
+                for (int i = 0; i < {{trees}}; i++)
+                {
+                    total += Tree(4).Sum();
+                }
+
+                Console.WriteLine(total);
+                Console.WriteLine(nodes[1].Data[1] + nodes[0].Value + local[0].Data[3] + root.Data[1]);
+                Shape[] shapes = new Shape[2];
+                shapes[0] = new Square();
+                shapes[1] = new Shape();
+                Console.WriteLine(shapes[0].Corners + shapes[1].Corners);
+            }
+        }
+        """;
+
+    /// <summary>
     /// Where .NET throws for arrays on the heap: <paramref name="what"/> is "length of null", "element of null",
     /// "store into null", "negative length" or "index out of range". Prints 1 first.
     /// </summary>
