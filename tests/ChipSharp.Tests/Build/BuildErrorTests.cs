@@ -1,5 +1,7 @@
 using ChipSharp.Abstractions;
 using ChipSharp.Build;
+using ChipSharp.Frontend.Analysis;
+using ChipSharp.Frontend.Il;
 using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Build;
@@ -132,8 +134,10 @@ public sealed class BuildErrorTests : IDisposable
         var error = Assert.Throws<ChipSharpException>(() => ChipSharpBuilder.Build(dll,
             new BuildOptions { TargetsFolder = ShippedTargets, OutputFolder = output, KeepIntermediates = true }));
 
-        Assert.StartsWith($"{dll} uses C# that M0 does not compile yet (", error.Message);
-        Assert.Contains("Program.Main()", error.Message);
+        Assert.Equal(WholeProgramPass.Check(IlAssembly.Load(dll)).Summary, error.Message);
+        Assert.StartsWith($"{dll} uses 2 C# features that M0 does not compile yet (2 places):\n  text strings arrive after M0: "
+            + "1 place in Program.Main() (IL_0000).", error.Message);
+        Assert.EndsWith($"\nFor every place, run: chipsharp check {ChipSharpCli.Quoted(dll)} --details", error.Message);
         Assert.False(Directory.Exists(output));
     }
 }

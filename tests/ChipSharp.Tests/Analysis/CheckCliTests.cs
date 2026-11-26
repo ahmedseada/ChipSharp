@@ -49,35 +49,55 @@ public sealed class CheckCliTests : IDisposable
     }
 
     [Fact]
-    public async Task Check_lists_the_problems_of_a_program_M0_cannot_compile()
+    public async Task Check_lists_the_CSharp_features_of_a_program_M0_cannot_compile()
     {
-        var dll = CSharpCompiler.CompileToFile("""
-            using System;
-
-            class Program
-            {
-                static double Half(int n) => n / 2.0;
-
-                static void Main()
-                {
-                    Console.WriteLine((int)Half(7));
-                    Console.WriteLine(Math.Abs(-3));
-                }
-            }
-            """, Path.Combine(_scratch, "Half.dll"));
+        var dll = CompileHalf();
 
         var (exitCode, output, error) = await ChipSharpCli.RunAsync("check", dll);
 
         Assert.Equal("", output);
         Assert.Equal(1, exitCode);
         Assert.Equal($"""
-            error: {dll} uses C# that M0 does not compile yet (4 problems):
-              Program.Main() at IL_000e (call): the library method System.Math.Abs(int) is not available in M0. M0 supports these library calls: System.Console.WriteLine(), System.Console.WriteLine(int), System.Console.WriteLine(uint), System.Console.WriteLine(long), System.Console.WriteLine(ulong), System.Console.WriteLine(bool), ChipSharp.Hardware.Pin.Output(int), ChipSharp.Hardware.Pin.Input(int), ChipSharp.Hardware.Pin.Write(int, bool), ChipSharp.Hardware.Pin.Toggle(int), ChipSharp.Hardware.Pin.Read(int), ChipSharp.Hardware.Timing.DelayMilliseconds(int), ChipSharp.Hardware.Timing.DelayMicroseconds(int), ChipSharp.Hardware.Registers.Read(uint), ChipSharp.Hardware.Registers.Write(uint, uint).
+            error: {dll} uses 2 C# features that M0 does not compile yet (4 places):
+              the library method System.Math.Abs(int) is not available in M0: 1 place in Program.Main() (IL_000e).
+              floating point (float/double) arrives after M0: 3 places in Program.Half(int) (return type, IL_0001 and IL_0002). For now, use whole numbers: int, long and the other integer types.
+            {WholeProgram.LibraryCalls}
+            For every place, run: chipsharp check {ChipSharpCli.Quoted(dll)} --details
+
+            """.ReplaceLineEndings("\n"), error.ReplaceLineEndings("\n"));
+    }
+
+    [Fact]
+    public async Task Check_with_details_lists_every_place_on_a_line_of_its_own()
+    {
+        var dll = CompileHalf();
+
+        var (exitCode, output, error) = await ChipSharpCli.RunAsync("check", dll, "--details");
+
+        Assert.Equal("", output);
+        Assert.Equal(1, exitCode);
+        Assert.Equal($"""
+            error: {dll} uses 2 C# features that M0 does not compile yet (4 places):
+              Program.Main() at IL_000e (call): the library method System.Math.Abs(int) is not available in M0.
               Program.Half(int), return type (double): floating point (float/double) arrives after M0. For now, use whole numbers: int, long and the other integer types.
               Program.Half(int) at IL_0001 (conv.r8): floating point (float/double) arrives after M0. For now, use whole numbers: int, long and the other integer types.
               Program.Half(int) at IL_0002 (ldc.r8): floating point (float/double) arrives after M0. For now, use whole numbers: int, long and the other integer types.
+            {WholeProgram.LibraryCalls}
 
             """.ReplaceLineEndings("\n"), error.ReplaceLineEndings("\n"));
+    }
+
+    [Fact]
+    public async Task Check_with_details_of_a_supported_program_lists_its_methods()
+    {
+        var dll = CSharpCompiler.CompileToFile("class Program { static void Main() => System.Console.WriteLine(1); }",
+            Path.Combine(_scratch, "One.dll"));
+
+        var (exitCode, output, error) = await ChipSharpCli.RunAsync("check", "--details", dll);
+
+        Assert.Equal("", error);
+        Assert.Equal(0, exitCode);
+        Assert.StartsWith($"{dll}: supported by M0. The program uses 1 method, entry point first:", output);
     }
 
     [Fact]
@@ -106,6 +126,21 @@ public sealed class CheckCliTests : IDisposable
         var (exitCode, output, _) = await ChipSharpCli.RunAsync("check");
 
         Assert.Equal(2, exitCode);
-        Assert.Contains("chipsharp check <assembly.dll>", output);
+        Assert.Contains("chipsharp check <assembly.dll> [--details]", output);
     }
+
+    private string CompileHalf() => CSharpCompiler.CompileToFile("""
+        using System;
+
+        class Program
+        {
+            static double Half(int n) => n / 2.0;
+
+            static void Main()
+            {
+                Console.WriteLine((int)Half(7));
+                Console.WriteLine(Math.Abs(-3));
+            }
+        }
+        """, Path.Combine(_scratch, "Half.dll"));
 }

@@ -5,6 +5,9 @@ namespace ChipSharp.Tests.Support;
 /// <summary>Runs the real chipsharp command (built next to the tests, chipsharp.dll) with dotnet.</summary>
 public static class ChipSharpCli
 {
+    /// <summary>A path as messages write it in a chipsharp command line: in quotes when it has a space.</summary>
+    public static string Quoted(string path) => path.Contains(' ', StringComparison.Ordinal) ? $"\"{path}\"" : path;
+
     /// <summary>Runs chipsharp with <paramref name="arguments"/>; returns its exit code and what it wrote to standard output and error.</summary>
     public static Task<(int ExitCode, string Output, string Error)> RunAsync(params string[] arguments) =>
         RunInAsync(Environment.CurrentDirectory, arguments);

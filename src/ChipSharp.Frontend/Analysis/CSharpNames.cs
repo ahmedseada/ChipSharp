@@ -79,6 +79,28 @@ public static class CSharpNames
     }
 
     /// <summary>
+    /// A method of the program as the C# that made it reads: "the top-level statements" for the Main C# makes of
+    /// them (<c>Program.&lt;Main&gt;$</c>), "local function Logit" for a local function
+    /// (<c>Program.&lt;&lt;Main&gt;$&gt;g__Logit|0_0</c>), else as <see cref="Method(IlMethod)"/> writes it.
+    /// </summary>
+    public static string Friendly(IlMethod method)
+    {
+        ArgumentNullException.ThrowIfNull(method);
+
+        if (method.Name == "<Main>$")
+        {
+            return "the top-level statements";
+        }
+
+        // <Containing>g__Name|0_0, where Containing is the method the local function is declared in
+        var marker = method.Name.LastIndexOf(">g__", StringComparison.Ordinal);
+        var bar = marker > 0 ? method.Name.IndexOf('|', marker) : -1;
+        return method.Name.StartsWith('<') && bar > marker + 4
+            ? $"local function {method.Name[(marker + 4)..bar]}"
+            : Method(method);
+    }
+
+    /// <summary>
     /// A method an instruction names, usually a library method, with the type arguments of the call filled in,
     /// e.g. "System.Console.WriteLine(string)" or "System.Collections.Generic.List&lt;int&gt;.Add(int)".
     /// </summary>

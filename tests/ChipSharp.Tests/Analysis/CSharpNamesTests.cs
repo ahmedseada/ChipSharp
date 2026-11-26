@@ -50,4 +50,32 @@ public sealed class CSharpNamesTests
             .Select(i => i.Operand).OfType<IlMethodOperand>().Last().Method;
         Assert.Equal("System.Collections.Generic.List<int>.Add(int)", CSharpNames.Method(add));
     }
+
+    [Fact]
+    public void Methods_CSharp_makes_go_by_the_names_the_CSharp_has()
+    {
+        var assembly = IlAssembly.Load(CSharpCompiler.Compile("""
+            System.Console.WriteLine(Logit(2) + C.Square(3));
+
+            static int Logit(int x) => x + 1;
+
+            static class C
+            {
+                public static int Square(int n)
+                {
+                    return Times(n);
+
+                    static int Times(int m) => m * m;
+                }
+            }
+            """), "Test.dll");
+
+        // the names the C# compiler gives them
+        string Friendly(string name) => CSharpNames.Friendly(assembly.Methods.Single(m => m.Name == name));
+
+        Assert.Equal("the top-level statements", Friendly("<Main>$"));
+        Assert.Equal("local function Logit", Friendly("<<Main>$>g__Logit|0_0"));
+        Assert.Equal("local function Times", Friendly("<Square>g__Times|0_0"));
+        Assert.Equal("C.Square(int)", Friendly("Square"));
+    }
 }
