@@ -17,7 +17,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\ChipSharp.Runtime.Windows\ChipSharp.Runtime.Windows.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Targets\ChipSharp.Targets.csproj" />
+    <ProjectReference Include="..\..\src\ChipSharp.Toolchain.Clang\ChipSharp.Toolchain.Clang.csproj" />
   </ItemGroup>
 
   <ItemGroup>

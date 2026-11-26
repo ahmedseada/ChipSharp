@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Builds PC programs (target "host") with clang and lld: generated LLVM IR and C in, a Windows .exe out -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ChipSharp.Tests" />
+  </ItemGroup>
+</Project>

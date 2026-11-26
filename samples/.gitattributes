@@ -1,0 +1,3 @@
+# The expected files are exact program output, as .NET writes it on Windows (lines end with \r\n).
+# Git stores and checks them out byte for byte, so the comparison is exact on every machine.
+*.expected.txt -text

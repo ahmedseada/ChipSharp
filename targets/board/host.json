@@ -1,0 +1,22 @@
+{
+  // The PC ChipSharp runs on: a Windows x64 console program with no C runtime, built with clang and lld.
+  // Milestone M0 compiles every program here first and compares its output with real .NET.
+  "name": "host",
+  "inherits": "x86_64",
+  "toolchain": "clang",
+  "runtime": "windows-x64",
+  "triple": "x86_64-pc-windows-msvc",
+  "clang": {
+    // passed to clang after --target; -nostdlib: no C runtime, the windows-x64 runtime is all the program needs
+    "flags": ["-O2", "-nostdlib", "-fuse-ld=lld", "-Wno-override-module"]
+  },
+  "link": {
+    "entry": "chipsharp_start",    // in the runtime: runs chipsharp_entry, then ExitProcess with its result
+    "subsystem": "console",
+    "machine": "i386:x86-64",      // llvm-dlltool's name for the CPU the import libraries are made for
+    "imports": {
+      // DLL -> the functions the program calls in it; the toolchain makes an import library from this list
+      "kernel32.dll": ["GetStdHandle", "WriteFile", "ExitProcess"]
+    }
+  }
+}
