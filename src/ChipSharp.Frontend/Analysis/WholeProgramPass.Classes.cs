@@ -57,6 +57,12 @@ public static partial class WholeProgramPass
                     verdicts[instruction] = null;
                     break;
 
+                case { OpCode: IlOpCode.Call, Operand: IlMethodOperand { Method: { Name: ".ctor", Definition: null } callee } }
+                    instruction when method is { Name: ".ctor", IsStatic: false } && ObjectTypes.IsClass(method.DeclaringType):
+                    // base(...) of a library class: the class's problem
+                    verdicts[instruction] = ForClass(method.DeclaringType) ?? Unsupported.LibraryMethod(CSharpNames.Method(callee));
+                    break;
+
                 case { OpCode: IlOpCode.Ldfld or IlOpCode.Ldflda or IlOpCode.Stfld,
                     Operand: IlFieldOperand { Field.Definition: { IsStatic: false } field } } instruction
                     when ObjectTypes.IsClass(field.DeclaringType) && field.DeclaringType.GenericParameters.Count == 0:

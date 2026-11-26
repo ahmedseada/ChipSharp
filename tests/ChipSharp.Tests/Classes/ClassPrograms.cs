@@ -13,9 +13,9 @@ internal static class ClassPrograms
 {
     /// <summary>
     /// Constructors (overloads, this(...), field initializers, object's own), instance fields and methods, auto and
-    /// manual properties, a static member of a class with objects, a nested class, an object initializer, this returned
-    /// and passed, references compared (==, !=, is null, ReferenceEquals), ?. and ?? and ??=, null meeting an object
-    /// where ways join, objects as object.
+    /// manual properties, a static member of a class with objects, an object made by a static field's initializer, a
+    /// nested class, an object initializer, this returned and passed, references compared (==, !=, is null,
+    /// ReferenceEquals), ?. and ?? and ??=, null meeting an object where ways join, objects as object.
     /// </summary>
     public const string Basics = """
         using System;
@@ -69,10 +69,12 @@ internal static class ClassPrograms
 
         class Program
         {
+            static Counter first = new Counter("first", 3);
             static Counter shared;
 
             static void Main()
             {
+                Console.WriteLine($"{first.Name} {first.Next().Count}");
                 var a = new Counter();
                 var b = new Counter("b", 5);
                 a.Next().Next();
@@ -124,14 +126,27 @@ internal static class ClassPrograms
         """;
 
     /// <summary>
-    /// A class derived from a class derived from a class: base constructors, inherited fields and methods, a private
-    /// field with the same name in a base and a derived class, a method hidden with new that calls the base's, objects
-    /// used through their base class.
+    /// A class derived from a class derived from a class derived from an abstract class: base constructors, inherited
+    /// fields, field initializers and methods, a private field with the same name in a base and a derived class, a method
+    /// hidden with new that calls the base's, objects used through their base class, and an interface's method called on
+    /// the class that implements it (not through the interface).
     /// </summary>
     public const string Inheritance = """
         using System;
 
-        class Animal
+        interface ISound
+        {
+            int Loudness();
+        }
+
+        abstract class Creature
+        {
+            public int Born = 2024;
+
+            public int Age(int year) => year - Born;
+        }
+
+        class Animal : Creature
         {
             public static int Count;
             public string Name;
@@ -143,6 +158,7 @@ internal static class ClassPrograms
                 Name = name;
                 this.legs = legs;
                 id = ++Count;
+                Born += id;
             }
 
             public int Legs => legs;
@@ -154,7 +170,7 @@ internal static class ClassPrograms
             public int Speed() => legs * 2;
         }
 
-        class Dog : Animal
+        class Dog : Animal, ISound
         {
             private int id = 100;
             public int Tricks;
@@ -166,6 +182,8 @@ internal static class ClassPrograms
             public Dog(string name, int tricks) : this(name) => Tricks = tricks;
 
             public int DogId => id;
+
+            public int Loudness() => Tricks * 3 + 1;
 
             public new int Speed() => base.Speed() + Tricks;
 
@@ -201,6 +219,7 @@ internal static class ClassPrograms
                 Console.WriteLine($"{dog.Describe()} {dog.Legs} {dog.Id} {dog.DogId} {dog.Tricks} {dog.Speed()} {((Animal)dog).Speed()}");
                 Console.WriteLine($"{puppy.Describe()} {puppy.Age} {puppy.DogId} {puppy.Total()} {animal.Speed()} {animal.Id}");
                 Console.WriteLine(asDog.Speed());
+                Console.WriteLine($"{dog.Loudness()} {puppy.Loudness()} {cat.Age(2030)} {puppy.Age(2030)}");
                 Console.WriteLine(Animal.Count);
                 Console.WriteLine(animal == puppy);
                 Console.WriteLine(Heaviest(cat, dog).Name);
