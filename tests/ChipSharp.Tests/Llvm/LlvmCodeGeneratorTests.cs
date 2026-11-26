@@ -301,9 +301,11 @@ public sealed class LlvmCodeGeneratorTests
     [InlineData(TirTypeKind.I32, TirTypeKind.F64, false, 8, "sitofp i32 %p.x to double")]
     [InlineData(TirTypeKind.I32, TirTypeKind.F64, true, 8, "uitofp i32 %p.x to double")]
     [InlineData(TirTypeKind.I64, TirTypeKind.F32, false, 8, "sitofp i64 %p.x to float")]
-    [InlineData(TirTypeKind.F64, TirTypeKind.I32, false, 8, "fptosi double %p.x to i32")]
-    [InlineData(TirTypeKind.F64, TirTypeKind.I32, true, 8, "fptoui double %p.x to i32")]
-    [InlineData(TirTypeKind.F32, TirTypeKind.I64, false, 8, "fptosi float %p.x to i64")]
+    [InlineData(TirTypeKind.F64, TirTypeKind.I32, false, 8, "call i32 @llvm.fptosi.sat.i32.f64(double %p.x)")]
+    [InlineData(TirTypeKind.F64, TirTypeKind.I32, true, 8, "call i32 @llvm.fptoui.sat.i32.f64(double %p.x)")]
+    [InlineData(TirTypeKind.F32, TirTypeKind.I64, false, 8, "call i64 @llvm.fptosi.sat.i64.f32(float %p.x)")]
+    [InlineData(TirTypeKind.F32, TirTypeKind.I8, true, 8, "call i8 @llvm.fptoui.sat.i8.f32(float %p.x)")]
+    [InlineData(TirTypeKind.F64, TirTypeKind.NativeInt, true, 4, "call i32 @llvm.fptoui.sat.i32.f64(double %p.x)")]
     [InlineData(TirTypeKind.F32, TirTypeKind.F64, false, 8, "fpext float %p.x to double")]
     [InlineData(TirTypeKind.F64, TirTypeKind.F32, false, 8, "fptrunc double %p.x to float")]
     [InlineData(TirTypeKind.I32, TirTypeKind.NativeInt, false, 8, "sext i32 %p.x to i64")]
@@ -326,6 +328,31 @@ public sealed class LlvmCodeGeneratorTests
         Assert.EndsWith(expected is null
             ? $"entry:\n  ret {toType} %p.x\n}}\n"
             : $"entry:\n  %t0 = {expected}\n  ret {toType} %t0\n}}\n", define);
+    }
+
+    [Fact]
+    public void A_float_becomes_an_integer_through_the_saturating_intrinsics_declared_once_at_the_end()
+    {
+        var module = TirSamples.WithMain(new TirModule("Test"));
+        AddConvert(module, TirType.F64, TirType.I32, unsigned: false);
+        var second = module.AddFunction("Program.Second", TirType.I64, ("x", TirType.F32), ("y", TirType.F64));
+        var b = new TirBuilder(second.AddBlock("entry"));
+        var first = b.Convert(second.Parameters[0], TirType.I64, unsigned: true);
+        var again = b.Convert(second.Parameters[1], TirType.I32);
+        b.Return(b.Binary(TirBinaryOp.Add, first, b.Convert(again, TirType.I64)));
+
+        var ll = Generate(module);
+
+        Assert.Contains("  %t0 = call i64 @llvm.fptoui.sat.i64.f32(float %p.x)\n" +
+            "  %t1 = call i32 @llvm.fptosi.sat.i32.f64(double %p.y)\n", Define(ll, "Program_Second"));
+        Assert.EndsWith(Text("""
+            ret i32 0
+            }
+
+            declare i32 @llvm.fptosi.sat.i32.f64(double)
+            declare i64 @llvm.fptoui.sat.i64.f32(float)
+
+            """), ll);
     }
 
     [Fact]

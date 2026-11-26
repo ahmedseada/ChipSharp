@@ -161,6 +161,11 @@ internal sealed partial class MethodLowering
 
     private void Lower(IlInstruction instruction)
     {
+        if (LowerFloat(instruction))
+        {
+            return;
+        }
+
         switch (instruction.OpCode)
         {
             case var _ when IsArrayInstruction(instruction):
@@ -205,7 +210,7 @@ internal sealed partial class MethodLowering
                 break;
 
             case IlOpCode.Ldloca_S or IlOpCode.Ldloca or IlOpCode.Ldarga_S or IlOpCode.Ldarga or IlOpCode.Ldsflda
-                or (>= IlOpCode.Ldind_I1 and <= IlOpCode.Ldind_I) or (>= IlOpCode.Stind_I1 and <= IlOpCode.Stind_I8)
+                or (>= IlOpCode.Ldind_I1 and <= IlOpCode.Ldind_R8) or (>= IlOpCode.Stind_I1 and <= IlOpCode.Stind_R8)
                 or IlOpCode.Stind_I:
                 LowerReference(instruction);
                 break;
@@ -559,7 +564,8 @@ internal sealed partial class MethodLowering
     /// <summary>
     /// A stack value made fit for a location of TIR type <paramref name="type"/> (IL type <paramref name="ilType"/>):
     /// a bool is "not zero", a small integer keeps the low bits, an int32 for a native int is sign- or zero-extended
-    /// as the IL type says. <paramref name="destination"/> names the location in errors, e.g. "local V_0".
+    /// as the IL type says, a double for a float is rounded to float and a float for a double widened.
+    /// <paramref name="destination"/> names the location in errors, e.g. "local V_0".
     /// </summary>
     private TirValue FromStack(StackValue value, TirType type, IlType ilType, string destination)
     {
@@ -568,7 +574,7 @@ internal sealed partial class MethodLowering
             return unconverted;
         }
 
-        if ((value.Type == TirType.I64) != (type == TirType.I64))
+        if ((value.Type == TirType.I64) != (type == TirType.I64) || value.Type.IsFloat != type.IsFloat)
         {
             throw Error($"{destination} has type {ilType}, but the value on the evaluation stack is " +
                 LoweringErrors.StackTypeName(value.Type));
@@ -759,9 +765,9 @@ internal sealed partial class MethodLowering
     private void Push(StackValue value) => _stack.Add(value);
 
     /// <summary>
-    /// Pops a number (an int32, int64 or native int) and writes it as TIR if it was still pending. The other values
-    /// have their own: <see cref="PopArray"/>, <see cref="PopAddress"/> and <see cref="PopReference"/>; a struct is
-    /// popped with <see cref="PopValue"/> and passed on whole.
+    /// Pops a number (an int32, int64, native int, float32 or float64) and writes it as TIR if it was still pending.
+    /// The other values have their own: <see cref="PopArray"/>, <see cref="PopAddress"/> and
+    /// <see cref="PopReference"/>; a struct is popped with <see cref="PopValue"/> and passed on whole.
     /// </summary>
     private TirValue PopNumber()
     {

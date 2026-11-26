@@ -349,25 +349,16 @@ public sealed class ArrayRejectionTests
     [Fact]
     public void Arrays_of_unsupported_elements_say_what_the_element_needs()
     {
+        // an array of floats is fine now that floats are
         var problems = Problems(Program("""
             float[] weights = { 0.5f, 2f };
             char[] letters = new char[2];
             Console.WriteLine(letters.Length + (int)weights[1]);
             """));
 
-        const string Floats = "floating point (float/double) arrives after M0. For now, use whole numbers: int, long "
-            + "and the other integer types.";
         Assert.Equal(
-        [
-            $"Program.Main(), local variable V_0 (float[]): {Floats}",
-            $"Program.Main() at IL_0001 (newarr): {Floats}",
-            $"Program.Main() at IL_0008 (ldc.r4): {Floats}",
-            $"Program.Main() at IL_000d (stelem.r4): {Floats}",
-            $"Program.Main() at IL_0010 (ldc.r4): {Floats}",
-            $"Program.Main() at IL_0015 (stelem.r4): {Floats}",
-            "Program.Main() at IL_0018 (newarr): characters (char) arrive after M0. For now, use whole numbers.",
-            $"Program.Main() at IL_0021 (ldelem.r4): {Floats}",
-        ], problems);
+            ["Program.Main() at IL_0018 (newarr): characters (char) arrive after M0. For now, use whole numbers."],
+            problems);
     }
 
     [Fact]

@@ -207,14 +207,14 @@ public sealed class SummaryTests
         Assert.Equal(["the type System.TimeSpan", "the type System.Random"], types.Select(group => group.Feature));
         Assert.Equal("the type System.Random arrives after M0: 2 places in Program.Next(System.Random, System.TimeSpan, "
             + "System.Random) (parameter 'random' and parameter 'other'). M0 supports bool, the whole-number types "
-            + "(sbyte to ulong, nint, nuint) and void.", types[1].Line);
+            + "(sbyte to ulong, nint, nuint), float, double and void.", types[1].Line);
     }
 
     [Fact]
     public void A_SquareDemo_like_program_gets_a_short_summary()
     {
-        // top-level statements, float arrays, a local function and string interpolation: 31 places, 4 features (an
-        // array of floats is floating point)
+        // top-level statements, float arrays, a local function and string interpolation: 11 places, 3 features (the
+        // floats and the arrays of them are fine)
         var analysis = Check("""
             using System;
 
@@ -230,12 +230,11 @@ public sealed class SummaryTests
             Console.WriteLine($"Logit result: {result}");
             """);
 
-        Assert.Equal(["floating point (float/double)", "string interpolation ($\"...\")", "text strings",
+        Assert.Equal(["string interpolation ($\"...\")", "text strings",
             "the library method System.Console.WriteLine(string)"], analysis.Groups.Select(group => group.Feature));
-        Assert.Equal([20, 9, 1, 1], analysis.Groups.Select(group => group.Problems.Count));
+        Assert.Equal([9, 1, 1], analysis.Groups.Select(group => group.Problems.Count));
         Assert.Equal($"""
-            Test.dll uses 4 C# features that M0 does not compile yet (31 places):
-              floating point (float/double) arrives after M0: 20 places in the top-level statements (IL_0001, IL_0008, IL_000d and 10 more) and local function Logit (return type, parameter 'weights', parameter 'features' and 4 more). For now, use whole numbers: int, long and the other integer types.
+            Test.dll uses 3 C# features that M0 does not compile yet (11 places):
               string interpolation ($"...") arrives after M0: 9 places in the top-level statements (IL_0036, IL_003b, IL_0040 and 6 more). For now, print numbers and bools with Console.WriteLine.
               text strings arrive after M0: 1 place in the top-level statements (IL_0042). For now, print numbers and bools with Console.WriteLine.
               the library method System.Console.WriteLine(string) is not available in M0: 1 place in the top-level statements (IL_005b).
@@ -243,7 +242,7 @@ public sealed class SummaryTests
             For every place, run: chipsharp check Test.dll --details
             """.ReplaceLineEndings("\n"), analysis.Summary);
         Assert.InRange(analysis.Summary.Split('\n').Length, 1, 11);
-        Assert.Equal(33, analysis.Details.Split('\n').Length);
+        Assert.Equal(13, analysis.Details.Split('\n').Length);
     }
 
     [Fact]

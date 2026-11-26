@@ -58,9 +58,9 @@ public sealed class CheckCliTests : IDisposable
         Assert.Equal("", output);
         Assert.Equal(1, exitCode);
         Assert.Equal($"""
-            error: {dll} uses 2 C# features that M0 does not compile yet (4 places):
+            error: {dll} uses 2 C# features that M0 does not compile yet (2 places):
               the library method System.Math.Abs(int) is not available in M0: 1 place in Program.Main() (IL_000e).
-              floating point (float/double) arrives after M0: 3 places in Program.Half(int) (return type, IL_0001 and IL_0002). For now, use whole numbers: int, long and the other integer types.
+              checked arithmetic arrives after M0: 1 place in Program.Half(int) (IL_000c). For now, leave out checked: M0 arithmetic wraps around on overflow, like unchecked C#.
             {WholeProgram.LibraryCalls}
             For every place, run: chipsharp check {ChipSharpCli.Quoted(dll)} --details
 
@@ -77,11 +77,9 @@ public sealed class CheckCliTests : IDisposable
         Assert.Equal("", output);
         Assert.Equal(1, exitCode);
         Assert.Equal($"""
-            error: {dll} uses 2 C# features that M0 does not compile yet (4 places):
+            error: {dll} uses 2 C# features that M0 does not compile yet (2 places):
               Program.Main() at IL_000e (call): the library method System.Math.Abs(int) is not available in M0.
-              Program.Half(int), return type (double): floating point (float/double) arrives after M0. For now, use whole numbers: int, long and the other integer types.
-              Program.Half(int) at IL_0001 (conv.r8): floating point (float/double) arrives after M0. For now, use whole numbers: int, long and the other integer types.
-              Program.Half(int) at IL_0002 (ldc.r8): floating point (float/double) arrives after M0. For now, use whole numbers: int, long and the other integer types.
+              Program.Half(int) at IL_000c (conv.ovf.i4): checked arithmetic arrives after M0. For now, leave out checked: M0 arithmetic wraps around on overflow, like unchecked C#.
             {WholeProgram.LibraryCalls}
 
             """.ReplaceLineEndings("\n"), error.ReplaceLineEndings("\n"));
@@ -134,7 +132,7 @@ public sealed class CheckCliTests : IDisposable
 
         class Program
         {
-            static double Half(int n) => n / 2.0;
+            static double Half(int n) => checked((int)(n / 2.0));
 
             static void Main()
             {

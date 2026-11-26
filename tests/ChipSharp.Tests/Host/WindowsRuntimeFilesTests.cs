@@ -26,21 +26,21 @@ public sealed class WindowsRuntimeFilesTests
     private delegate IntPtr Copy(IntPtr target, IntPtr source, nuint count);
 
     [Fact]
-    public void The_runtime_is_the_entry_point_the_float_text_then_the_failures_the_memory_functions_and_the_stack_probe()
+    public void The_runtime_is_the_entry_point_the_float_text_and_math_then_the_failures_the_memory_functions_and_the_stack_probe()
     {
         var files = new WindowsX64Runtime().Startup(Targets.Load("host")).Files;
 
         Assert.Equal(
-            ["chipsharp_runtime.c", "chipsharp_float_text.c", "chipsharp_failures.c", "chipsharp_memory.c",
-                "chipsharp_chkstk.S"],
+            ["chipsharp_runtime.c", "chipsharp_float_text.c", "chipsharp_float_math.c", "chipsharp_failures.c",
+                "chipsharp_memory.c", "chipsharp_chkstk.S"],
             files.Select(f => f.FileName));
         Assert.All(files, file => Assert.DoesNotContain("#include", file.Content));
-        Assert.Contains("void ChipSharp_Runtime_IndexOutOfRange(void)", files[2].Content);
-        Assert.Contains("ExitProcess(1);", files[2].Content);
-        Assert.Contains("void *memset(void *target, int value, size_t count)", files[3].Content);
-        Assert.Contains("void *memcpy(void *target, const void *source, size_t count)", files[3].Content);
-        Assert.Contains("void *memmove(void *target, const void *source, size_t count)", files[3].Content);
-        Assert.Contains("__chkstk:", files[4].Content);
+        Assert.Contains("void ChipSharp_Runtime_IndexOutOfRange(void)", files[3].Content);
+        Assert.Contains("ExitProcess(1);", files[3].Content);
+        Assert.Contains("void *memset(void *target, int value, size_t count)", files[4].Content);
+        Assert.Contains("void *memcpy(void *target, const void *source, size_t count)", files[4].Content);
+        Assert.Contains("void *memmove(void *target, const void *source, size_t count)", files[4].Content);
+        Assert.Contains("__chkstk:", files[5].Content);
     }
 
     [Fact]

@@ -51,6 +51,10 @@ public sealed class StructProgramTests : IDisposable
     public Task A_large_struct_is_copied_whole() => PrintsWhatDotnetPrints(StructPrograms.Large);
 
     [HostFact]
+    public Task Floats_and_doubles_live_in_fields_static_fields_arrays_and_behind_references() =>
+        PrintsWhatDotnetPrints(StructPrograms.Floats);
+
+    [HostFact]
     public async Task Every_program_compiled_in_Debug_prints_the_same()
     {
         foreach (var (name, source) in StructPrograms.All)
@@ -769,6 +773,120 @@ internal static class StructPrograms
         }
         """;
 
+    /// <summary>
+    /// Floats and doubles wherever whole numbers go: struct fields, static fields (set by a static constructor), ref,
+    /// out and in parameters, ref locals and ref returns, and arrays, with initializers of their bits (-0, the
+    /// smallest subnormal, the largest float).
+    /// </summary>
+    public const string Floats = """
+        using System;
+
+        struct Vector
+        {
+            public float X;
+            public double Y;
+            public bool Flag;
+
+            public Vector(float x, double y)
+            {
+                X = x;
+                Y = y;
+                Flag = x > 0;
+            }
+
+            public readonly double Length2 => X * X + Y * Y;
+
+            public void Scale(float by)
+            {
+                X *= by;
+                Y *= by;
+            }
+        }
+
+        class Program
+        {
+            static double total = 0.5;
+            static float step = 0.1f;
+            static Vector origin;
+
+            static void Halve(ref float value) => value /= 2;
+
+            static void Split(double value, out long whole, out double rest)
+            {
+                whole = (long)value;
+                rest = value - whole;
+            }
+
+            static double Sum(in Vector v) => v.X + v.Y;
+
+            static ref double Largest(double[] values)
+            {
+                int best = 0;
+                for (int i = 1; i < values.Length; i++)
+                {
+                    if (values[i] > values[best]) best = i;
+                }
+
+                return ref values[best];
+            }
+
+            static void Main()
+            {
+                for (int i = 0; i < 10; i++)
+                {
+                    total += step;
+                }
+
+                Console.WriteLine(total);
+                Console.WriteLine(step);
+
+                var v = new Vector(1.5f, -2.25);
+                v.Scale(3f);
+                Console.WriteLine(v.X);
+                Console.WriteLine(v.Y);
+                Console.WriteLine(v.Length2);
+                Console.WriteLine(v.Flag);
+                Console.WriteLine(Sum(in v));
+                origin = v;
+                origin.Y = double.NaN;
+                Console.WriteLine(origin.Y);
+                Console.WriteLine(origin.X + v.X);
+
+                float f = 7f;
+                Halve(ref f);
+                Halve(ref v.X);
+                Console.WriteLine(f);
+                Console.WriteLine(v.X);
+                Split(-3.75, out long whole, out double rest);
+                Console.WriteLine(whole);
+                Console.WriteLine(rest);
+
+                float[] floats = { 0.5f, -0f, 1e-45f, float.MaxValue };
+                Console.WriteLine(floats[1]);
+                Console.WriteLine(floats[2]);
+                Console.WriteLine(floats[3]);
+                floats[0] += 0.25f;
+                Halve(ref floats[0]);
+                Console.WriteLine(floats[0]);
+
+                double[] doubles = { 1.0 / 3, double.NegativeInfinity, 2.5e-300, 0 };
+                ref double largest = ref Largest(doubles);
+                largest *= 3;
+                Console.WriteLine(doubles[0]);
+                Console.WriteLine(doubles[1]);
+                Console.WriteLine(doubles[2] * 1e300);
+                doubles[3] = doubles[0] % 0.25;
+                Console.WriteLine(doubles[3]);
+
+                Vector[] vectors = new Vector[2];
+                vectors[1] = new Vector(-1f, 4);
+                vectors[0].Y = vectors[1].Y / 3;
+                Console.WriteLine(vectors[0].Y);
+                Console.WriteLine(vectors[1].Flag);
+            }
+        }
+        """;
+
     /// <summary>Every program above, by name.</summary>
     public static IReadOnlyList<(string Name, string Source)> All { get; } =
     [
@@ -781,5 +899,6 @@ internal static class StructPrograms
         (nameof(StaticFields), StaticFields),
         (nameof(Layout), Layout),
         (nameof(Large), Large),
+        (nameof(Floats), Floats),
     ];
 }

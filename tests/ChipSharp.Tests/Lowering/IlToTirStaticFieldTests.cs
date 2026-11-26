@@ -377,7 +377,8 @@ public sealed class IlToTirStaticFieldTests
         var error = Assert.Throws<ChipSharpException>(() => Lowered.Lower(Lowered.Program(emitted.Read(), "Program.F")));
 
         Assert.Equal("Emitted.dll: Program.F() at IL_0000: the field Program.name has type string, which is not " +
-            "supported yet (M0 compiles bool and whole numbers).", error.Message);
+            "supported yet (M0 compiles bool, whole numbers, float, double, and the structs and enums of the program).",
+            error.Message);
     }
 
     [Fact]

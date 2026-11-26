@@ -161,8 +161,8 @@ internal sealed partial class MethodLowering
         {
             TirTypeKind.I8 => 1,
             TirTypeKind.I16 => 2,
-            TirTypeKind.I32 => 4,
-            TirTypeKind.I64 => 8,
+            TirTypeKind.I32 or TirTypeKind.F32 => 4,
+            TirTypeKind.I64 or TirTypeKind.F64 => 8,
             _ => throw Error($"an array of {array.Element} has no initializer data, as its size depends on the target"),
         };
         var data = _method.Assembly.ReadFieldData(field, array.Count * size)
@@ -179,10 +179,17 @@ internal sealed partial class MethodLowering
                 4 => System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(bytes),
                 _ => System.Buffers.Binary.BinaryPrimitives.ReadInt64LittleEndian(bytes),
             };
+
+            // the bits of a float or double: -0.0 is not zero, and is stored
             if (value != 0)
             {
                 _ir.Store(_ir.ElementAddress(elements, array.Element, _ir.Const(TirType.I32, i)),
-                    _ir.Const(array.Element, value));
+                    array.Element.Kind switch
+                    {
+                        TirTypeKind.F32 => _ir.Const(TirType.F32, BitConverter.Int32BitsToSingle((int)value)),
+                        TirTypeKind.F64 => _ir.Const(TirType.F64, BitConverter.Int64BitsToDouble(value)),
+                        _ => _ir.Const(array.Element, value),
+                    });
             }
         }
     }

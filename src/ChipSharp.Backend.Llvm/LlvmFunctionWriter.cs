@@ -18,6 +18,9 @@ internal sealed class LlvmFunctionWriter
     private readonly IReadOnlyDictionary<TirGlobal, string> _globals;
     private readonly StringBuilder _text;
 
+    /// <summary>The declarations of the LLVM intrinsics the function calls, which the module writes once.</summary>
+    private readonly ISet<string> _declarations;
+
     /// <summary>Every local name used so far; labels and values share one namespace in an LLVM function.</summary>
     private readonly HashSet<string> _taken = new(StringComparer.Ordinal);
 
@@ -29,13 +32,14 @@ internal sealed class LlvmFunctionWriter
     private int _nextTemporary;
 
     public LlvmFunctionWriter(TirFunction function, LlvmTypes types, IReadOnlyDictionary<TirFunction, string> symbols,
-        IReadOnlyDictionary<TirGlobal, string> globals, StringBuilder text)
+        IReadOnlyDictionary<TirGlobal, string> globals, StringBuilder text, ISet<string> declarations)
     {
         _function = function;
         _types = types;
         _symbols = symbols;
         _globals = globals;
         _text = text;
+        _declarations = declarations;
     }
 
     public void Write()
@@ -211,8 +215,9 @@ internal sealed class LlvmFunctionWriter
 
     /// <summary>
     /// trunc, sext or zext between integers (a bool is always zero-extended: it converts to 0 or 1), sitofp or
-    /// uitofp, fptosi or fptoui, fpext or fptrunc. Converting between two types LLVM sees as the same
-    /// (e.g. nint and i64 on a 64-bit target) writes nothing: the result is the value itself.
+    /// uitofp, fpext or fptrunc. A float becomes an integer through llvm.fptosi.sat or llvm.fptoui.sat, which
+    /// saturate as TIR (and .NET) do, where fptosi and fptoui would give poison. Converting between two types LLVM
+    /// sees as the same (e.g. nint and i64 on a 64-bit target) writes nothing: the result is the value itself.
     /// </summary>
     private void Convert(TirConvert convert)
     {
@@ -224,16 +229,21 @@ internal sealed class LlvmFunctionWriter
         }
 
         var (unsigned, widens) = (convert.IsUnsigned, _types.Bits(to) > _types.Bits(from));
+        if (from.IsFloat && !to.IsFloat)
+        {
+            var intrinsic = $"llvm.fpto{(unsigned ? "u" : "s")}i.sat.{_types.Of(to)}.f{_types.Bits(from)}";
+            _declarations.Add($"declare {_types.Of(to)} @{intrinsic}({_types.Of(from)})");
+            Define(convert, $"call {_types.Of(to)} @{intrinsic}({Typed(convert.Value)})");
+            return;
+        }
+
         var opcode = (from.IsFloat, to.IsFloat) switch
         {
             (false, false) when from == TirType.Bool => "zext",
             (false, false) => widens ? unsigned ? "zext" : "sext" : "trunc",
             (false, true) when from == TirType.Bool => "uitofp",
             (false, true) => unsigned ? "uitofp" : "sitofp",
-            // TODO: a float that does not fit the integer type gives poison in LLVM; .NET saturates
-            // (NaN gives 0). Switch to llvm.fptosi.sat / llvm.fptoui.sat when results must match .NET there.
-            (true, false) => unsigned ? "fptoui" : "fptosi",
-            (true, true) => widens ? "fpext" : "fptrunc",
+            _ => widens ? "fpext" : "fptrunc",
         };
 
         Define(convert, $"{opcode} {Typed(convert.Value)} to {_types.Of(to)}");

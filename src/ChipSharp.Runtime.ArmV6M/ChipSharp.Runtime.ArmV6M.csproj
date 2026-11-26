@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- The runtime parts every ARMv6-M chip (Cortex-M0/M0+) shares: reset handler, vector table, divide/multiply/shift helpers -->
+  <!-- The runtime parts every ARMv6-M chip (Cortex-M0/M0+) shares: reset handler, vector table, divide/multiply/shift helpers, float math -->
   <ItemGroup>
     <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
   </ItemGroup>
@@ -8,5 +8,11 @@
     <EmbeddedResource Include="armv6m_vectors.c" LogicalName="armv6m_vectors.c" />
     <EmbeddedResource Include="armv6m_helpers.c" LogicalName="armv6m_helpers.c" />
     <EmbeddedResource Include="armv6m_divmod.S" LogicalName="armv6m_divmod.S" />
+    <EmbeddedResource Include="armv6m_float_compare.c" LogicalName="armv6m_float_compare.c" />
+    <!-- fmod, square roots, Math.Min and the like, shared with the other runtimes -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_math.c" LogicalName="chipsharp_float_math.c" />
+    <!-- float arithmetic in software: LLVM's compiler-rt builtins (llvmorg-23.1.6, compiler-rt/lib/builtins), unchanged;
+         Apache-2.0 WITH LLVM-exception, CompilerRt/LICENSE.TXT -->
+    <EmbeddedResource Include="CompilerRt\*.c;CompilerRt\*.h;CompilerRt\*.inc" LogicalName="compiler-rt/%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

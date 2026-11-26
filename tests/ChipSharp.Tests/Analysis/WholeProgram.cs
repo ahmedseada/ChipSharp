@@ -13,7 +13,12 @@ internal static class WholeProgram
     public const string LibraryCalls = "M0 supports these library calls: System.Console.WriteLine(), "
         + "System.Console.WriteLine(int), System.Console.WriteLine(uint), System.Console.WriteLine(long), "
         + "System.Console.WriteLine(ulong), System.Console.WriteLine(bool), System.Console.WriteLine(float), "
-        + "System.Console.WriteLine(double), " + HardwareCalls + ".";
+        + "System.Console.WriteLine(double), " + MathCalls + ", " + HardwareCalls + ".";
+
+    private const string MathCalls = "System.Math.Abs(double), System.Math.Abs(float), System.Math.Min(double, double), "
+        + "System.Math.Min(float, float), System.Math.Max(double, double), System.Math.Max(float, float), "
+        + "System.Math.Sqrt(double), System.MathF.Abs(float), System.MathF.Min(float, float), "
+        + "System.MathF.Max(float, float), System.MathF.Sqrt(float)";
 
     private const string HardwareCalls = "ChipSharp.Hardware.Pin.Output(int), ChipSharp.Hardware.Pin.Input(int), "
         + "ChipSharp.Hardware.Pin.Write(int, bool), ChipSharp.Hardware.Pin.Toggle(int), ChipSharp.Hardware.Pin.Read(int), "

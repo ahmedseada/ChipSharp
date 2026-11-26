@@ -12,12 +12,16 @@ namespace ChipSharp.Runtime.ArmV6M;
 /// <item><see cref="HelpersFileName"/> and <see cref="DivModFileName"/>: the functions LLVM calls for what ARMv6-M
 /// has no instruction for (32- and 64-bit division, 64-bit multiply and shifts, memory copies), written with
 /// 32-bit operations only.</item>
+/// <item>Float math in software, as ARMv6-M has no float hardware: <see cref="CompilerRt"/> for the arithmetic and
+/// conversions LLVM calls (__aeabi_fadd, __aeabi_dmul, __aeabi_d2iz, ...), <see cref="FloatCompareFileName"/> for its
+/// comparisons, and <see cref="FloatMathFileName"/> (shared with the other runtimes) for fmod and the Math methods
+/// programs call.</item>
 /// <item><see cref="VectorsFileName"/>: the vector table (section .vectors) with weak handlers a chip runtime
 /// replaces, e.g. <c>chipsharp_isr_irq0</c>.</item>
 /// </list>
 /// The sources use the symbols of the linker script the clang toolchain writes for chips (__chipsharp_data_start,
 /// __chipsharp_stack_top, ...). A chip's runtime adds its own files to these (see the rp2040 runtime); on its own,
-/// this runtime runs a program that only computes.
+/// this runtime runs a program that only computes. The linker keeps only the functions a program uses.
 /// </summary>
 public sealed class ArmV6MRuntime : IArchRuntime
 {
@@ -26,13 +30,23 @@ public sealed class ArmV6MRuntime : IArchRuntime
     public const string DivModFileName = "armv6m_divmod.S";
     public const string VectorsFileName = "armv6m_vectors.c";
 
+    /// <summary>The C file with the float and double comparisons LLVM calls (__aeabi_fcmplt and friends).</summary>
+    public const string FloatCompareFileName = "armv6m_float_compare.c";
+
+    /// <summary>The C file with fmod and the Math methods (src/ChipSharp.Runtime.Shared).</summary>
+    public const string FloatMathFileName = "chipsharp_float_math.c";
+
     public string Name => "armv6m";
 
-    /// <summary>The reset handler and the compiler's helper functions.</summary>
+    /// <summary>The reset handler and the compiler's helper functions, float math included.</summary>
     public RuntimeSources Startup(TargetDescription target)
     {
         ArgumentNullException.ThrowIfNull(target);
-        return new RuntimeSources([Source(StartupFileName), Source(HelpersFileName), Source(DivModFileName)]);
+        return new RuntimeSources(
+        [
+            Source(StartupFileName), Source(HelpersFileName), Source(DivModFileName), Source(FloatCompareFileName),
+            Source(FloatMathFileName), .. CompilerRt.Sources(),
+        ]);
     }
 
     /// <summary>The vector table and the default exception handlers.</summary>

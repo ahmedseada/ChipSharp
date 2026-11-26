@@ -245,7 +245,7 @@ public sealed class StructCheckTests
                 + "(parameter 'window'). For now, keep references in parameters and locals.",
             "the type System.TimeSpan arrives after M0: 3 places in Program.Main() (IL_003d and local V_4) and "
                 + "Program.Days(System.TimeSpan) (parameter 'span'). "
-                + "M0 supports bool, the whole-number types (sbyte to ulong, nint, nuint) and void.",
+                + "M0 supports bool, the whole-number types (sbyte to ulong, nint, nuint), float, double and void.",
         ], analysis.Groups.Select(group => group.Line));
     }
 

@@ -30,16 +30,18 @@ internal static class LoweringErrors
         }
 
         var why = ValueTypes.ProblemOf(type, method.Assembly)?.Text
-            ?? $"{SupportedSubset.Milestone} compiles bool and whole numbers";
+            ?? $"{SupportedSubset.Milestone} compiles bool, whole numbers, float and double";
         throw In(method, $"{subject} {type}, which is not supported yet ({why})");
     }
 
-    /// <summary>The IL name of an evaluation stack type: int32, int64 or native int.</summary>
+    /// <summary>The IL name of an evaluation stack type: int32, int64, native int, float32 or float64.</summary>
     public static string StackTypeName(TirType type) => type.Kind switch
     {
         TirTypeKind.I32 => "int32",
         TirTypeKind.I64 => "int64",
         TirTypeKind.NativeInt => "native int",
+        TirTypeKind.F32 => "float32",
+        TirTypeKind.F64 => "float64",
         _ => type.Name,
     };
 

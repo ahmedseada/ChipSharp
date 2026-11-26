@@ -168,7 +168,7 @@ public sealed class RejectionTests
     [Fact]
     public void Fields()
     {
-        // counter and its address compile; a float field and a field of the library do not
+        // counter, its address and a float field compile; a field of the library does not
         var problems = Problems("""
             using System;
             using System.Threading;
@@ -191,10 +191,6 @@ public sealed class RejectionTests
         [
             "Program.Main() at IL_0005 (call): the library method System.Threading.Interlocked.Increment(ref int) "
                 + "is not available in M0.",
-            "Program.Main() at IL_000b (ldc.r4): floating point (float/double) arrives after M0. "
-                + "For now, use whole numbers: int, long and the other integer types.",
-            "Program.Main() at IL_0010 (stsfld): floating point (float/double) arrives after M0. "
-                + "For now, use whole numbers: int, long and the other integer types.",
             "Program.Main() at IL_001a (ldsfld): the library field nint.Zero is not available in M0. "
                 + "For now, use constants or the static fields of your own types.",
         ], problems);
@@ -229,7 +225,7 @@ public sealed class RejectionTests
     }
 
     [Fact]
-    public void Floating_point()
+    public void Floating_point_beyond_the_supported_Math_methods_and_unchecked_conversions()
     {
         var problems = Problems("""
             using System;
@@ -242,22 +238,17 @@ public sealed class RejectionTests
                 static void Main()
                 {
                     Console.WriteLine((int)Half(5));
-                    Console.WriteLine((int)Third(9f));
+                    Console.WriteLine(Math.Sin(Third(9f)));
+                    Console.WriteLine(checked((int)Half(7)));
                 }
             }
             """);
 
-        const string Floats = "floating point (float/double) arrives after M0. "
-            + "For now, use whole numbers: int, long and the other integer types.";
         Assert.Equal(
         [
-            $"Program.Main() at IL_000c (ldc.r4): {Floats}",
-            $"Program.Half(int), return type (double): {Floats}",
-            $"Program.Half(int) at IL_0001 (conv.r8): {Floats}",
-            $"Program.Half(int) at IL_0002 (ldc.r8): {Floats}",
-            $"Program.Third(float), return type (float): {Floats}",
-            $"Program.Third(float), parameter 'x' (float): {Floats}",
-            $"Program.Third(float) at IL_0001 (ldc.r4): {Floats}",
+            "Program.Main() at IL_0017 (call): the library method System.Math.Sin(double) is not available in M0.",
+            "Program.Main() at IL_0027 (conv.ovf.i4): checked arithmetic arrives after M0. For now, leave out " +
+                "checked: M0 arithmetic wraps around on overflow, like unchecked C#.",
         ], problems);
     }
 

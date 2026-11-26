@@ -42,6 +42,9 @@ public sealed class SampleProgramTests : IDisposable
     public Task Fibonacci() => PrintsWhatDotnetPrints();
 
     [HostFact]
+    public Task FloatMath() => PrintsWhatDotnetPrints();
+
+    [HostFact]
     public Task ForLoops() => PrintsWhatDotnetPrints();
 
     [HostFact]

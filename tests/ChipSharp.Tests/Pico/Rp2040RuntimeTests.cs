@@ -41,29 +41,68 @@ public sealed class Rp2040RuntimeTests
 
         var files = runtime.Startup(pico).Files;
 
+        var softFloat = CompilerRt.Sources().Select(f => f.FileName).ToList();
         Assert.Equal(
-            ["armv6m_startup.c", "armv6m_helpers.c", "armv6m_divmod.S", "rp2040_boot2.S", "rp2040_runtime.c",
+            ["armv6m_startup.c", "armv6m_helpers.c", "armv6m_divmod.S", "armv6m_float_compare.c",
+                ArmV6MRuntime.FloatMathFileName, .. softFloat, "rp2040_boot2.S", "rp2040_runtime.c",
                 Rp2040Runtime.FloatTextFileName, "rp2040_failures.c"],
             files.Select(f => f.FileName));
-        // the very file the PC's runtime has
+
+        // the very files the PC's runtime has
         Assert.Equal(WindowsX64Runtime.FloatText,
             files.Single(f => f.FileName == Rp2040Runtime.FloatTextFileName).Content);
+        Assert.Equal(WindowsX64Runtime.FloatMath,
+            files.Single(f => f.FileName == ArmV6MRuntime.FloatMathFileName).Content);
         Assert.Equal(["armv6m_vectors.c"], runtime.InterruptEntry(pico).Files.Select(f => f.FileName));
         Assert.Empty(runtime.Atomics(pico).Files);
-        Assert.All(runtime.Startup(pico).Files.Concat(runtime.InterruptEntry(pico).Files),
+
+        // ChipSharp's own C includes nothing (compiler-rt's includes its own headers and, on these targets, only the
+        // C standard's freestanding ones, which come with clang)
+        Assert.All(runtime.Startup(pico).Files.Concat(runtime.InterruptEntry(pico).Files)
+                .Where(file => !softFloat.Contains(file.FileName)),
             file => Assert.DoesNotContain("#include", file.Content));
+    }
+
+    /// <summary>
+    /// compiler-rt's files ship unchanged with their license; a build compiles every .c file once, in one of six
+    /// units, and gets every header.
+    /// </summary>
+    [Fact]
+    public void The_armv6m_runtime_ships_compiler_rts_soft_float_with_its_license()
+    {
+        var names = CompilerRt.FileNames;
+        string[] sources = [.. names.Where(name => name.EndsWith(".c", StringComparison.Ordinal))];
+
+        Assert.Contains("adddf3.c", names);
+        Assert.Contains("fp_lib.h", names);
+        Assert.Contains("fp_add_impl.inc", names);
+        Assert.Equal(31, sources.Length);
+        Assert.Equal(sources, CompilerRt.Units.SelectMany(unit => unit.Files).Order(StringComparer.Ordinal));
+        Assert.All(names, name => Assert.Contains("SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception",
+            CompilerRt.File(name).Content));
+        var built = CompilerRt.Sources();
+        Assert.Equal([.. names.Except(sources), .. CompilerRt.Units.Select(unit => unit.Name)], built.Select(f => f.FileName));
+        Assert.All(CompilerRt.Units, unit => Assert.All(unit.Files, file => Assert.Contains(
+            $"#line 1 \"{file}\"\n{CompilerRt.File(file).Content}", built.Single(f => f.FileName == unit.Name).Content)));
+        var license = Path.Combine(Repository.Root, "src", "ChipSharp.Runtime.ArmV6M", "CompilerRt", "LICENSE.TXT");
+        Assert.Contains("Apache License", File.ReadAllText(license));
+        Assert.Contains("LLVM Exceptions to the Apache 2.0 License", File.ReadAllText(license));
     }
 
     [Fact]
     public void The_runtime_defines_every_function_a_library_call_becomes()
     {
         var pico = Targets.Load("pico");
-        var source = new Rp2040Runtime().Startup(pico).Files.Single(f => f.FileName == Rp2040Runtime.SourceFileName).Content;
+        var files = new Rp2040Runtime().Startup(pico).Files;
+        var source = files.Single(f => f.FileName == Rp2040Runtime.SourceFileName).Content;
+        var floatMath = files.Single(f => f.FileName == ArmV6MRuntime.FloatMathFileName).Content;
 
+        // the Math methods are in the float math every runtime shares; the rest is the chip's own
         Assert.All(KnownExternals.All, function =>
         {
             var symbol = LlvmCodeGenerator.SymbolName(function.DisplayName);
-            Assert.Contains($" {symbol}(", source);
+            Assert.Contains($" {symbol}(",
+                function.LibraryMethod.StartsWith("System.Math", StringComparison.Ordinal) ? floatMath : source);
         });
         Assert.Contains("void chipsharp_chip_init(void)", source);
         Assert.Contains("void chipsharp_isr_irq0(void)", source);

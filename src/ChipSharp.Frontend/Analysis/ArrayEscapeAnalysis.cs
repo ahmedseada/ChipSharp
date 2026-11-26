@@ -777,8 +777,8 @@ internal static class ArrayEscapeAnalysis
                 {
                     TirTypeKind.I8 => 1,
                     TirTypeKind.I16 => 2,
-                    TirTypeKind.I32 => 4,
-                    TirTypeKind.I64 => 8,
+                    TirTypeKind.I32 or TirTypeKind.F32 => 4,
+                    TirTypeKind.I64 or TirTypeKind.F64 => 8,
                     _ => 0,
                 }
                 : 0;

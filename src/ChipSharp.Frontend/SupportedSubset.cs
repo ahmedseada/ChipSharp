@@ -6,9 +6,10 @@ using ChipSharp.Ir;
 namespace ChipSharp.Frontend;
 
 /// <summary>
-/// What milestone M0 compiles: static methods over whole numbers and bools, with branches, loops, switch and calls,
-/// printing through <see cref="KnownExternals"/>. The whole-program pass rejects anything else with a clear message;
-/// the IL-to-TIR translation handles exactly this set. Later milestones grow it.
+/// What milestone M0 compiles: static methods (and the methods of structs) over whole numbers, floats and bools, the
+/// program's structs and enums, references to them and arrays of them on the stack, with branches, loops, switch and
+/// calls, printing through <see cref="KnownExternals"/>. The whole-program pass rejects anything else with a clear
+/// message; the IL-to-TIR translation handles exactly this set. Later milestones grow it.
 /// </summary>
 public static class SupportedSubset
 {
@@ -16,7 +17,7 @@ public static class SupportedSubset
     public const string Milestone = "M0";
 
     /// <summary>The IL instructions compiled today. Checked arithmetic (<c>*.ovf</c>), objects, arrays (but those of
-    /// <see cref="StackArrays"/>), strings, floats, pointers and exceptions are not in it; newobj and the field
+    /// <see cref="StackArrays"/>), strings, pointers, exceptions and ckfinite are not in it; newobj and the field
     /// instructions are there for structs only.</summary>
     public static FrozenSet<IlOpCode> OpCodes { get; } = new[]
     {
@@ -49,13 +50,19 @@ public static class SupportedSubset
         IlOpCode.Conv_U1, IlOpCode.Conv_U2, IlOpCode.Conv_U4, IlOpCode.Conv_U8, IlOpCode.Conv_U,
         IlOpCode.Ceq, IlOpCode.Cgt, IlOpCode.Cgt_Un, IlOpCode.Clt, IlOpCode.Clt_Un,
 
+        // floats and doubles: the arithmetic, comparisons and branches above work on them too, and they are read and
+        // written through references and in arrays like the whole numbers
+        IlOpCode.Ldc_R4, IlOpCode.Ldc_R8, IlOpCode.Conv_R4, IlOpCode.Conv_R8, IlOpCode.Conv_R_Un,
+        IlOpCode.Ldind_R4, IlOpCode.Ldind_R8, IlOpCode.Stind_R4, IlOpCode.Stind_R8,
+
         // arrays on the stack: see StackArrays, whose rule the whole-program pass checks for each of these (an
         // element's address from ldelema is a reference, which ldind, stind and the field instructions above go through)
         IlOpCode.Newarr, IlOpCode.Ldlen, IlOpCode.Ldelema,
         IlOpCode.Ldelem_I1, IlOpCode.Ldelem_U1, IlOpCode.Ldelem_I2, IlOpCode.Ldelem_U2, IlOpCode.Ldelem_I4,
-        IlOpCode.Ldelem_U4, IlOpCode.Ldelem_I8, IlOpCode.Ldelem_I, IlOpCode.Ldelem,
+        IlOpCode.Ldelem_U4, IlOpCode.Ldelem_I8, IlOpCode.Ldelem_I, IlOpCode.Ldelem_R4, IlOpCode.Ldelem_R8,
+        IlOpCode.Ldelem,
         IlOpCode.Stelem_I1, IlOpCode.Stelem_I2, IlOpCode.Stelem_I4, IlOpCode.Stelem_I8, IlOpCode.Stelem_I,
-        IlOpCode.Stelem,
+        IlOpCode.Stelem_R4, IlOpCode.Stelem_R8, IlOpCode.Stelem,
         IlOpCode.Conv_Ovf_I, IlOpCode.Conv_Ovf_I_Un, IlOpCode.Ldtoken,
     }.ToFrozenSet();
 
@@ -75,8 +82,8 @@ public static class SupportedSubset
 
     /// <summary>
     /// The TIR type of a primitive type M0 supports: bool, the whole numbers of every width (TIR types carry no sign;
-    /// signed and unsigned share one), nint/nuint, and void. The other types a program may use build on these: see
-    /// <see cref="TryMapType(IlType, IlAssembly, out TirType?)"/>.
+    /// signed and unsigned share one), nint/nuint, float, double and void. The other types a program may use build on
+    /// these: see <see cref="TryMapType(IlType, IlAssembly, out TirType?)"/>.
     /// </summary>
     public static bool TryMapType(IlType type, [NotNullWhen(true)] out TirType? tirType)
     {
@@ -91,6 +98,8 @@ public static class SupportedSubset
                 IlPrimitiveKind.Int32 or IlPrimitiveKind.UInt32 => TirType.I32,
                 IlPrimitiveKind.Int64 or IlPrimitiveKind.UInt64 => TirType.I64,
                 IlPrimitiveKind.NativeInt or IlPrimitiveKind.NativeUInt => TirType.NativeInt,
+                IlPrimitiveKind.Float32 => TirType.F32,
+                IlPrimitiveKind.Float64 => TirType.F64,
                 _ => null,
             }
             : null;

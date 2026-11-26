@@ -22,6 +22,9 @@ public sealed partial class IlToTirOpCodeTests
             Elements("Ints", typeof(int), typeof(int), OpCodes.Stelem_I4, [OpCodes.Ldelem_I4, OpCodes.Ldelem_U4],
                 [5], [-7]);
             Elements("Longs", typeof(long), typeof(long), OpCodes.Stelem_I8, [OpCodes.Ldelem_I8], [3_000_000_000L]);
+            Elements("Floats", typeof(float), typeof(float), OpCodes.Stelem_R4, [OpCodes.Ldelem_R4], [1.5f], [-0f]);
+            Elements("Doubles", typeof(double), typeof(double), OpCodes.Stelem_R8, [OpCodes.Ldelem_R8], [0.1],
+                [double.NaN]);
             Add("NativeInts", typeof(long), [typeof(int)], il =>
             {
                 il.Emit(OpCodes.Ldc_I4_2);
@@ -80,6 +83,9 @@ public sealed partial class IlToTirOpCodeTests
             ThroughAddress("AddressOfUInt", typeof(uint), typeof(uint), OpCodes.Stind_I4, OpCodes.Ldind_U4, [-8]);
             ThroughAddress("AddressOfLong", typeof(long), typeof(long), OpCodes.Stind_I8, OpCodes.Ldind_I8,
                 [-5_000_000_000L]);
+            ThroughAddress("AddressOfFloat", typeof(float), typeof(float), OpCodes.Stind_R4, OpCodes.Ldind_R4, [2.5f]);
+            ThroughAddress("AddressOfDouble", typeof(double), typeof(double), OpCodes.Stind_R8, OpCodes.Ldind_R8,
+                [1e300]);
             Add("AddressOfNative", typeof(long), [typeof(int)], il =>
             {
                 il.DeclareLocal(typeof(nint[]));
@@ -162,7 +168,7 @@ public sealed partial class IlToTirOpCodeTests
         /// </summary>
         private void ThroughAddress(string name, Type element, Type type, OpCode store, OpCode load, params object[][] calls)
         {
-            var parameter = type == typeof(long) ? typeof(long) : typeof(int);
+            var parameter = type == typeof(long) || type == typeof(float) || type == typeof(double) ? type : typeof(int);
             Add(name, type, [parameter], il =>
             {
                 il.DeclareLocal(element.MakeArrayType());

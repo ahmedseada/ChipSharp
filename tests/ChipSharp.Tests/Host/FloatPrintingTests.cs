@@ -17,8 +17,8 @@ namespace ChipSharp.Tests.Host;
 
 /// <summary>
 /// Console.WriteLine(double) and Console.WriteLine(float): the runtime functions they become, and the text the
-/// runtimes' shared C (chipsharp_float_text.c) writes, which must be exactly what .NET writes. C# float
-/// instructions arrive later, so the programs that print are hand-built TIR with float constants.
+/// runtimes' shared C (chipsharp_float_text.c) writes, which must be exactly what .NET writes. The programs that
+/// print are hand-built TIR with float constants: thousands of calls, with no C# to compile.
 /// </summary>
 public sealed class FloatPrintingTests : IDisposable
 {
@@ -68,11 +68,8 @@ public sealed class FloatPrintingTests : IDisposable
         Assert.Contains(single, KnownExternals.All);
         Assert.Contains(@double, KnownExternals.All);
 
-        // the calls are supported now; the float constants (ldc.r4, ldc.r8) are not, until float instructions arrive
-        var analysis = WholeProgramPass.Check(assembly);
-        Assert.Equal(["floating point (float/double)", "floating point (float/double)"],
-            analysis.Problems.Select(problem => problem.Feature));
-        Assert.DoesNotContain(analysis.Problems, problem => problem.IsLibraryCall);
+        // the float constants (ldc.r4, ldc.r8) are supported too
+        Assert.True(WholeProgramPass.Check(assembly).IsSupported);
     }
 
     /// <summary>

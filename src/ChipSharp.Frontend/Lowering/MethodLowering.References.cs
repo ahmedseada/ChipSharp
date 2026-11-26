@@ -65,6 +65,14 @@ internal sealed partial class MethodLowering
                 LoadIndirect(TirType.NativeInt, IlType.NativeInt);
                 break;
 
+            case IlOpCode.Ldind_R4:
+                LoadIndirect(TirType.F32, IlType.Float32);
+                break;
+
+            case IlOpCode.Ldind_R8:
+                LoadIndirect(TirType.F64, IlType.Float64);
+                break;
+
             case IlOpCode.Stind_I1:
                 StoreIndirect(TirType.I8, IlType.Int8);
                 break;
@@ -83,6 +91,14 @@ internal sealed partial class MethodLowering
 
             case IlOpCode.Stind_I:
                 StoreIndirect(TirType.NativeInt, IlType.NativeInt);
+                break;
+
+            case IlOpCode.Stind_R4:
+                StoreIndirect(TirType.F32, IlType.Float32);
+                break;
+
+            case IlOpCode.Stind_R8:
+                StoreIndirect(TirType.F64, IlType.Float64);
                 break;
 
             default:

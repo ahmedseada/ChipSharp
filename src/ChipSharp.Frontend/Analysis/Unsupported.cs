@@ -45,8 +45,8 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
     public static readonly Unsupported Enums = new("enums", true, "For now, use int constants.");
     public static readonly Unsupported CheckedArithmetic = new("checked arithmetic", false,
         $"For now, leave out checked: {SupportedSubset.Milestone} arithmetic wraps around on overflow, like unchecked C#.");
-    public static readonly Unsupported FloatingPoint = new("floating point (float/double)", false,
-        "For now, use whole numbers: int, long and the other integer types.");
+    public static readonly Unsupported FiniteCheck = new("checking that a float is finite (ckfinite)", false,
+        "For now, compare it: x >= -double.MaxValue && x <= double.MaxValue is false for NaN and the infinities.");
     public static readonly Unsupported Exceptions = new("exceptions", true, $"{FailuresHint}.");
     public static readonly Unsupported TryCatchFinally = new("try/catch/finally", true,
         $"{FailuresHint}; using, lock and foreach over a collection make a try/finally too.");
@@ -63,9 +63,10 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
     public static readonly Unsupported Arguments = new("using the command-line arguments (args)", false,
         "For now, leave args unused: Main may take string[] args only if it never uses them.");
     public static readonly Unsupported OtherInstruction = new("this IL instruction", false,
-        $"{SupportedSubset.Milestone} compiles static methods over bools and whole numbers.");
+        $"{SupportedSubset.Milestone} compiles static methods over bools, whole numbers and floats.");
     public static readonly Unsupported OtherType = new("this type", false,
-        $"{SupportedSubset.Milestone} supports bool, the whole-number types (sbyte to ulong, nint, nuint) and void.");
+        $"{SupportedSubset.Milestone} supports bool, the whole-number types (sbyte to ulong, nint, nuint), float, " +
+        "double and void.");
 
     /// <summary>True for a library method the program calls: it "is not available in M0" rather than "arrives after M0".</summary>
     public bool IsLibraryMethod { get; private init; }
@@ -128,8 +129,7 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
             IlOpCode.Ldsflda => Addresses,
             IlOpCode.Initobj or IlOpCode.Ldobj or IlOpCode.Stobj or IlOpCode.Cpobj => Structs,
             IlOpCode.Sizeof => UnsafeCode,
-            IlOpCode.Ldc_R4 or IlOpCode.Ldc_R8 or IlOpCode.Conv_R4 or IlOpCode.Conv_R8 or IlOpCode.Conv_R_Un
-                or IlOpCode.Ckfinite => FloatingPoint,
+            IlOpCode.Ckfinite => FiniteCheck,
             IlOpCode.Throw or IlOpCode.Rethrow or IlOpCode.Leave or IlOpCode.Leave_S or IlOpCode.Endfinally
                 or IlOpCode.Endfilter => Exceptions,
             IlOpCode.Ldloca or IlOpCode.Ldloca_S or IlOpCode.Ldarga or IlOpCode.Ldarga_S => Addresses,
@@ -150,7 +150,6 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
     {
         IlModifiedType modified => ForType(modified.UnmodifiedType, assembly),
         IlGenericParameterType => null,
-        IlPrimitiveType { Kind: IlPrimitiveKind.Float32 or IlPrimitiveKind.Float64 } => FloatingPoint,
         IlPrimitiveType { Kind: IlPrimitiveKind.String } => Strings,
         IlPrimitiveType { Kind: IlPrimitiveKind.Char } => Characters,
         IlPrimitiveType { Kind: IlPrimitiveKind.Object } => ClassesAndObjects,

@@ -24,6 +24,8 @@ public static class KnownExternals
     private const string Pin = "ChipSharp.Hardware.Pin";
     private const string Timing = "ChipSharp.Hardware.Timing";
     private const string Registers = "ChipSharp.Hardware.Registers";
+    private const string Math = "System.Math";
+    private const string MathF = "System.MathF";
 
     private static readonly (string Type, string Name, IlType[] Parameters, IlType Returns, ExternalFunction Function)[] Table =
     [
@@ -43,6 +45,20 @@ public static class KnownExternals
             new("ChipSharp.Runtime.WriteLineFloat32", TirType.Void, [TirType.F32], "System.Console.WriteLine(float)")),
         ("System.Console", "WriteLine", [IlType.Float64], IlType.Void,
             new("ChipSharp.Runtime.WriteLineFloat64", TirType.Void, [TirType.F64], "System.Console.WriteLine(double)")),
+
+        // System.Math and System.MathF on doubles and floats, with .NET's results bit for bit (a square root is
+        // rounded to nearest; Min and Max give NaN when either value is NaN, and take -0 as less than +0)
+        FloatMath(Math, "Abs", IlType.Float64, 1),
+        FloatMath(Math, "Abs", IlType.Float32, 1),
+        FloatMath(Math, "Min", IlType.Float64, 2),
+        FloatMath(Math, "Min", IlType.Float32, 2),
+        FloatMath(Math, "Max", IlType.Float64, 2),
+        FloatMath(Math, "Max", IlType.Float32, 2),
+        FloatMath(Math, "Sqrt", IlType.Float64, 1),
+        FloatMath(MathF, "Abs", IlType.Float32, 1),
+        FloatMath(MathF, "Min", IlType.Float32, 2),
+        FloatMath(MathF, "Max", IlType.Float32, 2),
+        FloatMath(MathF, "Sqrt", IlType.Float32, 1),
 
         // ChipSharp.Hardware: the chip's pins, timing and registers; only a chip's runtime implements these
         (Pin, "Output", [IlType.Int32], IlType.Void,
@@ -90,5 +106,21 @@ public static class KnownExternals
 
         function = null;
         return false;
+    }
+
+    /// <summary>
+    /// The entry of <paramref name="type"/>.<paramref name="name"/> taking <paramref name="count"/> values of
+    /// <paramref name="floatType"/> and returning one: the runtime's &lt;name&gt;Float32 or &lt;name&gt;Float64,
+    /// e.g. System.Math.Sqrt(double) becomes ChipSharp.Runtime.SqrtFloat64.
+    /// </summary>
+    private static (string Type, string Name, IlType[] Parameters, IlType Returns, ExternalFunction Function) FloatMath(
+        string type, string name, IlType floatType, int count)
+    {
+        var (tirType, bits, csharp) = floatType == IlType.Float32
+            ? (TirType.F32, 32, "float")
+            : (TirType.F64, 64, "double");
+        return (type, name, [.. Enumerable.Repeat(floatType, count)], floatType,
+            new($"ChipSharp.Runtime.{name}Float{bits}", tirType, [.. Enumerable.Repeat(tirType, count)],
+                $"{type}.{name}({string.Join(", ", Enumerable.Repeat(csharp, count))})"));
     }
 }

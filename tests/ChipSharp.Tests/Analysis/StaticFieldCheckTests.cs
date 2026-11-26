@@ -303,10 +303,8 @@ public sealed class StaticFieldCheckTests
             }
             """);
 
-        // color and origin compile: enums and structs of the program are supported types
+        // ratio, color and origin compile: double, and the enums and structs of the program, are supported types
         const string Strings = "text strings arrive after M0. For now, print numbers and bools with Console.WriteLine.";
-        const string Floats = "floating point (float/double) arrives after M0. "
-            + "For now, use whole numbers: int, long and the other integer types.";
         // an array kept in a static field outlives every method, so it is the "leaves its method" case of stack arrays
         const string Arrays = "an array that leaves the method that creates it (returned, or stored in a field or in "
             + "another array) arrives with the heap in M3. For now, keep each array in the method that creates it; "
@@ -316,8 +314,6 @@ public sealed class StaticFieldCheckTests
         [
             $"Program.Main() at IL_0000 (ldsfld): {Strings}",
             $"Program.Main() at IL_0005 (stsfld): {Strings}",
-            $"Program.Main() at IL_000a (ldsfld): {Floats}",
-            $"Program.Main() at IL_000f (stsfld): {Floats}",
             $"Program.Main() at IL_0028 (ldsfld): {Arrays}",
             $"Program.Main() at IL_002d (stsfld): {Arrays}",
             $"Program.Main() at IL_0032 (ldsfld): {Characters}",
