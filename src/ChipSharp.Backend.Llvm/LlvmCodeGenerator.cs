@@ -80,15 +80,27 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
             text.Append($"declare {types.Of(function.ReturnType)} @{symbols[function]}({parameters}) nounwind\n");
         }
 
+        var intrinsics = new SortedSet<string>(StringComparer.Ordinal);
         foreach (var function in module.Functions.Where(f => f.Kind == TirFunctionKind.Defined))
         {
             text.Append('\n');
-            new LlvmFunctionWriter(function, types, symbols, globalSymbols, text).Write();
+            new LlvmFunctionWriter(function, types, symbols, globalSymbols, text, intrinsics).Write();
         }
 
         if (entry is not null)
         {
             text.Append('\n').Append(entry);
+        }
+
+        // the LLVM intrinsics the functions call, e.g. llvm.fptosi.sat.i32.f64
+        if (intrinsics.Count > 0)
+        {
+            text.Append('\n');
+        }
+
+        foreach (var declaration in intrinsics)
+        {
+            text.Append(declaration).Append('\n');
         }
 
         return new GeneratedCode([new GeneratedFile(FileName(module.Name), text.ToString())]);

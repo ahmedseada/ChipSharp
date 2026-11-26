@@ -32,15 +32,15 @@ public sealed class IlToTirErrorTests
         const string Source = """
             static class C
             {
-                static int Round(double x) => (int)x;
-                static double Half(int x) => x / 2.0;
+                static int Code(char c) => c;
+                static char Letter(int x) => (char)x;
             }
             """;
 
-        Assert.Equal("Test.dll: C.Round(float64): parameter 'x' has type float64, which is not supported yet " +
-            "(M0 compiles bool and whole numbers).", Error(Source, "C.Round").Message);
-        Assert.Equal("Test.dll: C.Half(int32): it returns float64, which is not supported yet " +
-            "(M0 compiles bool and whole numbers).", Error(Source, "C.Half").Message);
+        Assert.Equal("Test.dll: C.Code(char): parameter 'c' has type char, which is not supported yet " +
+            "(M0 compiles bool, whole numbers, float and double).", Error(Source, "C.Code").Message);
+        Assert.Equal("Test.dll: C.Letter(int32): it returns char, which is not supported yet " +
+            "(M0 compiles bool, whole numbers, float and double).", Error(Source, "C.Letter").Message);
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class IlToTirErrorTests
         var error = Assert.Throws<ChipSharpException>(() => Lower(emitted.Read(), "Program.F"));
 
         Assert.Equal("Emitted.dll: Program.F(): local V_1 has type string, which is not supported yet " +
-            "(M0 compiles bool and whole numbers).", error.Message);
+            "(M0 compiles bool, whole numbers, float and double).", error.Message);
     }
 
     [Fact]
@@ -74,6 +74,10 @@ public sealed class IlToTirErrorTests
             "of the library, M0 can call System.Console.WriteLine(), System.Console.WriteLine(int), " +
             "System.Console.WriteLine(uint), System.Console.WriteLine(long), System.Console.WriteLine(ulong), " +
             "System.Console.WriteLine(bool), System.Console.WriteLine(float), System.Console.WriteLine(double), " +
+            "System.Math.Abs(double), System.Math.Abs(float), System.Math.Min(double, double), " +
+            "System.Math.Min(float, float), System.Math.Max(double, double), System.Math.Max(float, float), " +
+            "System.Math.Sqrt(double), System.MathF.Abs(float), System.MathF.Min(float, float), " +
+            "System.MathF.Max(float, float), System.MathF.Sqrt(float), " +
             "ChipSharp.Hardware.Pin.Output(int), ChipSharp.Hardware.Pin.Input(int), " +
             "ChipSharp.Hardware.Pin.Write(int, bool), ChipSharp.Hardware.Pin.Toggle(int), ChipSharp.Hardware.Pin.Read(int), " +
             "ChipSharp.Hardware.Timing.DelayMilliseconds(int), ChipSharp.Hardware.Timing.DelayMicroseconds(int), " +
@@ -176,7 +180,7 @@ public sealed class IlToTirErrorTests
 
         Assert.Empty(module.EntryPoint!.Parameters);
         Assert.Equal("Test.dll: Program.Count(string[]): parameter 'items' has type string[], which is not " +
-            "supported yet (M0 compiles bool and whole numbers).", error.Message);
+            "supported yet (M0 compiles bool, whole numbers, float and double).", error.Message);
     }
 
     [Fact]

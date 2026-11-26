@@ -221,7 +221,7 @@ public sealed class RejectionTests
     }
 
     [Fact]
-    public void Floating_point()
+    public void Floating_point_beyond_the_supported_Math_methods_and_unchecked_conversions()
     {
         var problems = Problems("""
             using System;
@@ -234,22 +234,17 @@ public sealed class RejectionTests
                 static void Main()
                 {
                     Console.WriteLine((int)Half(5));
-                    Console.WriteLine((int)Third(9f));
+                    Console.WriteLine(Math.Sin(Third(9f)));
+                    Console.WriteLine(checked((int)Half(7)));
                 }
             }
             """);
 
-        const string Floats = "floating point (float/double) arrives after M0. "
-            + "For now, use whole numbers: int, long and the other integer types.";
         Assert.Equal(
         [
-            $"Program.Main() at IL_000c (ldc.r4): {Floats}",
-            $"Program.Half(int), return type (double): {Floats}",
-            $"Program.Half(int) at IL_0001 (conv.r8): {Floats}",
-            $"Program.Half(int) at IL_0002 (ldc.r8): {Floats}",
-            $"Program.Third(float), return type (float): {Floats}",
-            $"Program.Third(float), parameter 'x' (float): {Floats}",
-            $"Program.Third(float) at IL_0001 (ldc.r4): {Floats}",
+            "Program.Main() at IL_0017 (call): the library method System.Math.Sin(double) is not available in M0.",
+            "Program.Main() at IL_0027 (conv.ovf.i4): checked arithmetic arrives after M0. For now, leave out " +
+                "checked: M0 arithmetic wraps around on overflow, like unchecked C#.",
         ], problems);
     }
 

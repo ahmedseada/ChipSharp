@@ -6,9 +6,9 @@ using ChipSharp.Ir;
 namespace ChipSharp.Frontend;
 
 /// <summary>
-/// What milestone M0 compiles: static methods over whole numbers and bools, with branches, loops, switch and calls,
-/// printing through <see cref="KnownExternals"/>. The whole-program pass rejects anything else with a clear message;
-/// the IL-to-TIR translation handles exactly this set. Later milestones grow it.
+/// What milestone M0 compiles: static methods over whole numbers, floats and bools, with branches, loops, switch
+/// and calls, printing through <see cref="KnownExternals"/>. The whole-program pass rejects anything else with a clear
+/// message; the IL-to-TIR translation handles exactly this set. Later milestones grow it.
 /// </summary>
 public static class SupportedSubset
 {
@@ -16,7 +16,7 @@ public static class SupportedSubset
     public const string Milestone = "M0";
 
     /// <summary>The IL instructions M0 compiles. Checked arithmetic (<c>*.ovf</c>), objects, arrays, strings,
-    /// fields, floats, addresses and exceptions are not in it.</summary>
+    /// fields, addresses, exceptions and ckfinite are not in it.</summary>
     public static FrozenSet<IlOpCode> OpCodes { get; } = new[]
     {
         IlOpCode.Nop,
@@ -39,11 +39,14 @@ public static class SupportedSubset
         IlOpCode.Conv_I1, IlOpCode.Conv_I2, IlOpCode.Conv_I4, IlOpCode.Conv_I8, IlOpCode.Conv_I,
         IlOpCode.Conv_U1, IlOpCode.Conv_U2, IlOpCode.Conv_U4, IlOpCode.Conv_U8, IlOpCode.Conv_U,
         IlOpCode.Ceq, IlOpCode.Cgt, IlOpCode.Cgt_Un, IlOpCode.Clt, IlOpCode.Clt_Un,
+        // floats and doubles: the arithmetic, comparisons and branches above work on them too
+        IlOpCode.Ldc_R4, IlOpCode.Ldc_R8, IlOpCode.Conv_R4, IlOpCode.Conv_R8, IlOpCode.Conv_R_Un,
     }.ToFrozenSet();
 
     /// <summary>
     /// The TIR type for a parameter, local or return type M0 supports: bool, the whole numbers of every width
-    /// (TIR types carry no sign; signed and unsigned share one), nint/nuint, and void. Anything else is unsupported.
+    /// (TIR types carry no sign; signed and unsigned share one), nint/nuint, float, double and void. Anything else is
+    /// unsupported.
     /// </summary>
     public static bool TryMapType(IlType type, [NotNullWhen(true)] out TirType? tirType)
     {
@@ -58,6 +61,8 @@ public static class SupportedSubset
                 IlPrimitiveKind.Int32 or IlPrimitiveKind.UInt32 => TirType.I32,
                 IlPrimitiveKind.Int64 or IlPrimitiveKind.UInt64 => TirType.I64,
                 IlPrimitiveKind.NativeInt or IlPrimitiveKind.NativeUInt => TirType.NativeInt,
+                IlPrimitiveKind.Float32 => TirType.F32,
+                IlPrimitiveKind.Float64 => TirType.F64,
                 _ => null,
             }
             : null;

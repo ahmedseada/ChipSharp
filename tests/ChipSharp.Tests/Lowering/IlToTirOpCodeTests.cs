@@ -166,6 +166,7 @@ public sealed class IlToTirOpCodeTests : IDisposable
             var program = new OpCodeProgram();
             program.AddArithmetic();
             program.AddConversions();
+            program.AddFloats();
             program.AddComparisonsAndBranches();
             program.AddArgumentsLocalsAndConstants();
             program.AddMain();
@@ -306,6 +307,61 @@ public sealed class IlToTirOpCodeTests : IDisposable
                 il.Emit(OpCodes.Ret);
             }, [7], [3]);
             Unary("NotBool", typeof(bool), typeof(bool), [OpCodes.Ldc_I4_0, OpCodes.Ceq], [true], [false]);
+        }
+
+        /// <summary>Floats and doubles: constants, arithmetic, conversions both ways, comparisons and branches.</summary>
+        private void AddFloats()
+        {
+            Binary("AddR8", typeof(double), OpCodes.Add, [0.1, 0.2], [1e308, 1e308]);
+            Binary("SubR4", typeof(float), OpCodes.Sub, [0.1f, 0.3f]);
+            Binary("MulR4", typeof(float), OpCodes.Mul, [4097f, 4097f], [1e-30f, 1e-20f]);
+            Binary("DivR8", typeof(double), OpCodes.Div, [1.0, 3.0], [-1.0, 0.0], [0.0, 0.0]);
+            Binary("RemR4", typeof(float), OpCodes.Rem, [7.5f, -2f], [-0f, 1f]);
+            Unary("NegR8", typeof(double), typeof(double), [OpCodes.Neg], [0.0], [-2.5]);
+            Unary("NegR4", typeof(float), typeof(float), [OpCodes.Neg], [-0f]);
+            Compare("CeqR8", typeof(double), OpCodes.Ceq, [double.NaN, double.NaN], [-0.0, 0.0]);
+            Compare("CgtR4", typeof(float), OpCodes.Cgt, [float.NaN, 1f], [2f, 1f]);
+            Compare("CgtUnR4", typeof(float), OpCodes.Cgt_Un, [float.NaN, 1f], [1f, 2f]);
+            Compare("CltUnR8", typeof(double), OpCodes.Clt_Un, [double.NaN, 1.0], [2.0, 1.0]);
+            foreach (var branch in new[] { OpCodes.Bge_Un, OpCodes.Blt, OpCodes.Bne_Un_S })
+            {
+                Add(Name(branch) + "R8", typeof(int), [typeof(double), typeof(double)], il =>
+                {
+                    il.Emit(OpCodes.Ldarg_0);
+                    il.Emit(OpCodes.Ldarg_1);
+                    Choose(il, branch);
+                }, [double.NaN, 1.0], [0.5, 1.0], [1.0, 1.0]);
+            }
+
+            Unary("ConvR4", typeof(float), typeof(double), [OpCodes.Conv_R4], [0.1], [1e300]);
+            Unary("ConvR8", typeof(double), typeof(float), [OpCodes.Conv_R8], [0.1f]);
+            Unary("ConvR4FromInt32", typeof(float), typeof(int), [OpCodes.Conv_R4], [16777217]);
+            Unary("ConvR8FromInt64", typeof(double), typeof(long), [OpCodes.Conv_R8], [long.MaxValue]);
+            Unary("ConvRUnFromInt32", typeof(double), typeof(int), [OpCodes.Conv_R_Un, OpCodes.Conv_R8], [-1]);
+            Unary("ConvRUnR4FromInt64", typeof(float), typeof(long), [OpCodes.Conv_R_Un, OpCodes.Conv_R4],
+                [unchecked((long)0x8000_0080_0000_0001)]);
+            Unary("ConvI4FromR8", typeof(int), typeof(double), [OpCodes.Conv_I4], [1e10], [double.NaN], [-2.9]);
+            Unary("ConvU1FromR4", typeof(int), typeof(float), [OpCodes.Conv_U1], [300.5f], [-1f]);
+            Unary("ConvI2FromR8", typeof(int), typeof(double), [OpCodes.Conv_I2], [-40000.5]);
+            Unary("ConvU8FromR8", typeof(ulong), typeof(double), [OpCodes.Conv_U8], [-1.0], [1e19]);
+            Unary("ConvUFromR4", typeof(ulong), typeof(float), [OpCodes.Conv_U, OpCodes.Conv_U8], [-5f], [1e30f]);
+
+            // a float met with a double is widened; a double returned as a float is rounded
+            Add("FloatWithDouble", typeof(double), [typeof(float), typeof(double)], il =>
+            {
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Ldarg_1);
+                il.Emit(OpCodes.Add);
+                il.Emit(OpCodes.Ret);
+            }, [0.1f, 0.2]);
+            Unary("ReturnedAsFloat", typeof(float), typeof(double), [], [0.1]);
+            Add("FloatConstants", typeof(double), [], il =>
+            {
+                il.Emit(OpCodes.Ldc_R4, 0.1f);
+                il.Emit(OpCodes.Ldc_R8, 0.2);
+                il.Emit(OpCodes.Mul);
+                il.Emit(OpCodes.Ret);
+            }, [[]]);
         }
 
         private void AddComparisonsAndBranches()
@@ -565,6 +621,12 @@ public sealed class IlToTirOpCodeTests : IDisposable
                         case uint u:
                             il.Emit(OpCodes.Ldc_I4, unchecked((int)u));
                             break;
+                        case float f:
+                            il.Emit(OpCodes.Ldc_R4, f);
+                            break;
+                        case double d:
+                            il.Emit(OpCodes.Ldc_R8, d);
+                            break;
                         default:
                             il.Emit(OpCodes.Ldc_I4, System.Convert.ToInt32(argument, CultureInfo.InvariantCulture));
                             break;
@@ -574,7 +636,9 @@ public sealed class IlToTirOpCodeTests : IDisposable
                 il.Emit(OpCodes.Call, method);
                 var result = method.ReturnType;
                 il.Emit(OpCodes.Call, result == typeof(bool) || result == typeof(uint) || result == typeof(long)
-                    || result == typeof(ulong) ? WriteLine(result) : WriteLineInt32);
+                    || result == typeof(ulong) || result == typeof(float) || result == typeof(double)
+                    ? WriteLine(result)
+                    : WriteLineInt32);
             }
 
             il.Emit(OpCodes.Ret);

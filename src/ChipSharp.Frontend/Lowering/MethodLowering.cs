@@ -8,7 +8,7 @@ namespace ChipSharp.Frontend.Lowering;
 /// Translates the IL of one method into the blocks of its TIR function, simulating IL's evaluation stack with TIR
 /// values (see <see cref="IlToTir"/> for the approach). Used once per method.
 /// </summary>
-internal sealed class MethodLowering
+internal sealed partial class MethodLowering
 {
     private readonly ProgramFunctions _program;
     private readonly IlMethod _method;
@@ -155,6 +155,11 @@ internal sealed class MethodLowering
 
     private void Lower(IlInstruction instruction)
     {
+        if (LowerFloat(instruction))
+        {
+            return;
+        }
+
         switch (instruction.OpCode)
         {
             case IlOpCode.Nop:
@@ -522,11 +527,12 @@ internal sealed class MethodLowering
     /// <summary>
     /// A stack value made fit for a location of TIR type <paramref name="type"/> (IL type <paramref name="ilType"/>):
     /// a bool is "not zero", a small integer keeps the low bits, an int32 for a native int is sign- or zero-extended
-    /// as the IL type says. <paramref name="destination"/> names the location in errors, e.g. "local V_0".
+    /// as the IL type says, a double for a float is rounded to float and a float for a double widened.
+    /// <paramref name="destination"/> names the location in errors, e.g. "local V_0".
     /// </summary>
     private TirValue FromStack(StackValue value, TirType type, IlType ilType, string destination)
     {
-        if ((value.Type == TirType.I64) != (type == TirType.I64))
+        if ((value.Type == TirType.I64) != (type == TirType.I64) || value.Type.IsFloat != type.IsFloat)
         {
             throw Error($"{destination} has type {ilType}, but the value on the evaluation stack is " +
                 LoweringErrors.StackTypeName(value.Type));

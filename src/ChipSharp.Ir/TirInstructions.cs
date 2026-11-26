@@ -210,10 +210,12 @@ public sealed class TirCompare : TirInstruction
 /// <c>%1 = convert i32 %0 to i64</c> (signed) or <c>%1 = uconvert i32 %0 to f64</c> (unsigned).
 /// The result type is <see cref="TirValue.Type"/>. Narrowing an integer keeps the low bits. When unsigned,
 /// the integer side is read as unsigned: the source when widening or turning an integer into a float, the
-/// result when turning a float into an integer. A bool converts to 0 or 1. Nothing converts to bool
-/// (compare with zero instead). Converting to the same type, or between nint and an integer of the
-/// target's pointer width, changes nothing. It works on integers, floats and bool only: <see cref="TirPtrToInt"/>
-/// and <see cref="TirIntToPtr"/> turn addresses into numbers and back.
+/// result when turning a float into an integer. A float becomes an integer rounded toward zero, and saturates as
+/// .NET does: a value beyond the integer type's range gives its smallest or largest value, and NaN gives 0. An
+/// integer becomes a float, and a float a narrower float, rounded to nearest (ties to even). A bool converts to
+/// 0 or 1. Nothing converts to bool (compare with zero instead). Converting to the same type, or between nint and
+/// an integer of the target's pointer width, changes nothing. It works on integers, floats and bool only:
+/// <see cref="TirPtrToInt"/> and <see cref="TirIntToPtr"/> turn addresses into numbers and back.
 /// </summary>
 public sealed class TirConvert : TirInstruction
 {

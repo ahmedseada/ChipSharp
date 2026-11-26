@@ -18,6 +18,8 @@
   "flasher": "uf2-copy",
   "svd": "svd/RP2040.svd",
   "capabilities": {
-    "romFloat": true   // fast float routines in the boot ROM (use them instead of linking our own)
+    // fast float routines in the boot ROM; not used: they treat subnormal numbers as zero, so results would differ
+    // from .NET's (the armv6m runtime links compiler-rt's exact ones instead)
+    "romFloat": true
   }
 }

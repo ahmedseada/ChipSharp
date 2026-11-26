@@ -1,4 +1,6 @@
 using ChipSharp.Abstractions;
+using ChipSharp.Backend.Llvm;
+using ChipSharp.Frontend;
 using ChipSharp.Runtime.Windows;
 using ChipSharp.Targets;
 using ChipSharp.Toolchain.Clang;
@@ -68,10 +70,12 @@ public sealed class HostTargetTests
 
         var files = runtime.Startup(host).Files;
 
-        Assert.Equal(["chipsharp_runtime.c", "chipsharp_float_text.c"], files.Select(f => f.FileName));
+        Assert.Equal(["chipsharp_runtime.c", "chipsharp_float_text.c", "chipsharp_float_math.c"],
+            files.Select(f => f.FileName));
         var file = files[0];
         Assert.Equal(WindowsX64Runtime.Source, file.Content);
         Assert.Equal(WindowsX64Runtime.FloatText, files[1].Content);
+        Assert.Equal(WindowsX64Runtime.FloatMath, files[2].Content);
         Assert.All(files, f => Assert.DoesNotContain("#include", f.Content));
         string[] functions =
         [
@@ -89,6 +93,10 @@ public sealed class HostTargetTests
         Assert.All(functions, f => Assert.Contains(f, file.Content));
         Assert.Contains("int chipsharp_float64_text(u64 bits, char *text)", files[1].Content);
         Assert.Contains("int chipsharp_float32_text(u32 bits, char *text)", files[1].Content);
+        Assert.Contains("double fmod(double x, double y)", files[2].Content); // what LLVM calls for % on doubles
+        Assert.Contains("float fmodf(float x, float y)", files[2].Content);
+        Assert.All(KnownExternals.All.Where(f => f.LibraryMethod.StartsWith("System.Math", StringComparison.Ordinal)),
+            f => Assert.Contains($" {LlvmCodeGenerator.SymbolName(f.DisplayName)}(", files[2].Content));
         Assert.Empty(runtime.InterruptEntry(host).Files);
         Assert.Empty(runtime.Atomics(host).Files);
     }

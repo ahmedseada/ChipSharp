@@ -26,14 +26,16 @@ internal static class LoweringErrors
         SupportedSubset.TryMapType(type, out var tirType)
             ? tirType
             : throw In(method, $"{subject} {type}, which is not supported yet " +
-                $"({SupportedSubset.Milestone} compiles bool and whole numbers)");
+                $"({SupportedSubset.Milestone} compiles bool, whole numbers, float and double)");
 
-    /// <summary>The IL name of an evaluation stack type: int32, int64 or native int.</summary>
+    /// <summary>The IL name of an evaluation stack type: int32, int64, native int, float32 or float64.</summary>
     public static string StackTypeName(TirType type) => type.Kind switch
     {
         TirTypeKind.I32 => "int32",
         TirTypeKind.I64 => "int64",
         TirTypeKind.NativeInt => "native int",
+        TirTypeKind.F32 => "float32",
+        TirTypeKind.F64 => "float64",
         _ => type.Name,
     };
 
