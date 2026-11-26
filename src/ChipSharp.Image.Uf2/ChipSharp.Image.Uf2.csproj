@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The uf2 image format: a linked .elf in, a .uf2 file out (for the RP2040's USB boot ROM) -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+  </ItemGroup>
+</Project>

@@ -8,7 +8,12 @@ public sealed class RejectionTests
     private const string Objects = "For now, use static methods with whole-number and bool values.";
     private const string LibraryCalls = "M0 supports these library calls: System.Console.WriteLine(), "
         + "System.Console.WriteLine(int), System.Console.WriteLine(uint), System.Console.WriteLine(long), "
-        + "System.Console.WriteLine(ulong), System.Console.WriteLine(bool).";
+        + "System.Console.WriteLine(ulong), System.Console.WriteLine(bool), " + HardwareCalls + ".";
+
+    private const string HardwareCalls = "ChipSharp.Hardware.Pin.Output(int), ChipSharp.Hardware.Pin.Input(int), "
+        + "ChipSharp.Hardware.Pin.Write(int, bool), ChipSharp.Hardware.Pin.Toggle(int), ChipSharp.Hardware.Pin.Read(int), "
+        + "ChipSharp.Hardware.Timing.DelayMilliseconds(int), ChipSharp.Hardware.Timing.DelayMicroseconds(int), "
+        + "ChipSharp.Hardware.Registers.Read(uint), ChipSharp.Hardware.Registers.Write(uint, uint)";
 
     [Fact]
     public void Every_problem_is_reported_in_one_error_one_line_each()

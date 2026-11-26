@@ -1,0 +1,12 @@
+{
+  "name": "chipsharp-rp2040-sim",
+  "private": true,
+  "description": "Runs a ChipSharp .uf2 in the rp2040js RP2040 simulator and prints GPIO changes and UART0 output",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "rp2040js": "1.4.1"
+  }
+}

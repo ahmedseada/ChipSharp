@@ -1,11 +1,18 @@
 <Solution>
+  <Folder Name="/examples/">
+    <Project Path="examples/pico-blink/PicoBlink.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/ChipSharp.Abstractions/ChipSharp.Abstractions.csproj" />
     <Project Path="src/ChipSharp.Backend.Llvm/ChipSharp.Backend.Llvm.csproj" />
     <Project Path="src/ChipSharp.Build/ChipSharp.Build.csproj" />
     <Project Path="src/ChipSharp.Cli/ChipSharp.Cli.csproj" />
     <Project Path="src/ChipSharp.Frontend/ChipSharp.Frontend.csproj" />
+    <Project Path="src/ChipSharp.Hardware/ChipSharp.Hardware.csproj" />
+    <Project Path="src/ChipSharp.Image.Uf2/ChipSharp.Image.Uf2.csproj" />
     <Project Path="src/ChipSharp.Ir/ChipSharp.Ir.csproj" />
+    <Project Path="src/ChipSharp.Runtime.ArmV6M/ChipSharp.Runtime.ArmV6M.csproj" />
+    <Project Path="src/ChipSharp.Runtime.Rp2040/ChipSharp.Runtime.Rp2040.csproj" />
     <Project Path="src/ChipSharp.Runtime.Windows/ChipSharp.Runtime.Windows.csproj" />
     <Project Path="src/ChipSharp.Targets/ChipSharp.Targets.csproj" />
     <Project Path="src/ChipSharp.Toolchain.Clang/ChipSharp.Toolchain.Clang.csproj" />

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The runtime parts every ARMv6-M chip (Cortex-M0/M0+) shares: reset handler, vector table, divide/multiply/shift helpers -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="armv6m_startup.c" LogicalName="armv6m_startup.c" />
+    <EmbeddedResource Include="armv6m_vectors.c" LogicalName="armv6m_vectors.c" />
+    <EmbeddedResource Include="armv6m_helpers.c" LogicalName="armv6m_helpers.c" />
+    <EmbeddedResource Include="armv6m_divmod.S" LogicalName="armv6m_divmod.S" />
+  </ItemGroup>
+</Project>

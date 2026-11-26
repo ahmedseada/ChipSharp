@@ -2,7 +2,7 @@
   // ARMv6-M: Cortex-M0 / M0+ (RP2040, STM32F0/G0/C0, PY32F0, ...)
   "name": "armv6m",
   "backend": "llvm",
-  "toolchain": "lld",
+  "toolchain": "clang",
   "runtime": "armv6m",
   "triple": "thumbv6m-none-eabi",
   "pointerSize": 4,
@@ -13,5 +13,22 @@
     "fpu": false,         // no float hardware: float math calls __aeabi_fmul and friends
     "atomics": "none"     // no atomic instructions: briefly disable interrupts instead
   },
-  "builtins": "compiler-rt:armv6m"
+  "builtins": "compiler-rt:armv6m",
+  "clang": {
+    // passed to clang after --target and -mcpu (the chip's "cpu"). No C library and no FPU: the runtime provides
+    // what the compiler calls (division, 64-bit multiply and shifts); -ffreestanding -fno-builtin keep its C from
+    // being turned into calls to memcpy and friends
+    "flags": [
+      "-O2", "-mfloat-abi=soft", "-ffreestanding", "-fno-builtin", "-nostdlib", "-fuse-ld=lld",
+      "-ffunction-sections", "-fdata-sections", "-Wno-override-module"
+    ]
+  },
+  "link": {
+    "entry": "chipsharp_reset",   // in the runtime: the reset handler
+    "code": "flash",              // the memory region for the vector table, code, constants and .data's starting values
+    "data": "ram",                // the memory region for variables and the stack, which starts at its end
+    "stack": "8K",                // RAM the variables must leave for the stack
+    "vectorAlign": 256,           // the vector table's alignment: VTOR keeps only address bits 31-8
+    "flags": ["--gc-sections"]    // passed to ld.lld: drops every function and variable nothing uses
+  }
 }

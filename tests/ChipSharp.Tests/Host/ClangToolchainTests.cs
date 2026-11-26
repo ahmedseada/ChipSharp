@@ -149,15 +149,15 @@ public sealed class ClangToolchainTests : IDisposable
     }
 
     [Fact]
-    public void A_chip_is_not_linked_yet_and_the_error_says_when_it_will_be()
+    public void A_target_without_link_settings_is_told_what_the_toolchain_needs()
     {
-        var pico = Targets.Load("pico");
+        var riscv = Llvm.LlvmTargets.Riscv32;
         var code = new GeneratedCode([new GeneratedFile("Blink.ll", "")]);
 
-        var error = Assert.Throws<ChipSharpException>(() => new ClangToolchain().Build(code, pico));
+        var error = Assert.Throws<ChipSharpException>(() => new ClangToolchain().Build(code, riscv));
 
-        Assert.StartsWith("Target 'pico': it has no 'link' settings", error.Message);
-        Assert.Contains("milestone M1", error.Message);
+        Assert.StartsWith("Target 'riscv32': it has no 'link' settings", error.Message);
+        Assert.Contains("'link.code' and 'link.data'", error.Message);
     }
 
     [Fact]

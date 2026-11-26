@@ -2,12 +2,17 @@
   // Raspberry Pi RP2040: dual Cortex-M0+, 264 KB RAM, flash is an external chip on the board
   "name": "rp2040",
   "inherits": "armv6m",
+  "runtime": "rp2040",
   "cpu": "cortex-m0plus",
   "memory": {
     "flash": { "origin": "0x10000000" },   // size comes from the board
     "ram":   { "origin": "0x20000000", "size": "264K" }
   },
   "boot": { "stage2": "boot2_w25q080.bin" },   // 256-byte second-stage bootloader at the start of flash
+  "link": {
+    // boot2 fills the first 256 bytes of flash, so the vector table lands at 0x10000100, where boot2 jumps
+    "head": [ { "section": ".boot2", "size": 256 } ]
+  },
   "image": "uf2",
   "uf2FamilyId": "0xe48bff56",
   "flasher": "uf2-copy",
