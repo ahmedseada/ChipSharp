@@ -69,9 +69,9 @@ public static partial class WholeProgramPass
     /// <summary>
     /// The entry point, then the interrupt handlers (<paramref name="handlers"/>), then every method of the assembly
     /// they reach through <c>call</c> and <c>callvirt</c> (and through <c>newobj</c> of a struct or a class, which calls
-    /// its constructor; see <see cref="ValueTypes.CalledMethod"/>), each once, in the order they are first called when the methods are
-    /// scanned in this same order, instruction by instruction. The type initializers each method makes run (see
-    /// <see cref="StaticInitialization"/>) come before the methods it calls.
+    /// its constructor; see <see cref="ValueTypes.CalledMethod"/>), each once, in the order they are first called when
+    /// the methods are scanned in this same order, instruction by instruction. The type initializers each method makes
+    /// run (see <see cref="StaticInitialization"/>) come before the methods it calls.
     /// </summary>
     private static IlMethod[] FindReachableMethods(IlMethod entryPoint, IEnumerable<IlMethod> handlers)
     {
@@ -234,8 +234,10 @@ public static partial class WholeProgramPass
             return field;
         }
 
-        if (instruction is { OpCode: IlOpCode.Call or IlOpCode.Callvirt, Operand: IlMethodOperand { Method: { Definition: null } callee } }
-            && !KnownExternals.TryMap(callee, out _))
+        if (instruction is
+            {
+                OpCode: IlOpCode.Call or IlOpCode.Callvirt, Operand: IlMethodOperand { Method: { Definition: null } callee },
+            } && !KnownExternals.TryMap(callee, out _))
         {
             return Unsupported.LibraryMethod(CSharpNames.Method(callee));
         }
