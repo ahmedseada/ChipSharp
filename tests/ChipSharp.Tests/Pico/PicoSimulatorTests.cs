@@ -29,7 +29,7 @@ public sealed class PicoSimulatorTests : IDisposable
         Assert.True(run.ExitCode == 0, run.ToString());
         Assert.EndsWith("stopped: 2600 ms of simulated time have passed", run.Stopped);
         var led = run.Pins.Where(p => p.Pin == 25 && p.State is "low" or "high").ToList();
-        // Gpio.SetOutput drives the pin low; the first Toggle makes it high at once, then one toggle per 500 ms
+        // Pin.SetOutput drives the pin low; the first Toggle makes it high at once, then one toggle per 500 ms
         Assert.True(led.Count > 0, run.ToString());
         Assert.Equal("low", led[0].State);
         Assert.InRange(led[0].Milliseconds, 0, 5); // boot2, clocks and the program start take well under 5 ms
@@ -58,24 +58,24 @@ public sealed class PicoSimulatorTests : IDisposable
 
                 static void Main()
                 {
-                    Gpio.SetOutput(2);
-                    Gpio.Write(2, true);
+                    Pin.SetOutput(2);
+                    Pin.Write(2, true);
                     Delay.Microseconds(250);
-                    Gpio.Write(2, false);
+                    Pin.Write(2, false);
                     Delay.Milliseconds(3);
-                    Gpio.Toggle(2);
+                    Pin.Toggle(2);
                     Console.WriteLine(Registers.Read(SioGpioOut) & (1u << 2));
                     Registers.Write(SioGpioOut, 0);
                     Console.WriteLine(Registers.Read(SioGpioOut));
-                    Gpio.SetInput(2);
-                    Gpio.SetInput(3);
-                    Gpio.SetInput(4);
-                    Console.WriteLine(Gpio.Read(3));
-                    Console.WriteLine(Gpio.Read(4));
+                    Pin.SetInput(2);
+                    Pin.SetInput(3);
+                    Pin.SetInput(4);
+                    Console.WriteLine(Pin.Read(3));
+                    Console.WriteLine(Pin.Read(4));
                     Delay.Milliseconds(0);
                     Delay.Milliseconds(-5);
-                    Gpio.Toggle(99);
-                    Console.WriteLine(Gpio.Read(99));
+                    Pin.Toggle(99);
+                    Console.WriteLine(Pin.Read(99));
                 }
             }
             """, "Hardware", _scratch);

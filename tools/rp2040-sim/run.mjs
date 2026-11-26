@@ -12,7 +12,7 @@
 //                                              [--uart0 <file to write UART0's bytes to>]
 //                                              [--input <pin>=<high|low>]...
 //
-// --input drives a pin from outside, as a button or another chip would; the program reads it with Gpio.Read.
+// --input drives a pin from outside, as a button or another chip would; the program reads it with Pin.Read.
 // (rp2040js reads only these outside levels: a pin the program drives itself reads as low.)
 //
 // Booting: the RP2040's boot ROM checks the CRC-32 of the first 256 bytes of flash (the second-stage

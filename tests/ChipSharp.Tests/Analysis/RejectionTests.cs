@@ -10,8 +10,8 @@ public sealed class RejectionTests
         + "System.Console.WriteLine(int), System.Console.WriteLine(uint), System.Console.WriteLine(long), "
         + "System.Console.WriteLine(ulong), System.Console.WriteLine(bool), " + HardwareCalls + ".";
 
-    private const string HardwareCalls = "ChipSharp.Hardware.Gpio.SetOutput(int), ChipSharp.Hardware.Gpio.SetInput(int), "
-        + "ChipSharp.Hardware.Gpio.Write(int, bool), ChipSharp.Hardware.Gpio.Toggle(int), ChipSharp.Hardware.Gpio.Read(int), "
+    private const string HardwareCalls = "ChipSharp.Hardware.Pin.SetOutput(int), ChipSharp.Hardware.Pin.SetInput(int), "
+        + "ChipSharp.Hardware.Pin.Write(int, bool), ChipSharp.Hardware.Pin.Toggle(int), ChipSharp.Hardware.Pin.Read(int), "
         + "ChipSharp.Hardware.Delay.Milliseconds(int), ChipSharp.Hardware.Delay.Microseconds(int), "
         + "ChipSharp.Hardware.Registers.Read(uint), ChipSharp.Hardware.Registers.Write(uint, uint)";
 

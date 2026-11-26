@@ -21,7 +21,7 @@ public sealed record ExternalFunction(
 /// </summary>
 public static class KnownExternals
 {
-    private const string Gpio = "ChipSharp.Hardware.Gpio";
+    private const string Pin = "ChipSharp.Hardware.Pin";
     private const string Delay = "ChipSharp.Hardware.Delay";
     private const string Registers = "ChipSharp.Hardware.Registers";
 
@@ -41,16 +41,16 @@ public static class KnownExternals
             new("ChipSharp.Runtime.WriteLineBool", TirType.Void, [TirType.I32], "System.Console.WriteLine(bool)")),
 
         // ChipSharp.Hardware: the chip's pins, delays and registers; only a chip's runtime implements these
-        (Gpio, "SetOutput", [IlType.Int32], IlType.Void,
-            new("ChipSharp.Runtime.GpioSetOutput", TirType.Void, [TirType.I32], $"{Gpio}.SetOutput(int)")),
-        (Gpio, "SetInput", [IlType.Int32], IlType.Void,
-            new("ChipSharp.Runtime.GpioSetInput", TirType.Void, [TirType.I32], $"{Gpio}.SetInput(int)")),
-        (Gpio, "Write", [IlType.Int32, IlType.Bool], IlType.Void,
-            new("ChipSharp.Runtime.GpioWrite", TirType.Void, [TirType.I32, TirType.I32], $"{Gpio}.Write(int, bool)")),
-        (Gpio, "Toggle", [IlType.Int32], IlType.Void,
-            new("ChipSharp.Runtime.GpioToggle", TirType.Void, [TirType.I32], $"{Gpio}.Toggle(int)")),
-        (Gpio, "Read", [IlType.Int32], IlType.Bool,
-            new("ChipSharp.Runtime.GpioRead", TirType.I32, [TirType.I32], $"{Gpio}.Read(int)")),
+        (Pin, "SetOutput", [IlType.Int32], IlType.Void,
+            new("ChipSharp.Runtime.PinSetOutput", TirType.Void, [TirType.I32], $"{Pin}.SetOutput(int)")),
+        (Pin, "SetInput", [IlType.Int32], IlType.Void,
+            new("ChipSharp.Runtime.PinSetInput", TirType.Void, [TirType.I32], $"{Pin}.SetInput(int)")),
+        (Pin, "Write", [IlType.Int32, IlType.Bool], IlType.Void,
+            new("ChipSharp.Runtime.PinWrite", TirType.Void, [TirType.I32, TirType.I32], $"{Pin}.Write(int, bool)")),
+        (Pin, "Toggle", [IlType.Int32], IlType.Void,
+            new("ChipSharp.Runtime.PinToggle", TirType.Void, [TirType.I32], $"{Pin}.Toggle(int)")),
+        (Pin, "Read", [IlType.Int32], IlType.Bool,
+            new("ChipSharp.Runtime.PinRead", TirType.I32, [TirType.I32], $"{Pin}.Read(int)")),
         (Delay, "Milliseconds", [IlType.Int32], IlType.Void,
             new("ChipSharp.Runtime.DelayMilliseconds", TirType.Void, [TirType.I32], $"{Delay}.Milliseconds(int)")),
         (Delay, "Microseconds", [IlType.Int32], IlType.Void,

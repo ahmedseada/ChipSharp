@@ -12,7 +12,7 @@ namespace ChipSharp.Tests.Pico;
 /// <summary>ChipSharp.Hardware: every method is a library call ChipSharp compiles, and none runs on .NET.</summary>
 public sealed class HardwareLibraryTests
 {
-    private static IEnumerable<MethodInfo> HardwareMethods => typeof(Gpio).Assembly.GetExportedTypes()
+    private static IEnumerable<MethodInfo> HardwareMethods => typeof(Pin).Assembly.GetExportedTypes()
         .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly));
 
     [Fact]
@@ -21,8 +21,8 @@ public sealed class HardwareLibraryTests
         Assert.Equal(
             [
                 "Delay.Microseconds(Int32)", "Delay.Milliseconds(Int32)",
-                "Gpio.Read(Int32)", "Gpio.SetInput(Int32)", "Gpio.SetOutput(Int32)", "Gpio.Toggle(Int32)",
-                "Gpio.Write(Int32, Boolean)",
+                "Pin.Read(Int32)", "Pin.SetInput(Int32)", "Pin.SetOutput(Int32)", "Pin.Toggle(Int32)",
+                "Pin.Write(Int32, Boolean)",
                 "Registers.Read(UInt32)", "Registers.Write(UInt32, UInt32)",
             ],
             HardwareMethods.Select(m => $"{m.DeclaringType!.Name}.{m.Name}({string.Join(", ", m.GetParameters().Select(p => p.ParameterType.Name))})")
@@ -54,11 +54,11 @@ public sealed class HardwareLibraryTests
             {
                 static void Main()
                 {
-                    Gpio.SetOutput(25);
-                    Gpio.SetInput(3);
-                    Gpio.Write(25, true);
-                    Gpio.Toggle(25);
-                    if (Gpio.Read(3))
+                    Pin.SetOutput(25);
+                    Pin.SetInput(3);
+                    Pin.Write(25, true);
+                    Pin.Toggle(25);
+                    if (Pin.Read(3))
                     {
                         Delay.Milliseconds(500);
                     }
@@ -75,12 +75,12 @@ public sealed class HardwareLibraryTests
         var externals = module.Functions.Where(f => f.Kind == TirFunctionKind.External).ToList();
         Assert.Equal(
             [
-                "ChipSharp.Runtime.GpioSetOutput", "ChipSharp.Runtime.GpioSetInput", "ChipSharp.Runtime.GpioWrite",
-                "ChipSharp.Runtime.GpioToggle", "ChipSharp.Runtime.GpioRead", "ChipSharp.Runtime.DelayMilliseconds",
+                "ChipSharp.Runtime.PinSetOutput", "ChipSharp.Runtime.PinSetInput", "ChipSharp.Runtime.PinWrite",
+                "ChipSharp.Runtime.PinToggle", "ChipSharp.Runtime.PinRead", "ChipSharp.Runtime.DelayMilliseconds",
                 "ChipSharp.Runtime.DelayMicroseconds", "ChipSharp.Runtime.RegisterRead", "ChipSharp.Runtime.RegisterWrite",
             ],
             externals.Select(f => f.Name));
-        Assert.Equal(TirType.I32, externals.Single(f => f.Name == "ChipSharp.Runtime.GpioRead").ReturnType);
+        Assert.Equal(TirType.I32, externals.Single(f => f.Name == "ChipSharp.Runtime.PinRead").ReturnType);
         Assert.Equal(TirType.I32, externals.Single(f => f.Name == "ChipSharp.Runtime.RegisterRead").ReturnType);
         Assert.Equal(
             HardwareMethods.Count(),
@@ -94,7 +94,7 @@ public sealed class HardwareLibraryTests
         var library = """
             namespace ChipSharp.Hardware
             {
-                public static class Gpio
+                public static class Pin
                 {
                     public static int Toggle(int pin) => pin;
                 }
@@ -105,12 +105,12 @@ public sealed class HardwareLibraryTests
         {
             var fake = CSharpCompiler.CompileToFile(library, Path.Combine(folder, "FakeHardware.dll"));
             var program = CSharpCompiler.Compile(
-                ["class Program { static void Main() => ChipSharp.Hardware.Gpio.Toggle(1); }"], [fake], "Fake");
+                ["class Program { static void Main() => ChipSharp.Hardware.Pin.Toggle(1); }"], [fake], "Fake");
 
             var error = Assert.Throws<ChipSharp.Abstractions.ChipSharpException>(
                 () => WholeProgramPass.Analyze(IlAssembly.Load(program, "Fake.dll")));
 
-            Assert.Contains("the library method ChipSharp.Hardware.Gpio.Toggle(int) is not available in M0", error.Message);
+            Assert.Contains("the library method ChipSharp.Hardware.Pin.Toggle(int) is not available in M0", error.Message);
         }
         finally
         {

@@ -10,7 +10,7 @@ namespace ChipSharp.Runtime.Rp2040;
 /// <item><see cref="Boot2FileName"/>: the second-stage bootloader the target's "boot.stage2" names, padded and
 /// checksummed (<see cref="Boot2Image"/>), in the section .boot2 the target's link settings put first in flash.</item>
 /// <item><see cref="SourceFileName"/>: chip start-up (crystal, PLL, 125 MHz clocks, the microsecond timer) and the
-/// runtime functions programs call: <c>ChipSharp_Runtime_Gpio*</c>, <c>ChipSharp_Runtime_Delay*</c>,
+/// runtime functions programs call: <c>ChipSharp_Runtime_Pin*</c>, <c>ChipSharp_Runtime_Delay*</c>,
 /// <c>ChipSharp_Runtime_Register*</c> (ChipSharp.Hardware) and <c>ChipSharp_Runtime_WriteLine*</c>
 /// (Console.WriteLine on UART0: GPIO 0, 115200 baud).</item>
 /// </list>

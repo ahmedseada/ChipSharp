@@ -7,7 +7,7 @@
 //                                      system PLL (clk_sys = clk_peri = 125 MHz, clk_ref = 12 MHz), the
 //                                      watchdog tick generator (the timer counts microseconds), and GPIO and
 //                                      timer taken out of reset
-//   ChipSharp_Runtime_Gpio...          ChipSharp.Hardware.Gpio: pins 0-29 through SIO; other pin numbers are ignored
+//   ChipSharp_Runtime_Pin...           ChipSharp.Hardware.Pin: GPIO 0-29 through SIO; other pin numbers are ignored
 //   ChipSharp_Runtime_Delay...         ChipSharp.Hardware.Delay: sleeps on timer alarm 0 (TIMER_IRQ_0, IRQ 0)
 //   ChipSharp_Runtime_Register...      ChipSharp.Hardware.Registers: 32-bit reads and writes of any address
 //   ChipSharp_Runtime_WriteLine...     Console.WriteLine: UART0 on GPIO 0 (TX) and 1 (RX), 115200 baud, 8N1, lines
@@ -193,7 +193,7 @@ void chipsharp_chip_init(void)
     __asm__ volatile("cpsie i");
 }
 
-// ---- GPIO --------------------------------------------------------------------------------------------------------
+// ---- Pins: the chip's GPIO, through SIO --------------------------------------------------------------------------
 
 static int is_pin(int pin)
 {
@@ -208,7 +208,7 @@ static void select_function(int pin, unsigned int function)
     REG(IO_BANK0_GPIO_CTRL(pin)) = function;
 }
 
-void ChipSharp_Runtime_GpioSetOutput(int pin)
+void ChipSharp_Runtime_PinSetOutput(int pin)
 {
     if (!is_pin(pin))
     {
@@ -222,7 +222,7 @@ void ChipSharp_Runtime_GpioSetOutput(int pin)
     REG(SIO_GPIO_OE_SET) = mask;
 }
 
-void ChipSharp_Runtime_GpioSetInput(int pin)
+void ChipSharp_Runtime_PinSetInput(int pin)
 {
     if (!is_pin(pin))
     {
@@ -234,7 +234,7 @@ void ChipSharp_Runtime_GpioSetInput(int pin)
 }
 
 // A bool arrives as an int; anything but 0 is high.
-void ChipSharp_Runtime_GpioWrite(int pin, int high)
+void ChipSharp_Runtime_PinWrite(int pin, int high)
 {
     if (!is_pin(pin))
     {
@@ -251,7 +251,7 @@ void ChipSharp_Runtime_GpioWrite(int pin, int high)
     }
 }
 
-void ChipSharp_Runtime_GpioToggle(int pin)
+void ChipSharp_Runtime_PinToggle(int pin)
 {
     if (!is_pin(pin))
     {
@@ -262,7 +262,7 @@ void ChipSharp_Runtime_GpioToggle(int pin)
 }
 
 // Returns a bool as 0 or 1.
-int ChipSharp_Runtime_GpioRead(int pin)
+int ChipSharp_Runtime_PinRead(int pin)
 {
     if (!is_pin(pin))
     {

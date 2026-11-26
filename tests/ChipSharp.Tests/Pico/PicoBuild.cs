@@ -30,7 +30,7 @@ internal static class PicoBuild
     public static TargetDescription Pico => Targets.Load("pico");
 
     /// <summary>ChipSharp.Hardware.dll, as user programs reference it.</summary>
-    public static string HardwareAssembly => typeof(Gpio).Assembly.Location;
+    public static string HardwareAssembly => typeof(Pin).Assembly.Location;
 
     /// <summary>The blink example's C#, examples/pico-blink/Program.cs.</summary>
     public static string BlinkSource => File.ReadAllText(Path.Combine(Repository.Examples, "pico-blink", "Program.cs"));
