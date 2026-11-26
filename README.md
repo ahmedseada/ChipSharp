@@ -35,10 +35,13 @@ dotnet test -c Release --no-build
 .\src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe targets show pico
 .\src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe il path\to\YourProgram.dll --method Program.Main
 .\src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe check path\to\YourProgram.dll
+.\src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe tir path\to\YourProgram.dll
+.\src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe build path\to\YourProgram.dll -t host --keep
 ```
 
 `check` says whether a program fits what ChipSharp compiles today, and if not, lists every problem with what to
-use instead.
+use instead. `tir` shows the program in TIR. `build` compiles it for a target (`host` is your PC) into
+`chipsharp-output\<target>\`; `--keep` also keeps the `.tir` and `.ll` files.
 
 The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` / `CHIPSHARP_LLVM_BIN`).
 
@@ -49,6 +52,7 @@ The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` / 
 | Skeleton (done) | Contracts, registry, target files with inheritance |
 | M0 wave 0–1 (done) | TIR; reading IL; the LLVM code generator; the PC target, clang toolchain, runtime and samples |
 | M0 wave 2 (done) | IL to TIR; the whole-program pass and `chipsharp check`; every sample runs end to end and matches .NET |
+| M0 wave 3 (done) | The build pipeline: `chipsharp build` and `chipsharp tir` |
 | M0 | Compile simple C# to a PC program through LLVM; compare every result with real .NET |
 | M1 | Blink an LED on the Raspberry Pi Pico (RP2040) |
 | M2 | Structs, `Span<T>`, interrupts, UART: the Restricted tier |
