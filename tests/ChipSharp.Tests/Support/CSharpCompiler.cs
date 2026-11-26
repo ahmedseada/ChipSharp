@@ -21,8 +21,17 @@ public static class CSharpCompiler
 
     /// <summary>Compiles several source files into one assembly and returns its bytes (optimized like a Release build unless told otherwise).</summary>
     public static byte[] Compile(IEnumerable<string> sources, string assemblyName = "Test", OutputKind? outputKind = null,
-        OptimizationLevel optimization = OptimizationLevel.Release)
+        OptimizationLevel optimization = OptimizationLevel.Release) =>
+        Compile(sources, [], assemblyName, outputKind, optimization);
+
+    /// <summary>
+    /// Compiles several source files into one assembly that also references the assemblies at
+    /// <paramref name="references"/> (e.g. ChipSharp.Hardware.dll), and returns its bytes.
+    /// </summary>
+    public static byte[] Compile(IEnumerable<string> sources, IEnumerable<string> references, string assemblyName = "Test",
+        OutputKind? outputKind = null, OptimizationLevel optimization = OptimizationLevel.Release)
     {
+        ArgumentNullException.ThrowIfNull(references);
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentException.ThrowIfNullOrWhiteSpace(assemblyName);
 
@@ -33,7 +42,8 @@ public static class CSharpCompiler
             optimizationLevel: optimization,
             allowUnsafe: true,
             deterministic: true);
-        var compilation = CSharpCompilation.Create(assemblyName, trees, References.Value, options);
+        var compilation = CSharpCompilation.Create(assemblyName, trees,
+            [.. References.Value, .. references.Select(path => MetadataReference.CreateFromFile(path))], options);
 
         using var image = new MemoryStream();
         var result = compilation.Emit(image);
