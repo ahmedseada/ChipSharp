@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Il;
@@ -95,24 +94,6 @@ public sealed class IlCliTests : IDisposable
         }
         """, Path.Combine(_scratch, "Square.dll"));
 
-    private static async Task<(int ExitCode, string Output, string Error)> RunAsync(params string[] arguments)
-    {
-        var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet")
-        {
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-        };
-        start.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, "chipsharp.dll"));
-        foreach (var argument in arguments)
-        {
-            start.ArgumentList.Add(argument);
-        }
-
-        using var process = Process.Start(start)!;
-        var output = process.StandardOutput.ReadToEndAsync();
-        var error = process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
-        return (process.ExitCode, await output, await error);
-    }
+    private static Task<(int ExitCode, string Output, string Error)> RunAsync(params string[] arguments) =>
+        ChipSharpCli.RunAsync(arguments);
 }
