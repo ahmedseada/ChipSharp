@@ -73,6 +73,18 @@
 //
 // The collector runs only when an allocation does not fit (or GC.Collect asks), with interrupts off, never inside an
 // interrupt handler: a handler that makes an object stops the program, saying so.
+//
+// ---- What it does not do (yet) --------------------------------------------------------------------------------------
+//
+//   - It never moves an object, so the free memory can be in pieces: an object bigger than every free block is out of
+//     memory even when the pieces together would hold it.
+//   - The stack is read conservatively: a number that happens to point into an object keeps that garbage alive until
+//     the number is gone, and a pointer the compiler keeps only before an object's start (never seen so far) would not
+//     keep it alive.
+//   - A collection reads the whole heap (sweep) and the live objects (mark) at once, with interrupts off: its time
+//     grows with the heap, and interrupts wait for it: on the Pico (125 MHz, 224 KB) about 21 ms for a heap full of
+//     small live objects, 5 ms for one full of garbage.
+//   - One thread: the program and its interrupt handlers on one core (the Pico's second core is not used).
 
 typedef __UINTPTR_TYPE__ uintptr_t;
 

@@ -46,7 +46,7 @@ that ChipSharp does not compile yet, where, when it is planned, and what to writ
 on a line of its own, and every library method ChipSharp can call). `tir` shows the program in TIR. `build` compiles
 it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` also keeps the `.tir` and `.ll` files.
 
-`dotnet test` runs 1005 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
+`dotnet test` runs 1045 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
 `CHIPSHARP_LLVM_BIN`); the Pico tests also need the simulator (see below), and are skipped, saying why, without it.
 
 ## What C# compiles today
@@ -168,6 +168,24 @@ compiles, may use other substitutes, and stops the program where .NET throws by 
 `..._failures.c` has one per method). So a new library type is C# in `src/ChipSharp.Library`, not compiler code; its
 tests compare it with .NET's, value by value.
 
+### The heap
+
+The heap is where objects live: what classes, strings, boxes and collections need (M3 brings them; today the
+compiler's own tests make objects, and `new object()` translates). Its parts are in place for every target with a heap:
+
+- An object starts with its header, the address of its type's descriptor, then its fields, those of its base classes
+  first; an array has its length and then its elements. A descriptor (in flash on a chip) says the object's size,
+  where its references are, its base, its name, and has room for the virtual methods and interfaces of its class
+  (`src/ChipSharp.Ir/TirTypeDescriptor.cs`). In TIR an object is a `ref`, which the garbage collector follows, and an
+  address a `ptr`, which it never follows.
+- `new` takes zeroed memory from the heap; when there is none left, the garbage collector runs (mark and sweep, in
+  `src/ChipSharp.Runtime.Shared/chipsharp_heap.c`): every object the static fields, the stack (the registers too) and
+  other live objects reach stays, the rest is free again. When there is still not enough, the program stops with .NET's
+  OutOfMemoryException message; a field of `null` stops it with NullReferenceException's.
+- On a chip the heap is the target's `"heap"` bytes of RAM between the variables and the stack, and the collector runs
+  with interrupts off; an `[Interrupt]` method never makes an object (the program stops, saying so). On the PC the heap
+  is the target's 256 MB, taken from Windows at the start.
+
 ## Raspberry Pi Pico
 
 A program for the Pico references `src/ChipSharp.Hardware` (pins, timing, registers):
@@ -246,11 +264,11 @@ Console.Write and Console.WriteLine need a console, and the target 'tiny' has no
 ```
 
 `chipsharp build` ends with what the program takes of the chip, read from the linked `.elf`: flash for its code,
-constants and the starting values of its variables, RAM for its variables, with the stack (`"link.stack"`) kept at the
-end of the RAM. For `examples/pico-blink`:
+constants and the starting values of its variables, RAM for its variables, with the heap (`"heap"`) after them and the
+stack (`"link.stack"`) kept at the end of the RAM. For `examples/pico-blink`:
 
 ```
-flash 1.1 KB of 2048 KB (0.1%), RAM 8 bytes of 264 KB (stack 8 KB reserved)
+flash 1.1 KB of 2048 KB (0.1%), RAM 8 bytes + heap 224 KB of 264 KB (stack 8 KB reserved)
 ```
 
 A program that does not fit stops with both sizes instead of the linker's words: `PicoBlink does not fit in target

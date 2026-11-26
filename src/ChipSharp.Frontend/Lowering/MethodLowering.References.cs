@@ -238,6 +238,11 @@ internal sealed partial class MethodLowering
             return null;
         }
 
+        if (type == TirType.Ref)
+        {
+            return ObjectFromStack(value, destination);
+        }
+
         if (value.Type != type)
         {
             throw Error($"{destination} has type {ilType}, but the value on the evaluation stack is " +
@@ -260,11 +265,14 @@ internal sealed partial class MethodLowering
         }
     }
 
-    private static bool IsReferenceOrStruct(TirType type) => type == TirType.Ptr || type.IsAggregate;
+    private static bool IsReferenceOrStruct(TirType type) => type.IsAddress || type.IsAggregate;
 
-    /// <summary>A stack type as errors name it: int32, int64, native int, "a reference (&amp;)" or "a Program.Point".</summary>
+    /// <summary>
+    /// A stack type as errors name it: int32, int64, native int, "a reference (&amp;)", "an object" or "a Program.Point".
+    /// </summary>
     private static string StackName(TirType type) =>
-        type == TirType.Ptr ? "a reference (&)" : type.IsAggregate ? $"a {type.Name}" : LoweringErrors.StackTypeName(type);
+        type == TirType.Ptr ? "a reference (&)" : type == TirType.Ref ? "an object"
+        : type.IsAggregate ? $"a {type.Name}" : LoweringErrors.StackTypeName(type);
 
     private static string UnsafeHint(TirType type) => type == TirType.Ptr
         ? " (turning a reference into a number is unsafe code, which ChipSharp does not compile)"

@@ -9,7 +9,8 @@ namespace ChipSharp.Frontend.Lowering;
 /// <list type="bullet">
 /// <item><c>ldstr</c> is the address of the literal's record, a constant global (<see cref="ProgramFunctions.Text"/>),
 /// the same for equal literals; <c>ldsfld string.Empty</c> is the address of "".</item>
-/// <item><c>ldnull</c> is <c>zero ptr</c>.</item>
+/// <item><c>ldnull</c> is null, pending (<see cref="StackValue.OfNull"/>): <c>zero ptr</c> where text is wanted (and
+/// <c>zero ref</c> where an object is, see MethodLowering.Objects.cs).</item>
 /// <item><c>brtrue</c> and <c>brfalse</c> on a string test it against null (C#'s <c>s != null</c>, <c>s ?? "none"</c>),
 /// and <c>ceq</c>, <c>cgt.un</c>, <c>beq</c>, <c>bne.un</c> compare two strings as addresses, by reference, as .NET
 /// compares objects (C#'s <c>s == null</c>).</item>
@@ -27,7 +28,7 @@ internal sealed partial class MethodLowering
                 break;
 
             case IlOpCode.Ldnull:
-                Push(_ir.Zero(TirType.Ptr));
+                Push(StackValue.OfNull());
                 break;
 
             default:
@@ -44,6 +45,11 @@ internal sealed partial class MethodLowering
     /// </summary>
     private (TirValue Left, TirValue Right) PopComparands(TirCompareOp op)
     {
+        if (PopObjectComparands(op) is { } objects)
+        {
+            return objects;
+        }
+
         if (_stack.Count < 2 || (_stack[^1].Type != TirType.Ptr && _stack[^2].Type != TirType.Ptr))
         {
             return PopOperands();
@@ -60,7 +66,7 @@ internal sealed partial class MethodLowering
         return (Materialize(left), Materialize(right));
     }
 
-    /// <summary>brtrue (or brfalse, when not <paramref name="jumpWhenTrue"/>) on a string or a reference: is it not null?</summary>
+    /// <summary>brtrue (or brfalse, when not <paramref name="jumpWhenTrue"/>) on a string, a reference or an object: is it not null?</summary>
     private void BranchOnAddress(StackValue address, bool jumpWhenTrue) =>
-        Branch(_ir.Compare(jumpWhenTrue ? TirCompareOp.Ne : TirCompareOp.Eq, Materialize(address), _ir.Zero(TirType.Ptr)));
+        Branch(_ir.Compare(jumpWhenTrue ? TirCompareOp.Ne : TirCompareOp.Eq, Materialize(address), _ir.Zero(address.Type)));
 }

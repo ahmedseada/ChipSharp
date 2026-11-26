@@ -19,12 +19,14 @@ internal static class LoweringErrors
         method.Assembly.Error(method, offset, message);
 
     /// <summary>
-    /// The TIR type of a parameter, local or return type, or an error that starts with <paramref name="subject"/>,
-    /// e.g. "parameter 'x' has type" or "it returns". For a struct of the program it says what keeps the struct out.
+    /// The TIR type of a parameter, local or return type (an object is a ref: <see cref="ObjectTypes"/>), or an error that
+    /// starts with <paramref name="subject"/>, e.g. "parameter 'x' has type" or "it returns". For a struct of the program
+    /// it says what keeps the struct out.
     /// </summary>
     public static TirType MapType(IlMethod method, IlType type, string subject)
     {
-        if (SupportedSubset.TryMapType(type, method.Assembly, out var tirType))
+        if (SupportedSubset.TryMapType(type, method.Assembly, out var tirType)
+            || ObjectTypes.TryMapType(type, method.Assembly, out tirType))
         {
             return tirType;
         }

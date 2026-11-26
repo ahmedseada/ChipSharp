@@ -43,6 +43,18 @@ internal readonly record struct StackValue
 
     public bool IsConstant => Value is null && Condition is null && Slot is null;
 
+    /// <summary>True for a reference to an object on the heap: a value of type ref (see MethodLowering.Objects.cs).</summary>
+    public bool IsObject => Type == TirType.Ref;
+
+    /// <summary>
+    /// True for null as <c>ldnull</c> pushes it (<see cref="OfNull"/>): a pending ptr constant, which becomes a null ptr
+    /// where text or a reference is wanted, and a null ref where an object is.
+    /// </summary>
+    public bool IsNull => IsConstant && Type == TirType.Ptr;
+
+    /// <summary>Null, pending until a use says whether it is a null ptr (fixed text) or a null ref (an object).</summary>
+    public static StackValue OfNull() => new(TirType.Ptr);
+
     public static StackValue Of(TirValue value) => new(value.Type, value);
 
     public static StackValue OfConstant(TirType type, long value) => new(type, constant: value);
