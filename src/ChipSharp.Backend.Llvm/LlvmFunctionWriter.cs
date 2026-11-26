@@ -15,6 +15,7 @@ internal sealed class LlvmFunctionWriter
     private readonly TirFunction _function;
     private readonly LlvmTypes _types;
     private readonly IReadOnlyDictionary<TirFunction, string> _symbols;
+    private readonly IReadOnlyDictionary<TirGlobal, string> _globals;
     private readonly StringBuilder _text;
 
     /// <summary>Every local name used so far; labels and values share one namespace in an LLVM function.</summary>
@@ -28,11 +29,12 @@ internal sealed class LlvmFunctionWriter
     private int _nextTemporary;
 
     public LlvmFunctionWriter(TirFunction function, LlvmTypes types, IReadOnlyDictionary<TirFunction, string> symbols,
-        StringBuilder text)
+        IReadOnlyDictionary<TirGlobal, string> globals, StringBuilder text)
     {
         _function = function;
         _types = types;
         _symbols = symbols;
+        _globals = globals;
         _text = text;
     }
 
@@ -122,6 +124,53 @@ internal sealed class LlvmFunctionWriter
                 Line($"store {Typed(store.Value)}, {Address(store.Slot)}");
                 break;
 
+            case TirZero zero:
+                // written inline like a constant: 0, false, null or zeroinitializer
+                _values[zero] = LlvmText.Zero(zero.Type);
+                break;
+
+            case TirSizeOf size:
+                _values[size] = SizeConstant(size.OfType);
+                break;
+
+            case TirSlotAddress address:
+                // the alloca is the slot's address already
+                _values[address] = _slots[address.Slot];
+                break;
+
+            case TirGlobalAddress address:
+                _values[address] = "@" + _globals[address.Global];
+                break;
+
+            case TirPointerLoad load:
+                Define(load, $"load {Volatile(load.IsVolatile)}{_types.Of(load.Type)}, " +
+                    $"{Typed(load.Address)}, align {_types.Alignment(load.Type)}");
+                break;
+
+            case TirPointerStore store:
+                Line($"store {Volatile(store.IsVolatile)}{Typed(store.Value)}, {Typed(store.Address)}, " +
+                    $"align {_types.Alignment(store.Value.Type)}");
+                break;
+
+            case TirFieldAddress field:
+                // no inbounds: TIR does not promise that the address is that of a struct LLVM knows about
+                Define(field, $"getelementptr {_types.Of(field.StructType)}, {Typed(field.Address)}, i32 0, " +
+                    $"i32 {field.FieldIndex}");
+                break;
+
+            case TirElementAddress element:
+                Define(element, $"getelementptr {_types.Of(element.ElementType)}, {Typed(element.Address)}, " +
+                    $"{Typed(element.Index)}");
+                break;
+
+            case TirPtrToInt toInteger:
+                Define(toInteger, $"ptrtoint {Typed(toInteger.Address)} to {_types.Of(toInteger.Type)}");
+                break;
+
+            case TirIntToPtr toPointer:
+                Define(toPointer, $"inttoptr {Typed(toPointer.Value)} to ptr");
+                break;
+
             case TirCall call:
                 // TODO: no signext/zeroext on arguments yet. Calls between ChipSharp functions do not need them,
                 // and the runtime's functions take i32 and i64 only; a C function taking a bool, i8 or i16 would.
@@ -196,6 +245,18 @@ internal sealed class LlvmFunctionWriter
         var name = "%" + Unique("t" + _nextTemporary++.ToString(CultureInfo.InvariantCulture));
         _values[instruction] = name;
         Line($"{name} = {body}");
+    }
+
+    private static string Volatile(bool isVolatile) => isVolatile ? "volatile " : "";
+
+    /// <summary>The size of a type on the target as an i32 constant; sizeof reads its 32 bits as unsigned.</summary>
+    private string SizeConstant(TirType type)
+    {
+        var size = _types.Layout.SizeOf(type);
+        return size <= uint.MaxValue
+            ? LlvmText.Integer((int)(uint)size)
+            : throw new ChipSharpException($"Function '{_function.Name}': {type} takes {size} bytes, more than " +
+                "sizeof's 32 bits can count.");
     }
 
     private string Value(TirValue value) => _values[value];

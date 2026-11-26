@@ -76,7 +76,10 @@ internal static class LlvmTools
     /// Generates <paramref name="module"/> for the host, builds it into a standalone .exe with <see cref="Runtime"/>
     /// (no C runtime: kernel32 only, entry chipsharp_start), runs it, and returns what it printed and its exit code.
     /// </summary>
-    public static async Task<ToolResult> BuildAndRunAsync(TirModule module, string folder)
+    /// <param name="optimization">
+    /// clang's optimization flag. -O2 is what programs get; -O0 keeps every call, alloca, load and store as written.
+    /// </param>
+    public static async Task<ToolResult> BuildAndRunAsync(TirModule module, string folder, string optimization = "-O2")
     {
         Directory.CreateDirectory(folder);
         var ll = Assert.Single(new LlvmCodeGenerator().Generate(module, LlvmTargets.Host).Files);
@@ -89,7 +92,7 @@ internal static class LlvmTools
             ["-d", "kernel32.def", "-l", "kernel32.lib", "-m", "i386:x86-64"], folder);
         Assert.True(dlltool.ExitCode == 0, $"llvm-dlltool failed:\n{dlltool}");
 
-        await ClangAsync(folder, "--target=x86_64-pc-windows-msvc", "-O2", "-nostdlib", "-fuse-ld=lld",
+        await ClangAsync(folder, "--target=x86_64-pc-windows-msvc", optimization, "-nostdlib", "-fuse-ld=lld",
             "-Wno-override-module", "runtime.c", ll.FileName, "kernel32.lib", "-o", "program.exe",
             "-Wl,-entry:chipsharp_start", "-Wl,-subsystem:console");
 

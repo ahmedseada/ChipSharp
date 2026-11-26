@@ -280,8 +280,12 @@ public sealed class LlvmCodeGeneratorTests
     [InlineData(TirCompareOp.GeUnsigned, "fcmp uge")]
     public void The_unsigned_comparisons_are_unordered_on_floats(TirCompareOp op, string expected)
     {
-        // TIR's verifier allows these on integers only today; the mapping is ready for IL's clt.un and cgt.un
+        // what IL's clt.un, cgt.un, bge.un and the like mean on floats: also true when either side is NaN
         Assert.Equal(expected, LlvmOpcodes.Compare(op, isFloat: true));
+        Assert.Contains($"  %t0 = {expected} float %p.a, %p.b\n",
+            DefineOf(m => AddCompares(m, "Program.Compare", TirType.F32, [op]), "Program_Compare"));
+        Assert.Contains($"  %t0 = {expected} double %p.a, %p.b\n",
+            DefineOf(m => AddCompares(m, "Program.Compare", TirType.F64, [op]), "Program_Compare"));
     }
 
     [Theory]

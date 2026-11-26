@@ -12,7 +12,10 @@ namespace ChipSharp.Ir;
 ///   return %0
 /// </code>
 /// Temporaries are numbered %0, %1, ... per function, in block order; parameters print as %name,
-/// slots as $name, blocks by name. A value that does not belong to the function prints as %?.
+/// slots as $name, globals as @name, blocks by name. A value that does not belong to the function prints as %?.
+/// A module lists the structs it uses (<c>struct Program.Point { i32 X, i32 Y }</c>) and its globals
+/// (<c>global i32 @Program.counter = 5</c>) before its functions. Memory at an address is written in brackets:
+/// <c>%1 = load i32 [%0]</c>, <c>store volatile i32 [%0], %1</c>.
 /// </summary>
 public static class TirPrinter
 {
@@ -25,6 +28,22 @@ public static class TirPrinter
         if (module.EntryPoint is { } entryPoint)
         {
             text.Append("entrypoint ").Append(entryPoint.Name).Append('\n');
+        }
+
+        var structs = module.FindStructTypes();
+        if (structs.Count > 0 || module.Globals.Count > 0)
+        {
+            text.Append('\n');
+        }
+
+        foreach (var structType in structs)
+        {
+            text.Append(StructText(structType)).Append('\n');
+        }
+
+        foreach (var global in module.Globals)
+        {
+            text.Append(GlobalText(global)).Append('\n');
         }
 
         foreach (var function in module.Functions)
@@ -62,6 +81,17 @@ public static class TirPrinter
             TirConvert c => $"{(c.IsUnsigned ? "uconvert" : "convert")} {c.Value.Type} {names.Of(c.Value)} to {c.Type}",
             TirLoad l => $"load {l.Type} {l.Slot}",
             TirStore s => $"store {s.Slot}, {names.Of(s.Value)}",
+            TirZero z => $"zero {z.Type}",
+            TirSizeOf s => $"sizeof {s.OfType}",
+            TirSlotAddress a => $"addr {a.Slot}",
+            TirGlobalAddress a => $"addr {a.Global}",
+            TirPointerLoad l => $"load {Volatile(l.IsVolatile)}{l.Type} [{names.Of(l.Address)}]",
+            TirPointerStore s =>
+                $"store {Volatile(s.IsVolatile)}{s.Value.Type} [{names.Of(s.Address)}], {names.Of(s.Value)}",
+            TirFieldAddress f => $"fieldaddr {f.StructType} {names.Of(f.Address)}, {FieldText(f)}",
+            TirElementAddress e => $"elementaddr {e.ElementType} {names.Of(e.Address)}, {names.Of(e.Index)}",
+            TirPtrToInt p => $"ptrtoint {p.Address.Type} {names.Of(p.Address)} to {p.Type}",
+            TirIntToPtr p => $"inttoptr {p.Value.Type} {names.Of(p.Value)} to {p.Type}",
             TirCall c => $"call {c.Type} {c.Callee.Name}({string.Join(", ", c.Arguments.Select(names.Of))})",
             TirReturn { Value: null } => "return",
             TirReturn r => $"return {names.Of(r.Value!)}",
@@ -130,6 +160,21 @@ public static class TirPrinter
             }
         }
     }
+
+    private static string Volatile(bool isVolatile) => isVolatile ? "volatile " : "";
+
+    /// <summary>The field's name, or #index when the index is out of range (broken TIR still prints).</summary>
+    private static string FieldText(TirFieldAddress f) =>
+        f.Field?.Name ?? string.Create(CultureInfo.InvariantCulture, $"#{f.FieldIndex}");
+
+    /// <summary><c>struct Program.Point { i32 X, i32 Y }</c></summary>
+    private static string StructText(TirStructType structType) =>
+        $"struct {structType.Name} {{ {string.Join(", ", structType.Fields)} }}";
+
+    /// <summary><c>global i32 @Program.counter</c>, or <c>global i32 @Program.limit = 10</c> with an initial value.</summary>
+    private static string GlobalText(TirGlobal global) => global.InitialValue is { } initial
+        ? $"global {global.Type} {global} = {ConstantText(initial)}"
+        : $"global {global.Type} {global}";
 
     private static string ConstantText(TirConst c) => c.Type.Kind switch
     {

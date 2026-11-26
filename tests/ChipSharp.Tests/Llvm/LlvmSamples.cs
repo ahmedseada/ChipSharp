@@ -179,6 +179,85 @@ internal static class LlvmSamples
         return function;
     }
 
+    /// <summary>Every type a slot, a global, a load or a store can have: the value types, ptr, structs and arrays.</summary>
+    public static readonly TirType[] MemoryTypes =
+    [
+        .. ValueTypes, TirType.Ptr, TirMemorySamples.Point, TirMemorySamples.Line, TirMemorySamples.TenInts,
+        new TirArrayType(TirMemorySamples.Point, 3), new TirArrayType(new TirArrayType(TirType.Bool, 3), 2),
+    ];
+
+    /// <summary>
+    /// A global of every memory type (scalars with a value, the rest zero) and <c>Program.Accesses</c>, which for
+    /// each type takes the address of a slot and of the global and loads and stores through them, plainly and
+    /// volatile, then stores zero of the type.
+    /// </summary>
+    public static TirFunction AddAccesses(TirModule module)
+    {
+        var function = module.AddFunction("Program.Accesses", TirType.Void);
+        var b = new TirBuilder(function.AddBlock("entry"));
+        for (var i = 0; i < MemoryTypes.Length; i++)
+        {
+            var type = MemoryTypes[i];
+            var initial = type.IsInteger || type == TirType.Bool ? new TirConst(type, 1)
+                : type.IsFloat ? new TirConst(type, 1.5)
+                : null;
+            var global = module.AddGlobal($"Program.global{i}", type, initial);
+            var slot = function.AddSlot($"local{i}", type);
+
+            var globalAddress = b.AddressOf(global);
+            var slotAddress = b.AddressOf(slot);
+            b.Store(slotAddress, b.Load(type, globalAddress));
+            b.Store(globalAddress, b.Load(type, slotAddress, isVolatile: true), isVolatile: true);
+            b.Store(slotAddress, b.Zero(type));
+        }
+
+        b.Return();
+        return function;
+    }
+
+    /// <summary>
+    /// <c>Program.Addresses</c>: field addresses into nested structs, element addresses with each index type,
+    /// pointer comparisons, and ptrtoint and inttoptr with every integer type, each result kept in a slot.
+    /// </summary>
+    public static TirFunction AddAddresses(TirModule module)
+    {
+        var function = module.AddFunction("Program.Addresses", TirType.Void, ("p", TirType.Ptr));
+        var p = function.Parameters[0];
+        var lines = function.AddSlot("lines", new TirArrayType(TirMemorySamples.Line, 4));
+        var keep = function.AddSlot("keep", TirType.Ptr);
+        var same = function.AddSlot("same", TirType.Bool);
+        var b = new TirBuilder(function.AddBlock("entry"));
+
+        var linesAddress = b.AddressOf(lines);
+        foreach (var index in new TirValue[]
+                 {
+                     b.Const(TirType.I32, 1), b.Const(TirType.I64, 2), b.Const(TirType.NativeInt, 3),
+                 })
+        {
+            var line = b.ElementAddress(linesAddress, TirMemorySamples.Line, index);
+            var to = b.FieldAddress(line, TirMemorySamples.Line, "To");
+            b.Store(b.FieldAddress(to, TirMemorySamples.Point, "Y"), b.Const(TirType.I32, 7));
+            b.Store(b.FieldAddress(line, TirMemorySamples.Line, "Color"), b.Const(TirType.I8, 3));
+            b.Store(keep, b.ElementAddress(p, TirType.I16, index));
+        }
+
+        foreach (var op in new[] { TirCompareOp.Eq, TirCompareOp.Ne, TirCompareOp.LtUnsigned, TirCompareOp.LeUnsigned,
+                     TirCompareOp.GtUnsigned, TirCompareOp.GeUnsigned })
+        {
+            b.Store(same, b.Compare(op, p, linesAddress));
+        }
+
+        foreach (var type in IntegerTypes)
+        {
+            var number = function.AddSlot($"number{type.Name}", type);
+            b.Store(number, b.PtrToInt(p, type));
+            b.Store(keep, b.IntToPtr(b.Load(number)));
+        }
+
+        b.Return();
+        return function;
+    }
+
     /// <summary>One module with every sample and every instruction kind on every type, for clang to compile.</summary>
     public static TirModule Everything()
     {
@@ -189,6 +268,13 @@ internal static class LlvmSamples
         AddNative(module);
         AddCountTo(module);
         AddNames(module);
+        TirMemorySamples.AddCounter(module);
+        TirMemorySamples.AddLengthSquared(module);
+        TirMemorySamples.AddSwap(module);
+        TirMemorySamples.AddSumOfSquares(module);
+        TirMemorySamples.AddRegisterToggle(module);
+        AddAccesses(module);
+        AddAddresses(module);
 
         AddBinaryOps(module, "Program.Bools", TirType.Bool, [TirBinaryOp.And, TirBinaryOp.Or, TirBinaryOp.Xor], keep: true);
         AddCompares(module, "Program.Bools", TirType.Bool, [TirCompareOp.Eq, TirCompareOp.Ne], keep: true);
@@ -201,7 +287,7 @@ internal static class LlvmSamples
         foreach (var type in new[] { TirType.F32, TirType.F64 })
         {
             AddBinaryOps(module, "Program.Floats", type, FloatBinaryOps, keep: true);
-            AddCompares(module, "Program.Floats", type, FloatCompareOps, keep: true);
+            AddCompares(module, "Program.Floats", type, Enum.GetValues<TirCompareOp>(), keep: true);
         }
 
         foreach (var from in ValueTypes)
