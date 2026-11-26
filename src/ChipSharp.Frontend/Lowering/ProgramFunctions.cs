@@ -34,7 +34,7 @@ internal sealed record CallTarget(
 /// The TIR functions of one program: one per method, made from its signature before any body is translated, and
 /// one per runtime function a library call becomes, added when a call first needs it and shared after that.
 /// </summary>
-internal sealed class ProgramFunctions(TirModule module)
+internal sealed partial class ProgramFunctions(TirModule module)
 {
     private static readonly IlArrayType StringArray = new(IlType.String);
 

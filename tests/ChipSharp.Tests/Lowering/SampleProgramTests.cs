@@ -57,6 +57,9 @@ public sealed class SampleProgramTests : IDisposable
     public Task Square() => PrintsWhatDotnetPrints();
 
     [HostFact]
+    public Task StaticFields() => PrintsWhatDotnetPrints();
+
+    [HostFact]
     public Task Unsigned() => PrintsWhatDotnetPrints();
 
     [HostFact]
@@ -107,7 +110,8 @@ public sealed class SampleProgramTests : IDisposable
         var debug = Lowered.Lower(Lowered.Program(Lowered.CompileDebug(source, name)));
 
         Assert.Equal(name, release.Name);
-        Assert.Equal("Program.Main", release.EntryPoint!.Name);
+        // a program with type initializers to run starts with <Start>, which runs them and then Main
+        Assert.Contains(release.EntryPoint!.Name, (string[])["Program.Main", "<Start>"]);
         Assert.Empty(TirVerifier.FindErrors(release));
         Assert.Empty(TirVerifier.FindErrors(debug));
     }

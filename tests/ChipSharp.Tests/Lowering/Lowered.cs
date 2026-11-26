@@ -9,7 +9,8 @@ namespace ChipSharp.Tests.Lowering;
 
 /// <summary>
 /// C# compiled with Roslyn, read back as IL and translated to TIR. The program is made here (the entry point, then
-/// every method of the assembly it calls, in the order first called), so the tests do not need the whole-program pass.
+/// every method of the assembly it calls, in the order first called, and the initializers of the types they use), so
+/// the tests do not need the whole-program pass.
 /// </summary>
 internal static class Lowered
 {
@@ -38,6 +39,15 @@ internal static class Lowered
         var methods = new List<IlMethod> { start };
         for (var i = 0; i < methods.Count; i++)
         {
+            // the initializers of the types it uses, as the whole-program pass adds them
+            foreach (var initializer in StaticInitialization.InitializersRunBy(methods[i], isStart: i == 0))
+            {
+                if (!methods.Contains(initializer))
+                {
+                    methods.Add(initializer);
+                }
+            }
+
             foreach (var instruction in methods[i].Body?.Instructions ?? [])
             {
                 if (instruction.Operand is IlMethodOperand { Method.Definition: { } callee } && !methods.Contains(callee))

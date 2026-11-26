@@ -16,10 +16,10 @@ public sealed class UnsupportedTests
     [InlineData(IlOpCode.Ldelema, "arrays")]
     [InlineData(IlOpCode.Stelem_Ref, "arrays")]
     [InlineData(IlOpCode.Ldlen, "arrays")]
-    [InlineData(IlOpCode.Ldfld, "fields")]
-    [InlineData(IlOpCode.Stfld, "fields")]
-    [InlineData(IlOpCode.Ldsfld, "fields")]
-    [InlineData(IlOpCode.Stsfld, "fields")]
+    [InlineData(IlOpCode.Ldfld, "instance fields (fields without static)")]
+    [InlineData(IlOpCode.Stfld, "instance fields (fields without static)")]
+    [InlineData(IlOpCode.Ldflda, "instance fields (fields without static)")]
+    [InlineData(IlOpCode.Ldsflda, "taking addresses (ref, out, struct methods)")]
     [InlineData(IlOpCode.Add_Ovf, "checked arithmetic")]
     [InlineData(IlOpCode.Sub_Ovf_Un, "checked arithmetic")]
     [InlineData(IlOpCode.Conv_Ovf_I4, "checked arithmetic")]
@@ -70,7 +70,7 @@ public sealed class UnsupportedTests
         Assert.Equal(
         [
             IlOpCode.Break, IlOpCode.Jmp, IlOpCode.Refanyval, IlOpCode.Mkrefany, IlOpCode.Arglist, IlOpCode.Unaligned,
-            IlOpCode.Volatile, IlOpCode.Tail, IlOpCode.Cpblk, IlOpCode.Initblk, IlOpCode.No, IlOpCode.Refanytype,
+            IlOpCode.Tail, IlOpCode.Cpblk, IlOpCode.Initblk, IlOpCode.No, IlOpCode.Refanytype,
             IlOpCode.Readonly,
         ], unnamed);
     }
