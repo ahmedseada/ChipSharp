@@ -34,8 +34,6 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
         "For now, keep values in their own types, such as int and bool.");
     public static readonly Unsupported InstanceCalls = Heap("instance or virtual method calls", true,
         "For now, call static methods, or the methods of your own structs.");
-    public static readonly Unsupported InstanceMethods = Heap("instance methods of classes", true,
-        "For now, make the method static, or make the class a struct.");
     public static readonly Unsupported GenericMethods = Heap("generic methods", true,
         "For now, write a method for each type you need.");
     public static readonly Unsupported GenericTypes = Heap("generic types", true,
@@ -195,6 +193,7 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
         { BaseType: IlNamedType { Namespace: "System", Name: "Enum" } } => Enums,
         { BaseType: IlNamedType { Namespace: "System", Name: "ValueType" } } => Structs,
         { BaseType: IlNamedType { Namespace: "System", Name: "MulticastDelegate" } } => Delegates,
+        { GenericParameters.Count: > 0 } => GenericClasses,
         _ => ClassesAndObjects,
     };
 }

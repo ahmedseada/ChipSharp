@@ -626,7 +626,8 @@ internal sealed class PrintedTextFlow
     private Unsupported ForOtherValue(IlType type) => type switch
     {
         IlPrimitiveType { Kind: IlPrimitiveKind.Char } => Unsupported.Characters,
-        IlPrimitiveType { Kind: IlPrimitiveKind.Object } => Unsupported.ClassesAndObjects,
+        // an object is printed as its ToString gives it, a virtual call
+        _ when ObjectTypes.TryMapType(type, _method.Assembly, out _) => Unsupported.ObjectMethods,
         IlPrimitiveType { Kind: IlPrimitiveKind.NativeInt or IlPrimitiveKind.NativeUInt } => Unsupported.NativeIntText,
         _ when ValueTypes.Definition(type, _method.Assembly) is { } definition && ValueTypes.IsEnum(definition) =>
             Unsupported.EnumNames,

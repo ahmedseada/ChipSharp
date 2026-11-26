@@ -117,8 +117,8 @@ internal sealed partial class MethodLowering
         var reference = ((IlMethodOperand)_instruction.Operand!).Method;
         if (reference.Definition is not { Name: ".ctor" } constructor || !ValueTypes.IsStructInstanceMethod(constructor))
         {
-            throw Error($"{_instruction.Name} creates an object of {CSharpNames.Type(reference.DeclaringType)}, " +
-                "and objects are not supported yet (they arrive with M3, the heap); structs are");
+            throw Error($"{_instruction.Name} creates an object of {CSharpNames.Type(reference.DeclaringType)}, which " +
+                "is not supported (ChipSharp compiles the objects of the program's own classes, and structs)");
         }
 
         var structType = StructOf(constructor.DeclaringType);
@@ -160,8 +160,8 @@ internal sealed partial class MethodLowering
 
         if (!ValueTypes.IsStruct(field.DeclaringType))
         {
-            throw Error($"{_instruction.Name} uses {reference.DisplayName}, a field of an object, and objects are not " +
-                "supported yet (they arrive with M3, the heap); the fields of structs are");
+            throw Error($"{_instruction.Name} uses {reference.DisplayName}, which is not a field of a struct or a class " +
+                "ChipSharp compiles");
         }
 
         return (StructOf(field.DeclaringType), ValueTypes.FieldOf(field).Index, field);

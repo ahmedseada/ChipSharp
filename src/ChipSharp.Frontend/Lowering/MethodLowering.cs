@@ -107,6 +107,7 @@ internal sealed partial class MethodLowering
         {
             _block = block;
             _ir.Block = block.Tir;
+            StartObjectsOfBlock();
 
             if (block.EntryStack is null)
             {
@@ -118,7 +119,7 @@ internal sealed partial class MethodLowering
             _stack.Clear();
             for (var depth = 0; depth < block.EntryStack.Count; depth++)
             {
-                Push(StackValue.InSlot(StackSlot(depth, block.EntryStack[depth])));
+                Push(EntryValue(block, depth));
             }
 
             for (var i = block.First; i < block.End; i++)
@@ -711,17 +712,19 @@ internal sealed partial class MethodLowering
         var types = _stack.Select(v => v.Type).ToArray();
         foreach (var successor in successors)
         {
+            // null meeting an object takes the object's type (MethodLowering.Classes.cs)
+            var arriving = ArrivingTypes(successor, types);
             if (successor.EntryStack is null)
             {
-                successor.EntryStack = types;
+                successor.EntryStack = arriving;
             }
-            else if (!successor.EntryStack.SequenceEqual(types))
+            else if (!successor.EntryStack.SequenceEqual(arriving))
             {
                 var label = IlPrinter.Label(successor.Offset);
                 throw Error(successor.EntryStackAssumed
-                    ? $"control jumps back to {label} with {LoweringErrors.StackText(types)} on the evaluation " +
+                    ? $"control jumps back to {label} with {LoweringErrors.StackText(arriving)} on the evaluation " +
                       $"stack, but IL wants it empty there: no earlier instruction leads to {label}"
-                    : $"control reaches {label} with {LoweringErrors.StackText(types)} on the evaluation " +
+                    : $"control reaches {label} with {LoweringErrors.StackText(arriving)} on the evaluation " +
                       $"stack, but another way into {label} has {LoweringErrors.StackText(successor.EntryStack)}");
             }
         }
@@ -732,6 +735,12 @@ internal sealed partial class MethodLowering
         var stores = new List<(TirSlot Slot, TirValue Value)>();
         for (var depth = 0; depth < _stack.Count; depth++)
         {
+            if (NullStores(depth, successors) is { } nulls)
+            {
+                stores.AddRange(nulls);
+                continue;
+            }
+
             var slot = StackSlot(depth, types[depth]);
             if (_stack[depth].Slot != slot)
             {

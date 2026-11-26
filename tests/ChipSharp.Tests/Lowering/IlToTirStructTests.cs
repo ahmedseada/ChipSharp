@@ -576,24 +576,19 @@ public sealed class IlToTirStructTests
     }
 
     [Fact]
-    public void Creating_an_object_is_an_error_where_creating_a_struct_is_not()
+    public void Creating_an_object_of_a_library_class_is_an_error_where_creating_a_struct_is_not()
     {
         var assembly = Lowered.Compile("""
-            class Box
-            {
-                public int Size;
-            }
-
             class Program
             {
-                static void Main() => System.Console.WriteLine(new Box().Size);
+                static void Main() => System.Console.WriteLine(new System.Random().Next());
             }
             """);
 
         var error = Assert.Throws<ChipSharpException>(() => IlToTir.Lower(new IlProgram(assembly, [assembly.EntryPoint!])));
 
-        Assert.Equal("Test.dll: Program.Main() at IL_0000: newobj creates an object of Box, and objects are not " +
-            "supported yet (they arrive with M3, the heap); structs are.", error.Message);
+        Assert.Equal("Test.dll: Program.Main() at IL_0000: newobj creates an object of System.Random, which is not " +
+            "supported (ChipSharp compiles the objects of the program's own classes, and structs).", error.Message);
     }
 
     [Fact]

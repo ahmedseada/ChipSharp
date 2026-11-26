@@ -14,7 +14,8 @@ namespace ChipSharp.Frontend;
 /// <item>an enum of the program is its underlying integer type: <c>enum Color : byte</c> is i8, and a value of it is
 /// widened and narrowed like a byte;</item>
 /// <item>a struct of the program that is not generic is a <see cref="TirStructType"/> named as C# writes it (e.g.
-/// <c>Program.Point</c>), with its instance fields in their order. There is one per struct, made once and shared by
+/// <c>Program.Point</c>), with its instance fields in their order (one of a class type is a ref: an object, see
+/// <see cref="ObjectTypes"/>). There is one per struct, made once and shared by
 /// every module, because TIR's struct types are equal only to themselves. So is an instance of a generic struct, one
 /// per list of type arguments (<c>Pair&lt;int&gt;</c>, see <see cref="Generics.Instantiations"/>);</item>
 /// <item>a <c>Span&lt;T&gt;</c> or <c>ReadOnlySpan&lt;T&gt;</c> is an array value, <c>{ ptr, i32 }</c> (see
@@ -102,15 +103,15 @@ internal static class ValueTypes
     public static bool IsStructInstanceMethod(IlMethod method) => !method.IsStatic && IsStruct(method.DeclaringType);
 
     /// <summary>
-    /// The method of the program that <paramref name="instruction"/> runs: what a <c>call</c> calls, or the constructor a
-    /// <c>newobj</c> of a struct calls (a <c>newobj</c> of a class creates an object, which is not supported). Null for
-    /// any other instruction, and for a library method.
+    /// The method of the program that <paramref name="instruction"/> runs: what a <c>call</c> or a <c>callvirt</c> names
+    /// (a callvirt of a method that is not virtual calls it, see <see cref="ClassRules"/>), or the constructor a
+    /// <c>newobj</c> of a struct or a class calls. Null for any other instruction, and for a library method.
     /// </summary>
     public static IlMethod? CalledMethod(IlInstruction instruction) => instruction switch
     {
-        { OpCode: IlOpCode.Call, Operand: IlMethodOperand { Method.Definition: { } callee } } => callee,
+        { OpCode: IlOpCode.Call or IlOpCode.Callvirt, Operand: IlMethodOperand { Method.Definition: { } callee } } => callee,
         { OpCode: IlOpCode.Newobj, Operand: IlMethodOperand { Method.Definition: { } constructor } }
-            when IsStructInstanceMethod(constructor) => constructor,
+            when IsStructInstanceMethod(constructor) || ObjectTypes.IsClass(constructor.DeclaringType) => constructor,
         _ => null,
     };
 
@@ -206,7 +207,7 @@ internal static class ValueTypes
                         return problem;
                     }
                 }
-                else if (!TryMapType(fieldType, type.Assembly, out _))
+                else if (!TryMapType(fieldType, type.Assembly, out _) && !ObjectTypes.TryMapType(fieldType, type.Assembly, out _))
                 {
                     return new StructProblem(StructProblemKind.FieldType, type, field);
                 }
@@ -222,9 +223,11 @@ internal static class ValueTypes
 
     private static TirStructType CreateStructType(IlTypeDefinition type)
     {
-        var fields = InstanceFields(type).Select(field => (field.Name, TryMapType(field.Type, type.Assembly, out var tirType)
-            ? tirType
-            : throw new InvalidOperationException($"The field {field} of {type} has no TIR type.")));
+        // a field of a class type (an object, see ObjectTypes) is a ref, which the collector follows in the struct too
+        var fields = InstanceFields(type).Select(field => (field.Name,
+            TryMapType(field.Type, type.Assembly, out var tirType) || ObjectTypes.TryMapType(field.Type, type.Assembly, out tirType)
+                ? tirType
+                : throw new InvalidOperationException($"The field {field} of {type} has no TIR type.")));
 
         // an empty struct still takes a byte in .NET, and a TIR struct needs a field
         var list = fields.ToList();

@@ -60,12 +60,11 @@ public sealed class TargetRuleTests : IDisposable
     [Fact]
     public void On_a_target_without_a_heap_objects_need_a_heap_the_target_does_not_have()
     {
+        // the class itself compiles (its fields and methods too); making an object of it takes the heap
         Assert.Equal(
         [
             "Program.Main() at IL_0000 (newobj): creating objects (new ...) needs a heap, and the target 'tiny' (2 KB RAM) " +
                 "has no heap. Use structs and static methods.",
-            "Program.Main() at IL_0005 (ldfld): instance fields of classes (fields without static) need a heap, and the " +
-                "target 'tiny' (2 KB RAM) has no heap. Make the fields static, or make the class a struct.",
         ], Problems(Objects, Tiny));
     }
 
@@ -73,15 +72,43 @@ public sealed class TargetRuleTests : IDisposable
     [InlineData(null)]
     [InlineData("pico")]
     [InlineData("host")]
-    public void On_a_target_with_a_heap_and_without_one_objects_arrive_with_M3(string? target)
+    public void On_a_target_with_a_heap_and_without_one_objects_compile(string? target)
     {
+        var analysis = Check(Objects, target is null ? null : Shipped.Load(target));
+
+        Assert.True(analysis.IsSupported, analysis.Details);
+    }
+
+    [Fact]
+    public void A_feature_of_objects_still_to_come_needs_a_heap_too()
+    {
+        // a virtual method arrives with virtual calls where there is a heap; without one it never does
+        const string Virtual = """
+            class Program
+            {
+                static int count;
+
+                static void Main() => count = new Counter().Count();
+            }
+
+            class Counter
+            {
+                public virtual int Count() => 3;
+            }
+            """;
+
         Assert.Equal(
         [
-            "Program.Main() at IL_0000 (newobj): creating objects (new ...) arrives with M3 (the heap). For now, use " +
-                "structs and static methods.",
-            "Program.Main() at IL_0005 (ldfld): instance fields of classes (fields without static) arrive with M3 (the " +
-                "heap). For now, make the fields static, or make the class a struct.",
-        ], Problems(Objects, target is null ? null : Shipped.Load(target)));
+            "Program.Main() at IL_0000 (newobj): creating objects (new ...) needs a heap, and the target 'tiny' (2 KB RAM) " +
+                "has no heap. Use structs and static methods.",
+            "Program.Main() at IL_0005 (callvirt): virtual methods (virtual, override, abstract) need a heap, and the " +
+                "target 'tiny' (2 KB RAM) has no heap. Leave out virtual, override and abstract, and give a derived " +
+                "class's method a name of its own.",
+            "Counter.Count(): virtual methods (virtual, override, abstract) need a heap, and the target 'tiny' (2 KB RAM) " +
+                "has no heap. Leave out virtual, override and abstract, and give a derived class's method a name of its own.",
+        ], Problems(Virtual, Tiny));
+        Assert.StartsWith("Program.Main() at IL_0005 (callvirt): virtual methods (virtual, override, abstract) arrive " +
+            "with M3 (virtual calls).", Problems(Virtual, Shipped.Load("pico"))[0]);
     }
 
     [Fact]
@@ -90,12 +117,11 @@ public sealed class TargetRuleTests : IDisposable
         var analysis = Check(Objects, Tiny);
 
         Assert.Equal("""
-            Test.dll uses 2 C# features that ChipSharp does not compile yet (2 places):
+            Test.dll uses 1 C# feature that ChipSharp does not compile yet (1 place):
               creating objects (new ...) needs a heap, and the target 'tiny' (2 KB RAM) has no heap: 1 place in Program.Main() (IL_0000). Use structs and static methods.
-              instance fields of classes (fields without static) need a heap, and the target 'tiny' (2 KB RAM) has no heap: 1 place in Program.Main() (IL_0005). Make the fields static, or make the class a struct.
             For every place, run: chipsharp check Test.dll -t tiny --details
             """.ReplaceLineEndings("\n"), analysis.Summary);
-        Assert.EndsWith("For every place, run: chipsharp check Test.dll --details", Check(Objects, Shipped.Load("pico")).Summary);
+        Assert.Equal("", Check(Objects, Shipped.Load("pico")).Summary);
     }
 
     [Fact]
@@ -169,10 +195,9 @@ public sealed class TargetRuleTests : IDisposable
             }
             """, Tiny);
 
-        Assert.Equal(3, problems.Length);
+        Assert.Equal(2, problems.Length);
         Assert.StartsWith("Program.Main() at IL_0000 (newobj): creating objects (new ...) needs a heap", problems[0]);
-        Assert.StartsWith("Program.Main() at IL_0005 (ldfld): instance fields of classes", problems[1]);
-        Assert.StartsWith("Program.Main() at IL_000a (call): Console.Write and Console.WriteLine need a console", problems[2]);
+        Assert.StartsWith("Program.Main() at IL_000a (call): Console.Write and Console.WriteLine need a console", problems[1]);
     }
 
     [Fact]

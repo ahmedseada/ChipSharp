@@ -1,0 +1,12 @@
+squares: 36 25 16 9 4 1
+rectangle: 4 sides, 3 x 6 = 18, at (5, -1)
+triangle: 3 sides, at (1, 2)
+True
+False
+tree: 10 20 30 35 40 50 60 65 70 80, 10 keys, 4 deep
+100000 nodes made, their sum 250900000
+the squares still sum to 91, the tree still has 10 keys
+True
+36
+25
+1
