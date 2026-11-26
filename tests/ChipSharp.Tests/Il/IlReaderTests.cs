@@ -424,10 +424,15 @@ public sealed class IlReaderTests
             """);
         var call = Assert.IsType<IlMethodOperand>(Single(Method(assembly, "Generic.UseId").Body!, IlOpCode.Call).Operand).Method;
 
+        // linked to the instance Id<int>, a method of its own made from Id<T>, with its signature
         Assert.Equal([IlType.Int32], call.GenericArguments);
-        Assert.Same(Method(assembly, "Generic.Id"), call.Definition);
-        Assert.Equal(new IlGenericParameterType(0, true), call.ReturnType);
-        Assert.Equal("!!0 Generic::Id<int32>(!!0)", call.ToString());
+        var instance = call.Definition!;
+        Assert.Same(Method(assembly, "Generic.Id"), instance.GenericDefinition);
+        Assert.Equal([IlType.Int32], instance.MethodArguments);
+        Assert.Equal("Generic.Id<int>", instance.DisplayName);
+        Assert.Equal(IlType.Int32, call.ReturnType);
+        Assert.Equal("int32 Generic::Id<int32>(int32)", call.ToString());
+        Assert.Null(Method(assembly, "Generic.Id").GenericDefinition);
     }
 
     [Fact]

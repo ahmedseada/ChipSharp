@@ -46,7 +46,7 @@ that ChipSharp does not compile yet, where, when it is planned, and what to writ
 on a line of its own, and every library method ChipSharp can call). `tir` shows the program in TIR. `build` compiles
 it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` also keeps the `.tir` and `.ll` files.
 
-`dotnet test` runs 1005 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
+`dotnet test` runs 1046 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
 `CHIPSHARP_LLVM_BIN`); the Pico tests also need the simulator (see below), and are skipped, saying why, without it.
 
 ## What C# compiles today
@@ -57,6 +57,7 @@ it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` 
 | Values | `bool`, every whole number (`sbyte` to `ulong`, `nint`, `nuint`), `float` and `double` (computed and printed bit for bit like .NET) |
 | Code | `if`, `switch`, `for`, `while`, `do`, `foreach` over arrays, `&&`, `\|\|`, `?:`, patterns on numbers; arithmetic wraps around like unchecked C# |
 | Types | Structs, enums (`[Flags]` too), `ref`, `out` and `in` parameters, `ref` locals |
+| Generics | Generic methods, structs and static classes over values (numbers, bools, enums, structs, generic structs, fixed text), nested in each other: `static T Max<T>(T a, T b) where T : IComparable<T>`, `static void Swap<T>(ref T a, ref T b)`, `struct Pair<T>`, made once for each type argument, with no heap. Interfaces implemented by structs, through a constraint (`static void Run<T>(ref T device) where T : struct, IDevice`, explicit implementations and static abstract members too) or called on the struct itself; `CompareTo`, `Equals`, `GetHashCode` and `ToString` of a number `T`; generic math (`INumber<T>`): the operators, comparisons, `T.Zero`, `T.One`, `MinValue`, `MaxValue`; `default(T)`, `typeof(T) == typeof(int)`, `sizeof(T)`; a `T` printed and in printed text |
 | Static fields | Of the types above, `volatile` too, with field initializers and static constructors |
 | Arrays | Of numbers, bools, structs and enums, on the stack: a constant size, kept in the method that makes them and passed down to the methods it calls |
 | Static arrays | Arrays in static fields that the field's initializer gives once, with a constant size and constant elements: `static readonly byte[] Digits = { 0x3F, 0x06, ... };` is a constant table when nothing writes an element (in flash on a chip), `static int[] buffer = new int[16];` a fixed array in RAM; read, indexed and passed to methods like any array, with no heap |
@@ -66,7 +67,7 @@ it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` 
 
 | Not yet | When |
 |---|---|
-| Classes and objects, interfaces, virtual calls, boxing, generics (`Span<T>`, `List<T>`); keeping built text (in a variable, a field, a return value), `string.Format` and the other methods of string, `==` on text, enum names in text, text in the fields of structs, `char`; arrays that leave their method, whose size is known only when the program runs, that are `null`, or that hold strings or objects | With M3 (the heap) |
+| Classes and objects, variables of an interface type and a struct turned into one (boxing), virtual calls, generics over classes (`List<T>`, `Span<T>`, a class, `object` or an array as a type argument); keeping built text (in a variable, a field, a return value), `string.Format` and the other methods of string, `==` on text, enum names in text, text in the fields of structs, `char`; arrays that leave their method, whose size is known only when the program runs, that are `null`, or that hold strings or objects | With M3 (the heap) |
 | Exceptions (`try`, `catch`, `finally`, `throw`, `using`), `checked` arithmetic, multi-dimensional arrays, unsafe code and `stackalloc`, delegates and lambdas, `typeof` | Later |
 | Other library types and methods (`decimal`, `Random`, `Math.Sin`, ...) | Not yet: `chipsharp check` lists the methods there are |
 
@@ -94,8 +95,9 @@ ChipSharp can call these library methods (--details lists each one with its para
 
 The other samples show the rest of the table, e.g. `VendingMachine.cs` (structs, enums, an array of structs and static
 fields as a state machine), `Projectile.cs` (floats in structs, with operators), `TimeSpans.cs` (TimeSpan arithmetic),
-`TrafficLights.cs` (fixed text between numbers), `PrintedText.cs` (text built and printed straight away) and
-`LookupTables.cs` (a 7-segment display's tables in flash and a buffer of readings in RAM).
+`TrafficLights.cs` (fixed text between numbers), `PrintedText.cs` (text built and printed straight away),
+`LookupTables.cs` (a 7-segment display's tables in flash and a buffer of readings in RAM) and `Generics.cs` (generic
+methods and structs, devices used through a constraint, generic math).
 
 ### Fixed text
 
@@ -155,6 +157,28 @@ static void Record(int value) => readings[count++ % readings.Length] = value;
 
 Any other array in a static field (assigned again, made of computed elements or of a size known only when the program
 runs, never given one) arrives with the heap; `chipsharp check` says which, where, and what to write for now.
+
+### Generics
+
+Generics over values need no heap: like C++ templates (and .NET itself for structs), ChipSharp makes a copy of a generic
+method or type for each list of type arguments the program uses it with (`src/ChipSharp.Frontend/Generics`). Where the
+IL calls `Max<int>`, or names a method or field of `Pair<int>`, the reference is linked to that instance, made the first
+time: a method of its own, whose signature, locals and IL have `int` in place of `T`, so everything after the IL reader
+takes it for code written for `int`. The program has exactly the instances it reaches, a generic method calling another
+with its own `T` included; the generic code itself is never compiled. Each is named as C# writes it:
+`Program.Max<int>`, `Pair<int>.Swap`, whose symbols are `Program_Max_int_` and `Pair_int__Swap`. An instance costs what
+the same code written for its type does: on the Pico a generic `Sum<T>` and `Pair<T>` used with `int` take exactly the
+flash of the hand-written `int` versions.
+
+In an instance, what the code does through `T` is what it does on that type, with no boxing: a constrained call
+`device.Tick()` on a struct `T` calls the struct's own method (an explicit implementation, `void IDevice.Tick()`, too);
+`a.CompareTo(b)`, `Equals` and `GetHashCode` of a number are ChipSharp.Library's `Numbers`, which give .NET's results
+(a `byte`'s CompareTo is a difference, NaN equals NaN); `a + b`, `a <= b`, `T.Zero` and the rest of generic math on a
+number are the operation itself, as .NET computes it (a `byte` sum wraps to a byte, a float comparison with NaN is
+false); `Console.WriteLine(t)` writes the number. A class, an interface, `object` or an array as a type argument needs
+the heap (generics over classes arrive with M3), and so does a struct turned into an interface (`IDevice d = counter;`
+boxes it): `chipsharp check` says where, and to use a constraint instead. A generic method that calls itself with an
+ever bigger type argument (`F<T>` calling `F<Pair<T>>`) stops at 8 generic types deep.
 
 ### Library substitutes
 

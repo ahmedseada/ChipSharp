@@ -105,8 +105,12 @@ public static class CSharpNames
         // <Containing>g__Name|0_0, where Containing is the method the local function is declared in
         var marker = method.Name.LastIndexOf(">g__", StringComparison.Ordinal);
         var bar = marker > 0 ? method.Name.IndexOf('|', marker) : -1;
+        // an instance of a generic local function (Generics.Instantiations) with its type arguments: "local function Max<int>"
+        var arguments = method.MethodArguments.Count > 0
+            ? $"<{string.Join(", ", method.MethodArguments.Select(argument => Type(argument)))}>"
+            : "";
         return method.Name.StartsWith('<') && bar > marker + 4
-            ? $"local function {method.Name[(marker + 4)..bar]}"
+            ? $"local function {method.Name[(marker + 4)..bar]}{arguments}"
             : Method(method);
     }
 

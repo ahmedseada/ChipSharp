@@ -220,7 +220,7 @@ public sealed class StructCheckTests
 
             class Program
             {
-                static int Value(Box<int> box) => 0;
+                static int Value(Box<object> box) => 0;
                 static int Low(Union union) => 0;
                 static int Length(Buffer buffer) => 0;
                 static int Start(Window window) => 0;
@@ -234,8 +234,10 @@ public sealed class StructCheckTests
         // each default(...) is a local that initobj clears
         Assert.Equal(
         [
-            "generic types arrive with M3 (the heap): 3 places in Program.Main() (IL_0002 and local V_0) and "
-                + "Program.Value(Box<int>) (parameter 'box'). For now, write a type for each type argument you need.",
+            "generics over classes (a class, an interface, object or an array as a type argument) arrive with M3 (the "
+                + "heap): 3 places in Program.Main() (IL_0002 and local V_0) and Program.Value(Box<object>) (parameter "
+                + "'box'). For now, use numbers, bools, enums and structs as type arguments: ChipSharp makes the code "
+                + "once for each.",
             "structs with an explicit layout (LayoutKind.Explicit) arrive later: 3 places in Program.Main() "
                 + "(IL_0010 and local V_1) and Program.Low(Union) (parameter 'union'). "
                 + "For now, leave out [StructLayout(LayoutKind.Explicit)] and [FieldOffset].",

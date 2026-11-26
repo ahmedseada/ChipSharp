@@ -25,7 +25,9 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
 
     public static readonly Unsupported CreatingObjects = Heap("creating objects (new ...)", false, ObjectsHint);
     public static readonly Unsupported ClassesAndObjects = Heap("classes and objects", true, ObjectsHint);
-    public static readonly Unsupported Interfaces = Heap("interfaces", true, ObjectsHint);
+    public static readonly Unsupported Interfaces = Heap("interfaces", true,
+        "For now, implement the interface on a struct and use it through a constraint: static void Run<T>(ref T device) " +
+        "where T : struct, IDevice.");
     public static readonly Unsupported TypeTests = Heap("type tests and casts on objects (is, as, (T)x)", true,
         ObjectsHint);
     public static readonly Unsupported Boxing = Heap("boxing (using a value as an object)", false,
@@ -180,7 +182,10 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
         IlNamedType { IsDefinedInThisAssembly: true } named when assembly.FindType(named.FullName) is { } definition =>
             ForDefinition(definition),
         _ when IsInterpolatedStringHandler(type) => BuildingText,
-        IlGenericInstanceType { Definition: IlNamedType { IsDefinedInThisAssembly: true } } => GenericTypes,
+        // an instance of a generic type of the program: its type arguments' problem, else what the type is
+        IlGenericInstanceType { Definition: IlNamedType { IsDefinedInThisAssembly: true } named } instance =>
+            Generics.Instantiations.Refusal(instance, assembly)
+                ?? (assembly.FindType(named.FullName) is { } generic ? ForDefinition(generic) : GenericTypes),
         _ => OtherType,
     };
 

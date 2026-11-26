@@ -397,8 +397,9 @@ public sealed class RejectionTests
     }
 
     [Fact]
-    public void A_generic_method()
+    public void A_generic_method_over_a_class()
     {
+        // over a number it compiles, once for each type (Generics.Instantiations); over a class it needs the heap
         var problems = Problems("""
             using System;
 
@@ -409,15 +410,16 @@ public sealed class RejectionTests
                 static void Main()
                 {
                     Console.WriteLine(Id(5));
+                    Console.WriteLine(Id<object>(null) == null);
                 }
             }
             """);
 
-        Assert.Equal(["Program.Id<T>(T): generic methods arrive with M3 (the heap). For now, write a method for each type you need."], problems);
+        Assert.Equal(["Program.Main() at IL_000c (call): " + OverClasses], problems);
     }
 
     [Fact]
-    public void A_method_of_a_generic_type()
+    public void A_method_of_a_generic_type_over_a_class()
     {
         var problems = Problems("""
             using System;
@@ -432,12 +434,17 @@ public sealed class RejectionTests
                 static void Main()
                 {
                     Console.WriteLine(Box<long>.Count(3));
+                    Console.WriteLine(Box<string[]>.Count(3));
                 }
             }
             """);
 
-        Assert.Equal(["Box`1.Count(int): generic types arrive with M3 (the heap). For now, write a type for each type argument you need."], problems);
+        Assert.Equal(["Program.Main() at IL_000c (call): " + OverClasses], problems);
     }
+
+    private const string OverClasses = "generics over classes (a class, an interface, object or an array as a type " +
+        "argument) arrive with M3 (the heap). For now, use numbers, bools, enums and structs as type arguments: " +
+        "ChipSharp makes the code once for each.";
 
     [Fact]
     public void A_library_call_that_is_not_known()

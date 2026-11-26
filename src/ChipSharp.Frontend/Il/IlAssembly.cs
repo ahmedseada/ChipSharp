@@ -138,8 +138,12 @@ public sealed partial class IlAssembly
     public IReadOnlyList<IlMethod> FindMethods(string displayName) =>
         [.. Methods.Where(m => string.Equals(m.DisplayName, displayName, StringComparison.Ordinal))];
 
-    /// <summary>The type with this full name (e.g. "Demo.Outer+Inner"), or null.</summary>
-    public IlTypeDefinition? FindType(string fullName) => _typesByFullName.GetValueOrDefault(fullName);
+    /// <summary>
+    /// The type with this full name (e.g. "Demo.Outer+Inner"), or null; also an instance of a generic type made so far,
+    /// by its own name (e.g. "Demo.Pair&lt;int&gt;", see <see cref="Generics.Instantiations"/>).
+    /// </summary>
+    public IlTypeDefinition? FindType(string fullName) =>
+        _typesByFullName.GetValueOrDefault(fullName) ?? Generics.Instantiations.FindType(this, fullName);
 
     /// <summary>
     /// The first <paramref name="length"/> bytes of the data <paramref name="field"/> has in the image (at its RVA),
@@ -207,12 +211,15 @@ public sealed partial class IlAssembly
 
     internal IlType ResolveType(EntityHandle handle) => _types.Decode(handle);
 
-    // a reference to a member of a library type ChipSharp has its own C# for links to that C# (LibrarySubstitutes)
+    // a reference to a member of a library type ChipSharp has its own C# for links to that C# (LibrarySubstitutes), and
+    // one to a generic method or a member of a generic type, with its type arguments, to that instance (Instantiations)
     internal IlMethodReference ResolveMethod(EntityHandle handle) => _methodReferences.GetOrAdd(handle,
-        static (handle, assembly) => LibrarySubstitutes.Link(assembly, assembly.CreateMethodReference(handle)), this);
+        static (handle, assembly) => Generics.Instantiations.Link(
+            LibrarySubstitutes.Link(assembly, assembly.CreateMethodReference(handle))), this);
 
     internal IlFieldReference ResolveField(EntityHandle handle) => _fieldReferences.GetOrAdd(handle,
-        static (handle, assembly) => LibrarySubstitutes.Link(assembly, assembly.CreateFieldReference(handle)), this);
+        static (handle, assembly) => Generics.Instantiations.Link(
+            LibrarySubstitutes.Link(assembly, assembly.CreateFieldReference(handle))), this);
 
     internal bool IsField(MemberReferenceHandle handle) =>
         _reader.GetMemberReference(handle).GetKind() == MemberReferenceKind.Field;

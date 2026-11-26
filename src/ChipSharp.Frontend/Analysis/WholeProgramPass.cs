@@ -88,9 +88,11 @@ public static partial class WholeProgramPass
                 }
             }
 
+            // generic code is reached as the instances calls are linked to (see Generics.Instantiations), never itself
             foreach (var instruction in methods[i].Body?.Instructions ?? [])
             {
-                if (ValueTypes.CalledMethod(instruction) is { } callee && found.Add(callee))
+                if (ValueTypes.CalledMethod(instruction) is { } callee && !Generics.Instantiations.IsGeneric(callee)
+                    && found.Add(callee))
                 {
                     methods.Add(callee);
                 }
@@ -180,15 +182,17 @@ public static partial class WholeProgramPass
             problems.Add(Problem.AtTry(method, tryOffset, Unsupported.TryCatchFinally));
         }
 
-        // the verdict of printed text comes first for the instructions it is about, then the arrays' rule's
+        // the verdict of printed text comes first for the instructions it is about, then the arrays' rule's, then generics'
         var printed = PrintedText.Of(method);
         var arrays = ArrayEscapeAnalysis.Check(method, statics);
+        var generics = ForGenerics(method);
         foreach (var instruction in body.Instructions)
         {
-            // what printed text or the array escape analysis found for this instruction, else building text, else the
-            // struct/reference rules, else the rest
+            // what printed text, the array escape analysis or generics found for this instruction, else building text,
+            // else the struct/reference rules, else the rest
             var unsupported = printed.Verdicts.TryGetValue(instruction, out var text) ? text
                 : arrays.TryGetValue(instruction, out var array) ? array
+                : generics.TryGetValue(instruction, out var generic) ? generic
                 : ForText(method, instruction) ?? ForStructOrReference(method, instruction)
                     ?? ForInstruction(instruction, argsArgument, interpolations);
             if (unsupported is not null)

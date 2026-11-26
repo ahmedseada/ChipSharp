@@ -52,6 +52,15 @@ public sealed class IlTypeDefinition
     /// <summary>The names of the type's own generic parameters, in order (e.g. "T"); empty when it is not generic.</summary>
     public IReadOnlyList<string> GenericParameters { get; }
 
+    /// <summary>
+    /// For an instance of a generic type of the program (<c>Pair&lt;int&gt;</c>, see
+    /// <see cref="Generics.Instantiations"/>), the generic type it is made from (<c>Pair&lt;T&gt;</c>); null otherwise.
+    /// </summary>
+    public IlTypeDefinition? GenericDefinition { get; internal init; }
+
+    /// <summary>The type arguments of an instance of a generic type (<c>int32</c> for <c>Pair&lt;int&gt;</c>); empty otherwise.</summary>
+    public IReadOnlyList<IlType> TypeArguments { get; internal init; } = [];
+
     /// <summary>The methods (static and instance, constructors included) in metadata order.</summary>
     public IReadOnlyList<IlMethod> Methods => _methods;
 
@@ -90,6 +99,29 @@ public sealed class IlMethod
         _body = new Lazy<IlMethodBody?>(() => HasBody ? declaringType.Assembly.ReadBody(this, relativeVirtualAddress) : null);
     }
 
+    /// <summary>
+    /// An instance of <paramref name="generic"/>, a generic method or a method of a generic type, for type arguments
+    /// (see <see cref="Generics.Instantiations"/>): a method of its own, of <paramref name="declaringType"/>, whose
+    /// signature and parameters have the arguments in place of the type parameters, and whose IL
+    /// <paramref name="body"/> makes the first time it is asked for.
+    /// </summary>
+    internal IlMethod(IlTypeDefinition declaringType, IlMethod generic, string name, IlMethodSignature signature,
+        IReadOnlyList<IlParameter> parameters, IReadOnlyList<IlType> methodArguments, Func<IlMethod, IlMethodBody?> body)
+    {
+        DeclaringType = declaringType;
+        Token = generic.Token;
+        Name = name;
+        Attributes = generic.Attributes;
+        ImplAttributes = generic.ImplAttributes;
+        Signature = signature;
+        Parameters = parameters;
+        GenericParameters = [];
+        GenericDefinition = generic;
+        MethodArguments = methodArguments;
+        HasBody = generic.HasBody;
+        _body = new Lazy<IlMethodBody?>(() => HasBody ? body(this) : null);
+    }
+
     public IlTypeDefinition DeclaringType { get; }
 
     public IlAssembly Assembly => DeclaringType.Assembly;
@@ -115,6 +147,16 @@ public sealed class IlMethod
 
     /// <summary>The names of the method's own generic parameters, in order; empty when it is not generic.</summary>
     public IReadOnlyList<string> GenericParameters { get; }
+
+    /// <summary>
+    /// For an instance of a generic method (<c>Program.Max&lt;int&gt;</c>) or of a method of a generic type
+    /// (<c>Pair&lt;int&gt;.Swap</c>), the method it is made from; null otherwise. Its type arguments are
+    /// <see cref="MethodArguments"/> and its type's <see cref="IlTypeDefinition.TypeArguments"/>.
+    /// </summary>
+    public IlMethod? GenericDefinition { get; }
+
+    /// <summary>The type arguments of an instance of a generic method (<c>int32</c> for <c>Max&lt;int&gt;</c>); empty otherwise.</summary>
+    public IReadOnlyList<IlType> MethodArguments { get; } = [];
 
     public MethodAttributes Attributes { get; }
 

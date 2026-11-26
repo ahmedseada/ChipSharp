@@ -111,6 +111,18 @@ internal static class LibrarySubstitutes
     }
 
     /// <summary>
+    /// True when <paramref name="method"/>, a substitute's, has the signature of the library method that
+    /// <paramref name="owner"/>'s IL names with <paramref name="signature"/> (a substitute in it standing for its type).
+    /// </summary>
+    public static bool HasSignature(IlMethod method, IlMethodSignature signature, IlAssembly owner)
+    {
+        ArgumentNullException.ThrowIfNull(method);
+        ArgumentNullException.ThrowIfNull(signature);
+        ArgumentNullException.ThrowIfNull(owner);
+        return SameSignature(method.Signature, signature, owner);
+    }
+
+    /// <summary>
     /// <paramref name="reference"/>, which <paramref name="owner"/>'s IL makes, linked to the field of a substitute
     /// that stands for the library field it names (e.g. TimeSpan.Zero); any other reference as it is.
     /// </summary>
