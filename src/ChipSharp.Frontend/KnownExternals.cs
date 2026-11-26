@@ -22,7 +22,7 @@ public sealed record ExternalFunction(
 public static class KnownExternals
 {
     private const string Pin = "ChipSharp.Hardware.Pin";
-    private const string Delay = "ChipSharp.Hardware.Delay";
+    private const string Timing = "ChipSharp.Hardware.Timing";
     private const string Registers = "ChipSharp.Hardware.Registers";
 
     private static readonly (string Type, string Name, IlType[] Parameters, IlType Returns, ExternalFunction Function)[] Table =
@@ -40,21 +40,23 @@ public static class KnownExternals
         ("System.Console", "WriteLine", [IlType.Bool], IlType.Void,
             new("ChipSharp.Runtime.WriteLineBool", TirType.Void, [TirType.I32], "System.Console.WriteLine(bool)")),
 
-        // ChipSharp.Hardware: the chip's pins, delays and registers; only a chip's runtime implements these
-        (Pin, "SetOutput", [IlType.Int32], IlType.Void,
-            new("ChipSharp.Runtime.PinSetOutput", TirType.Void, [TirType.I32], $"{Pin}.SetOutput(int)")),
-        (Pin, "SetInput", [IlType.Int32], IlType.Void,
-            new("ChipSharp.Runtime.PinSetInput", TirType.Void, [TirType.I32], $"{Pin}.SetInput(int)")),
+        // ChipSharp.Hardware: the chip's pins, timing and registers; only a chip's runtime implements these
+        (Pin, "Output", [IlType.Int32], IlType.Void,
+            new("ChipSharp.Runtime.PinOutput", TirType.Void, [TirType.I32], $"{Pin}.Output(int)")),
+        (Pin, "Input", [IlType.Int32], IlType.Void,
+            new("ChipSharp.Runtime.PinInput", TirType.Void, [TirType.I32], $"{Pin}.Input(int)")),
         (Pin, "Write", [IlType.Int32, IlType.Bool], IlType.Void,
             new("ChipSharp.Runtime.PinWrite", TirType.Void, [TirType.I32, TirType.I32], $"{Pin}.Write(int, bool)")),
         (Pin, "Toggle", [IlType.Int32], IlType.Void,
             new("ChipSharp.Runtime.PinToggle", TirType.Void, [TirType.I32], $"{Pin}.Toggle(int)")),
         (Pin, "Read", [IlType.Int32], IlType.Bool,
             new("ChipSharp.Runtime.PinRead", TirType.I32, [TirType.I32], $"{Pin}.Read(int)")),
-        (Delay, "Milliseconds", [IlType.Int32], IlType.Void,
-            new("ChipSharp.Runtime.DelayMilliseconds", TirType.Void, [TirType.I32], $"{Delay}.Milliseconds(int)")),
-        (Delay, "Microseconds", [IlType.Int32], IlType.Void,
-            new("ChipSharp.Runtime.DelayMicroseconds", TirType.Void, [TirType.I32], $"{Delay}.Microseconds(int)")),
+        (Timing, "DelayMilliseconds", [IlType.Int32], IlType.Void,
+            new("ChipSharp.Runtime.DelayMilliseconds", TirType.Void, [TirType.I32],
+                $"{Timing}.DelayMilliseconds(int)")),
+        (Timing, "DelayMicroseconds", [IlType.Int32], IlType.Void,
+            new("ChipSharp.Runtime.DelayMicroseconds", TirType.Void, [TirType.I32],
+                $"{Timing}.DelayMicroseconds(int)")),
         (Registers, "Read", [IlType.UInt32], IlType.UInt32,
             new("ChipSharp.Runtime.RegisterRead", TirType.I32, [TirType.I32], $"{Registers}.Read(uint)")),
         (Registers, "Write", [IlType.UInt32, IlType.UInt32], IlType.Void,

@@ -16,14 +16,14 @@ public sealed class HardwareLibraryTests
         .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly));
 
     [Fact]
-    public void The_library_is_pins_delays_and_registers_with_int_uint_and_bool_only()
+    public void The_library_is_pins_timing_and_registers_with_int_uint_and_bool_only_and_no_Set_names()
     {
         Assert.Equal(
             [
-                "Delay.Microseconds(Int32)", "Delay.Milliseconds(Int32)",
-                "Pin.Read(Int32)", "Pin.SetInput(Int32)", "Pin.SetOutput(Int32)", "Pin.Toggle(Int32)",
+                "Pin.Input(Int32)", "Pin.Output(Int32)", "Pin.Read(Int32)", "Pin.Toggle(Int32)",
                 "Pin.Write(Int32, Boolean)",
                 "Registers.Read(UInt32)", "Registers.Write(UInt32, UInt32)",
+                "Timing.DelayMicroseconds(Int32)", "Timing.DelayMilliseconds(Int32)",
             ],
             HardwareMethods.Select(m => $"{m.DeclaringType!.Name}.{m.Name}({string.Join(", ", m.GetParameters().Select(p => p.ParameterType.Name))})")
                 .Order(StringComparer.Ordinal));
@@ -54,16 +54,16 @@ public sealed class HardwareLibraryTests
             {
                 static void Main()
                 {
-                    Pin.SetOutput(25);
-                    Pin.SetInput(3);
+                    Pin.Output(25);
+                    Pin.Input(3);
                     Pin.Write(25, true);
                     Pin.Toggle(25);
                     if (Pin.Read(3))
                     {
-                        Delay.Milliseconds(500);
+                        Timing.DelayMilliseconds(500);
                     }
 
-                    Delay.Microseconds(20);
+                    Timing.DelayMicroseconds(20);
                     Registers.Write(0xd0000014, Registers.Read(0xd0000004) | 1u);
                 }
             }
@@ -75,7 +75,7 @@ public sealed class HardwareLibraryTests
         var externals = module.Functions.Where(f => f.Kind == TirFunctionKind.External).ToList();
         Assert.Equal(
             [
-                "ChipSharp.Runtime.PinSetOutput", "ChipSharp.Runtime.PinSetInput", "ChipSharp.Runtime.PinWrite",
+                "ChipSharp.Runtime.PinOutput", "ChipSharp.Runtime.PinInput", "ChipSharp.Runtime.PinWrite",
                 "ChipSharp.Runtime.PinToggle", "ChipSharp.Runtime.PinRead", "ChipSharp.Runtime.DelayMilliseconds",
                 "ChipSharp.Runtime.DelayMicroseconds", "ChipSharp.Runtime.RegisterRead", "ChipSharp.Runtime.RegisterWrite",
             ],

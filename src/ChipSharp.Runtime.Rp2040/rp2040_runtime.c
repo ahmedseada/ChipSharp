@@ -7,8 +7,9 @@
 //                                      system PLL (clk_sys = clk_peri = 125 MHz, clk_ref = 12 MHz), the
 //                                      watchdog tick generator (the timer counts microseconds), and GPIO and
 //                                      timer taken out of reset
-//   ChipSharp_Runtime_Pin...           ChipSharp.Hardware.Pin: GPIO 0-29 through SIO; other pin numbers are ignored
-//   ChipSharp_Runtime_Delay...         ChipSharp.Hardware.Delay: sleeps on timer alarm 0 (TIMER_IRQ_0, IRQ 0)
+//   ChipSharp_Runtime_Pin...           ChipSharp.Hardware.Pin: GPIO 0-29 through SIO (Output or Input first, then
+//                                      Write, Toggle, Read); other pin numbers are ignored
+//   ChipSharp_Runtime_Delay...         ChipSharp.Hardware.Timing: sleeps on timer alarm 0 (TIMER_IRQ_0, IRQ 0)
 //   ChipSharp_Runtime_Register...      ChipSharp.Hardware.Registers: 32-bit reads and writes of any address
 //   ChipSharp_Runtime_WriteLine...     Console.WriteLine: UART0 on GPIO 0 (TX) and 1 (RX), 115200 baud, 8N1, lines
 //                                      end with "\r\n" like .NET on Windows; UART0 is set up on the first write
@@ -208,7 +209,8 @@ static void select_function(int pin, unsigned int function)
     REG(IO_BANK0_GPIO_CTRL(pin)) = function;
 }
 
-void ChipSharp_Runtime_PinSetOutput(int pin)
+// Pin.Output: SIO drives the pin, low until written.
+void ChipSharp_Runtime_PinOutput(int pin)
 {
     if (!is_pin(pin))
     {
@@ -217,12 +219,13 @@ void ChipSharp_Runtime_PinSetOutput(int pin)
 
     unsigned int mask = 1u << pin;
     REG(SIO_GPIO_OE_CLR) = mask;
-    REG(SIO_GPIO_OUT_CLR) = mask; // starts low
+    REG(SIO_GPIO_OUT_CLR) = mask;
     select_function(pin, FUNCTION_SIO);
     REG(SIO_GPIO_OE_SET) = mask;
 }
 
-void ChipSharp_Runtime_PinSetInput(int pin)
+// Pin.Input: SIO stops driving the pin; Read reads it.
+void ChipSharp_Runtime_PinInput(int pin)
 {
     if (!is_pin(pin))
     {
@@ -241,14 +244,7 @@ void ChipSharp_Runtime_PinWrite(int pin, int high)
         return;
     }
 
-    if (high != 0)
-    {
-        REG(SIO_GPIO_OUT_SET) = 1u << pin;
-    }
-    else
-    {
-        REG(SIO_GPIO_OUT_CLR) = 1u << pin;
-    }
+    REG(high != 0 ? SIO_GPIO_OUT_SET : SIO_GPIO_OUT_CLR) = 1u << pin;
 }
 
 void ChipSharp_Runtime_PinToggle(int pin)
@@ -272,7 +268,7 @@ int ChipSharp_Runtime_PinRead(int pin)
     return (int)((REG(SIO_GPIO_IN) >> pin) & 1u);
 }
 
-// ---- Delay -------------------------------------------------------------------------------------------------------
+// ---- Timing ------------------------------------------------------------------------------------------------------
 
 static volatile unsigned int alarm_fired;
 

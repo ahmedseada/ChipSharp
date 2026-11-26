@@ -2,7 +2,8 @@ namespace ChipSharp.Hardware;
 
 /// <summary>
 /// The chip's general-purpose input/output pins, by number: on the Raspberry Pi Pico, GPIO 0 to 29, with the LED on
-/// GPIO 25. A pin number the chip does not have is ignored (and reads as low).
+/// GPIO 25. Make a pin an <see cref="Output"/> before writing or toggling it, an <see cref="Input"/> before reading
+/// it. A pin number the chip does not have is ignored (and reads as low).
 /// </summary>
 /// <remarks>
 /// These methods run on a chip, in a program built with ChipSharp; there each call becomes a call into the chip's
@@ -11,10 +12,10 @@ namespace ChipSharp.Hardware;
 public static class Pin
 {
     /// <summary>Makes <paramref name="pin"/> an output, driven low until written.</summary>
-    public static void SetOutput(int pin) => throw ChipOnly.Method("Pin.SetOutput");
+    public static void Output(int pin) => throw ChipOnly.Method("Pin.Output");
 
     /// <summary>Makes <paramref name="pin"/> an input: the chip stops driving it and <see cref="Read"/> reads it.</summary>
-    public static void SetInput(int pin) => throw ChipOnly.Method("Pin.SetInput");
+    public static void Input(int pin) => throw ChipOnly.Method("Pin.Input");
 
     /// <summary>Drives the output <paramref name="pin"/> high (true) or low (false).</summary>
     public static void Write(int pin, bool high) => throw ChipOnly.Method("Pin.Write");

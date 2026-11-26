@@ -29,7 +29,7 @@ public sealed class PicoSimulatorTests : IDisposable
         Assert.True(run.ExitCode == 0, run.ToString());
         Assert.EndsWith("stopped: 2600 ms of simulated time have passed", run.Stopped);
         var led = run.Pins.Where(p => p.Pin == 25 && p.State is "low" or "high").ToList();
-        // Pin.SetOutput drives the pin low; the first Toggle makes it high at once, then one toggle per 500 ms
+        // Pin.Output drives the pin low; the first Toggle makes it high at once, then one toggle per 500 ms
         Assert.True(led.Count > 0, run.ToString());
         Assert.Equal("low", led[0].State);
         Assert.InRange(led[0].Milliseconds, 0, 5); // boot2, clocks and the program start take well under 5 ms
@@ -58,22 +58,22 @@ public sealed class PicoSimulatorTests : IDisposable
 
                 static void Main()
                 {
-                    Pin.SetOutput(2);
+                    Pin.Output(2);
                     Pin.Write(2, true);
-                    Delay.Microseconds(250);
+                    Timing.DelayMicroseconds(250);
                     Pin.Write(2, false);
-                    Delay.Milliseconds(3);
+                    Timing.DelayMilliseconds(3);
                     Pin.Toggle(2);
                     Console.WriteLine(Registers.Read(SioGpioOut) & (1u << 2));
                     Registers.Write(SioGpioOut, 0);
                     Console.WriteLine(Registers.Read(SioGpioOut));
-                    Pin.SetInput(2);
-                    Pin.SetInput(3);
-                    Pin.SetInput(4);
+                    Pin.Input(2);
+                    Pin.Input(3);
+                    Pin.Input(4);
                     Console.WriteLine(Pin.Read(3));
                     Console.WriteLine(Pin.Read(4));
-                    Delay.Milliseconds(0);
-                    Delay.Milliseconds(-5);
+                    Timing.DelayMilliseconds(0);
+                    Timing.DelayMilliseconds(-5);
                     Pin.Toggle(99);
                     Console.WriteLine(Pin.Read(99));
                 }
@@ -87,13 +87,13 @@ public sealed class PicoSimulatorTests : IDisposable
         Assert.Equal("4\r\n0\r\nTrue\r\nFalse\r\nFalse\r\n", System.Text.Encoding.ASCII.GetString(run.Uart0));
         var pin = run.Pins.Where(p => p.Pin == 2).ToList();
         var levels = pin.Where(p => p.State is "low" or "high").ToList();
-        // SetOutput, Write(true), Write(false), Toggle, Registers.Write of GPIO_OUT
+        // Output, Write(true), Write(false), Toggle, Registers.Write of GPIO_OUT
         Assert.Equal(["low", "high", "low", "high", "low"], levels.Select(p => p.State));
         // high for the 250 µs delay, low for the 3 ms delay (rp2040js schedules an alarm in whole microseconds from
         // the current fraction of one, so it may wake the core up to a microsecond early; the chip itself does not)
         Assert.InRange(levels[2].Milliseconds - levels[1].Milliseconds, 0.245, 0.3);
         Assert.InRange(levels[3].Milliseconds - levels[2].Milliseconds, 2.995, 3.05);
-        Assert.StartsWith("input", pin[^1].State); // SetInput: the pin is no longer driven
+        Assert.StartsWith("input", pin[^1].State); // Input: the pin is no longer driven
     }
 
     /// <summary>
