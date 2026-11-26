@@ -39,6 +39,10 @@ public static class KnownExternals
             new("ChipSharp.Runtime.WriteLineUInt64", TirType.Void, [TirType.I64], "System.Console.WriteLine(ulong)")),
         ("System.Console", "WriteLine", [IlType.Bool], IlType.Void,
             new("ChipSharp.Runtime.WriteLineBool", TirType.Void, [TirType.I32], "System.Console.WriteLine(bool)")),
+        ("System.Console", "WriteLine", [IlType.Float32], IlType.Void,
+            new("ChipSharp.Runtime.WriteLineFloat32", TirType.Void, [TirType.F32], "System.Console.WriteLine(float)")),
+        ("System.Console", "WriteLine", [IlType.Float64], IlType.Void,
+            new("ChipSharp.Runtime.WriteLineFloat64", TirType.Void, [TirType.F64], "System.Console.WriteLine(double)")),
 
         // ChipSharp.Hardware: the chip's pins, timing and registers; only a chip's runtime implements these
         (Pin, "Output", [IlType.Int32], IlType.Void,

@@ -1,9 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- The runtime of PC programs (target "host"): startup and console output in one freestanding C file -->
+  <!-- The runtime of PC programs (target "host"): startup and console output in freestanding C -->
   <ItemGroup>
     <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="chipsharp_runtime.c" LogicalName="chipsharp_runtime.c" />
+    <!-- float and double as text, shared with the other runtimes -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_text.c" LogicalName="chipsharp_float_text.c" />
   </ItemGroup>
 </Project>

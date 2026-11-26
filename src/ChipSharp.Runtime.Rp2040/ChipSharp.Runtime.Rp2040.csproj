@@ -6,6 +6,8 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="rp2040_runtime.c" LogicalName="rp2040_runtime.c" />
+    <!-- float and double as text, shared with the other runtimes -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_text.c" LogicalName="chipsharp_float_text.c" />
     <!-- boot2 as pico-sdk's sources assemble it (Boot2/*.S, BSD-3-Clause, Boot2/LICENSE.TXT); padded at build time -->
     <EmbeddedResource Include="Boot2\boot2_w25q080.bin" LogicalName="boot2_w25q080.bin" />
     <EmbeddedResource Include="Boot2\boot2_generic_03h.bin" LogicalName="boot2_generic_03h.bin" />

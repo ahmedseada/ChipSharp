@@ -5,6 +5,7 @@ using ChipSharp.Frontend.Il;
 using ChipSharp.Frontend.Lowering;
 using ChipSharp.Hardware;
 using ChipSharp.Image.Uf2;
+using ChipSharp.Ir;
 using ChipSharp.Runtime.Rp2040;
 using ChipSharp.Targets;
 using ChipSharp.Tests.Support;
@@ -43,8 +44,17 @@ internal static class PicoBuild
     {
         var bytes = CSharpCompiler.Compile([source], [HardwareAssembly], name);
         var program = WholeProgramPass.Analyze(IlAssembly.Load(bytes, name + ".dll"));
-        var module = IlToTir.Lower(program);
+        return Build(IlToTir.Lower(program), folder, target);
+    }
 
+    /// <summary>
+    /// Builds TIR the rest of the way into <paramref name="folder"/>, as &lt;module name&gt;.elf and .uf2: for programs
+    /// C# cannot be compiled into yet.
+    /// </summary>
+    public static PicoProgram Build(TirModule module, string folder) => Build(module, folder, Pico);
+
+    private static PicoProgram Build(TirModule module, string folder, TargetDescription target)
+    {
         IArchRuntime runtime = new Rp2040Runtime();
         var code = new GeneratedCode(
         [

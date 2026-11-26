@@ -12,7 +12,8 @@
 //   ChipSharp_Runtime_Delay...         ChipSharp.Hardware.Timing: sleeps on timer alarm 0 (TIMER_IRQ_0, IRQ 0)
 //   ChipSharp_Runtime_Register...      ChipSharp.Hardware.Registers: 32-bit reads and writes of any address
 //   ChipSharp_Runtime_WriteLine...     Console.WriteLine: UART0 on GPIO 0 (TX) and 1 (RX), 115200 baud, 8N1, lines
-//                                      end with "\r\n" like .NET on Windows; UART0 is set up on the first write
+//                                      end with "\r\n" like .NET on Windows; UART0 is set up on the first write.
+//                                      Floats and doubles as text come from chipsharp_float_text.c
 
 #define REG(address) (*(volatile unsigned int *)(address))
 
@@ -338,6 +339,10 @@ void ChipSharp_Runtime_RegisterWrite(unsigned int address, unsigned int value)
 
 // ---- Console.WriteLine on UART0 ----------------------------------------------------------------------------------
 
+// In chipsharp_float_text.c: a double or a float, given by its bits, as .NET writes it; returns the length.
+int chipsharp_float64_text(unsigned long long bits, char *text);
+int chipsharp_float32_text(unsigned int bits, char *text);
+
 static unsigned int uart_started;
 
 static void start_uart(void)
@@ -433,4 +438,37 @@ void ChipSharp_Runtime_WriteLineBool(int value)
     {
         write_bytes("False\r\n", 7);
     }
+}
+
+// Ends the line after the text in text[0..length) (the buffer has room for two more characters) and writes it.
+static void write_line_text(char *text, int length)
+{
+    text[length++] = '\r';
+    text[length++] = '\n';
+    write_bytes(text, (unsigned int)length);
+}
+
+// The shortest text that reads back as the same value, as .NET writes it. The bits are read through a union, so
+// the number itself is never used in a calculation: the Cortex-M0+ has no float hardware, and the runtime has
+// none of the routines that would stand in for it.
+void ChipSharp_Runtime_WriteLineFloat64(double value)
+{
+    union
+    {
+        double value;
+        unsigned long long bits;
+    } number = {value};
+    char text[26]; // at most 24 characters, "\r\n"
+    write_line_text(text, chipsharp_float64_text(number.bits, text));
+}
+
+void ChipSharp_Runtime_WriteLineFloat32(float value)
+{
+    union
+    {
+        float value;
+        unsigned int bits;
+    } number = {value};
+    char text[17]; // at most 15 characters, "\r\n"
+    write_line_text(text, chipsharp_float32_text(number.bits, text));
 }
