@@ -44,7 +44,7 @@ public sealed class Rp2040RuntimeTests
         var softFloat = CompilerRt.Sources().Select(f => f.FileName).ToList();
         Assert.Equal(
             ["armv6m_startup.c", "armv6m_helpers.c", "armv6m_divmod.S", "armv6m_float_compare.c",
-                ArmV6MRuntime.FloatMathFileName, .. softFloat, "rp2040_boot2.S", "rp2040_runtime.c",
+                ArmV6MRuntime.FloatMathFileName, .. softFloat, ArmV6MRuntime.FailuresFileName, "rp2040_boot2.S", "rp2040_runtime.c",
                 Rp2040Runtime.ConsoleFileName, Rp2040Runtime.FloatTextFileName, "rp2040_failures.c"],
             files.Select(f => f.FileName));
 

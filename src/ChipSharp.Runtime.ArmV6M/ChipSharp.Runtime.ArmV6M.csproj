@@ -9,6 +9,7 @@
     <EmbeddedResource Include="armv6m_helpers.c" LogicalName="armv6m_helpers.c" />
     <EmbeddedResource Include="armv6m_divmod.S" LogicalName="armv6m_divmod.S" />
     <EmbeddedResource Include="armv6m_float_compare.c" LogicalName="armv6m_float_compare.c" />
+    <EmbeddedResource Include="armv6m_failures.c" LogicalName="armv6m_failures.c" />
     <!-- fmod, square roots, Math.Min and the like, shared with the other runtimes -->
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_math.c" LogicalName="chipsharp_float_math.c" />
     <!-- float arithmetic in software: LLVM's compiler-rt builtins (llvmorg-23.1.6, compiler-rt/lib/builtins), unchanged;

@@ -39,7 +39,8 @@ namespace ChipSharp.Frontend.Lowering;
 /// address and load or store through it. The type initializers (<see cref="IlProgram.TypeInitializers"/>) run before
 /// the entry point: when there are any, the module's entry point is <c>&lt;Start&gt;</c>, which calls them in order and
 /// then the entry point. An initializer that only sets its type's fields to constants is not compiled at all: the
-/// fields' globals start with those values.
+/// fields' globals start with those values. An array in a static field is a global array that starts with its
+/// elements, constant when nothing writes them (see <see cref="StaticArrays"/>).
 /// </para>
 /// <para>
 /// An interrupt handler (<see cref="IlProgram.InterruptHandlers"/>) is a function like any other. When the target gave
@@ -58,7 +59,7 @@ public static class IlToTir
         ArgumentNullException.ThrowIfNull(program);
 
         var module = new TirModule(program.Assembly.Name);
-        var functions = new ProgramFunctions(module);
+        var functions = new ProgramFunctions(module) { StaticArrays = program.StaticArrays };
 
         // a type initializer that only sets fields to constants becomes their globals' initial values, not code
         var methods = program.Methods.Where(method => !functions.TryFoldInitializer(method)).ToList();

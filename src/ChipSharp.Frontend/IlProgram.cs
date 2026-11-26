@@ -14,6 +14,7 @@ namespace ChipSharp.Frontend;
 public sealed class IlProgram
 {
     private IReadOnlyList<IlMethod>? _typeInitializers;
+    private StaticArrays? _staticArrays;
 
     public IlProgram(IlAssembly assembly, IReadOnlyList<IlMethod> methods)
     {
@@ -54,4 +55,10 @@ public sealed class IlProgram
     /// </summary>
     public IReadOnlyList<IlMethod> TypeInitializers => _typeInitializers ??=
         StaticInitialization.RunOrder(Methods, InterruptHandlers.Select(handler => handler.Method));
+
+    /// <summary>
+    /// The arrays in static fields of <see cref="Methods"/> (see <see cref="Frontend.StaticArrays"/>): constant tables
+    /// and static fixed arrays, globals that need no heap.
+    /// </summary>
+    internal StaticArrays StaticArrays => _staticArrays ??= StaticArrays.Find(Methods);
 }

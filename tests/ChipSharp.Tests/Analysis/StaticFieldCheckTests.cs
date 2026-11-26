@@ -303,10 +303,11 @@ public sealed class StaticFieldCheckTests
         // ratio, color and origin compile: double, and the enums and structs of the program, are supported types (and
         // so is string, for fixed text)
         const string Objects = "classes and objects arrive with M3 (the heap). For now, use structs and static methods.";
-        // an array kept in a static field outlives every method, so it is the "leaves its method" case of stack arrays
-        const string Arrays = "an array that leaves the method that creates it (returned, or stored in a field or in "
-            + "another array) arrives with M3 (the heap). For now, keep each array in the method that creates it; "
-            + "the methods it calls can take it as a parameter.";
+        // an array in a static field needs no heap when its initializer gives it one, once (see StaticArrays); this one
+        // is assigned in Main
+        const string Arrays = "an array in a static field that is assigned again, or anywhere but in its field "
+            + "initializer or static constructor arrives with M3 (the heap). For now, assign it once, where the field "
+            + "is declared (static int[] buffer = new int[16];), and change its elements instead.";
         const string Characters = "characters (char) arrive with M3 (the heap). For now, use whole numbers.";
         Assert.Equal(
         [

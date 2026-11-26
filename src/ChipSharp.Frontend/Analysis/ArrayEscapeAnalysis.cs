@@ -21,7 +21,7 @@ namespace ChipSharp.Frontend.Analysis;
 /// it either. A reference into an array is a reference like any other (see <see cref="ValueTypes"/>), which may go
 /// where references go, but it must not outlive the array: a method returns one only into an array it was given.
 /// </remarks>
-internal static class ArrayEscapeAnalysis
+internal static partial class ArrayEscapeAnalysis
 {
     /// <summary>The problem with the return type of <paramref name="method"/>: an array it returns would outlive it.</summary>
     public static Unsupported? ForReturnType(IlMethod method)
@@ -46,7 +46,7 @@ internal static class ArrayEscapeAnalysis
     public static IReadOnlyDictionary<IlInstruction, Unsupported?> Check(IlMethod method)
     {
         ArgumentNullException.ThrowIfNull(method);
-        return method.Body is { Instructions.Count: > 0 } body ? new Flow(method, body).Run() : new Dictionary<IlInstruction, Unsupported?>();
+        return Check(method, statics: null);
     }
 
     private enum Kind
@@ -151,7 +151,7 @@ internal static class ArrayEscapeAnalysis
     /// One method's analysis. Where an array can come from is a number: the IL offset of its <c>newarr</c>, or -1 - i
     /// for argument i. Variables are the locals, then the arguments.
     /// </summary>
-    private sealed class Flow
+    private sealed partial class Flow
     {
         private readonly IlMethod _method;
         private readonly IlMethodBody _body;
@@ -170,10 +170,11 @@ internal static class ArrayEscapeAnalysis
         private Dictionary<int, HashSet<int>> _liveAfter = [];
         private bool _record;
 
-        public Flow(IlMethod method, IlMethodBody body)
+        public Flow(IlMethod method, IlMethodBody body, StaticArrays? statics)
         {
             _method = method;
             _body = body;
+            _statics = statics;
             _blocks = IlBlock.Split(body);
             _blockOf = new int[body.Instructions.Count];
             for (var b = 0; b < _blocks.Count; b++)
@@ -271,7 +272,8 @@ internal static class ArrayEscapeAnalysis
             var variables = new ImmutableHashSet<int>[_isArray.Length];
             for (var v = 0; v < variables.Length; v++)
             {
-                variables[v] = _isArray[v] && v >= _localCount ? [-1 - (v - _localCount)] : [];
+                // an argument may be an array, or a reference into one, of the caller's
+                variables[v] = IsFollowed(v) && v >= _localCount ? [-1 - (v - _localCount)] : [];
             }
 
             return new State([], variables);
@@ -452,6 +454,10 @@ internal static class ArrayEscapeAnalysis
                     stack.Add(Value.Of(Kind.Null, [instruction.Offset]));
                     break;
 
+                case IlOpCode.Ldsfld or IlOpCode.Stsfld or IlOpCode.Ldsflda when StaticArrayField(instruction) is { } field:
+                    AccessStaticArray(instruction, field, Pop, stack);
+                    break;
+
                 case IlOpCode.Ldlen:
                     Verdict(instruction, Pop().Kind == Kind.Null ? Unsupported.NullArrays : null);
                     stack.Add(Value.Other);
@@ -470,7 +476,9 @@ internal static class ArrayEscapeAnalysis
                 case (>= IlOpCode.Stelem_I and <= IlOpCode.Stelem_Ref) or IlOpCode.Stelem:
                     var element = Pop();
                     Element(instruction, Pop());
-                    NotNull(instruction, Pop());
+                    var written = Pop();
+                    NotNull(instruction, written);
+                    Written(written);
                     if (element.Kind == Kind.Array)
                     {
                         Verdict(instruction, Unsupported.ArrayEscapes);
@@ -487,16 +495,16 @@ internal static class ArrayEscapeAnalysis
 
                 case (>= IlOpCode.Stind_Ref and <= IlOpCode.Stind_R8) or IlOpCode.Stind_I or IlOpCode.Stobj:
                     Consumed(Pop(), instruction);
-                    Pop();
+                    Written(Pop());
                     break;
 
                 case IlOpCode.Initobj:
-                    Pop();
+                    Written(Pop());
                     break;
 
                 case IlOpCode.Cpobj:
                     Pop();
-                    Pop();
+                    Written(Pop());
                     break;
 
                 case IlOpCode.Ldfld or IlOpCode.Ldflda or IlOpCode.Stfld:
@@ -592,6 +600,11 @@ internal static class ArrayEscapeAnalysis
             var stored = instruction.OpCode == IlOpCode.Stfld ? pop() : Value.Other;
             var owner = pop(); // the struct, or a reference to it
             Consumed(stored, instruction);
+            if (instruction.OpCode == IlOpCode.Stfld)
+            {
+                Written(owner);
+            }
+
             if (instruction.OpCode == IlOpCode.Ldflda)
             {
                 stack.Add(owner.Kind == Kind.ElementAddress ? owner : Value.Other);
@@ -636,6 +649,11 @@ internal static class ArrayEscapeAnalysis
                     && StackArrays.TryMapType(parameter, _method.Assembly, out _))
                 {
                     NotNull(instruction, value);
+                }
+
+                if (callee is not null)
+                {
+                    Passed(instruction, callee, pops - 1 - i, value);
                 }
 
                 if (value.Kind == Kind.Array && IsComparison(instruction.OpCode))
