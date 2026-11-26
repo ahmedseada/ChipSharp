@@ -45,6 +45,34 @@ use instead. `tir` shows the program in TIR. `build` compiles it for a target (`
 
 The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` / `CHIPSHARP_LLVM_BIN`).
 
+## Raspberry Pi Pico
+
+A program for the Pico references `src/ChipSharp.Hardware` (pins, timing, registers):
+
+```csharp
+using ChipSharp.Hardware;
+
+Pin.Output(25);                 // the Pico's LED
+while (true)
+{
+    Pin.Toggle(25);
+    Timing.DelayMilliseconds(500);
+}
+```
+
+```powershell
+cd examples\pico-blink
+dotnet build -c Release
+..\..\src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe build bin\Release\net10.0\PicoBlink.dll -t pico
+```
+
+That makes `chipsharp-output\pico\PicoBlink.uf2`. To run it:
+- **Simulator**: `node tools\rp2040-sim\run.mjs <file.uf2> --ms 3000` prints every pin change and every line written
+  to UART0 (one-time setup: `cd tools\rp2040-sim; npm ci`). The Pico tests use it and skip when it isn't set up.
+- **Wokwi** (wokwi.com): start a Raspberry Pi Pico project, press F1, "Upload Firmware and Start Simulation".
+- **The real board**: hold BOOTSEL while plugging it in, then copy the `.uf2` onto the drive that appears.
+  `Console.WriteLine` goes to UART0 (GPIO 0, 115200 baud).
+
 ## Roadmap
 
 | Milestone | Goal |
@@ -52,9 +80,8 @@ The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` / 
 | Skeleton (done) | Contracts, registry, target files with inheritance |
 | M0 wave 0–1 (done) | TIR; reading IL; the LLVM code generator; the PC target, clang toolchain, runtime and samples |
 | M0 wave 2 (done) | IL to TIR; the whole-program pass and `chipsharp check`; every sample runs end to end and matches .NET |
-| M0 wave 3 (done) | The build pipeline: `chipsharp build` and `chipsharp tir` |
-| M0 | Compile simple C# to a PC program through LLVM; compare every result with real .NET |
-| M1 | Blink an LED on the Raspberry Pi Pico (RP2040) |
+| M0 (done) | Compile simple C# to a PC program through LLVM; every sample matches real .NET |
+| M1 (done in the simulator) | Blink the Raspberry Pi Pico's LED; every sample also runs on the simulated RP2040 and matches .NET over UART0 |
 | M2 | Structs, `Span<T>`, interrupts, UART: the Restricted tier |
 | M3 | Classes, heap, garbage collector, strings, interfaces, generics: the Full tier |
 | M4 | ESP32-C5 (RISC-V) |

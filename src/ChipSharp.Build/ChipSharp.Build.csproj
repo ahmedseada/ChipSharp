@@ -3,6 +3,9 @@
   <ItemGroup>
     <ProjectReference Include="..\ChipSharp.Backend.Llvm\ChipSharp.Backend.Llvm.csproj" />
     <ProjectReference Include="..\ChipSharp.Frontend\ChipSharp.Frontend.csproj" />
+    <ProjectReference Include="..\ChipSharp.Image.Uf2\ChipSharp.Image.Uf2.csproj" />
+    <ProjectReference Include="..\ChipSharp.Runtime.ArmV6M\ChipSharp.Runtime.ArmV6M.csproj" />
+    <ProjectReference Include="..\ChipSharp.Runtime.Rp2040\ChipSharp.Runtime.Rp2040.csproj" />
     <ProjectReference Include="..\ChipSharp.Runtime.Windows\ChipSharp.Runtime.Windows.csproj" />
     <ProjectReference Include="..\ChipSharp.Targets\ChipSharp.Targets.csproj" />
     <ProjectReference Include="..\ChipSharp.Toolchain.Clang\ChipSharp.Toolchain.Clang.csproj" />

@@ -1,5 +1,8 @@
 using ChipSharp.Abstractions;
 using ChipSharp.Backend.Llvm;
+using ChipSharp.Image.Uf2;
+using ChipSharp.Runtime.ArmV6M;
+using ChipSharp.Runtime.Rp2040;
 using ChipSharp.Runtime.Windows;
 using ChipSharp.Toolchain.Clang;
 
@@ -33,6 +36,9 @@ public static class DefaultComponents
         return new ComponentRegistry()
             .Register(new LlvmCodeGenerator())      // backend "llvm"
             .Register(new ClangToolchain(clang))    // toolchain "clang"
-            .Register(new WindowsX64Runtime());     // runtime "windows-x64"
+            .Register(new WindowsX64Runtime())      // runtime "windows-x64"
+            .Register(new ArmV6MRuntime())          // runtime "armv6m": any Cortex-M0/M0+ chip
+            .Register(new Rp2040Runtime())          // runtime "rp2040": Raspberry Pi Pico
+            .Register(new Uf2ImageFormat());        // image "uf2"
     }
 }

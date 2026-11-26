@@ -480,3 +480,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# ChipSharp build output (chipsharp build writes chipsharp-output\<target>\ in the current folder)
+chipsharp-output/
