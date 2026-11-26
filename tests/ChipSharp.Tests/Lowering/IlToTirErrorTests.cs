@@ -73,7 +73,10 @@ public sealed class IlToTirErrorTests
         Assert.Equal("Test.dll: Program.Main() at IL_0002: the call to System.Math.Abs(int32) is not supported: " +
             "of the library, M0 can call System.Console.WriteLine(), System.Console.WriteLine(int), " +
             "System.Console.WriteLine(uint), System.Console.WriteLine(long), System.Console.WriteLine(ulong), " +
-            "System.Console.WriteLine(bool).", error.Message);
+            "System.Console.WriteLine(bool), ChipSharp.Hardware.Gpio.SetOutput(int), ChipSharp.Hardware.Gpio.SetInput(int), " +
+            "ChipSharp.Hardware.Gpio.Write(int, bool), ChipSharp.Hardware.Gpio.Toggle(int), ChipSharp.Hardware.Gpio.Read(int), " +
+            "ChipSharp.Hardware.Delay.Milliseconds(int), ChipSharp.Hardware.Delay.Microseconds(int), " +
+            "ChipSharp.Hardware.Registers.Read(uint), ChipSharp.Hardware.Registers.Write(uint, uint).", error.Message);
     }
 
     [Fact]

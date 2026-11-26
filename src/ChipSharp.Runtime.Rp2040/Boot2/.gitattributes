@@ -1,0 +1,2 @@
+# boot2 as assembled from pico-sdk: raw bytes, never line-ending converted
+*.bin binary

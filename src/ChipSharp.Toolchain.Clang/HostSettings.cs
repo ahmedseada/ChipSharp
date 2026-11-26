@@ -22,8 +22,9 @@ internal sealed record HostSettings(
         if (target.Settings["link"] is not JsonObject link)
         {
             throw Error(
-                "it has no 'link' settings, so it is not a PC program the clang toolchain can link. " +
-                "Linking programs for chips arrives with milestone M1; until then, build for the target 'host'.");
+                "it has no 'link' settings, so the clang toolchain does not know how to link for it. A PC target " +
+                "needs 'link.entry' and 'link.subsystem' (see host.json); a chip target needs 'link.entry', and " +
+                "'link.code' and 'link.data' naming its memory regions (see armv6m.json).");
         }
 
         if (!target.IsComplete)

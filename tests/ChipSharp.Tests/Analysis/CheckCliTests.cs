@@ -72,7 +72,7 @@ public sealed class CheckCliTests : IDisposable
         Assert.Equal(1, exitCode);
         Assert.Equal($"""
             error: {dll} uses C# that M0 does not compile yet (4 problems):
-              Program.Main() at IL_000e (call): the library method System.Math.Abs(int) is not available in M0. M0 supports these library calls: System.Console.WriteLine(), System.Console.WriteLine(int), System.Console.WriteLine(uint), System.Console.WriteLine(long), System.Console.WriteLine(ulong), System.Console.WriteLine(bool).
+              Program.Main() at IL_000e (call): the library method System.Math.Abs(int) is not available in M0. M0 supports these library calls: System.Console.WriteLine(), System.Console.WriteLine(int), System.Console.WriteLine(uint), System.Console.WriteLine(long), System.Console.WriteLine(ulong), System.Console.WriteLine(bool), ChipSharp.Hardware.Gpio.SetOutput(int), ChipSharp.Hardware.Gpio.SetInput(int), ChipSharp.Hardware.Gpio.Write(int, bool), ChipSharp.Hardware.Gpio.Toggle(int), ChipSharp.Hardware.Gpio.Read(int), ChipSharp.Hardware.Delay.Milliseconds(int), ChipSharp.Hardware.Delay.Microseconds(int), ChipSharp.Hardware.Registers.Read(uint), ChipSharp.Hardware.Registers.Write(uint, uint).
               Program.Half(int), return type (double): floating point (float/double) arrives after M0. For now, use whole numbers: int, long and the other integer types.
               Program.Half(int) at IL_0001 (conv.r8): floating point (float/double) arrives after M0. For now, use whole numbers: int, long and the other integer types.
               Program.Half(int) at IL_0002 (ldc.r8): floating point (float/double) arrives after M0. For now, use whole numbers: int, long and the other integer types.

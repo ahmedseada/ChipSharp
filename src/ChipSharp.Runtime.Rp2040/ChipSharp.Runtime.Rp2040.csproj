@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The runtime of RP2040 programs (Raspberry Pi Pico): boot2, clocks, GPIO, timer delays, UART0 console -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+    <ProjectReference Include="..\ChipSharp.Runtime.ArmV6M\ChipSharp.Runtime.ArmV6M.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="rp2040_runtime.c" LogicalName="rp2040_runtime.c" />
+    <!-- boot2 as pico-sdk's sources assemble it (Boot2/*.S, BSD-3-Clause, Boot2/LICENSE.TXT); padded at build time -->
+    <EmbeddedResource Include="Boot2\boot2_w25q080.bin" LogicalName="boot2_w25q080.bin" />
+    <EmbeddedResource Include="Boot2\boot2_generic_03h.bin" LogicalName="boot2_generic_03h.bin" />
+  </ItemGroup>
+</Project>

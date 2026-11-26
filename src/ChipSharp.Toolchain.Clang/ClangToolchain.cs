@@ -6,11 +6,17 @@ using ChipSharp.Abstractions;
 namespace ChipSharp.Toolchain.Clang;
 
 /// <summary>
-/// Builds PC programs (target "host") with clang and lld: writes the generated files (LLVM IR, the runtime's C)
-/// into the output folder, makes an import library for each DLL in the target's "link.imports" with
-/// llvm-dlltool, and compiles and links everything into one program with no C runtime.
-/// The flags come from the target ("triple", "clang.flags", "link.entry", "link.subsystem", "link.machine"),
-/// the output folder and tool locations from <see cref="ClangToolchainOptions"/> or the environment variables
+/// Builds programs with clang and lld: writes the generated files (LLVM IR, the runtime's C and assembly) into the
+/// output folder and compiles and links everything into one program with no C runtime.
+/// <list type="bullet">
+/// <item>A PC program (target "host"): an import library is made for each DLL in the target's "link.imports" with
+/// llvm-dlltool; the flags come from "triple", "clang.flags", "link.entry", "link.subsystem", "link.machine".</item>
+/// <item>A chip program (e.g. target "pico"), when the target's "link.code" names a memory region: an .elf linked
+/// by ld.lld with a linker script made from the target's memory regions (<see cref="LinkerScript"/>); the flags come
+/// from "triple", "cpu", "clang.flags", "link.entry", "link.code", "link.data", "link.stack", "link.vectorAlign",
+/// "link.head" and "link.flags".</item>
+/// </list>
+/// The output folder and tool locations come from <see cref="ClangToolchainOptions"/> or the environment variables
 /// <see cref="ClangVariable"/> and <see cref="LlvmBinVariable"/>.
 /// </summary>
 /// <remarks>
@@ -55,30 +61,29 @@ public sealed class ClangToolchain : IToolchain
     /// <summary>The llvm-dlltool this toolchain runs, or an error that says where it looked.</summary>
     public string FindDlltool() => _tools.Dlltool(FindClang());
 
+    /// <summary>
+    /// Builds a chip program (an .elf) when the target's "link" settings name a memory region for the code
+    /// ("link.code"), and a PC program otherwise.
+    /// </summary>
     public LinkedBinary Build(GeneratedCode code, TargetDescription target)
     {
         ArgumentNullException.ThrowIfNull(code);
         ArgumentNullException.ThrowIfNull(target);
 
-        var settings = HostSettings.Read(target);
-        CheckFileNames(code.Files);
-        var sources = code.Files
-            .Where(f => SourceExtensions.Contains(Path.GetExtension(f.FileName)))
-            .Select(f => f.FileName)
-            .ToList();
-        if (sources.Count == 0)
-        {
-            throw new ChipSharpException(
-                "There is nothing to compile: the generated code has no .ll, .c or .S file.");
-        }
+        return ChipSettings.Applies(target) ? BuildChipProgram(code, target) : BuildPcProgram(code, target);
+    }
 
+    private LinkedBinary BuildPcProgram(GeneratedCode code, TargetDescription target)
+    {
+        var settings = HostSettings.Read(target);
+        var sources = Sources(code);
         var clang = FindClang();
-        var folder = Path.GetFullPath(
-            Options.OutputFolder ?? Path.Combine(Path.GetTempPath(), "chipsharp", Path.GetRandomFileName()));
+        var folder = OutputFolder();
         WriteFiles(code.Files, folder);
         var libraries = MakeImportLibraries(settings, clang, folder);
 
-        var program = ProgramFileName(code, settings);
+        var isWindows = settings.Triple.Contains("windows", StringComparison.OrdinalIgnoreCase);
+        var program = isWindows ? ProgramName(code) + ".exe" : ProgramName(code);
         List<string> arguments =
         [
             $"--target={settings.Triple}",
@@ -90,6 +95,73 @@ public sealed class ClangToolchain : IToolchain
             $"-Wl,-entry:{settings.Entry}",
             $"-Wl,-subsystem:{settings.Subsystem}",
         ];
+        return Link(clang, arguments, folder, program);
+    }
+
+    /// <summary>
+    /// A chip program: the linker script (<see cref="LinkerScript"/>) is written next to the sources as
+    /// &lt;name&gt;.ld, and ld.lld also writes a map of where everything went, &lt;name&gt;.map.
+    /// </summary>
+    private LinkedBinary BuildChipProgram(GeneratedCode code, TargetDescription target)
+    {
+        var settings = ChipSettings.Read(target);
+        var sources = Sources(code);
+        var clang = FindClang();
+        var folder = OutputFolder();
+        var name = ProgramName(code);
+        var script = new GeneratedFile(name + ".ld", LinkerScript.Write(target, settings));
+        if (code.Files.Any(f => string.Equals(f.FileName, script.FileName, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new ChipSharpException(
+                $"A generated file is named '{script.FileName}', the name of the linker script of this build.");
+        }
+
+        WriteFiles([.. code.Files, script], folder);
+
+        var program = name + ".elf";
+        List<string> arguments =
+        [
+            $"--target={settings.Triple}",
+            .. settings.Cpu is null ? Array.Empty<string>() : [$"-mcpu={settings.Cpu}"],
+            .. settings.ClangFlags,
+            .. Options.ExtraFlags,
+            .. sources,
+            "-o", program,
+            "-Xlinker", $"--script={script.FileName}",
+            "-Xlinker", $"-Map={name}.map",
+            .. settings.LinkFlags.SelectMany(flag => new[] { "-Xlinker", flag }),
+        ];
+        return Link(clang, arguments, folder, program);
+    }
+
+    /// <summary>The files clang compiles; checks the names of all of them first.</summary>
+    private static List<string> Sources(GeneratedCode code)
+    {
+        CheckFileNames(code.Files);
+        var sources = code.Files
+            .Where(f => SourceExtensions.Contains(Path.GetExtension(f.FileName)))
+            .Select(f => f.FileName)
+            .ToList();
+        return sources.Count > 0
+            ? sources
+            : throw new ChipSharpException(
+                "There is nothing to compile: the generated code has no .ll, .c or .S file.");
+    }
+
+    private string OutputFolder() => Path.GetFullPath(
+        Options.OutputFolder ?? Path.Combine(Path.GetTempPath(), "chipsharp", Path.GetRandomFileName()));
+
+    /// <summary>E.g. Square: the program name option, else the first .ll file's name, else "program".</summary>
+    private string ProgramName(GeneratedCode code)
+    {
+        var firstIr = code.Files.FirstOrDefault(f => f.FileName.EndsWith(".ll", StringComparison.OrdinalIgnoreCase));
+        return Options.ProgramName
+            ?? (firstIr is null ? "program" : Path.GetFileNameWithoutExtension(firstIr.FileName));
+    }
+
+    /// <summary>Runs clang to compile and link; returns the program it wrote.</summary>
+    private static LinkedBinary Link(string clang, IReadOnlyList<string> arguments, string folder, string program)
+    {
         Run(clang, arguments, folder);
 
         var path = Path.Combine(folder, program);
@@ -97,16 +169,6 @@ public sealed class ClangToolchain : IToolchain
             ? new LinkedBinary(path)
             : throw new ChipSharpException(
                 $"clang reported success but wrote no '{path}':\n  {CommandLine(clang, arguments)}");
-    }
-
-    /// <summary>E.g. Square.exe: the program name option, else the first .ll file's name, else "program".</summary>
-    private string ProgramFileName(GeneratedCode code, HostSettings settings)
-    {
-        var firstIr = code.Files.FirstOrDefault(f => f.FileName.EndsWith(".ll", StringComparison.OrdinalIgnoreCase));
-        var name = Options.ProgramName
-            ?? (firstIr is null ? "program" : Path.GetFileNameWithoutExtension(firstIr.FileName));
-        var isWindows = settings.Triple.Contains("windows", StringComparison.OrdinalIgnoreCase);
-        return isWindows ? name + ".exe" : name;
     }
 
     private static void CheckFileNames(IReadOnlyList<GeneratedFile> files)
