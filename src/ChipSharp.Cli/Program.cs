@@ -1,14 +1,17 @@
-// chipsharp: the command line. For now it knows the target files and reads IL:
+// chipsharp: the command line. For now it knows the target files, reads IL and checks programs:
 //
 //   chipsharp targets list           every target
 //   chipsharp targets show <name>    one target, with everything it inherits merged in
 //   chipsharp il <assembly.dll>      the IL of every method, ildasm style
+//   chipsharp check <assembly.dll>   whether M0 can compile the program, and the methods it uses
 //
 // Options: --targets <folder>  (default: $env:CHIPSHARP_TARGETS, then the targets folder next to chipsharp.exe)
 //          --method <name>     with il: only the methods with this display name, e.g. Program.Main
 
 using System.Globalization;
 using ChipSharp.Abstractions;
+using ChipSharp.Frontend;
+using ChipSharp.Frontend.Analysis;
 using ChipSharp.Frontend.Il;
 using ChipSharp.Targets;
 
@@ -57,6 +60,21 @@ try
             return 0;
         }
 
+        case ["check", var path]:
+        {
+            var program = WholeProgramPass.Analyze(IlAssembly.Load(path));
+            var count = program.Methods.Count == 1
+                ? "1 method"
+                : string.Create(CultureInfo.InvariantCulture, $"{program.Methods.Count} methods");
+            Console.WriteLine($"{path}: supported by {SupportedSubset.Milestone}. The program uses {count}, entry point first:");
+            foreach (var method in program.Methods)
+            {
+                Console.WriteLine($"  {CSharpNames.Method(method)}");
+            }
+
+            return 0;
+        }
+
         default:
         {
             Console.WriteLine("""
@@ -64,6 +82,7 @@ try
                   chipsharp targets list
                   chipsharp targets show <name>
                   chipsharp il <assembly.dll> [--method <name>]
+                  chipsharp check <assembly.dll>
                 options:
                   --targets <folder>   where the target files are (or set CHIPSHARP_TARGETS)
                   --method <name>      il: only the methods with this display name, e.g. Program.Main
