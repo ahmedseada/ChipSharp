@@ -81,9 +81,8 @@ public static partial class WholeProgramPass
     /// <summary>Adds a problem to <paramref name="problems"/> for every place in <paramref name="method"/> that M0 cannot compile.</summary>
     private static void CheckMethod(IlMethod method, List<Problem> problems)
     {
-        // bool, whole numbers, structs, enums and references (ForAnyType), or an array on the stack
         Unsupported? ForType(IlType type) =>
-            StackArrays.TryMapType(type, out _) ? null : ForAnyType(type, method.Assembly, method);
+            SupportedSubset.TryMapType(type, method.Assembly, out _) ? null : ForAnyType(type, method.Assembly, method);
 
         void CheckSignature(IlType type, string what)
         {

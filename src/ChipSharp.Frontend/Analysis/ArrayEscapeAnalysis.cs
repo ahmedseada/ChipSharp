@@ -13,11 +13,13 @@ namespace ChipSharp.Frontend.Analysis;
 /// <remarks>
 /// It follows what each value on IL's evaluation stack, each local and each argument can be (an abstract
 /// interpretation of the method's IL, block by block until nothing changes): an array, and which <c>newarr</c>
-/// instructions and array parameters it can come from; the address of an element (from <c>ldelema</c>); a long
-/// index converted by <c>conv.ovf.i</c>; a field token for an array initializer; a constant; or anything else. Then
-/// it gives a verdict on every instruction that has to do with arrays: null when it is fine, or what is not supported.
-/// A method that takes an array parameter is checked by the same rule for it, so an array passed down never outlives
-/// the method that made it either.
+/// instructions and array parameters it can come from; a reference into an array (the address of an element from
+/// <c>ldelema</c>, of a field of one, or a ref local or ref return that holds one); a long index converted by
+/// <c>conv.ovf.i</c>; a field token for an array initializer; a constant; or anything else. Then it gives a verdict on
+/// every instruction that has to do with arrays: null when it is fine, or what is not supported. A method that takes
+/// an array parameter is checked by the same rule for it, so an array passed down never outlives the method that made
+/// it either. A reference into an array is a reference like any other (see <see cref="ValueTypes"/>), which may go
+/// where references go, but it must not outlive the array: a method returns one only into an array it was given.
 /// </remarks>
 internal static class ArrayEscapeAnalysis
 {
@@ -25,7 +27,7 @@ internal static class ArrayEscapeAnalysis
     public static Unsupported? ForReturnType(IlMethod method)
     {
         ArgumentNullException.ThrowIfNull(method);
-        return StackArrays.TryMapType(method.ReturnType, out _) ? Unsupported.ArrayEscapes : null;
+        return StackArrays.TryMapType(method.ReturnType, method.Assembly, out _) ? Unsupported.ArrayEscapes : null;
     }
 
     /// <summary>Adds the problem of <see cref="ForReturnType"/>, if there is one, to <paramref name="problems"/>.</summary>
@@ -55,7 +57,11 @@ internal static class ArrayEscapeAnalysis
         /// <summary>An array; <see cref="Value.Set"/> holds where it can come from (see <see cref="Flow"/>).</summary>
         Array,
 
-        /// <summary>The address of an element (ldelema); <see cref="Value.Set"/> holds where its array can come from.</summary>
+        /// <summary>
+        /// A reference into an array: the address of an element (ldelema) or of a field of one (ldflda), or a ref
+        /// local, ref argument or ref return that may hold one; <see cref="Value.Set"/> holds where its array can come
+        /// from. Other references (to a local, an argument, a static field) are <see cref="Other"/>.
+        /// </summary>
         ElementAddress,
 
         /// <summary>A long index converted to native int (conv.ovf.i); <see cref="Value.Set"/> holds the conversions.</summary>
@@ -74,17 +80,27 @@ internal static class ArrayEscapeAnalysis
 
         public static Value OfConstant(long constant) => new(Kind.Constant, constant, []);
 
-        public static Value Merge(Value a, Value b) => a.Kind != b.Kind ? Other : a.Kind switch
+        /// <summary>
+        /// What either can be. A reference into an array that meets another reference where ways join (C#'s
+        /// <c>ref c ? ref a[0] : ref x</c>) may still be into the array; any other two kinds are just something.
+        /// </summary>
+        public static Value Merge(Value a, Value b) => (a.Kind, b.Kind) switch
         {
-            Kind.Constant => a.Constant == b.Constant ? a : Other,
-            Kind.Other => a,
+            (Kind.ElementAddress, Kind.Other) => a,
+            (Kind.Other, Kind.ElementAddress) => b,
+            _ when a.Kind != b.Kind => Other,
+            (Kind.Constant, _) => a.Constant == b.Constant ? a : Other,
+            (Kind.Other, _) => a,
             _ => a with { Set = a.Set.Union(b.Set) },
         };
 
         public bool SameAs(Value other) => Kind == other.Kind && Constant == other.Constant && Set.SetEquals(other.Set);
     }
 
-    /// <summary>The stack, and the arrays each local and argument (after the locals) can hold, at one point.</summary>
+    /// <summary>
+    /// The stack, and the arrays each local and argument (after the locals) can hold, or for a reference (a ref local,
+    /// a ref parameter) the arrays it can point into, at one point.
+    /// </summary>
     private sealed class State(List<Value> stack, ImmutableHashSet<int>[] variables)
     {
         public List<Value> Stack { get; } = stack;
@@ -134,6 +150,9 @@ internal static class ArrayEscapeAnalysis
         private readonly int[] _blockOf;
         private readonly int _localCount;
         private readonly bool[] _isArray;
+
+        /// <summary>The variables that are references (ref locals, ref parameters, a struct method's this).</summary>
+        private readonly bool[] _isReference;
         private readonly Dictionary<IlInstruction, Unsupported?> _verdicts = [];
         private readonly Dictionary<IlInstruction, Unsupported> _pending = [];
         private readonly HashSet<int> _good = [];
@@ -160,11 +179,22 @@ internal static class ArrayEscapeAnalysis
             var thisCount = method.Signature.HasThis ? 1 : 0;
             _isArray =
             [
-                .. body.Locals.Select(local => StackArrays.TryMapType(local.Type, out _)),
+                .. body.Locals.Select(local => StackArrays.TryMapType(local.Type, method.Assembly, out _)),
                 .. Enumerable.Repeat(false, thisCount),
-                .. method.Parameters.Select(parameter => StackArrays.TryMapType(parameter.Type, out _)),
+                .. method.Parameters.Select(parameter => StackArrays.TryMapType(parameter.Type, method.Assembly, out _)),
+            ];
+            _isReference =
+            [
+                .. body.Locals.Select(local => IsReference(local.Type)),
+                .. Enumerable.Repeat(ValueTypes.IsStructInstanceMethod(method), thisCount),
+                .. method.Parameters.Select(parameter => IsReference(parameter.Type)),
             ];
         }
+
+        private static bool IsReference(IlType type) => ValueTypes.WithoutModifiers(type) is IlByRefType;
+
+        /// <summary>True for a variable the analysis follows: an array, or a reference that may point into one.</summary>
+        private bool IsFollowed(int variable) => _isArray[variable] || _isReference[variable];
 
         public Dictionary<IlInstruction, Unsupported?> Run()
         {
@@ -257,8 +287,9 @@ internal static class ArrayEscapeAnalysis
             or IlOpCode.Leave_S or IlOpCode.Endfinally or IlOpCode.Endfilter);
 
         /// <summary>
-        /// For every newarr, the array variables that are live after it: read later, on some path, before they are
-        /// written. The array an earlier run of the newarr made must not be in one of them.
+        /// For every newarr, the array and reference variables that are live after it: read later, on some path,
+        /// before they are written. The array an earlier run of the newarr made (or an element of it) must not be in
+        /// one of them.
         /// </summary>
         private Dictionary<int, HashSet<int>> FindLiveVariablesAfterNewarr()
         {
@@ -309,7 +340,7 @@ internal static class ArrayEscapeAnalysis
             // from the variables live after the instruction to those live before it
             void Step(HashSet<int> live, IlInstruction instruction)
             {
-                if (Variable(instruction) is not var (v, reads) || !_isArray[v])
+                if (Variable(instruction) is not var (v, reads) || !IsFollowed(v))
                 {
                     return;
                 }
@@ -435,22 +466,28 @@ internal static class ArrayEscapeAnalysis
                     Consumed(element, instruction);
                     break;
 
-                case (>= IlOpCode.Ldind_I1 and <= IlOpCode.Ldind_Ref) or (>= IlOpCode.Stind_Ref and <= IlOpCode.Stind_R8)
-                    or IlOpCode.Stind_I:
-                    var stores = instruction.OpCode is >= IlOpCode.Stind_Ref and <= IlOpCode.Stind_R8 or IlOpCode.Stind_I;
-                    var value = stores ? Pop() : Value.Other;
-                    var address = Pop();
-                    if (SupportedSubset.OpCodes.Contains(instruction.OpCode))
-                    {
-                        Verdict(instruction, address.Kind == Kind.ElementAddress ? null : Unsupported.References);
-                    }
+                // through a reference, which may point into an array: what is read or written there stays there
+                case (>= IlOpCode.Ldind_I1 and <= IlOpCode.Ldind_Ref) or IlOpCode.Ldobj:
+                    Pop();
+                    stack.Add(Value.Other);
+                    break;
 
-                    Consumed(value, instruction);
-                    if (!stores)
-                    {
-                        stack.Add(Value.Other);
-                    }
+                case (>= IlOpCode.Stind_Ref and <= IlOpCode.Stind_R8) or IlOpCode.Stind_I or IlOpCode.Stobj:
+                    Consumed(Pop(), instruction);
+                    Pop();
+                    break;
 
+                case IlOpCode.Initobj:
+                    Pop();
+                    break;
+
+                case IlOpCode.Cpobj:
+                    Pop();
+                    Pop();
+                    break;
+
+                case IlOpCode.Ldfld or IlOpCode.Ldflda or IlOpCode.Stfld:
+                    InstanceField(instruction, Pop, stack);
                     break;
 
                 case IlOpCode.Conv_Ovf_I or IlOpCode.Conv_Ovf_I_Un:
@@ -490,7 +527,7 @@ internal static class ArrayEscapeAnalysis
                     break;
 
                 case IlOpCode.Call when instruction.Operand is IlMethodOperand { Method: var callee }
-                    && StackArrays.IsEmptyArray(callee, out _):
+                    && StackArrays.IsEmptyArray(callee, _method.Assembly, out _):
                     Verdict(instruction, null);
                     stack.Add(Value.Of(Kind.Array, []));
                     break;
@@ -500,12 +537,15 @@ internal static class ArrayEscapeAnalysis
                     {
                         if (reads)
                         {
-                            stack.Add(_isArray[variable] ? Value.Of(Kind.Array, state.Variables[variable]) : Value.Other);
+                            var held = state.Variables[variable];
+                            stack.Add(_isArray[variable] ? Value.Of(Kind.Array, held)
+                                : _isReference[variable] && !held.IsEmpty ? Value.Of(Kind.ElementAddress, held)
+                                : Value.Other);
                         }
                         else
                         {
                             var stored = Pop();
-                            state.Variables[variable] = stored.Kind == Kind.Array ? stored.Set : [];
+                            state.Variables[variable] = stored.Kind is Kind.Array or Kind.ElementAddress ? stored.Set : [];
                             if (stored.Kind is Kind.Index or Kind.Token)
                             {
                                 Consumed(stored, instruction);
@@ -524,22 +564,52 @@ internal static class ArrayEscapeAnalysis
         private static bool IsAddress(IlInstruction instruction) =>
             instruction.OpCode is IlOpCode.Ldloca or IlOpCode.Ldloca_S or IlOpCode.Ldarga or IlOpCode.Ldarga_S;
 
-        /// <summary>Any other instruction: what arrays it may not take, then its effect on the stack.</summary>
-        private void Generally(IlInstruction instruction, Func<Value> pop, List<Value> stack)
+        /// <summary>
+        /// ldfld, ldflda and stfld: an array kept in a field leaves its method (<see cref="FieldOfArrays"/>); the field
+        /// of a struct that is an element of an array is in the array too, so its address is a reference into it.
+        /// </summary>
+        private void InstanceField(IlInstruction instruction, Func<Value> pop, List<Value> stack)
         {
-            var field = (instruction.Operand as IlFieldOperand)?.Field.FieldType;
-            var callee = (instruction.Operand as IlMethodOperand)?.Method;
-            if (field is not null && StackArrays.TryMapType(field, out _))
+            FieldOfArrays(instruction);
+            var stored = instruction.OpCode == IlOpCode.Stfld ? pop() : Value.Other;
+            var owner = pop(); // the struct, or a reference to it
+            Consumed(stored, instruction);
+            if (instruction.OpCode == IlOpCode.Ldflda)
+            {
+                stack.Add(owner.Kind == Kind.ElementAddress ? owner : Value.Other);
+            }
+            else if (instruction.OpCode == IlOpCode.Ldfld)
+            {
+                stack.Add(Value.Other);
+            }
+        }
+
+        /// <summary>An instruction on a field that holds arrays: an array there outlives the method that made it.</summary>
+        private void FieldOfArrays(IlInstruction instruction)
+        {
+            if ((instruction.Operand as IlFieldOperand)?.Field.FieldType is { } type
+                && StackArrays.TryMapType(type, _method.Assembly, out _))
             {
                 Verdict(instruction, Unsupported.ArrayEscapes);
             }
-            else if (callee?.DeclaringType is IlMultiDimensionalArrayType)
+        }
+
+        /// <summary>
+        /// Any other instruction: what arrays it may not take, then its effect on the stack. A method that returns a
+        /// reference may return one into an array (or an element) it was given, so its result can point into those.
+        /// </summary>
+        private void Generally(IlInstruction instruction, Func<Value> pop, List<Value> stack)
+        {
+            var callee = (instruction.Operand as IlMethodOperand)?.Method;
+            FieldOfArrays(instruction);
+            if (callee?.DeclaringType is IlMultiDimensionalArrayType)
             {
                 Verdict(instruction, Unsupported.MultiDimensionalArrays);
             }
 
             // the return type, the callee's parameter or the library method (not available) says whether it is fine
             var checkedElsewhere = instruction.OpCode == IlOpCode.Ret || callee is not null;
+            var given = ImmutableHashSet<int>.Empty;
             var (pops, pushes) = IlStackEffects.Of(instruction, _method);
             for (var i = 0; i < pops; i++)
             {
@@ -552,11 +622,22 @@ internal static class ArrayEscapeAnalysis
                 {
                     Consumed(value, instruction);
                 }
+                else if (instruction.OpCode == IlOpCode.Ret && value.Kind == Kind.ElementAddress
+                    && value.Set.Any(origin => origin >= 0))
+                {
+                    // a ref return into an array this method made (not one it was given)
+                    Verdict(instruction, Unsupported.ArrayEscapes);
+                }
+                else
+                {
+                    given = given.Union(value.Set);
+                }
             }
 
+            var returnsReference = callee is not null && IsReference(callee.ReturnType) && !given.IsEmpty;
             for (var i = 0; i < pushes; i++)
             {
-                stack.Add(Value.Other);
+                stack.Add(returnsReference ? Value.Of(Kind.ElementAddress, given) : Value.Other);
             }
         }
 
@@ -566,8 +647,9 @@ internal static class ArrayEscapeAnalysis
 
         /// <summary>
         /// A value taken by an instruction that has no use for what it is: a converted index or a field token is then
-        /// not where it may be used; an array or an element address leaves what arrays on the stack allow, unless the
-        /// instruction is unsupported anyway (and reported as it is).
+        /// not where it may be used; an array leaves what arrays on the stack allow, and a reference into one is
+        /// turned into something else than a reference (a pointer or a number: unsafe code), unless the instruction is
+        /// unsupported anyway (and reported as it is).
         /// </summary>
         private void Consumed(Value value, IlInstruction instruction)
         {
@@ -584,7 +666,7 @@ internal static class ArrayEscapeAnalysis
 
                 case Kind.ElementAddress when SupportedSubset.OpCodes.Contains(instruction.OpCode)
                     && instruction.OpCode != IlOpCode.Pop:
-                    Verdict(instruction, Unsupported.References);
+                    Verdict(instruction, Unsupported.UnsafeCode);
                     break;
             }
         }
@@ -594,9 +676,9 @@ internal static class ArrayEscapeAnalysis
         private void NewArray(IlInstruction instruction, Value length, State state)
         {
             var element = StackArrays.ElementType(instruction);
-            if (element is null || !StackArrays.TryMapElementType(element, out _))
+            if (element is null || !StackArrays.TryMapElementType(element, _method.Assembly, out _))
             {
-                Verdict(instruction, element is null ? null : Unsupported.ForArrayElement(element, _method.Assembly));
+                Verdict(instruction, element is null ? null : WholeProgramPass.ForArrayElement(element, _method.Assembly));
                 Consumed(length, instruction);
                 state.Stack.Add(Value.Other);
                 return;
@@ -639,9 +721,9 @@ internal static class ArrayEscapeAnalysis
             }
 
             var element = StackArrays.ElementType(instruction);
-            if (element is not null && !StackArrays.TryMapElementType(element, out _))
+            if (element is not null && !StackArrays.TryMapElementType(element, _method.Assembly, out _))
             {
-                Verdict(instruction, Unsupported.ForArrayElement(element, _method.Assembly));
+                Verdict(instruction, WholeProgramPass.ForArrayElement(element, _method.Assembly));
             }
             else if (SupportedSubset.OpCodes.Contains(instruction.OpCode))
             {
@@ -670,7 +752,7 @@ internal static class ArrayEscapeAnalysis
             }
 
             var supported = _verdicts.TryGetValue(newarr, out var verdict) && verdict is null;
-            var size = StackArrays.ElementType(newarr) is { } element ? ElementSize(element) : 0;
+            var size = StackArrays.ElementType(newarr) is { } element ? ElementSize(element, _method.Assembly) : 0;
             var length = _lengths.GetValueOrDefault(newarr.Offset);
             var filled = array.Kind == Kind.Array && size > 0 && length <= int.MaxValue / size
                 && _method.Assembly.ReadFieldData(field, (int)length * size) is not null;
@@ -685,17 +767,21 @@ internal static class ArrayEscapeAnalysis
             _good.UnionWith(token.Set);
         }
 
-        /// <summary>The bytes an element of an array initializer's data takes: 0 for nint, whose size the data cannot know.</summary>
-        private static int ElementSize(IlType element) => StackArrays.TryMapElementType(element, out var type)
-            ? type.Kind switch
-            {
-                TirTypeKind.I8 => 1,
-                TirTypeKind.I16 => 2,
-                TirTypeKind.I32 => 4,
-                TirTypeKind.I64 => 8,
-                _ => 0,
-            }
-            : 0;
+        /// <summary>
+        /// The bytes an element of an array initializer's data takes: 0 for nint, whose size the data cannot know, and
+        /// for a struct, which C# never fills from data.
+        /// </summary>
+        private static int ElementSize(IlType element, IlAssembly assembly) =>
+            StackArrays.TryMapElementType(element, assembly, out var type)
+                ? type.Kind switch
+                {
+                    TirTypeKind.I8 => 1,
+                    TirTypeKind.I16 => 2,
+                    TirTypeKind.I32 => 4,
+                    TirTypeKind.I64 => 8,
+                    _ => 0,
+                }
+                : 0;
 
         /// <summary>
         /// A conversion or a field token, whose verdict is <paramref name="unsupported"/> unless every value it makes

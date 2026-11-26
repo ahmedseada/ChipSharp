@@ -264,12 +264,12 @@ internal sealed partial class MethodLowering
                 break;
 
             case IlOpCode.Neg:
-                var negated = Pop();
+                var negated = PopNumber();
                 Push(_ir.Binary(TirBinaryOp.Sub, Zero(negated.Type), negated));
                 break;
 
             case IlOpCode.Not:
-                var inverted = Pop();
+                var inverted = PopNumber();
                 Push(_ir.Binary(TirBinaryOp.Xor, inverted, _ir.Const(inverted.Type, -1)));
                 break;
 
@@ -467,7 +467,7 @@ internal sealed partial class MethodLowering
     /// </summary>
     private void Switch()
     {
-        var value = Pop();
+        var value = PopNumber();
         var targets = ((IlSwitchOperand)_instruction.Operand!).Targets.Select(BlockAt).ToList();
         var next = Next();
         Leave([.. targets, next]);
@@ -500,7 +500,7 @@ internal sealed partial class MethodLowering
     private void Shift(TirBinaryOp op)
     {
         var amount = PopValue();
-        var value = Pop();
+        var value = PopNumber();
         if (amount.Type == TirType.I64)
         {
             throw Error($"{_instruction.Name} shifts by an int64; IL takes an int32 or native int amount");
@@ -758,14 +758,19 @@ internal sealed partial class MethodLowering
 
     private void Push(StackValue value) => _stack.Add(value);
 
-    /// <summary>Pops a number and writes it as TIR if it was still pending.</summary>
-    private TirValue Pop()
+    /// <summary>
+    /// Pops a number (an int32, int64 or native int) and writes it as TIR if it was still pending. The other values
+    /// have their own: <see cref="PopArray"/>, <see cref="PopAddress"/> and <see cref="PopReference"/>; a struct is
+    /// popped with <see cref="PopValue"/> and passed on whole.
+    /// </summary>
+    private TirValue PopNumber()
     {
         var value = PopValue();
         CheckNumber(value);
         return Materialize(value);
     }
 
+    /// <summary>Pops a value of any type, as it is (a number may still be pending).</summary>
     private StackValue PopValue()
     {
         if (_stack.Count == 0)

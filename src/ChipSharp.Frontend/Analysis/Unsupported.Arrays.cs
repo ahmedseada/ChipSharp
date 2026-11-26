@@ -40,27 +40,12 @@ internal sealed partial record Unsupported
     public string Arrival { get; private init; } = $"after {SupportedSubset.Milestone}";
 
     /// <summary>
-    /// What an array of <paramref name="elementType"/> stands for when it is not supported where it is: an array
-    /// kept where it outlives its method (a field, a return value) when the element type is supported, else what
-    /// the element type needs (floating point, structs, ...). Null for a generic parameter's T[].
+    /// What an array type stands for where it is not supported: its elements' problem (see
+    /// <see cref="WholeProgramPass.ForArrayElement"/>, which knows the program's structs), or a multi-dimensional array.
     /// </summary>
-    public static Unsupported? ForArrayElement(IlType elementType, IlAssembly assembly)
-    {
-        if (StackArrays.TryMapElementType(elementType, out _))
-        {
-            return ArrayEscapes;
-        }
-
-        var element = ForType(elementType, assembly);
-        return elementType is IlArrayType or IlMultiDimensionalArrayType
-            || element == Strings || element == ClassesAndObjects || element == Interfaces || element == Delegates
-            ? ArraysOfReferences
-            : element;
-    }
-
     private static Unsupported? ForArrayType(IlType type, IlAssembly assembly) => type switch
     {
-        IlArrayType array => ForArrayElement(array.ElementType, assembly),
+        IlArrayType array => WholeProgramPass.ForArrayElement(array.ElementType, assembly),
         _ => MultiDimensionalArrays,
     };
 }

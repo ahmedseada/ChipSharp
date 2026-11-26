@@ -82,6 +82,146 @@ public sealed class ArrayRejectionTests
     }
 
     [Fact]
+    public void Arrays_of_structs_and_enums_and_references_to_elements_that_stay_below_the_array_are_accepted()
+    {
+        // a reference into an array may go down to callees and come back up from them, but not above the array
+        var analysis = Check(Program("""
+            Point[] points = new Point[2];
+            points[0] = new Point { X = 1 };
+            points[1].X = 2;
+            points[1].Move(3);
+            ref Point first = ref points[0];
+            first.X += points.Length;
+            Color[] colors = { Color.Blue, Color.Red };
+            colors[1]++;
+            int[] values = { 3, 1 };
+            Swap(ref values[0], ref values[1]);
+            ref int largest = ref Largest(values);
+            largest = Same(ref values[1]) + Same(ref Pick(true, ref values[0], ref points[1].X));
+            Console.WriteLine(first.X + (int)colors[1] + largest);
+            """, """
+            struct Point
+            {
+                public int X;
+
+                public void Move(int by) => X += by;
+            }
+
+            enum Color : byte { Red, Green, Blue }
+
+            static void Swap(ref int a, ref int b) => (a, b) = (b, a);
+
+            static ref int Largest(int[] values) => ref values[0] > values[1] ? ref values[0] : ref values[1];
+
+            static ref int Pick(bool first, ref int a, ref int b) => ref first ? ref a : ref b;
+
+            static int Same(ref int value) => value;
+            """));
+
+        Assert.True(analysis.IsSupported, analysis.Details);
+    }
+
+    [Fact]
+    public void A_reference_to_an_element_returned_from_the_method_that_makes_the_array_is_rejected()
+    {
+        // directly, through a ref local, through a method that returns the reference it is given, and from either of two
+        var problems = Problems(Program("""
+            Console.WriteLine(Direct() + Kept() + Through() + Either(true));
+            """, """
+            static int shared;
+
+            static ref int Direct()
+            {
+                int[] values = new int[2];
+                return ref values[1];
+            }
+
+            static ref int Kept()
+            {
+                int[] values = new int[2];
+                ref int last = ref values[1];
+                return ref last;
+            }
+
+            static ref int Through()
+            {
+                int[] values = new int[2];
+                return ref Same(ref values[0]);
+            }
+
+            static ref int Either(bool own)
+            {
+                int[] values = new int[2];
+                return ref own ? ref values[0] : ref shared;
+            }
+
+            static ref int Same(ref int value) => ref value;
+            """));
+
+        Assert.Equal(
+        [
+            $"Program.Direct() at IL_000c (ret): {Escapes}",
+            $"Program.Kept() at IL_000c (ret): {Escapes}",
+            $"Program.Through() at IL_0011 (ret): {Escapes}",
+            $"Program.Either(bool) at IL_0017 (ret): {Escapes}",
+        ], problems);
+    }
+
+    [Fact]
+    public void A_reference_to_an_element_of_an_array_made_again_in_a_loop_is_rejected_while_in_use()
+    {
+        var problems = Problems(Program("""
+            int[] first = new int[1];
+            ref int previous = ref first[0];
+            for (int i = 0; i < 3; i++)
+            {
+                int[] current = new int[1];
+                current[0] = previous + 1;
+                previous = ref current[0];
+            }
+
+            Console.WriteLine(previous);
+            """));
+
+        Assert.Equal(["Program.Main() at IL_0012 (newarr): an array made in a loop while the one made there before is "
+            + "still in use arrives with the heap in M3. For now, make the array once, before the loop, and reuse it."],
+            problems);
+    }
+
+    [Fact]
+    public void An_array_of_a_struct_that_cannot_compile_says_what_keeps_the_struct_out()
+    {
+        // a struct that holds an array of itself is no trouble either
+        var problems = Problems(Program("""
+            Person[] people = new Person[2];
+            Node[] nodes = new Node[1];
+            Console.WriteLine(people.Length + nodes.Length);
+            """, """
+            struct Person
+            {
+                public string Name;
+            }
+
+            struct Node
+            {
+                public Node[] Children;
+            }
+            """));
+
+        const string Name = "text strings in the field Program.Person.Name arrive after M0. For now, print numbers "
+            + "and bools with Console.WriteLine.";
+        const string Children = "an array that leaves the method that creates it (returned, or stored in a field or in "
+            + "another array) in the field Program.Node.Children arrives with the heap in M3. For now, keep each array in "
+            + "the method that creates it; the methods it calls can take it as a parameter.";
+        Assert.Equal(
+        [
+            $"Program.Main(), local variable V_0 (Program.Node[]): {Children}",
+            $"Program.Main() at IL_0001 (newarr): {Name}",
+            $"Program.Main() at IL_0007 (newarr): {Children}",
+        ], problems);
+    }
+
+    [Fact]
     public void A_returned_array_is_rejected_at_the_return_type()
     {
         var problems = Problems(Program("Console.WriteLine(Make().Length + Same(new int[1]).Length);", """

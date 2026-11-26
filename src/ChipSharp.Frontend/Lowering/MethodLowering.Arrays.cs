@@ -22,7 +22,10 @@ internal sealed partial class MethodLowering
     /// <summary>The slot of the elements of each newarr of at least one element.</summary>
     private readonly Dictionary<IlInstruction, TirSlot> _elementSlots = [];
 
-    /// <summary>Rejects arrays that break the rule of <see cref="StackArrays"/>, as the whole-program pass does.</summary>
+    /// <summary>
+    /// Rejects arrays that break the rule of <see cref="StackArrays"/>, with the analysis the whole-program pass uses
+    /// (<see cref="ArrayEscapeAnalysis"/>), so the two always agree.
+    /// </summary>
     private void CheckArrays()
     {
         if (ArrayEscapeAnalysis.ForReturnType(_method) is { } returned)
@@ -38,15 +41,17 @@ internal sealed partial class MethodLowering
         }
     }
 
-    /// <summary>True for the instructions <see cref="LowerArrayInstruction"/> translates.</summary>
-    private static bool IsArrayInstruction(IlInstruction instruction) => instruction.OpCode switch
+    /// <summary>
+    /// True for the instructions <see cref="LowerArrayInstruction"/> translates. An element's address (ldelema) is a
+    /// reference like any other: ldind, stind, ldfld and the rest go through it as through a <c>ref</c>.
+    /// </summary>
+    private bool IsArrayInstruction(IlInstruction instruction) => instruction.OpCode switch
     {
         IlOpCode.Newarr or IlOpCode.Ldlen or IlOpCode.Ldelema or IlOpCode.Ldelem or IlOpCode.Stelem
             or (>= IlOpCode.Ldelem_I1 and <= IlOpCode.Ldelem_Ref) or (>= IlOpCode.Stelem_I and <= IlOpCode.Stelem_Ref)
-            or (>= IlOpCode.Ldind_I1 and <= IlOpCode.Ldind_Ref) or (>= IlOpCode.Stind_Ref and <= IlOpCode.Stind_R8)
-            or IlOpCode.Stind_I or IlOpCode.Conv_Ovf_I or IlOpCode.Conv_Ovf_I_Un or IlOpCode.Ldtoken => true,
+            or IlOpCode.Conv_Ovf_I or IlOpCode.Conv_Ovf_I_Un or IlOpCode.Ldtoken => true,
         IlOpCode.Call => instruction.Operand is IlMethodOperand { Method: var method }
-            && (StackArrays.IsInitializeArray(method) || StackArrays.IsEmptyArray(method, out _)),
+            && (StackArrays.IsInitializeArray(method) || StackArrays.IsEmptyArray(method, _method.Assembly, out _)),
         _ => false,
     };
 
@@ -79,17 +84,6 @@ internal sealed partial class MethodLowering
                 _ir.Store(ElementAddress(type), FromStack(value, type, ilType, "the array element"));
                 break;
 
-            case (>= IlOpCode.Ldind_I1 and <= IlOpCode.Ldind_Ref):
-                (type, ilType) = Element();
-                Push(ToStack(_ir.Load(type, PopAddress()), ilType));
-                break;
-
-            case (>= IlOpCode.Stind_Ref and <= IlOpCode.Stind_R8) or IlOpCode.Stind_I:
-                (type, ilType) = Element();
-                value = PopValue();
-                _ir.Store(PopAddress(), FromStack(value, type, ilType, "the array element"));
-                break;
-
             case IlOpCode.Conv_Ovf_I or IlOpCode.Conv_Ovf_I_Un:
                 // only ever an index or a constant that fits (the rule of StackArrays): an index stays as it is, and
                 // the bounds check, which reads it as unsigned, stops the program for every value conv.ovf.i rejects
@@ -102,7 +96,7 @@ internal sealed partial class MethodLowering
                 Push(StackValue.OfConstant(TirType.NativeInt, 0));
                 break;
 
-            case IlOpCode.Call when StackArrays.IsEmptyArray(((IlMethodOperand)instruction.Operand!).Method, out _):
+            case IlOpCode.Call when StackArrays.IsEmptyArray(((IlMethodOperand)instruction.Operand!).Method, _method.Assembly, out _):
                 Push(_ir.Zero(StackArrays.ArrayType));
                 break;
 
@@ -200,9 +194,10 @@ internal sealed partial class MethodLowering
         return (StorageType(ilType), ilType);
     }
 
-    private TirType StorageType(IlType element) => StackArrays.TryMapElementType(element, out var type)
+    private TirType StorageType(IlType element) => StackArrays.TryMapElementType(element, _method.Assembly, out var type)
         ? type
-        : throw Error($"an array of {element} is not supported yet (arrays hold bools and whole numbers)");
+        : throw Error($"an array of {element} is not supported yet (arrays hold bools, whole numbers, and the " +
+            "structs and enums of the program)");
 
     /// <summary>
     /// Pops an index and an array; checks the index, which stops the program when it is outside the array; gives the
@@ -210,7 +205,7 @@ internal sealed partial class MethodLowering
     /// </summary>
     private TirElementAddress ElementAddress(TirType element)
     {
-        var index = Pop();
+        var index = PopNumber();
         var array = PopArray();
         if (index.Type.Kind is not (TirTypeKind.I32 or TirTypeKind.NativeInt or TirTypeKind.I64))
         {
@@ -221,13 +216,12 @@ internal sealed partial class MethodLowering
         return _ir.ElementAddress(_ir.Call(_program.Arrays.Data, array), element, index);
     }
 
+    /// <summary>Pops an array value: a <c>ChipSharp.Array</c>.</summary>
     private TirValue PopArray()
     {
-        var array = Pop();
+        var array = PopValue();
         return array.Type == StackArrays.ArrayType
-            ? array
-            : throw Error($"{_instruction.Name} needs an array, but the evaluation stack has {LoweringErrors.StackTypeName(array.Type)}");
+            ? Materialize(array)
+            : throw Error($"{_instruction.Name} needs an array, but the evaluation stack has {StackName(array.Type)}");
     }
-
-    // PopAddress (an element's address off the stack) is shared with the struct code, in MethodLowering.Structs.cs.
 }

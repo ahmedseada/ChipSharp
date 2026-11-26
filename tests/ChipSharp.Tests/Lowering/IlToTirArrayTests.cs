@@ -337,6 +337,57 @@ public sealed class IlToTirArrayTests
     }
 
     [Fact]
+    public void An_array_of_structs_holds_them_in_its_slot_and_an_elements_field_is_reached_through_its_address()
+    {
+        var function = Lowered.Function("""
+            struct Point
+            {
+                public int X;
+                public short Y;
+            }
+
+            class Program
+            {
+                static int Run()
+                {
+                    Point[] points = new Point[2];
+                    points[1].Y = 5;
+                    ref Point first = ref points[0];
+                    first.X = points[1].Y;
+                    return first.X;
+                }
+            }
+            """, "Program.Run");
+
+        Assert.Contains("""
+              $array_IL_0001: [2 x Point]
+            IL_0000:
+              %0 = zero [2 x Point]
+              store $array_IL_0001, %0
+            """.ReplaceLineEndings("\n"), function);
+        Assert.Contains("""
+              %6 = call ptr ChipSharp.Array.Data(%4)
+              %7 = elementaddr Point %6, %5
+              %8 = const i16 5
+              %9 = fieldaddr Point %7, Y
+              store i16 [%9], %8
+            """.ReplaceLineEndings("\n"), function);
+
+        // ref Point first = ref points[0] is the element's address, and its field is reached through it
+        Assert.Contains("""
+              %13 = elementaddr Point %12, %11
+            """.ReplaceLineEndings("\n"), function);
+        Assert.EndsWith("""
+              %21 = fieldaddr Point %13, X
+              store i32 [%21], %20
+              %22 = fieldaddr Point %13, X
+              %23 = load i32 [%22]
+              return %23
+
+            """.ReplaceLineEndings("\n"), function);
+    }
+
+    [Fact]
     public void Breaking_the_rule_is_an_error_of_the_translation_too()
     {
         const string Source = """
@@ -349,6 +400,12 @@ public sealed class IlToTirArrayTests
                     int[] values = new int[n];
                     return values.Length;
                 }
+
+                static ref int First()
+                {
+                    int[] values = new int[2];
+                    return ref values[0];
+                }
             }
             """;
 
@@ -357,6 +414,8 @@ public sealed class IlToTirArrayTests
             Error(Source, "C.Make").Message);
         Assert.Equal("Test.dll: C.Sized(int32) at IL_0001: newarr: an array whose size is known only when the program " +
             "runs arrives with the heap in M3.", Error(Source, "C.Sized").Message);
+        Assert.Equal("Test.dll: C.First() at IL_000c: ret: an array that leaves the method that creates it (returned, " +
+            "or stored in a field or in another array) arrives with the heap in M3.", Error(Source, "C.First").Message);
     }
 
     private static string Function(string name) =>

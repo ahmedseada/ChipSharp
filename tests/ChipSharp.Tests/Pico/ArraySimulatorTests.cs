@@ -20,7 +20,7 @@ public sealed class ArraySimulatorTests : IDisposable
     }
 
     public static TheoryData<string> ProgramNames =>
-        ["ElementTypes", "Initializers", "Callees", "Loops", "Indexes", "BigArrays"];
+        ["ElementTypes", "Initializers", "Callees", "Loops", "Indexes", "BigArrays", "StructsAndReferences"];
 
     [SimulatorTheory]
     [MemberData(nameof(ProgramNames))]
@@ -33,6 +33,7 @@ public sealed class ArraySimulatorTests : IDisposable
             "Callees" => ArrayPrograms.Callees,
             "Loops" => ArrayPrograms.Loops,
             "Indexes" => ArrayPrograms.Indexes,
+            "StructsAndReferences" => ArrayPrograms.StructsAndReferences,
             _ => ArrayPrograms.BigArrays,
         };
         var dotnet = await HostRun.RunOnDotnetAsync(CSharpCompiler.Compile(source, name), name, Path.Combine(_scratch, "dotnet"));

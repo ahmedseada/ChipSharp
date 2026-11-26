@@ -44,6 +44,10 @@ public sealed class ArrayProgramTests : IDisposable
     public Task Big_arrays_on_the_stack_link_and_run() => PrintsWhatDotnetPrints(ArrayPrograms.BigArrays);
 
     [HostFact]
+    public Task Arrays_of_structs_and_enums_and_references_to_elements_work_like_dotnet() =>
+        PrintsWhatDotnetPrints(ArrayPrograms.StructsAndReferences);
+
+    [HostFact]
     public async Task An_index_outside_the_array_stops_the_program_with_IndexOutOfRangeException_and_exit_code_1()
     {
         var index = 0;
@@ -360,6 +364,130 @@ internal static class ArrayPrograms
                 long[] longs = new long[3000];
                 longs[2999] = 5;
                 Console.WriteLine(longs[0] + longs[2999] + longs.Length);
+            }
+        }
+        """;
+
+    public const string StructsAndReferences = """
+        using System;
+
+        enum Color : byte { Red, Green, Blue }
+
+        enum Level { Low = -1, Mid = 5, High = 1000 }
+
+        struct Point
+        {
+            public int X;
+            public int Y;
+
+            public Point(int x, int y)
+            {
+                X = x;
+                Y = y;
+            }
+
+            public void Move(int by) => X += by;
+
+            public readonly int Sum => X + Y;
+        }
+
+        struct Pixel
+        {
+            public Point At;
+            public Color Color;
+            public bool On;
+        }
+
+        class Program
+        {
+            static void Swap(ref int a, ref int b)
+            {
+                int t = a;
+                a = b;
+                b = t;
+            }
+
+            static ref int Largest(int[] values)
+            {
+                int best = 0;
+                for (int i = 1; i < values.Length; i++)
+                {
+                    if (values[i] > values[best]) best = i;
+                }
+
+                return ref values[best];
+            }
+
+            static ref int Pick(bool first, ref int a, ref int b)
+            {
+                if (first) return ref a;
+                return ref b;
+            }
+
+            static int SumX(Point[] points)
+            {
+                int sum = 0;
+                foreach (Point p in points) sum += p.X;
+                return sum;
+            }
+
+            static void Shift(Point[] points, int by)
+            {
+                for (int i = 0; i < points.Length; i++) points[i].Move(by);
+            }
+
+            static void Main()
+            {
+                Point[] points = new Point[3];
+                points[0] = new Point(1, 2);
+                points[1].X = 10;
+                points[2] = points[0];
+                points[2].Y += 5;
+                Shift(points, 3);
+                Console.WriteLine(SumX(points));
+                Console.WriteLine(points[2].Sum);
+                Console.WriteLine(points[1].Y);
+
+                Pixel[] pixels = new Pixel[2];
+                pixels[1].At.Y = 7;
+                pixels[1].Color = Color.Blue;
+                pixels[1].On = true;
+                Pixel copy = pixels[1];
+                copy.At.Y++;
+                Console.WriteLine(pixels[1].At.Y + copy.At.Y);
+                Console.WriteLine((int)pixels[1].Color);
+                Console.WriteLine(pixels[0].On);
+                Console.WriteLine(pixels[1].On);
+
+                Color[] colors = { Color.Green, Color.Blue, Color.Red };
+                colors[2] = colors[0];
+                colors[0]++;
+                Console.WriteLine((int)colors[0] + (int)colors[2]);
+                Level[] levels = { Level.High, Level.Low, Level.Mid };
+                int total = 0;
+                foreach (Level level in levels) total += (int)level;
+                Console.WriteLine(total);
+
+                int[] values = { 4, 9, 2 };
+                Swap(ref values[0], ref values[2]);
+                Console.WriteLine(values[0] * 10 + values[2]);
+                ref int largest = ref Largest(values);
+                largest = -1;
+                Console.WriteLine(values[1]);
+                int outside = 3;
+                ref int chosen = ref Pick(false, ref values[0], ref outside);
+                chosen += 100;
+                Console.WriteLine(outside);
+                Pick(true, ref values[0], ref outside) = 50;
+                Console.WriteLine(values[0]);
+                ref Point second = ref points[1];
+                second.Y = 42;
+                Console.WriteLine(points[1].Y);
+
+                bool[] flags = new bool[2];
+                ref bool flag = ref flags[1];
+                flag = !flag;
+                Console.WriteLine(flags[1]);
             }
         }
         """;

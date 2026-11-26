@@ -41,8 +41,34 @@ public static partial class WholeProgramPass
         };
 
     /// <summary>
+    /// What an array of <paramref name="elementType"/> stands for when it is not supported where it is: an array
+    /// kept where it outlives its method (a field, a return value) when arrays hold such elements (see
+    /// <see cref="StackArrays"/>), else what the element type needs: floating point, a field of a struct, ... (an
+    /// array of references is one feature). Null for a generic parameter's T[].
+    /// </summary>
+    internal static Unsupported? ForArrayElement(IlType elementType, IlAssembly assembly)
+    {
+        if (StackArrays.TryMapElementType(elementType, assembly, out _))
+        {
+            return Unsupported.ArrayEscapes;
+        }
+
+        if (elementType is IlArrayType or IlMultiDimensionalArrayType)
+        {
+            return Unsupported.ArraysOfReferences;
+        }
+
+        var element = ForAnyType(StackArrays.Primitive(elementType), assembly);
+        return element == Unsupported.Strings || element == Unsupported.ClassesAndObjects
+            || element == Unsupported.Interfaces || element == Unsupported.Delegates
+            ? Unsupported.ArraysOfReferences
+            : element;
+    }
+
+    /// <summary>
     /// Why a struct of the program cannot be compiled, or null when it can (or is an enum). A field of an unsupported
-    /// type is that type's problem, naming the field: "text strings in the field Person.Name".
+    /// type is that type's problem, naming the field: "text strings in the field Person.Name". An array in a field
+    /// outlives the method that made it, whatever its elements are (they may be this very struct).
     /// </summary>
     private static Unsupported? ForStruct(IlTypeDefinition type)
     {
@@ -63,7 +89,9 @@ public static partial class WholeProgramPass
             { Kind: StructProblemKind.FixedBuffer } => Unsupported.UnsafeCode,
             { Kind: StructProblemKind.RefField } => Unsupported.RefFields,
             { Kind: StructProblemKind.FieldType, Field: { } field } problem =>
-                ForAnyType(field.Type, type.Assembly) is { } unsupported
+                (ValueTypes.WithoutModifiers(field.Type) is IlArrayType
+                    ? Unsupported.ArrayEscapes
+                    : ForAnyType(field.Type, type.Assembly)) is { } unsupported
                     ? unsupported with { What = $"{unsupported.What} in the field {problem.FieldName}" }
                     : Unsupported.TypeNamed(problem.StructName),
             var problem => Unsupported.TypeNamed(problem.StructName),

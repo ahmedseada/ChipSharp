@@ -24,8 +24,7 @@ internal static class LoweringErrors
     /// </summary>
     public static TirType MapType(IlMethod method, IlType type, string subject)
     {
-        // bool, whole numbers, structs, enums and references, or an array on the stack
-        if (ValueTypes.TryMapType(type, method.Assembly, out var tirType) || StackArrays.TryMapType(type, out tirType))
+        if (SupportedSubset.TryMapType(type, method.Assembly, out var tirType))
         {
             return tirType;
         }

@@ -49,21 +49,34 @@ public static class SupportedSubset
         IlOpCode.Conv_U1, IlOpCode.Conv_U2, IlOpCode.Conv_U4, IlOpCode.Conv_U8, IlOpCode.Conv_U,
         IlOpCode.Ceq, IlOpCode.Cgt, IlOpCode.Cgt_Un, IlOpCode.Clt, IlOpCode.Clt_Un,
 
-        // arrays on the stack: see StackArrays, whose rule the whole-program pass checks for each of these
+        // arrays on the stack: see StackArrays, whose rule the whole-program pass checks for each of these (an
+        // element's address from ldelema is a reference, which ldind, stind and the field instructions above go through)
         IlOpCode.Newarr, IlOpCode.Ldlen, IlOpCode.Ldelema,
         IlOpCode.Ldelem_I1, IlOpCode.Ldelem_U1, IlOpCode.Ldelem_I2, IlOpCode.Ldelem_U2, IlOpCode.Ldelem_I4,
         IlOpCode.Ldelem_U4, IlOpCode.Ldelem_I8, IlOpCode.Ldelem_I, IlOpCode.Ldelem,
         IlOpCode.Stelem_I1, IlOpCode.Stelem_I2, IlOpCode.Stelem_I4, IlOpCode.Stelem_I8, IlOpCode.Stelem_I,
         IlOpCode.Stelem,
-        IlOpCode.Ldind_I1, IlOpCode.Ldind_U1, IlOpCode.Ldind_I2, IlOpCode.Ldind_U2, IlOpCode.Ldind_I4,
-        IlOpCode.Ldind_U4, IlOpCode.Ldind_I8, IlOpCode.Ldind_I,
-        IlOpCode.Stind_I1, IlOpCode.Stind_I2, IlOpCode.Stind_I4, IlOpCode.Stind_I8, IlOpCode.Stind_I,
         IlOpCode.Conv_Ovf_I, IlOpCode.Conv_Ovf_I_Un, IlOpCode.Ldtoken,
     }.ToFrozenSet();
 
     /// <summary>
-    /// The TIR type for a parameter, local or return type M0 supports: bool, the whole numbers of every width
-    /// (TIR types carry no sign; signed and unsigned share one), nint/nuint, and void. Anything else is unsupported.
+    /// The TIR type of a parameter, local or return type of a method of <paramref name="assembly"/>: a value
+    /// (<see cref="ValueTypes.TryMapType"/>: a primitive below, or a struct, enum or reference of the program) or an
+    /// array on the stack (<see cref="StackArrays.TryMapType"/>). This is the one test of whether such a type is
+    /// supported: the whole-program pass and the IL-to-TIR translation both ask it. (Whether an array may be returned
+    /// is the rule of <see cref="StackArrays"/>, which they check apart.)
+    /// </summary>
+    public static bool TryMapType(IlType type, IlAssembly assembly, [NotNullWhen(true)] out TirType? tirType)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        ArgumentNullException.ThrowIfNull(assembly);
+        return ValueTypes.TryMapType(type, assembly, out tirType) || StackArrays.TryMapType(type, assembly, out tirType);
+    }
+
+    /// <summary>
+    /// The TIR type of a primitive type M0 supports: bool, the whole numbers of every width (TIR types carry no sign;
+    /// signed and unsigned share one), nint/nuint, and void. The other types a program may use build on these: see
+    /// <see cref="TryMapType(IlType, IlAssembly, out TirType?)"/>.
     /// </summary>
     public static bool TryMapType(IlType type, [NotNullWhen(true)] out TirType? tirType)
     {

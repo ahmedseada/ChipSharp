@@ -13,8 +13,11 @@ namespace ChipSharp.Frontend;
 /// The rule (checked by the whole-program pass, and again by the IL-to-TIR translation): an array may be kept in
 /// locals, indexed, measured (<c>.Length</c>) and passed as an argument to the program's own methods, which run
 /// while the method that made it still runs. It may not be returned, stored in a field or in another array, or
-/// passed to a library method. A method that takes an array parameter obeys the same rule for it. An array made
-/// again in a loop reuses its memory, so the one made there before must no longer be in use.
+/// passed to a library method. A method that takes an array parameter obeys the same rule for it. A reference to an
+/// element (<c>ref a[i]</c>) obeys it too: it may be kept in a ref local and passed as a <c>ref</c> argument, but not
+/// returned from the method that made the array, also not through a method that returns the <c>ref</c> it was given.
+/// An array made again in a loop reuses its memory, so the one made there before (or a reference to one of its
+/// elements) must no longer be in use.
 /// </para>
 /// <para>
 /// The representation: an array value (on IL's evaluation stack, in a local, in a parameter) is a
@@ -25,13 +28,15 @@ namespace ChipSharp.Frontend;
 /// with <see cref="IndexOutOfRange"/> rather than touch memory outside the array.
 /// </para>
 /// <para>
-/// The element types are those of <see cref="SupportedSubset.TryMapType"/> but void. A bool element takes one byte
-/// (an i8 holding 0 or 1), as IL's <c>ldelem.u1</c> and <c>stelem.i1</c> read and write it.
+/// The element types are the values of <see cref="ValueTypes.TryMapType"/>: bool, the whole numbers, and the enums
+/// and structs of the program (not void, and not references). A bool element takes one byte (an i8 holding 0 or 1),
+/// as IL's <c>ldelem.u1</c> and <c>stelem.i1</c> read and write it.
 /// </para>
 /// <para>
 /// The instructions (in <see cref="SupportedSubset.OpCodes"/>): newarr, ldlen, ldelem, stelem and ldelema in their
-/// integer forms; ldind and stind on an element's address (C# writes <c>a[i] += 1</c> through ldelema); conv.ovf.i
-/// and conv.ovf.i.un only as the conversion of a long index; ldtoken only for an array initializer's data.
+/// integer and type-token forms; conv.ovf.i and conv.ovf.i.un only as the conversion of a long index; ldtoken only
+/// for an array initializer's data. The address of an element (ldelema) is a reference like any other (see
+/// <see cref="ValueTypes"/>): C# writes <c>a[i] += 1</c> as ldind and stind through it, <c>a[i].X = 1</c> as stfld.
 /// </para>
 /// </remarks>
 public static class StackArrays
@@ -52,23 +57,28 @@ public static class StackArrays
     /// <summary>The field of <see cref="ArrayType"/> with the number of elements.</summary>
     public const int LengthField = 1;
 
-    /// <summary>The TIR type of a parameter or local of type <paramref name="type"/>: <see cref="ArrayType"/> for an
-    /// array of an element type arrays support.</summary>
-    public static bool TryMapType(IlType type, [NotNullWhen(true)] out TirType? tirType)
+    /// <summary>
+    /// The TIR type of a parameter or local of type <paramref name="type"/>: <see cref="ArrayType"/> for an array of an
+    /// element type arrays support. <paramref name="assembly"/> is the program's, which defines its structs and enums.
+    /// </summary>
+    public static bool TryMapType(IlType type, IlAssembly assembly, [NotNullWhen(true)] out TirType? tirType)
     {
         ArgumentNullException.ThrowIfNull(type);
-        tirType = type is IlArrayType array && TryMapElementType(array.ElementType, out _) ? ArrayType : null;
+        tirType = type is IlArrayType array && TryMapElementType(array.ElementType, assembly, out _) ? ArrayType : null;
         return tirType is not null;
     }
 
     /// <summary>
     /// The TIR type an element of type <paramref name="elementType"/> has in memory: the type
-    /// <see cref="SupportedSubset.TryMapType"/> gives it, except that a bool is an i8. Not void.
+    /// <see cref="ValueTypes.TryMapType"/> gives it (a struct or an enum of <paramref name="assembly"/> too), except
+    /// that a bool is an i8. Not void, and not a reference.
     /// </summary>
-    public static bool TryMapElementType(IlType elementType, [NotNullWhen(true)] out TirType? storage)
+    public static bool TryMapElementType(IlType elementType, IlAssembly assembly, [NotNullWhen(true)] out TirType? storage)
     {
         ArgumentNullException.ThrowIfNull(elementType);
-        storage = SupportedSubset.TryMapType(Primitive(elementType), out var type) && type != TirType.Void
+        ArgumentNullException.ThrowIfNull(assembly);
+        storage = ValueTypes.TryMapType(Primitive(elementType), assembly, out var type)
+            && type != TirType.Void && type != TirType.Ptr
             ? type == TirType.Bool ? TirType.I8 : type
             : null;
         return storage is not null;
@@ -107,26 +117,26 @@ public static class StackArrays
     }
 
     /// <summary>
-    /// The element type an element instruction reads or writes, as a signature names it: int8 for ldelem.i1,
-    /// stelem.i1, ldind.i1 and stind.i1, uint8 for ldelem.u1 and ldind.u1, ..., the type token of ldelem, stelem,
-    /// ldelema and newarr; null for any other instruction.
+    /// The element type an element instruction reads or writes, as a signature names it: int8 for ldelem.i1 and
+    /// stelem.i1, uint8 for ldelem.u1, ..., the type token of ldelem, stelem, ldelema and newarr; null for any other
+    /// instruction (ldind and stind go through a reference, which says what it refers to).
     /// </summary>
     public static IlType? ElementType(IlInstruction instruction)
     {
         ArgumentNullException.ThrowIfNull(instruction);
         return instruction.OpCode switch
         {
-            IlOpCode.Ldelem_I1 or IlOpCode.Stelem_I1 or IlOpCode.Ldind_I1 or IlOpCode.Stind_I1 => IlType.Int8,
-            IlOpCode.Ldelem_U1 or IlOpCode.Ldind_U1 => IlType.UInt8,
-            IlOpCode.Ldelem_I2 or IlOpCode.Stelem_I2 or IlOpCode.Ldind_I2 or IlOpCode.Stind_I2 => IlType.Int16,
-            IlOpCode.Ldelem_U2 or IlOpCode.Ldind_U2 => IlType.UInt16,
-            IlOpCode.Ldelem_I4 or IlOpCode.Stelem_I4 or IlOpCode.Ldind_I4 or IlOpCode.Stind_I4 => IlType.Int32,
-            IlOpCode.Ldelem_U4 or IlOpCode.Ldind_U4 => IlType.UInt32,
-            IlOpCode.Ldelem_I8 or IlOpCode.Stelem_I8 or IlOpCode.Ldind_I8 or IlOpCode.Stind_I8 => IlType.Int64,
-            IlOpCode.Ldelem_I or IlOpCode.Stelem_I or IlOpCode.Ldind_I or IlOpCode.Stind_I => IlType.NativeInt,
-            IlOpCode.Ldelem_R4 or IlOpCode.Stelem_R4 or IlOpCode.Ldind_R4 or IlOpCode.Stind_R4 => IlType.Float32,
-            IlOpCode.Ldelem_R8 or IlOpCode.Stelem_R8 or IlOpCode.Ldind_R8 or IlOpCode.Stind_R8 => IlType.Float64,
-            IlOpCode.Ldelem_Ref or IlOpCode.Stelem_Ref or IlOpCode.Ldind_Ref or IlOpCode.Stind_Ref => IlType.Object,
+            IlOpCode.Ldelem_I1 or IlOpCode.Stelem_I1 => IlType.Int8,
+            IlOpCode.Ldelem_U1 => IlType.UInt8,
+            IlOpCode.Ldelem_I2 or IlOpCode.Stelem_I2 => IlType.Int16,
+            IlOpCode.Ldelem_U2 => IlType.UInt16,
+            IlOpCode.Ldelem_I4 or IlOpCode.Stelem_I4 => IlType.Int32,
+            IlOpCode.Ldelem_U4 => IlType.UInt32,
+            IlOpCode.Ldelem_I8 or IlOpCode.Stelem_I8 => IlType.Int64,
+            IlOpCode.Ldelem_I or IlOpCode.Stelem_I => IlType.NativeInt,
+            IlOpCode.Ldelem_R4 or IlOpCode.Stelem_R4 => IlType.Float32,
+            IlOpCode.Ldelem_R8 or IlOpCode.Stelem_R8 => IlType.Float64,
+            IlOpCode.Ldelem_Ref or IlOpCode.Stelem_Ref => IlType.Object,
             IlOpCode.Ldelem or IlOpCode.Stelem or IlOpCode.Ldelema or IlOpCode.Newarr =>
                 instruction.Operand is IlTypeOperand { Type: var type } ? Primitive(type) : null,
             _ => null,
@@ -152,14 +162,14 @@ public static class StackArrays
     /// True for <c>Array.Empty&lt;T&gt;()</c> of an element type arrays support, which C# calls for <c>[]</c> and for
     /// a <c>params</c> array given no arguments; <paramref name="elementType"/> is T.
     /// </summary>
-    public static bool IsEmptyArray(IlMethodReference method, [NotNullWhen(true)] out IlType? elementType)
+    public static bool IsEmptyArray(IlMethodReference method, IlAssembly assembly, [NotNullWhen(true)] out IlType? elementType)
     {
         ArgumentNullException.ThrowIfNull(method);
         elementType = method is
         {
             HasThis: false, Name: "Empty", ParameterTypes.Count: 0, GenericArguments: [var element],
             DeclaringType: IlNamedType { Namespace: "System", Name: "Array", IsDefinedInThisAssembly: false },
-        } && TryMapElementType(element, out _)
+        } && TryMapElementType(element, assembly, out _)
             ? element
             : null;
         return elementType is not null;
