@@ -1,0 +1,11 @@
+{
+  // Raspberry Pi Pico: RP2040 with 2 MB flash, LED on GPIO 25
+  "name": "pico",
+  "inherits": "rp2040",
+  "memory": {
+    "flash": { "size": "2M" }
+  },
+  "pins": {
+    "LED": 25
+  }
+}

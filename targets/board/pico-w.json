@@ -1,0 +1,8 @@
+{
+  // Raspberry Pi Pico W: like the Pico, but the LED is wired to the Wi-Fi chip (CYW43), not a GPIO
+  "name": "pico-w",
+  "inherits": "pico",
+  "pins": {
+    "LED": "cyw43:0"
+  }
+}

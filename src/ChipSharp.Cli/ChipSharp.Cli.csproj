@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The chipsharp command -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>chipsharp</AssemblyName>
+    <RootNamespace>ChipSharp.Cli</RootNamespace>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>chipsharp</ToolCommandName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Targets\ChipSharp.Targets.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- ship the target files next to chipsharp.exe -->
+    <None Include="..\..\targets\**\*.json" LinkBase="targets" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The contracts every pluggable part implements, the registry that holds them, and the target model -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Ir\ChipSharp.Ir.csproj" />
+  </ItemGroup>
+</Project>

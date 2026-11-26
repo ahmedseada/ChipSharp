@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ChipSharp.Abstractions/ChipSharp.Abstractions.csproj" />
+    <Project Path="src/ChipSharp.Cli/ChipSharp.Cli.csproj" />
+    <Project Path="src/ChipSharp.Ir/ChipSharp.Ir.csproj" />
+    <Project Path="src/ChipSharp.Targets/ChipSharp.Targets.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ChipSharp.Tests/ChipSharp.Tests.csproj" />
+  </Folder>
+</Solution>

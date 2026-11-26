@@ -1,0 +1,17 @@
+{
+  // ARMv6-M: Cortex-M0 / M0+ (RP2040, STM32F0/G0/C0, PY32F0, ...)
+  "name": "armv6m",
+  "backend": "llvm",
+  "toolchain": "lld",
+  "runtime": "armv6m",
+  "triple": "thumbv6m-none-eabi",
+  "pointerSize": 4,
+  "endian": "little",
+  "capabilities": {
+    "hwMultiply": true,   // 32-bit integer multiply instruction (muls)
+    "hwDivide": false,    // no divide instruction: a / b calls a software routine
+    "fpu": false,         // no float hardware: float math calls __aeabi_fmul and friends
+    "atomics": "none"     // no atomic instructions: briefly disable interrupts instead
+  },
+  "builtins": "compiler-rt:armv6m"
+}
