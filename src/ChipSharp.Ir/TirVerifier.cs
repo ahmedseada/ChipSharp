@@ -29,6 +29,7 @@ public static class TirVerifier
         CheckEntryPoint(module, errors);
         CheckStructNames(module, errors);
         CheckExports(module, errors);
+        CheckTypeDescriptors(module, errors);
         foreach (var function in module.Functions)
         {
             CheckFunction(module, function, errors);
@@ -65,6 +66,43 @@ public static class TirVerifier
         {
             errors.Add($"Module '{module.Name}': {string.Join(" and ", clash.Select(f => $"'{f.Name}'"))} are exported under " +
                 $"one symbol, {clash.Key}; a symbol names one function.");
+        }
+    }
+
+    /// <summary>
+    /// What the program fills in after it made a descriptor: the method tables must hold functions of this module, and an
+    /// interface map name interfaces of it.
+    /// </summary>
+    private static void CheckTypeDescriptors(TirModule module, List<string> errors)
+    {
+        foreach (var type in module.TypeDescriptors)
+        {
+            var where = $"Module '{module.Name}', type {type.Name}";
+            var methods = type.VirtualMethods.Concat(type.Interfaces.SelectMany(entry => entry.Methods));
+            foreach (var foreign in methods.Where(method => method is not null && method.Module != module).Distinct())
+            {
+                errors.Add($"{where}: its method table names '{foreign!.Name}', a function of module '{foreign.Module.Name}'.");
+            }
+
+            if (type.Kind != TirTypeDescriptorKind.Class && (type.VirtualMethods.Count > 0 || type.Interfaces.Count > 0))
+            {
+                errors.Add($"{where}: only a class has virtual methods and interfaces, and this is " +
+                    $"{(type.IsArray ? "an array type" : "an interface")}.");
+            }
+
+            foreach (var entry in type.Interfaces)
+            {
+                if (entry.Interface.Module != module || entry.Interface.Kind != TirTypeDescriptorKind.Interface)
+                {
+                    errors.Add($"{where}: it implements {entry.Interface.Name}, which is not an interface of this module.");
+                }
+            }
+
+            if (type.ElementDescriptor is { } element && (element.Module != module || type.ElementType != TirType.Ref))
+            {
+                errors.Add($"{where}: its element type {element.Name} must be a type of this module, and only an " +
+                    "array of refs has one.");
+            }
         }
     }
 
@@ -216,6 +254,8 @@ public static class TirVerifier
 
             TirConvert { Type.Kind: TirTypeKind.Void } => "convert cannot produce void.",
             TirConvert { Type.Kind: TirTypeKind.Bool } => "convert cannot produce bool; compare with zero (ne) instead.",
+            TirConvert c when c.Value.Type == TirType.Ref || c.Type == TirType.Ref =>
+                "convert does not take or produce ref: a reference to an object is never a number.",
             TirConvert c when c.Value.Type == TirType.Ptr || c.Type == TirType.Ptr =>
                 "convert does not take or produce ptr; use ptrtoint or inttoptr.",
             TirConvert c when c.Value.Type.IsAggregate || c.Type.IsAggregate =>
@@ -230,6 +270,7 @@ public static class TirVerifier
             TirPointerLoad l => AddressProblem(l.Address) ?? PointeeProblem("loads", l.Type, l.Address),
             TirPointerStore s => AddressProblem(s.Address) ?? ConstantProblem(s.Address)
                 ?? PointeeProblem("stores", s.Value.Type, s.Address),
+            TirFieldAddress { Address.Type.Kind: TirTypeKind.Ref } f => ObjectFieldProblem(f) ?? FieldProblem(f),
             TirFieldAddress f => AddressProblem(f.Address) ?? FieldProblem(f),
             TirElementAddress e => AddressProblem(e.Address) ?? ElementProblem(e),
             TirPtrToInt p when p.Address.Type != TirType.Ptr => $"ptrtoint takes a ptr, not {p.Address.Type}.",
@@ -237,6 +278,15 @@ public static class TirVerifier
                 $"ptrtoint produces an integer (i8, i16, i32, i64 or nint), not {p.Type}.",
             TirIntToPtr p when !p.Value.Type.IsInteger =>
                 $"inttoptr takes an integer (i8, i16, i32, i64 or nint), not {p.Value.Type}.",
+
+            TirNewObject n => DescriptorProblem("newobject", n.TypeDescriptor, TirTypeDescriptorKind.Class),
+            TirNewArray n => DescriptorProblem("newarray", n.TypeDescriptor, TirTypeDescriptorKind.Array)
+                ?? (n.Length.Type == TirType.I32 ? null : $"the length is {n.Length.Type}; it must be i32."),
+            TirNullCheck n => ReferenceOperandProblem("nullcheck", n.Reference),
+            TirArrayLength l => ReferenceOperandProblem("arraylength", l.Array),
+            TirArrayData d => ReferenceOperandProblem("arraydata", d.Array) ?? ArrayDataProblem(d),
+            TirTypeOf t => ReferenceOperandProblem("typeof", t.Reference),
+            TirTypeAddress a => DescriptorProblem("typeaddr", a.TypeDescriptor, null),
 
             TirCall c => CallProblem(c),
 
@@ -276,8 +326,48 @@ public static class TirVerifier
         }
 
         /// <summary>An address operand that is not a ptr.</summary>
-        private string? AddressProblem(TirValue address) =>
-            address.Type == TirType.Ptr ? null : $"the address {names.Of(address)} is {address.Type}; it must be ptr.";
+        private string? AddressProblem(TirValue address) => address.Type == TirType.Ptr ? null
+            : address.Type == TirType.Ref
+                ? $"the address {names.Of(address)} is ref, an object, not a ptr: fieldaddr reaches its fields, arraydata " +
+                  "the elements of an array."
+                : $"the address {names.Of(address)} is {address.Type}; it must be ptr.";
+
+        /// <summary>An operand that must be an object (a ref) and is not.</summary>
+        private static string? ReferenceOperandProblem(string instruction, TirValue reference) =>
+            reference.Type == TirType.Ref ? null : $"{instruction} takes an object (ref), not {reference.Type}.";
+
+        /// <summary>A descriptor of another module, or of another kind than <paramref name="kind"/> (null: any kind).</summary>
+        private string? DescriptorProblem(string instruction, TirTypeDescriptor type, TirTypeDescriptorKind? kind)
+        {
+            if (type.Module != module)
+            {
+                return $"{instruction} names type {type.Name} of module '{type.Module.Name}'.";
+            }
+
+            return kind is { } wanted && type.Kind != wanted
+                ? $"{instruction} needs {KindText(wanted)}, and {type.Name} is {KindText(type.Kind)}."
+                : null;
+        }
+
+        private static string KindText(TirTypeDescriptorKind kind) => kind switch
+        {
+            TirTypeDescriptorKind.Class => "a class",
+            TirTypeDescriptorKind.Array => "an array type",
+            _ => "an interface",
+        };
+
+        /// <summary>fieldaddr on an object: the struct must be the object type of a class of the module.</summary>
+        private string? ObjectFieldProblem(TirFieldAddress f) =>
+            module.TypeDescriptors.Any(type => type.ObjectType == f.StructType)
+                ? null
+                : $"{names.Of(f.Address)} is an object (ref), and {f.StructType} is the object type of no class of this " +
+                  "module.";
+
+        /// <summary>arraydata of an element type that no array type of the module has.</summary>
+        private string? ArrayDataProblem(TirArrayData d) =>
+            module.TypeDescriptors.Any(type => type.IsArray && type.ElementType == d.ElementType)
+                ? null
+                : $"no array type of this module has elements of {d.ElementType}.";
 
         /// <summary>
         /// A store into a constant global, where that can be seen: the address is the global's (addr), or an element's
@@ -345,6 +435,7 @@ public static class TirVerifier
             TirGlobalAddress a => a.Global.Type,
             TirFieldAddress f => f.Field?.Type,
             TirElementAddress e => e.ElementType,
+            TirArrayData d => d.ElementType,
             _ => null,
         };
 
@@ -388,7 +479,8 @@ public static class TirVerifier
             var ok = (type.IsInteger && accepts.HasFlag(Accepts.Integers))
                 || (type.IsFloat && accepts.HasFlag(Accepts.Floats))
                 || (type == TirType.Bool && accepts.HasFlag(Accepts.Bool))
-                || (type == TirType.Ptr && accepts.HasFlag(Accepts.Pointers));
+                || (type == TirType.Ptr && accepts.HasFlag(Accepts.Pointers))
+                || (type == TirType.Ref && accepts.HasFlag(Accepts.References));
             if (ok)
             {
                 return null;
@@ -397,7 +489,7 @@ public static class TirVerifier
             var kinds = new[]
             {
                 (Accepts.Integers, "integers"), (Accepts.Floats, "floats"), (Accepts.Bool, "bool"),
-                (Accepts.Pointers, "ptr"),
+                (Accepts.Pointers, "ptr"), (Accepts.References, "ref"),
             }.Where(k => accepts.HasFlag(k.Item1)).Select(k => k.Item2).ToArray();
             var list = kinds.Length == 1 ? kinds[0] : $"{string.Join(", ", kinds[..^1])} and {kinds[^1]}";
             return $"{op} works on {list}, not on {type}.";
@@ -413,14 +505,15 @@ public static class TirVerifier
 
         /// <summary>
         /// The unsigned comparisons take floats too: there they are unordered (true when either side is NaN), as
-        /// IL's clt.un, cgt.un, bge.un and the like need. Addresses compare as unsigned numbers.
+        /// IL's clt.un, cgt.un, bge.un and the like need. Addresses (ptr and ref) compare as unsigned numbers.
         /// </summary>
         private static Accepts CompareAccepts(TirCompareOp op) => op switch
         {
-            TirCompareOp.Eq or TirCompareOp.Ne => Accepts.Integers | Accepts.Floats | Accepts.Bool | Accepts.Pointers,
+            TirCompareOp.Eq or TirCompareOp.Ne =>
+                Accepts.Integers | Accepts.Floats | Accepts.Bool | Accepts.Pointers | Accepts.References,
             TirCompareOp.Lt or TirCompareOp.Le or TirCompareOp.Gt or TirCompareOp.Ge =>
                 Accepts.Integers | Accepts.Floats,
-            _ => Accepts.Integers | Accepts.Floats | Accepts.Pointers,
+            _ => Accepts.Integers | Accepts.Floats | Accepts.Pointers | Accepts.References,
         };
     }
 
@@ -431,5 +524,6 @@ public static class TirVerifier
         Floats = 2,
         Bool = 4,
         Pointers = 8,
+        References = 16,
     }
 }

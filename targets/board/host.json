@@ -7,7 +7,7 @@
   "runtime": "windows-x64",
   "triple": "x86_64-pc-windows-msvc",
   "capabilities": {
-    "heap": "256M",       // the most memory the program's heap may take (M3), taken from Windows as it grows
+    "heap": "256M",       // the memory of the program's heap (M3), taken from Windows at the start (its pages only when used)
     "console": true       // Console.Write and Console.WriteLine go to standard output
   },
   "clang": {
@@ -20,7 +20,8 @@
     "machine": "i386:x86-64",      // llvm-dlltool's name for the CPU the import libraries are made for
     "imports": {
       // DLL -> the functions the program calls in it; the toolchain makes an import library from this list
-      "kernel32.dll": ["GetStdHandle", "WriteFile", "ExitProcess"]
+      // (VirtualAlloc: the heap's memory, taken once at the start by a program that makes objects)
+      "kernel32.dll": ["GetStdHandle", "WriteFile", "ExitProcess", "VirtualAlloc"]
     }
   }
 }

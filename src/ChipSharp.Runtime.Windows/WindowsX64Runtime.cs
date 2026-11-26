@@ -11,7 +11,9 @@ namespace ChipSharp.Runtime.Windows;
 /// Math methods in <see cref="FloatMathFileName"/> (the float arithmetic itself is the PC's). It needs no C runtime, only kernel32. A PC has no interrupts to enter and its
 /// atomics are plain instructions, so those parts are empty. Next to it: what the program does where .NET would throw
 /// (<see cref="FailuresFileName"/>), and what a C runtime would give the code LLVM writes (<see cref="MemoryFileName"/>,
-/// <see cref="StackProbeFileName"/>).
+/// <see cref="StackProbeFileName"/>). For a target with a heap, objects and their garbage collector, shared with the
+/// other runtimes (<see cref="HeapFileName"/>), with what they need from Windows (<see cref="HeapWindowsFileName"/>) and
+/// the heap's size (<see cref="HeapSizeFileName"/>, written from the target's "heap" capability).
 /// </summary>
 public sealed class WindowsX64Runtime : IArchRuntime
 {
@@ -41,6 +43,15 @@ public sealed class WindowsX64Runtime : IArchRuntime
 
     /// <summary>__chkstk, which LLVM calls before a stack frame larger than a page.</summary>
     public const string StackProbeFileName = "chipsharp_chkstk.S";
+
+    /// <summary>Objects, the allocator and the garbage collector (src/ChipSharp.Runtime.Shared), for a target with a heap.</summary>
+    public const string HeapFileName = "chipsharp_heap.c";
+
+    /// <summary>What the heap needs from Windows: its memory (VirtualAlloc) and the top of the stack.</summary>
+    public const string HeapWindowsFileName = "chipsharp_heap_windows.c";
+
+    /// <summary>The heap's size in bytes, <c>chipsharp_heap_size</c>, written for the target from its "heap" capability.</summary>
+    public const string HeapSizeFileName = "chipsharp_heap_size.c";
 
     private static readonly Lazy<string> SourceText = new(() => Read(SourceFileName));
     private static readonly Lazy<string> ConsoleSource = new(() => Read(ConsoleFileName));
@@ -73,8 +84,21 @@ public sealed class WindowsX64Runtime : IArchRuntime
             new GeneratedFile(FailuresFileName, Read(FailuresFileName)),
             new GeneratedFile(MemoryFileName, Read(MemoryFileName)),
             new GeneratedFile(StackProbeFileName, Read(StackProbeFileName)),
+            .. target.HeapSize is { } heap
+                ?
+                [
+                    new GeneratedFile(HeapFileName, Read(HeapFileName)),
+                    new GeneratedFile(HeapWindowsFileName, Read(HeapWindowsFileName)),
+                    new GeneratedFile(HeapSizeFileName, HeapSize(target.Name, heap)),
+                ]
+                : Array.Empty<GeneratedFile>(),
         ]);
     }
+
+    /// <summary>The C of <see cref="HeapSizeFileName"/>: <c>chipsharp_heap_size</c>, the heap's size in bytes.</summary>
+    public static string HeapSize(string target, ulong bytes) =>
+        $"// The heap of target '{target}', from its \"heap\" capability: the bytes chipsharp_heap_windows.c takes from Windows.\n" +
+        $"const unsigned long long chipsharp_heap_size = {bytes.ToString(System.Globalization.CultureInfo.InvariantCulture)}ull;\n";
 
     public RuntimeSources InterruptEntry(TargetDescription target)
     {

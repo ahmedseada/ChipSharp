@@ -58,6 +58,8 @@ public sealed class TirConst : TirInstruction
             TirTypeKind.Void => throw new TirException("A constant cannot have type void."),
             TirTypeKind.Ptr => throw new TirException(
                 "A constant cannot have type ptr; null is 'zero ptr', and inttoptr turns a number into an address."),
+            TirTypeKind.Ref => throw new TirException(
+                "A constant cannot have type ref; null is 'zero ref', and only newobject and newarray make objects."),
             TirTypeKind.Struct or TirTypeKind.Array => throw new TirException(
                 $"A constant cannot have type {type}; only bool, integers and floats have constants " +
                 "('zero' makes a value of any type with every byte zero)."),
@@ -185,8 +187,8 @@ public enum TirCompareOp
 
 /// <summary>
 /// <c>%2 = lt i32 %0, %1</c>: compares two operands of the same type and produces a bool.
-/// eq and ne work on integers, floats, bool and ptr; lt, le, gt, ge on integers and floats; the unsigned variants
-/// on integers, floats (unordered, see <see cref="TirCompareOp"/>) and ptr. Structs and arrays cannot be compared.
+/// eq and ne work on integers, floats, bool, ptr and ref; lt, le, gt, ge on integers and floats; the unsigned variants
+/// on integers, floats (unordered, see <see cref="TirCompareOp"/>), ptr and ref. Structs and arrays cannot be compared.
 /// </summary>
 public sealed class TirCompare : TirInstruction
 {

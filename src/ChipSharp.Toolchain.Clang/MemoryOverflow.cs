@@ -11,8 +11,9 @@ namespace ChipSharp.Toolchain.Clang;
 /// </summary>
 /// <remarks>
 /// ld.lld names each section that ends past its region, with how far past; the last one says by how much the region
-/// as a whole overflowed. The data region of the linker script is the target's less the stack (see
-/// <see cref="LinkerScript"/>), so the program needs its variables and the stack: the region's size and the overflow.
+/// as a whole overflowed. The data region of the linker script is the target's less the heap and the stack (see
+/// <see cref="LinkerScript"/>), so the program needs its variables, the heap and the stack: the region's size and the
+/// overflow.
 /// </remarks>
 internal static partial class MemoryOverflow
 {
@@ -42,11 +43,19 @@ internal static partial class MemoryOverflow
         if (overflows.TryGetValue(data.Name, out var dataOver))
         {
             var what = code.Name == data.Name ? "its code, constants and variables" : "its variables";
-            var variables = data.Region.Size - settings.StackSize + dataOver;
-            needs.Add(settings.StackSize == 0
+            var variables = data.Region.Size - settings.StackSize - settings.HeapSize + dataOver;
+            var heap = settings.HeapSize == 0 ? "" : $"the heap ({MemorySize.Text(settings.HeapSize)}, capabilities.heap)";
+            var stack = settings.StackSize == 0 ? "" : $"the stack ({MemorySize.Text(settings.StackSize)}, link.stack)";
+            var kept = (heap, stack) switch
+            {
+                ("", "") => "",
+                (_, "") => $" and {heap}",
+                ("", _) => $" and {stack}",
+                _ => $", {heap} and {stack}",
+            };
+            needs.Add(kept.Length == 0
                 ? $"{what} need {Needs(data, variables, dataOver)}"
-                : $"{what} ({MemorySize.Text(variables)}) and the stack ({MemorySize.Text(settings.StackSize)}, " +
-                  $"link.stack) need {Needs(data, data.Region.Size + dataOver, dataOver)}");
+                : $"{what} ({MemorySize.Text(variables)}){kept} need {Needs(data, data.Region.Size + dataOver, dataOver)}");
         }
 
         return needs.Count == 0

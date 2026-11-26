@@ -11,7 +11,7 @@ namespace ChipSharp.Toolchain.Clang;
 /// "clang.flags", and the "link" settings: the entry point, which memory region holds the code ("link.code") and
 /// which the variables and the stack ("link.data"), how much RAM the stack needs ("link.stack"), the vector table's
 /// alignment ("link.vectorAlign"), sections that must come first in the code region ("link.head") and more linker
-/// arguments ("link.flags").
+/// arguments ("link.flags"); and from the capabilities, how much RAM the heap takes ("heap", 0 for none).
 /// </summary>
 internal sealed record ChipSettings(
     string Triple,
@@ -23,7 +23,8 @@ internal sealed record ChipSettings(
     ulong StackSize,
     ulong VectorAlign,
     IReadOnlyList<HeadSection> Head,
-    IReadOnlyList<string> LinkFlags)
+    IReadOnlyList<string> LinkFlags,
+    ulong HeapSize = 0)
 {
     /// <summary>True when the target is a chip: its "link" settings name the memory region for the code.</summary>
     public static bool Applies(TargetDescription target) =>
@@ -145,6 +146,14 @@ internal sealed record ChipSettings(
                 $"of {data.Name} ('link.data') it is kept in.");
         }
 
+        var heap = target.HeapSize ?? 0;
+        if (heap > data.Region.Size - stack)
+        {
+            throw Error($"the heap ('capabilities.heap', {MemorySize.Text(heap)}) and the stack ('link.stack', " +
+                $"{MemorySize.Text(stack)}) need more than the {MemorySize.Text(data.Region.Size)} of {data.Name} " +
+                "('link.data') they are kept in.");
+        }
+
         return new ChipSettings(
             triple,
             string.IsNullOrWhiteSpace(target.Cpu) ? null : target.Cpu,
@@ -155,7 +164,8 @@ internal sealed record ChipSettings(
             stack,
             vectorAlign,
             head,
-            TextList(link["flags"], "link.flags"));
+            TextList(link["flags"], "link.flags"),
+            heap);
     }
 }
 

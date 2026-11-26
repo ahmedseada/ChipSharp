@@ -16,7 +16,9 @@ namespace ChipSharp.Backend.Llvm;
 /// array of bytes, <c>c"..."</c>. Each slot becomes an alloca that starts at zero, in a block of its own in front
 /// of the TIR entry block. Struct types become named LLVM struct types (<c>%struct.Program_Point</c>), and every
 /// alignment comes from <see cref="TirLayout"/>. <see cref="EntrySymbol"/> calls the module's entry point and
-/// returns its int result (0 when it returns nothing); the runtime's startup code calls it.
+/// returns its int result (0 when it returns nothing); the runtime's startup code calls it. Objects on the heap (type
+/// descriptors, newobject, nullcheck, the static roots) are written as <see cref="LlvmHeap"/> says; a module that
+/// makes objects can only be generated for a target with a heap.
 /// </summary>
 public sealed class LlvmCodeGenerator : ICodeGenerator
 {
@@ -34,10 +36,14 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
         ArgumentNullException.ThrowIfNull(module);
         ArgumentNullException.ThrowIfNull(target);
         TirVerifier.Verify(module);
+        LlvmHeap.CheckTarget(module, target);
 
         var types = LlvmTypes.For(target);
         var (symbols, globalSymbols) = AssignSymbols(module);
-        var entry = module.EntryPoint is { } entryPoint ? EntryCall(entryPoint, symbols[entryPoint]) : null;
+        var typeSymbols = LlvmHeap.AssignSymbols(module);
+        var roots = LlvmHeap.RootTable(module, types, globalSymbols, out var rootCount);
+        var heapStart = LlvmHeap.UsesHeap(module) ? LlvmHeap.InitializeCall(types, rootCount) : null;
+        var entry = module.EntryPoint is { } entryPoint ? EntryCall(entryPoint, symbols[entryPoint], heapStart) : null;
 
         var text = new StringBuilder();
         text.Append("source_filename = ").Append(LlvmText.Quoted(module.Name)).Append('\n');
@@ -78,6 +84,16 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
             text.Append($"@{globalSymbols[global]} = internal global {types.Of(global.Type)} {value}, align {align}\n");
         }
 
+        if (module.TypeDescriptors.Count > 0 || (roots is not null && heapStart is not null))
+        {
+            text.Append('\n');
+            LlvmHeap.WriteDescriptors(text, module, types, typeSymbols, symbols);
+            if (heapStart is not null)
+            {
+                text.Append(roots);
+            }
+        }
+
         var externals = module.Functions.Where(f => f.Kind == TirFunctionKind.External).ToList();
         if (externals.Count > 0)
         {
@@ -94,8 +110,17 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
         foreach (var function in module.Functions.Where(f => f.Kind == TirFunctionKind.Defined))
         {
             text.Append('\n');
-            new LlvmFunctionWriter(function, types, symbols, globalSymbols, text, intrinsics).Write();
+            new LlvmFunctionWriter(function, types, symbols, globalSymbols, typeSymbols, text, intrinsics).Write();
         }
+
+        if (heapStart is not null)
+        {
+            intrinsics.Add(LlvmHeap.Declaration(LlvmHeap.InitializeSymbol, types));
+        }
+
+        // the runtime functions for objects that an external function of the module does not declare already
+        var externalSymbols = externals.Select(function => symbols[function]).ToHashSet(StringComparer.Ordinal);
+        intrinsics.RemoveWhere(declaration => externalSymbols.Contains(LlvmHeap.DeclaredSymbol(declaration)));
 
         if (entry is not null)
         {
@@ -138,6 +163,7 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
     {
         var symbols = new Dictionary<TirFunction, string>();
         var owners = new Dictionary<string, TirFunction?>(StringComparer.Ordinal) { [EntrySymbol] = null };
+        var reserved = LlvmHeap.RuntimeSymbols.ToHashSet(StringComparer.Ordinal);
         var globals = new Dictionary<TirGlobal, string>();
 
         foreach (var function in module.Functions.Where(f => f.Kind == TirFunctionKind.External))
@@ -155,6 +181,11 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
 
             owners[symbol] = function;
             symbols[function] = symbol;
+        }
+
+        foreach (var symbol in reserved)
+        {
+            owners.TryAdd(symbol, null);
         }
 
         LlvmExports.Assign(module, owners, symbols);
@@ -188,10 +219,10 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
     }
 
     /// <summary>
-    /// <c>define i32 @chipsharp_entry()</c>, which calls the entry point. The entry point must take nothing and
-    /// return void or i32.
+    /// <c>define i32 @chipsharp_entry()</c>, which calls the entry point, after <paramref name="heapStart"/> (the call
+    /// that sets the heap up) for a program that uses the heap. The entry point must take nothing and return void or i32.
     /// </summary>
-    private static string EntryCall(TirFunction entryPoint, string symbol)
+    private static string EntryCall(TirFunction entryPoint, string symbol, string? heapStart)
     {
         if (entryPoint.Parameters.Count > 0)
         {
@@ -207,7 +238,7 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
                 $"{entryPoint.ReturnType}; it must return void or i32 (int)."),
         };
 
-        return $"define i32 @{EntrySymbol}() nounwind {{\nentry:\n{call}}}\n";
+        return $"define i32 @{EntrySymbol}() nounwind {{\nentry:\n{heapStart}{call}}}\n";
     }
 
     /// <summary>The module name plus ".ll", with characters that cannot be in a file name replaced by '_'.</summary>

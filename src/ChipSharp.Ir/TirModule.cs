@@ -9,6 +9,7 @@ public sealed class TirModule
 {
     private readonly List<TirFunction> _functions = [];
     private readonly List<TirGlobal> _globals = [];
+    private readonly List<TirTypeDescriptor> _types = [];
 
     public TirModule(string name)
     {
@@ -23,6 +24,9 @@ public sealed class TirModule
 
     /// <summary>Every global variable, in the order they were added.</summary>
     public IReadOnlyList<TirGlobal> Globals => _globals;
+
+    /// <summary>Every type descriptor (classes, arrays and interfaces of objects on the heap), in the order they were added.</summary>
+    public IReadOnlyList<TirTypeDescriptor> TypeDescriptors => _types;
 
     /// <summary>The function the program starts with (C#'s <c>Main</c>). It must be a defined function of this module.</summary>
     public TirFunction? EntryPoint { get; set; }
@@ -107,6 +111,73 @@ public sealed class TirModule
     }
 
     /// <summary>
+    /// Adds the descriptor of a class, printed as <c>type Program.Node = class Program.Node : System.Object</c>: its
+    /// objects are laid out as <paramref name="objectType"/>, whose first field is the header and whose next fields are
+    /// those of <paramref name="baseType"/>'s object type, in order (see <see cref="TirTypeDescriptor.ObjectStruct"/>).
+    /// </summary>
+    /// <param name="name">The C# name, e.g. "Program.Node"; unique among the module's descriptors.</param>
+    /// <param name="objectType">The object type: the header (<see cref="TirTypeDescriptor.HeaderField"/>, a ptr), then the fields.</param>
+    /// <param name="baseType">The base class, a class of this module; null for none (System.Object).</param>
+    public TirTypeDescriptor AddClass(string name, TirStructType objectType, TirTypeDescriptor? baseType = null)
+    {
+        CheckNewType(name);
+        ArgumentNullException.ThrowIfNull(objectType);
+        if (objectType.Fields[0] is not { Name: TirTypeDescriptor.HeaderField } header || header.Type != TirType.Ptr)
+        {
+            throw new TirException($"Module '{Name}': class {name}'s object type {objectType} must start with the " +
+                $"header, a ptr field named {TirTypeDescriptor.HeaderField}.");
+        }
+
+        if (baseType is not null)
+        {
+            if (baseType.Module != this || baseType.Kind != TirTypeDescriptorKind.Class)
+            {
+                throw new TirException($"Module '{Name}': the base of class {name} must be a class of this module, " +
+                    $"not {baseType.Kind.ToString().ToLowerInvariant()} {baseType.Name}" +
+                    (baseType.Module == this ? "." : $" of module '{baseType.Module.Name}'."));
+            }
+
+            var inherited = baseType.ObjectType!.Fields;
+            if (inherited.Count > objectType.Fields.Count || inherited.Where((field, i) =>
+                    field.Name != objectType.Fields[i].Name || field.Type != objectType.Fields[i].Type).Any())
+            {
+                throw new TirException($"Module '{Name}': class {name}'s object type {objectType} must start with the " +
+                    $"fields of its base {baseType.Name}'s, {baseType.ObjectType}, in their order.");
+            }
+        }
+
+        return AddType(new TirTypeDescriptor(this, _types.Count, name, TirTypeDescriptorKind.Class, objectType, null,
+            baseType));
+    }
+
+    /// <summary>
+    /// Adds the descriptor of an array type, printed as <c>type int[] = array of i32</c>: its objects hold a length and
+    /// elements of <paramref name="elementType"/> (see <see cref="TirLayout.ArrayDataOffset"/>).
+    /// </summary>
+    /// <param name="name">The C# name, e.g. "int[]" or "Program.Node[]"; unique among the module's descriptors.</param>
+    /// <param name="elementType">The type of each element: any type but void, ref for elements that are objects.</param>
+    public TirTypeDescriptor AddArrayType(string name, TirType elementType)
+    {
+        CheckNewType(name);
+        ArgumentNullException.ThrowIfNull(elementType);
+        if (elementType == TirType.Void)
+        {
+            throw new TirException($"Module '{Name}': array type {name} cannot have elements of type void.");
+        }
+
+        return AddType(new TirTypeDescriptor(this, _types.Count, name, TirTypeDescriptorKind.Array, null, elementType,
+            null));
+    }
+
+    /// <summary>Adds the descriptor of an interface, printed as <c>type Program.IShape = interface</c>.</summary>
+    /// <param name="name">The C# name, e.g. "Program.IShape"; unique among the module's descriptors.</param>
+    public TirTypeDescriptor AddInterface(string name)
+    {
+        CheckNewType(name);
+        return AddType(new TirTypeDescriptor(this, _types.Count, name, TirTypeDescriptorKind.Interface, null, null, null));
+    }
+
+    /// <summary>
     /// Every struct type the module uses (in its globals, function signatures, slots and instructions, also inside
     /// arrays and other structs), each once, in the order first met, with the structs a struct's fields hold before
     /// it. A code generator declares them in this order; <see cref="TirPrinter"/> lists them so.
@@ -140,6 +211,14 @@ public sealed class TirModule
             Visit(global.Type);
         }
 
+        foreach (var type in _types)
+        {
+            if ((type.ObjectType ?? type.ElementType) is { } held)
+            {
+                Visit(held);
+            }
+        }
+
         foreach (var function in _functions)
         {
             Visit(function.ReturnType);
@@ -169,6 +248,10 @@ public sealed class TirModule
                     case TirSizeOf size:
                         Visit(size.OfType);
                         break;
+
+                    case TirArrayData data:
+                        Visit(data.ElementType);
+                        break;
                 }
 
                 foreach (var operand in instruction.Operands)
@@ -190,6 +273,21 @@ public sealed class TirModule
         {
             throw new TirException($"Module '{Name}' already has a global named @{name}.");
         }
+    }
+
+    private void CheckNewType(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        if (_types.Any(t => t.Name == name))
+        {
+            throw new TirException($"Module '{Name}' already has a type descriptor named {name}.");
+        }
+    }
+
+    private TirTypeDescriptor AddType(TirTypeDescriptor type)
+    {
+        _types.Add(type);
+        return type;
     }
 
     private TirFunction Add(TirFunction function)

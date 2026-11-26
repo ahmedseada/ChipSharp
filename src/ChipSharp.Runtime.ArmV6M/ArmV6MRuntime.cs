@@ -18,6 +18,10 @@ namespace ChipSharp.Runtime.ArmV6M;
 /// programs call.</item>
 /// <item><see cref="VectorsFileName"/>: the vector table (section .vectors) with weak handlers a chip runtime
 /// replaces, e.g. <c>chipsharp_isr_irq0</c>.</item>
+/// <item>For a target with a heap: objects, the allocator and the garbage collector, shared with the other runtimes
+/// (<see cref="HeapFileName"/>), and what they need from the chip (<see cref="HeapChipFileName"/>: the linker script's
+/// heap region, the registers and the stack, interrupts off while the collector runs, and no allocation in an interrupt
+/// handler).</item>
 /// </list>
 /// The sources use the symbols of the linker script the clang toolchain writes for chips (__chipsharp_data_start,
 /// __chipsharp_stack_top, ...). A chip's runtime adds its own files to these (see the rp2040 runtime); on its own,
@@ -36,9 +40,15 @@ public sealed class ArmV6MRuntime : IArchRuntime
     /// <summary>The C file with fmod and the Math methods (src/ChipSharp.Runtime.Shared).</summary>
     public const string FloatMathFileName = "chipsharp_float_math.c";
 
+    /// <summary>Objects, the allocator and the garbage collector (src/ChipSharp.Runtime.Shared), for a target with a heap.</summary>
+    public const string HeapFileName = "chipsharp_heap.c";
+
+    /// <summary>What the heap needs from an ARMv6-M chip.</summary>
+    public const string HeapChipFileName = "armv6m_heap.c";
+
     public string Name => "armv6m";
 
-    /// <summary>The reset handler and the compiler's helper functions, float math included.</summary>
+    /// <summary>The reset handler and the compiler's helper functions, float math included; the heap for a target with one.</summary>
     public RuntimeSources Startup(TargetDescription target)
     {
         ArgumentNullException.ThrowIfNull(target);
@@ -46,6 +56,7 @@ public sealed class ArmV6MRuntime : IArchRuntime
         [
             Source(StartupFileName), Source(HelpersFileName), Source(DivModFileName), Source(FloatCompareFileName),
             Source(FloatMathFileName), .. CompilerRt.Sources(),
+            .. target.HasHeap ? [Source(HeapFileName), Source(HeapChipFileName)] : Array.Empty<GeneratedFile>(),
         ]);
     }
 

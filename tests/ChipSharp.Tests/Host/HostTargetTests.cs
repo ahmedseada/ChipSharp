@@ -44,7 +44,7 @@ public sealed class HostTargetTests
         Assert.Equal("i386:x86-64", host.Setting("link.machine"));
         var dlls = host.Settings["link"]!["imports"]!.AsObject();
         Assert.Equal(["kernel32.dll"], dlls.Select(d => d.Key));
-        Assert.Equal(["GetStdHandle", "WriteFile", "ExitProcess"],
+        Assert.Equal(["GetStdHandle", "WriteFile", "ExitProcess", "VirtualAlloc"],
             dlls["kernel32.dll"]!.AsArray().Select(f => f!.GetValue<string>()));
         Assert.Equal(["-O2", "-nostdlib", "-fuse-ld=lld", "-Wno-override-module"],
             host.Settings["clang"]!["flags"]!.AsArray().Select(f => f!.GetValue<string>()));
@@ -72,7 +72,8 @@ public sealed class HostTargetTests
 
         Assert.Equal(
             ["chipsharp_runtime.c", "chipsharp_console.c", "chipsharp_float_text.c", "chipsharp_float_math.c",
-                "chipsharp_failures.c", "chipsharp_memory.c", "chipsharp_chkstk.S"],
+                "chipsharp_failures.c", "chipsharp_memory.c", "chipsharp_chkstk.S", "chipsharp_heap.c",
+                "chipsharp_heap_windows.c", "chipsharp_heap_size.c"],
             files.Select(f => f.FileName));
         var file = files[0];
         Assert.Equal(WindowsX64Runtime.Source, file.Content);

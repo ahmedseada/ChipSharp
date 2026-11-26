@@ -54,9 +54,13 @@ public sealed class PicoLinkTests : IDisposable
 
         Assert.Contains("ENTRY(chipsharp_reset)", script);
         Assert.Contains("flash (rx) : ORIGIN = 0x10000000, LENGTH = 0x200000", script);
-        // the stack is the last 8 KB of RAM, a region of its own: the variables get the rest
-        Assert.Contains("ram (rwx) : ORIGIN = 0x20000000, LENGTH = 0x40000", script);
+        // the stack is the last 8 KB of RAM, a region of its own, and the heap's 224 KB are the region before it: the
+        // variables get the rest
+        Assert.Contains("ram (rwx) : ORIGIN = 0x20000000, LENGTH = 0x8000", script);
+        Assert.Contains("heap (rw) : ORIGIN = 0x20008000, LENGTH = 0x38000", script);
         Assert.Contains("stack (rw) : ORIGIN = 0x20040000, LENGTH = 0x2000", script);
+        Assert.Contains("__chipsharp_heap_start = ORIGIN(heap);", script);
+        Assert.Contains("__chipsharp_heap_end = ORIGIN(heap) + LENGTH(heap);", script);
         Assert.Contains("ASSERT(SIZEOF(.boot2) == 0x100,", script);
         Assert.Contains(".vectors : ALIGN(0x100)", script);
         Assert.Contains("} > ram AT > flash", script);

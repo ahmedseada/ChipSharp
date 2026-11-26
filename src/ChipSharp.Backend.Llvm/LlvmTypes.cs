@@ -6,7 +6,7 @@ namespace ChipSharp.Backend.Llvm;
 
 /// <summary>
 /// The LLVM type of each TIR type for one target: bool is i1, i8 to i64 stay, f32 is float, f64 is double,
-/// nint is i32 or i64 depending on the target's pointer size, ptr is ptr, an array is <c>[4 x i32]</c>, and a
+/// nint is i32 or i64 depending on the target's pointer size, ptr and ref are ptr, an array is <c>[4 x i32]</c>, and a
 /// struct is a named LLVM struct type, <c>%struct.Program_Point</c>, declared once per module
 /// (see <see cref="NameStructs"/>). LLVM lays these out exactly as <see cref="TirLayout"/> does: every type is
 /// naturally aligned on the targets the generator supports.
@@ -66,7 +66,7 @@ internal sealed class LlvmTypes
             TirTypeKind.Void => "void",
             TirTypeKind.F32 => "float",
             TirTypeKind.F64 => "double",
-            TirTypeKind.Ptr => "ptr",
+            TirTypeKind.Ptr or TirTypeKind.Ref => "ptr",
             _ => "i" + Bits(type).ToString(CultureInfo.InvariantCulture),
         },
     };
@@ -79,7 +79,7 @@ internal sealed class LlvmTypes
         TirTypeKind.I16 => 16,
         TirTypeKind.I32 or TirTypeKind.F32 => 32,
         TirTypeKind.I64 or TirTypeKind.F64 => 64,
-        TirTypeKind.NativeInt or TirTypeKind.Ptr => _pointerBits,
+        TirTypeKind.NativeInt or TirTypeKind.Ptr or TirTypeKind.Ref => _pointerBits,
         _ => throw new ChipSharpException($"The llvm code generator has no bit width for the TIR type {type}."),
     };
 
