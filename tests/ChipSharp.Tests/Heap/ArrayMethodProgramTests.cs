@@ -68,27 +68,17 @@ public sealed class ArrayMethodProgramTests(ITestOutputHelper output) : IDisposa
         await PrintsWhatDotnetPrints(ArrayMethodPrograms.WithoutHeap, "pc-without-heap");
     }
 
-    [HostFact]
-    public async Task Where_dotnet_throws_the_program_stops_with_the_message_dotnet_writes_and_exit_code_1()
-    {
-        // each failure is a program of its own: built and run a few at a time, with the target files written once first
-        _ = Targets;
-        using var gate = new SemaphoreSlim(Math.Max(2, Environment.ProcessorCount / 2));
-        var results = await Task.WhenAll(ArrayMethodPrograms.Failures.Select(async failure =>
-        {
-            await gate.WaitAsync();
-            try
-            {
-                return await FailureAsync(failure.Name, failure.Statement);
-            }
-            finally
-            {
-                gate.Release();
-            }
-        }));
+    /// <summary>The name of each failure of <see cref="ArrayMethodPrograms.Failures"/>.</summary>
+    public static TheoryData<string> FailureNames => new(ArrayMethodPrograms.Failures.Select(failure => failure.Name));
 
-        var wrong = results.Where(result => result is not null).ToList();
-        Assert.True(wrong.Count == 0, string.Join("\n\n", wrong));
+    [HostTheory]
+    [MemberData(nameof(FailureNames))]
+    public async Task Where_dotnet_throws_the_program_stops_with_the_message_dotnet_writes_and_exit_code_1(string name)
+    {
+        // each failure is a program of its own, and a test case of its own
+        var wrong = await FailureAsync(name, ArrayMethodPrograms.Failures.Single(failure => failure.Name == name).Statement);
+
+        Assert.True(wrong is null, wrong);
     }
 
     /// <summary>

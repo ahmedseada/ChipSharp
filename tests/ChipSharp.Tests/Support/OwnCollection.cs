@@ -28,7 +28,7 @@ internal static class OwnCollection
         return new TestMethod(new TestClass(collection, testClass.Class), testMethod.Method);
     }
 
-    /// <summary>A key for a theory's data row: the row's values, as xunit writes them.</summary>
+    /// <summary>A key for a theory's data row: its values, in parentheses.</summary>
     public static string Key(object?[]? dataRow) =>
         dataRow is null ? "" : $"({string.Join(", ", dataRow.Select(value => Convert.ToString(value, CultureInfo.InvariantCulture)))})";
 }

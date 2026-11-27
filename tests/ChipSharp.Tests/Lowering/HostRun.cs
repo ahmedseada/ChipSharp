@@ -84,7 +84,7 @@ internal static class HostRun
 
     public static async Task<ProgramRun> RunAsync(string program, IEnumerable<string> arguments, string folder)
     {
-        var start = new ProcessStartInfo(program)
+        var start = new ProcessStartInfo(ProgramStore.Runnable(program))
         {
             WorkingDirectory = folder,
             RedirectStandardOutput = true,

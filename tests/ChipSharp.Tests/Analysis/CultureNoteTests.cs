@@ -99,6 +99,8 @@ public sealed class CultureNoteTests : IDisposable
         { "\"took \" + a.Length * 1.5f", "a float or double as text", $"{FloatText}." },
         { "(a.Length * 2.5).ToString()", "a float or double as text", $"{FloatText}." },
         { "string.Format(\"{0} m\", a.Length * 0.25)", "a float or double as text", $"{FloatText}." },
+        { "new System.Text.StringBuilder().Append(a.Length * 0.5)", "a float or double as text", $"{FloatText}." },
+        { "new System.Text.StringBuilder().Append($\"{a.Length * 0.5f} V\")", "a float or double as text", $"{FloatText}." },
     };
 
     /// <summary>The ways that give the same result everywhere.</summary>
@@ -129,6 +131,7 @@ public sealed class CultureNoteTests : IDisposable
         "a.Equals(b)",
         "$\"{a.Length * 2} items\"",
         "a.Length * 2",
+        "new System.Text.StringBuilder().Append(a.Length * 2).Append(a)",
     };
 
     [Theory]
