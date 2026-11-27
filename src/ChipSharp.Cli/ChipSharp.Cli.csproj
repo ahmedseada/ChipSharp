@@ -6,6 +6,12 @@
     <RootNamespace>ChipSharp.Cli</RootNamespace>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>chipsharp</ToolCommandName>
+
+    <!-- the .NET tool: dotnet pack puts ChipSharp.<version>.nupkg in artifacts\nupkg; see README, "Install as a tool" -->
+    <PackageId>ChipSharp</PackageId>
+    <Version>0.3.0</Version>
+    <Description>ChipSharp: C# compiled ahead of time for microcontrollers (a PC .exe or a Raspberry Pi Pico .uf2).</Description>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)..\..\artifacts\nupkg</PackageOutputPath>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\ChipSharp.Build\ChipSharp.Build.csproj" />

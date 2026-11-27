@@ -41,8 +41,18 @@ cd ChipSharp
 dotnet build -c Release
 ```
 
-The command is then `src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe`; below it is written `chipsharp`
-(in PowerShell: `Set-Alias chipsharp "$PWD\src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe"`).
+Then install the command as a .NET tool, so `chipsharp` works in any folder:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\install-tool.ps1
+chipsharp targets list
+```
+
+The script packs `src\ChipSharp.Cli` (`artifacts\nupkg\ChipSharp.<version>.nupkg`, with the target files and the
+library inside) and installs it with `dotnet tool install --global`; run it again after changing ChipSharp to replace
+the installed one (`dotnet tool uninstall --global ChipSharp` removes it). A new terminal may be needed the first time,
+for the .NET tools folder to be on the PATH. Without installing, the command is
+`src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe`.
 
 ### Your first program, on the PC
 
