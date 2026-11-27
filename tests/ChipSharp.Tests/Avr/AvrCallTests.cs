@@ -1,6 +1,7 @@
 using ChipSharp.Abstractions;
 using ChipSharp.Backend.Llvm;
 using ChipSharp.Ir;
+using ChipSharp.Runtime.Rp2040;
 using ChipSharp.Tests.Llvm;
 using ChipSharp.Tests.Tir;
 using static ChipSharp.Tests.Llvm.LlvmSamples;
@@ -114,6 +115,41 @@ public sealed class AvrCallTests
 
         Assert.Contains("call\tProgram_Sink", assembly, StringComparison.Ordinal);
         Assert.DoesNotContain("in\tr30, 61", assembly, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The runtime's C, the shared files a chip's runtime adds too (the console, the text of floats), makes no call that
+    /// sets the stack up through Z: none passes arguments on the stack from a function without a frame pointer.
+    /// </summary>
+    [AvrFact]
+    public async Task No_function_of_the_runtime_sets_the_stack_pointer_through_Z()
+    {
+        GeneratedFile[] files =
+        [
+            .. AvrCoreProgram.RuntimeFiles, Rp2040Runtime.Source(Rp2040Runtime.ConsoleFileName),
+            Rp2040Runtime.Source(Rp2040Runtime.FloatTextFileName),
+        ];
+        var folder = Path.Combine(Path.GetTempPath(), "chipsharp-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            foreach (var file in files)
+            {
+                await File.WriteAllTextAsync(Path.Combine(folder, file.FileName), file.Content);
+            }
+
+            var sources = files.Where(file => file.FileName.EndsWith(".c", StringComparison.Ordinal)).ToList();
+            var results = await Task.WhenAll(sources.Select(file => LlvmTools.RunAsync(AvrTools.Zig.FindZig(),
+                ["cc", .. AvrCoreProgram.CompileFlags, "-Wno-unused-command-line-argument", "-S", file.FileName, "-o",
+                    file.FileName + ".s"], folder)));
+            Assert.All(results, result => Assert.True(result.ExitCode == 0, result.ToString()));
+            Assert.All(sources, file => Assert.DoesNotContain("in\tr30, 61",
+                File.ReadAllText(Path.Combine(folder, file.FileName + ".s")), StringComparison.Ordinal));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
     }
 
     /// <summary>A loop that copies a table in flash into RAM stays a loop of LPM: LLVM's memcpy would read RAM.</summary>

@@ -180,7 +180,22 @@ runtime 'avr' is not registered".
   (LPM), so an address of flash data has bit 15 set (0x8000 plus its flash address: RAM's addresses never have it); a
   read whose address the compiler cannot place tests the bit, the others read flash or RAM straight away. The runtime
   reads what the program hands it so too. The capability `"separateFlash": false` keeps constants as ordinary data
-  instead, which start-up copies to RAM, as avr-gcc does without `PROGMEM`.
+  instead, which start-up copies to RAM, as avr-gcc does without `PROGMEM`. Two things LLVM 22 gets wrong on an AVR
+  are kept from it: a copy of LLVM's own from flash (a loop over a table made into `memcpy`, which would read RAM), so
+  `memcpy` and `memmove` are no builtins in the program; and a call that passes arguments on the stack from a function
+  without a frame pointer, which sets the stack up through r31:r30 while it may hold a value, so such a function gets
+  one (a byte of stack).
+- **What runs**: on the simulated Uno, every sample and every program of the test corpora that makes no object prints
+  exactly what .NET prints (numbers, floats and their text, structs, enums, `ref`, arrays on the stack and in static
+  fields, constant tables, spans, generics over values, tuples, record structs, nullables, fixed and printed text,
+  `TimeSpan`, `DateTime`, `Math`), and where .NET throws it says .NET's message. Those that make objects are refused,
+  place by place, as the Uno has no heap; those larger than its 31.5 KB of flash by the memory report: doubles are in
+  software, and compiler-rt's add, multiply and divide take 3 to 4 KB each on an AVR, so `MathFunctions`, a program
+  of every member of `DateTime` and `Math.Sin`, `Cos`, `Tan`, `Atan2`, `Asinh`, `Acosh`, `Log`, `Log2` and `Pow` with
+  the text of doubles do not fit (each gives the PC's bits all the same, on an AVR core of 64 KB). The runtime's C
+  takes C#'s `int`, `char` and `bool` as 32 bits (C's `int` has 16 on an AVR) and keeps its own text and tables in
+  flash, `Math`'s tables (22 KB) too. Flash and RAM: `Square` 1.3 KB and 6 bytes, `Structs` 2.0 KB and 18 bytes,
+  `Spans` 4.8 KB, `TrafficLights` 7.8 KB and 52 bytes, `PrintedText` 14.6 KB, `FloatMath` 16.7 KB, `TimeSpans` 21.6 KB.
 - **The `.hex`** is Intel HEX, what `llvm-objcopy -O ihex` writes: the flash's contents, the starting values of the
   variables included. The memory report reads like `flash 417 bytes of 32 KB (1.3%), RAM 12 bytes of 2 KB (stack 512
   bytes reserved)`. Uploading through the Uno's USB port (avrdude, the Arduino IDE) goes through its bootloader, which
@@ -278,6 +293,8 @@ available yet", followed by the list of the library methods it can call (`--deta
 | Console | Writes in the console's code page | Always UTF-8; a Windows console shows non-ASCII text right after `chcp 65001` | |
 | The last bit of `Sin`, `Exp`, `Pow`, ... | Calls the C runtime: on Windows the UCRT, whose x64 functions are AMD's math library (some in C, some in assembly that uses the fused multiply-add of processors with FMA3), on Linux glibc; not always correctly rounded, so the last bit depends on the PC | One implementation for every target, the same bits on the PC and the Pico: .NET's result for 88 to 100 % of values (above 97 % for most functions), 1 ulp away for the rest (see [Math](#math)); `Cbrt`: 70 %, up to 2 ulps | Compare transcendental results with a tolerance (as with .NET on two operating systems), or round them for display |
 | `MathF.ReciprocalEstimate`, `MathF.ReciprocalSqrtEstimate` | On x64, the processor's estimate instructions (`rcpss`, `rsqrtss`: about 12 bits, different on Intel and AMD) | `1f / x` and `1f / MathF.Sqrt(x)`, what .NET computes without them (and for doubles everywhere) | |
+| `nint` and `nuint` | 64 bits on a 64-bit PC | The chip's address size: 32 bits on the Pico, 16 on the Uno, where -123456 does not fit in an `nint` | `int` or `long` for numbers |
+| A struct's bytes (`MemoryMarshal.Read` and `Write`, `sizeof`) | Fields aligned to their size, with padding between: `struct { byte; ushort; int; }` takes 8 bytes | The same on the Pico; on the Uno nothing is aligned, so no padding: 7 bytes | Write and read the fields one by one with `BinaryPrimitives`, or order them from the largest down |
 
 ### What does not compile yet
 
