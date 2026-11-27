@@ -6,8 +6,8 @@ namespace ChipSharp.Tests.Tuples;
 
 /// <summary>
 /// Programs of tuples (System.ValueTuple), of collection expressions of text and objects (lists, arrays and the
-/// collections' interfaces through spans of references) and of simple iterators, each printing what it does, so that
-/// ChipSharp's output can be compared with .NET's line by line (see <see cref="TupleProgramTests"/> and
+/// collections' interfaces through spans of references), of iterators and of text in try blocks, each printing what it
+/// does, so that ChipSharp's output can be compared with .NET's line by line (see <see cref="TupleProgramTests"/> and
 /// <see cref="TupleSimulatorTests"/>). A tuple's hash code is compared, not printed: .NET's mixes in a number that
 /// changes from run to run. <see cref="Failures"/> stop where .NET throws.
 /// </summary>
@@ -433,6 +433,68 @@ internal static class TuplePrograms
         """;
 
     /// <summary>
+    /// Interpolated text in try blocks, whose handler C# makes with newobj: printed and kept in the body of a foreach
+    /// over a list and a dictionary, in a using block, in a try and its finally, and appended to a StringBuilder in a
+    /// foreach.
+    /// </summary>
+    public const string TextInTryBlocks = """
+        using System;
+        using System.Collections.Generic;
+        using System.Text;
+
+        class Resource : IDisposable
+        {
+            public void Dispose() => Console.WriteLine("disposed");
+        }
+
+        class Program
+        {
+            static void Main()
+            {
+                var list = new List<int> { 1, 22, 333 };
+                foreach (var x in list)
+                {
+                    Console.WriteLine($"{x} squared is {x * x,6} or {x:X4}");
+                }
+
+                var counts = new Dictionary<string, int> { ["a"] = 1, ["b"] = 2 };
+                var lines = new List<string>();
+                foreach (var (key, value) in counts)
+                {
+                    Console.WriteLine($"{key}: {value}");
+                    var line = $"{key}={value}";
+                    lines.Add(line);
+                }
+
+                foreach (var line in lines) Console.Write($"[{line}] ");
+                Console.WriteLine();
+                using (var r = new Resource())
+                {
+                    Console.WriteLine($"inside {lines.Count} {lines[0]}");
+                }
+
+                var sb = new StringBuilder();
+                foreach (var x in list)
+                {
+                    sb.Append($"{x};");
+                    sb.AppendLine($"<{x}>");
+                }
+
+                Console.Write(sb.ToString());
+                try
+                {
+                    var name = "n";
+                    Console.WriteLine($"{name}{name}{1}");
+                }
+                finally
+                {
+                    Console.WriteLine($"{list.Count} done {counts.Count}");
+                }
+            }
+        }
+        """;
+
+    /// <summary>
     /// Iterators: yield return and yield break, a generic one over another sequence (a foreach inside), one with a try
     /// and finally inside, left early (its finally runs when the foreach disposes it), a collection's GetEnumerator,
     /// one that is an IEnumerator, enumerated twice, spread into a list and an array, and thousands made and dropped.
@@ -637,6 +699,7 @@ internal static class TuplePrograms
         (nameof(Collections), Collections),
         (nameof(CollectionExpressions), CollectionExpressions),
         (nameof(Iterators), Iterators),
+        (nameof(TextInTryBlocks), TextInTryBlocks),
     ];
 
     public static string Source(string name) => All.Single(program => program.Name == name).Source;

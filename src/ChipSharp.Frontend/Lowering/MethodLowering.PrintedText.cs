@@ -110,7 +110,8 @@ internal sealed partial class MethodLowering
                 break;
 
             case PrintedRole.Handler or PrintedRole.Finish or PrintedRole.ToString or PrintedRole.Concat
-                or PrintedRole.PartArray or PrintedRole.Text or PrintedRole.Box or PrintedRole.CharSpan or PrintedRole.SpanText:
+                or PrintedRole.PartArray or PrintedRole.Text or PrintedRole.Box or PrintedRole.CharSpan or PrintedRole.SpanText
+                or PrintedRole.NewHandler:
                 Push(Placeholder);
                 break;
         }

@@ -14,7 +14,9 @@ namespace ChipSharp.Frontend;
 /// ref struct) is an array value, <see cref="StackArrays.ArrayType"/>, <c>{ ptr data, i32 length }</c>: where its first
 /// element is, and how many there are. So an array becomes a span as it is, and a span of a span (a slice) is a new
 /// <c>data</c> and <c>length</c>. A <c>ReadOnlySpan&lt;T&gt;</c> is the same; C# makes sure nothing writes through it.
-/// The element types are those of arrays (<see cref="StackArrays.TryMapElementType"/>).
+/// The element types are those of arrays (<see cref="HeapArrays.TryMapElementType"/>): on a target with a heap strings
+/// and objects too, whose span views an array's references (a list's, for a collection expression), which the
+/// conservative scan of the stack keeps alive through the span's pointer into it.
 /// </para>
 /// <para>
 /// What a span can view: an array (on the stack, or in a static field: <see cref="StaticArrays"/>), <c>stackalloc</c>

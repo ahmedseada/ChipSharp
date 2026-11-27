@@ -152,6 +152,48 @@ public sealed class TupleCheckTests : IDisposable
             StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// In a try block (a foreach over a collection, a using) C# makes the handler of a <c>$"..."</c> with newobj and
+    /// stores it in its local: printed text all the same, which needs no heap.
+    /// </summary>
+    [Fact]
+    public void Text_printed_in_a_try_block_needs_no_heap()
+    {
+        var analysis = Check("""
+            using System;
+
+            struct Guard : IDisposable
+            {
+                public int Pin;
+
+                public void Dispose() => Console.WriteLine($"released {Pin}");
+            }
+
+            class Program
+            {
+                static void Main()
+                {
+                    for (var i = 0; i < 3; i++)
+                    {
+                        using var guard = new Guard { Pin = i };
+                        Console.WriteLine($"pin {guard.Pin} of {3,2}: {i * 10:X2}");
+                    }
+
+                    try
+                    {
+                        Console.WriteLine($"{1} {2}");
+                    }
+                    finally
+                    {
+                        Console.WriteLine($"{3} {4}");
+                    }
+                }
+            }
+            """, NoHeap);
+
+        Assert.True(analysis.IsSupported, string.Join("\n", analysis.Problems.Select(problem => problem.Line)));
+    }
+
     private static AnalysisResult Check(string source, TargetDescription? target) =>
         WholeProgramPass.Check(IlAssembly.Load(CSharpCompiler.Compile(source), "Test.dll"), target);
 

@@ -111,6 +111,70 @@ public sealed class TupleProgramTests(ITestOutputHelper output) : IDisposable
         Assert.Equal(dotnet.Text, result.Raw);
     }
 
+    /// <summary>
+    /// A span of objects or of text is all that keeps its array alive (its pointer into the array's elements, which the
+    /// conservative scan of the stack finds), through collections of a 16 KB heap, checked at each.
+    /// </summary>
+    [HostTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_span_of_objects_keeps_its_array_alive_through_collections(bool debug)
+    {
+        const string Source = """
+            using System;
+            using System.Collections.Generic;
+
+            class Node
+            {
+                public string Name;
+                public Node(string name) { Name = name; }
+            }
+
+            class Program
+            {
+                static Node[] Make(int n)
+                {
+                    var nodes = new Node[n];
+                    for (var i = 0; i < n; i++) nodes[i] = new Node("node" + i);
+                    return nodes;
+                }
+
+                static void Churn()
+                {
+                    for (var i = 0; i < 2000; i++)
+                    {
+                        var garbage = new Node("g" + i);
+                        if (garbage.Name.Length == 0) Console.WriteLine("?");
+                    }
+                }
+
+                static void Main()
+                {
+                    Span<Node> span = Make(50).AsSpan(10, 20);
+                    ReadOnlySpan<string> names = new[] { "x" + 1, "y" + 2, "z" + 3 };
+                    GC.Collect();
+                    Churn();
+                    GC.Collect();
+                    var total = 0;
+                    foreach (var node in span) total += node.Name.Length;
+                    Console.WriteLine(total + " " + span[19].Name + " " + names[2]);
+                    List<string> grown = [.. names, "w"];
+                    Churn();
+                    Console.WriteLine(grown.Count + grown[3] + grown[0]);
+                }
+            }
+            """;
+        var host = HeapRun.Targets(Path.Combine(_scratch, "targets"), "16K").Load("host-16K");
+        var dotnet = await HostRun.RunOnDotnetAsync(CSharpCompiler.Compile(Source, "Spans"), "Spans",
+            Path.Combine(_scratch, "dotnet"));
+        var module = Lowered.Lower(WholeProgramPass.Analyze(TuplePrograms.Compile(Source, "Spans", debug), host));
+
+        var result = await HeapRun.OnHostAsync(module, Path.Combine(_scratch, "host"), host, verifyHeap: true);
+
+        Assert.True(result.ExitCode == 0, result.ToString());
+        Assert.Equal(dotnet.Text, result.Raw);
+    }
+
     /// <summary>The Tuples sample in a 16 KB heap prints its expected output.</summary>
     [HostFact]
     public async Task The_tuples_sample_prints_its_expected_output_in_a_small_heap()
