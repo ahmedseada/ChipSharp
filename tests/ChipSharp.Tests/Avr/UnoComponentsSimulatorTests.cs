@@ -5,8 +5,9 @@ namespace ChipSharp.Tests.Avr;
 
 /// <summary>
 /// ChipSharp.Components' drivers on the simulated Uno, unchanged from the Pico's: Lcd on the I2C bus (A4, A5) with the
-/// simulated LCD (tools/rp2040-sim/devices/lcd1602.mjs), Ds1307 with the simulated DS1307, SevenSegment on the Uno's
-/// pins, a 74HC595 over SPI fed SevenSegment's patterns; with what each costs of the Uno's flash and RAM.
+/// simulated LCD (tools/rp2040-sim/devices/lcd1602.mjs), its chars, spans, numbers and strings; Ds1307 with the simulated
+/// DS1307, running and halted; SevenSegment on the Uno's pins, and a 74HC595 over SPI fed its patterns; with what the
+/// LCD costs of the Uno's flash and RAM.
 /// </summary>
 public sealed class UnoComponentsSimulatorTests : IDisposable
 {
@@ -21,14 +22,6 @@ public sealed class UnoComponentsSimulatorTests : IDisposable
             Directory.Delete(_scratch, recursive: true);
         }
     }
-
-    /// <summary>
-    /// Why the tests of the drivers' string and DateTime methods wait: a string literal and DateTime's constructor (which
-    /// throws for a date that does not exist) need the shared runtime's string descriptors and ChipSharp_Runtime_Throw,
-    /// which the AVR runtime does not have yet (milestone M7's language coverage adds them).
-    /// </summary>
-    private const string WaitsForSharedRuntime = "Waits for the string descriptors and ChipSharp_Runtime_Throw in the AVR " +
-        "runtime (M7's language coverage): then remove this Skip.";
 
     [AvrSimulatorFact]
     public async Task The_Lcd_driver_shows_chars_spans_and_numbers_on_a_1602_on_the_Unos_I2C_bus()
@@ -98,7 +91,7 @@ public sealed class UnoComponentsSimulatorTests : IDisposable
         Assert.InRange(program.Memory.Data!.Used, 1ul, 200ul);
     }
 
-    [AvrSimulatorFact(Skip = WaitsForSharedRuntime)]
+    [AvrSimulatorFact]
     public async Task The_Lcd_driver_shows_strings_on_the_Uno_as_on_the_Pico()
     {
         var program = UnoProgram.BuildCSharp(_scratch, "UnoLcdText", """
@@ -120,7 +113,7 @@ public sealed class UnoComponentsSimulatorTests : IDisposable
         Assert.Equal(["LCD 0x27: |Hello, Uno!     |", "LCD 0x27: |count 42        |"], run.After("LCD 0x27: "));
     }
 
-    [AvrSimulatorFact(Skip = WaitsForSharedRuntime)]
+    [AvrSimulatorFact]
     public async Task The_Ds1307_driver_reads_the_clocks_date_sets_it_and_starts_a_halted_one_on_the_Uno()
     {
         var program = UnoProgram.BuildCSharp(_scratch, "UnoDs1307", """

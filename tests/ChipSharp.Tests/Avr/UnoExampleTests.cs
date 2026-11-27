@@ -81,10 +81,30 @@ public sealed partial class UnoExampleTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// The serial example: its first line and a count each second on USART0 at 115200 baud (U2X: 117647 really), and
+    /// what is typed (sent to D0) comes straight back, between two counts.
+    /// </summary>
+    [AvrSimulatorFact]
+    [RunsLong]
+    public async Task The_serial_example_counts_every_second_and_sends_back_what_is_typed()
+    {
+        var hex = await BuildAsync("uno-serial");
+
+        var run = await AvrSimulator.RunAsync(hex, 2500, "--send", @"hi Uno\r\n@1300ms");
+
+        Assert.True(run.ExitCode == 0, run.ToString());
+        Assert.Equal("ChipSharp on an Arduino Uno: a count every second; type, and it comes back\r\n" +
+            "count 0\r\ncount 1\r\nhi Uno\r\ncount 2\r\n", System.Text.Encoding.ASCII.GetString(run.Usart0));
+        Assert.InRange(run.Usart0BaudRates[^1], 115_200 * 0.97, 115_200 * 1.03);
+        var counts = run.Usart0Lines.Where(line => line.StartsWith("count", StringComparison.Ordinal)).ToList();
+        Assert.Equal(["count 0", "count 1", "count 2"], counts);
+    }
+
     [Fact]
     public void There_are_examples_for_the_Uno_each_with_a_Wokwi_circuit()
     {
-        Assert.Equal(["uno-blink", "uno-button", "uno-timer-blink"], Examples());
+        Assert.Equal(["uno-blink", "uno-button", "uno-serial", "uno-timer-blink"], Examples());
         Assert.All(Examples(), example => Assert.True(File.Exists(Path.Combine(Repository.Examples, example, "diagram.json"))));
     }
 
@@ -220,7 +240,8 @@ public sealed partial class UnoExampleTests : IDisposable
         var lines = printed.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
         Assert.Equal(2, lines.Length);
         Assert.Equal(Path.GetFileNameWithoutExtension(project) + ".hex", Path.GetFileName(lines[0]));
-        Assert.Matches(@"^flash 1\.\d KB of 31\.5 KB \(\d\.\d%\), RAM \d\d bytes of 2 KB \(stack 512 bytes reserved\)$", lines[1]);
+        Assert.Matches(@"^flash [1-9]\.\d KB of 31\.5 KB \(\d+\.\d%\), RAM \d{2,3} bytes of 2 KB \(stack 512 bytes reserved\)$",
+            lines[1]);
         return lines[0];
     }
 

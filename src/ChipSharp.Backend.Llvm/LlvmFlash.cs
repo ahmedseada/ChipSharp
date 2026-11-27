@@ -130,6 +130,23 @@ internal sealed class LlvmFlash
     /// </summary>
     public bool MayBeFlash(TirValue value) => _flow?.MayBeFlash(value) ?? false;
 
+    /// <summary>
+    /// What every function the module defines says after <c>nounwind</c>, when <see cref="IsEnabled"/>: that memcpy and
+    /// memmove are no builtins there, so that LLVM leaves a copy as the program wrote it. A copy of LLVM's own
+    /// (llvm.memcpy, which it makes of a loop that copies elements, or of a struct loaded and stored) is a call to memcpy
+    /// with the plain flash address of a source in address space 1, which memcpy would read in RAM; and the program's
+    /// own calls to memcpy and memmove (a span's CopyTo, Array.Copy), whose source may be flash's, with bit 15, would be
+    /// copied with plain loads when their size is a constant. The runtime's memcpy and memmove read flash through bit 15.
+    /// </summary>
+    public string FunctionAttributes => IsEnabled ? " \"no-builtin-memcpy\" \"no-builtin-memmove\"" : "";
+
+    /// <summary>
+    /// What the declaration of the external function <paramref name="symbol"/> says after <c>nounwind</c>: memcpy and
+    /// memmove are no builtins when <see cref="IsEnabled"/> (see <see cref="FunctionAttributes"/>).
+    /// </summary>
+    public string DeclarationAttributes(string symbol) =>
+        IsEnabled && symbol is "memcpy" or "memmove" ? " nobuiltin" : "";
+
     /// <summary>True for a global that stays in flash: a constant one, when <see cref="IsEnabled"/>.</summary>
     public bool InFlash(TirGlobal global) => IsEnabled && global.IsConstant;
 
@@ -179,7 +196,8 @@ internal sealed class LlvmFlash
         var load = isVolatile ? "load volatile" : "load";
         var integer = PointerInteger;
         _readers[symbol] = new StringBuilder()
-            .Append(CultureInfo.InvariantCulture, $"define internal {typeText} @{symbol}(ptr %address) nounwind {{\n")
+            .Append(CultureInfo.InvariantCulture,
+                $"define internal {typeText} @{symbol}(ptr %address) nounwind{FunctionAttributes} {{\n")
             .Append("entry:\n")
             .Append(CultureInfo.InvariantCulture, $"  %bits = ptrtoint ptr %address to {integer}\n")
             .Append(CultureInfo.InvariantCulture, $"  %in.flash = icmp slt {integer} %bits, 0\n")

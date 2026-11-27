@@ -60,9 +60,9 @@ public sealed class Atmega328pRuntimeTests : IDisposable
 
         Assert.Equal(
             [.. avr.Startup(uno).Files.Select(f => f.FileName), Atmega328pRuntime.SourceFileName,
-                Atmega328pRuntime.ConsoleFileName, Atmega328pRuntime.UartFileName, Atmega328pRuntime.I2cFileName,
-                Atmega328pRuntime.SpiFileName, Atmega328pRuntime.AdcFileName, Atmega328pRuntime.PwmFileName,
-                Atmega328pRuntime.FailuresFileName],
+                Atmega328pRuntime.ConsoleFileName, Atmega328pRuntime.FloatTextFileName, Atmega328pRuntime.UartFileName,
+                Atmega328pRuntime.I2cFileName, Atmega328pRuntime.SpiFileName, Atmega328pRuntime.AdcFileName,
+                Atmega328pRuntime.PwmFileName, Atmega328pRuntime.FailuresFileName],
             files.Select(f => f.FileName));
         Assert.Equal([AvrRuntime.VectorsFileName, Atmega328pRuntime.InterruptsFileName, Atmega328pRuntime.EventsFileName],
             runtime.InterruptEntry(uno).Files.Select(f => f.FileName));

@@ -28,10 +28,13 @@
     // and none of avr-gcc's start-up files (the runtime is all a program needs); each function and variable in a
     // section of its own, so that the linker keeps only those the program uses. -mdouble=64: C's double is C#'s, IEEE's
     // 64 bits (clang's AVR double is 32 bits without it), for the runtime's float math and every C function a double
-    // is passed to (the runtime stops with an error without it)
+    // is passed to (the runtime stops with an error without it). -disable-machine-sink: LLVM 22's AVR register
+    // allocation can spill a stale byte of a register pair in a large function (see the code generator's
+    // LlvmAvrCalls); machine-sink, which moves code into the blocks that use it, is where it showed in functions the
+    // code generator keeps out of line
     "flags": [
       "-Os", "-mdouble=64", "-ffreestanding", "-fno-builtin", "-nostdlib", "-ffunction-sections", "-fdata-sections",
-      "-fno-unwind-tables", "-fno-asynchronous-unwind-tables", "-Wno-override-module"
+      "-fno-unwind-tables", "-fno-asynchronous-unwind-tables", "-Wno-override-module", "-mllvm", "-disable-machine-sink"
     ]
   },
   "link": {

@@ -29,7 +29,8 @@
 
 #pragma STDC FP_CONTRACT OFF
 
-typedef unsigned int u32;
+// 32 bits on every target: an int or a long (AVR's int has 16), as the compiler's own fixed-width types say
+typedef __UINT32_TYPE__ u32;
 typedef unsigned long long u64;
 
 static u64 bits64(double value)

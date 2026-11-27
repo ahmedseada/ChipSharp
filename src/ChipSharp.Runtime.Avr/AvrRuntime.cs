@@ -27,7 +27,11 @@ namespace ChipSharp.Runtime.Avr;
 /// AVR define the plain names LLVM calls (__addsf3, __muldf3, __ltdf2, __fixdfsi, __floatsidf, ...): float and double
 /// exactly as IEEE 754 rounds them, as .NET does. AVR's clang makes double 32 bits unless told otherwise: the target's
 /// clang flags must have -mdouble=64 (the runtime's C stops with an error without it). With them, fmod (C#'s % on
-/// floats) and the Math methods of <see cref="FloatMathFileName"/>, shared with the other runtimes.</item>
+/// floats) and the Math methods of <see cref="FloatMathFileName"/> and <see cref="MathFileNames"/>, shared with the
+/// other runtimes.</item>
+/// <item><see cref="StringFileName"/> and <see cref="ExceptionsFileName"/>, shared with the other runtimes: what reads
+/// strings and chars (a literal's chars in flash too), int.Parse, and the text of the exceptions a substitute stops
+/// with.</item>
 /// <item><see cref="FailuresFileName"/>: what an index outside an array (and the other failures .NET throws an
 /// exception for) does on a chip whose runtime says nothing: the failure stop. Weak, so a chip runtime with a console
 /// replaces them; and <c>chipsharp_stack_overflow</c>, for the code generator's stack checks.</item>
@@ -56,6 +60,19 @@ public sealed class AvrRuntime : IArchRuntime
     /// <summary>The C file with fmod and the Math methods (src/ChipSharp.Runtime.Shared).</summary>
     public const string FloatMathFileName = "chipsharp_float_math.c";
 
+    /// <summary>
+    /// The C files with the transcendental functions of Math and MathF (src/ChipSharp.Runtime.Shared, shared with the
+    /// other runtimes): ChipSharp's entry points, and the functions they call from musl and from AMD's math library.
+    /// </summary>
+    public static IReadOnlyList<string> MathFileNames { get; } =
+        ["chipsharp_math.c", "chipsharp_math_musl.c", "chipsharp_math_amd.c"];
+
+    /// <summary>Strings (src/ChipSharp.Runtime.Shared): their descriptors, and what reads them and chars.</summary>
+    public const string StringFileName = "chipsharp_string.c";
+
+    /// <summary>The text of the exceptions of the library's substitutes (src/ChipSharp.Runtime.Shared).</summary>
+    public const string ExceptionsFileName = "chipsharp_exceptions.c";
+
     /// <summary>The assembly file with the vector table, which <see cref="InterruptEntry"/> writes for the target.</summary>
     public const string VectorsFileName = "avr_vectors.S";
 
@@ -67,14 +84,18 @@ public sealed class AvrRuntime : IArchRuntime
 
     public string Name => "avr";
 
-    /// <summary>The reset handler, the start and the stops, the compiler's helper functions and float math, the failures.</summary>
+    /// <summary>
+    /// The reset handler, the start and the stops, the compiler's helper functions and float math, strings, the
+    /// failures.
+    /// </summary>
     public RuntimeSources Startup(TargetDescription target)
     {
         ArgumentNullException.ThrowIfNull(target);
         return new RuntimeSources(
         [
             Source(StartupFileName), Source(RuntimeFileName), Source(MultiplyFileName), Source(DivideFileName),
-            Source(MemoryFileName), .. CompilerRt.Sources(), Source(FloatMathFileName), Source(FailuresFileName),
+            Source(MemoryFileName), .. CompilerRt.Sources(), Source(FloatMathFileName), .. MathFileNames.Select(Source),
+            Source(StringFileName), Source(ExceptionsFileName), Source(FailuresFileName),
         ]);
     }
 

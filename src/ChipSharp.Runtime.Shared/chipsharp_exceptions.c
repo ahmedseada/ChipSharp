@@ -13,22 +13,60 @@
 #define DATA ((unsigned int)((sizeof(void *) + 4 + 7) / 8 * 8))
 #define TEXT_SIZE 900u
 
+// 32 bits on every target: an int or a long (AVR's int has 16), as the compiler's own fixed-width types say
+typedef __INT32_TYPE__ s32;
+typedef __UINT32_TYPE__ u32;
+
+// What the program gives (a string, a span's chars) may be its constant data, which on an AVR stays in flash: there an
+// address with bit 15 set is 0x8000 plus a flash address, read with LPM (see src/ChipSharp.Backend.Llvm/LlvmFlash.cs);
+// RAM's addresses never have it. READ(type, address) reads a value of the type at such an address, from RAM or flash;
+// on every other target it is a plain read. This file's own text stays in flash there too (constant_char): a constant
+// in RAM would take RAM on an AVR, where start-up copies .rodata to it.
+#if defined(__AVR__)
+#define READ(type, address)                                                                                            \
+    (((unsigned int)(address) & 0x8000u) != 0 ? *(const __flash type *)((unsigned int)(address) & 0x7FFFu)            \
+                                              : *(const type *)(address))
+typedef const __flash char constant_char;
+#else
+#define READ(type, address) (*(const type *)(address))
+typedef const char constant_char;
+#endif
+
 typedef struct chipsharp_type
 {
-    unsigned int size;
-    unsigned int element_size;
+    u32 size;
+    u32 element_size;
 } chipsharp_type;
 
 typedef struct string
 {
     const chipsharp_type *type;
-    int length;
+    s32 length;
 } string;
+
+typedef const chipsharp_type *type_pointer;
+
+static s32 length(const string *s)
+{
+    return READ(s32, &s->length);
+}
+
+static int is_wide(const string *s)
+{
+    return READ(u32, &READ(type_pointer, &s->type)->element_size) == 2;
+}
+
+// The UTF-16 code unit at i of a string's chars, narrow (1 byte each) or wide.
+static u32 unit_at(const string *s, int wide, s32 i)
+{
+    const unsigned char *narrow = (const unsigned char *)s + DATA;
+    return wide ? READ(unsigned short, (const unsigned short *)(const void *)narrow + i) : READ(unsigned char, narrow + i);
+}
 
 static char text[TEXT_SIZE + 1];
 
 // Appends one code point as UTF-8 when it fits; false when it does not.
-static int put(unsigned int *count, unsigned int c)
+static int put(unsigned int *count, u32 c)
 {
     unsigned int need = c < 0x80u ? 1u : c < 0x800u ? 2u : c < 0x10000u ? 3u : 4u;
     if (*count + need > TEXT_SIZE)
@@ -70,16 +108,15 @@ const char *chipsharp_unhandled_text(const void *object)
     unsigned int count = 0;
     if (message != 0)
     {
-        const unsigned char *narrow = (const unsigned char *)message + DATA;
-        const unsigned short *wide = (const unsigned short *)(const void *)narrow;
-        int is_wide = message->type->element_size == 2;
-        for (int i = 0; i < message->length; i++)
+        int wide = is_wide(message);
+        s32 chars = length(message);
+        for (s32 i = 0; i < chars; i++)
         {
-            unsigned int c = is_wide ? wide[i] : narrow[i];
-            if (c >= 0xD800u && c < 0xDC00u && i + 1 < message->length && is_wide && wide[i + 1] >= 0xDC00u
-                && wide[i + 1] < 0xE000u)
+            u32 c = unit_at(message, wide, i);
+            u32 next = wide && i + 1 < chars ? unit_at(message, wide, i + 1) : 0;
+            if (c >= 0xD800u && c < 0xDC00u && next >= 0xDC00u && next < 0xE000u)
             {
-                c = 0x10000u + ((c - 0xD800u) << 10) + (wide[i + 1] - 0xDC00u);
+                c = 0x10000u + ((c - 0xD800u) << 10) + (next - 0xDC00u);
                 i++;
             }
             else if (c >= 0xD800u && c < 0xE000u)
@@ -115,7 +152,7 @@ typedef struct
 } message;
 
 // Appends one UTF-16 code unit as UTF-8 (a surrogate as U+FFFD: the messages are ASCII), when it fits.
-static void append_unit(message *m, unsigned int c)
+static void append_unit(message *m, u32 c)
 {
     unsigned int need = c < 0x80u ? 1u : c < 0x800u ? 2u : 3u;
     if (m->count + need > MESSAGE_SIZE)
@@ -148,7 +185,7 @@ static void append_unit(message *m, unsigned int c)
     m->count += need;
 }
 
-static void append_ascii(message *m, const char *text)
+static void append_ascii(message *m, constant_char *text)
 {
     while (*text != 0)
     {
@@ -164,19 +201,18 @@ static void append_string(message *m, const string *s)
         return;
     }
 
-    const unsigned char *narrow = (const unsigned char *)s + DATA;
-    const unsigned short *wide = (const unsigned short *)(const void *)narrow;
-    int is_wide = s->type->element_size == 2;
-    for (int i = 0; i < s->length; i++)
+    int wide = is_wide(s);
+    s32 chars = length(s);
+    for (s32 i = 0; i < chars; i++)
     {
-        append_unit(m, is_wide ? wide[i] : narrow[i]);
+        append_unit(m, unit_at(s, wide, i));
     }
 }
 
-static void append_int(message *m, int value)
+static void append_int(message *m, s32 value)
 {
     char digits[12];
-    unsigned int magnitude = value < 0 ? 0u - (unsigned int)value : (unsigned int)value;
+    u32 magnitude = value < 0 ? 0u - (u32)value : (u32)value;
     int n = 0;
     do
     {
@@ -195,13 +231,20 @@ static void append_int(message *m, int value)
     }
 }
 
+static constant_char parameter_start[] = " (Parameter '";
+static constant_char parameter_end[] = "')";
+static constant_char colon[] = ": ";
+static constant_char out_of_range[] = "System.ArgumentOutOfRangeException: ";
+static constant_char actual_value[] = "\r\nActual value was ";
+static constant_char full_stop[] = ".";
+
 static void append_parameter(message *m, const string *parameter)
 {
     if (parameter != 0)
     {
-        append_ascii(m, " (Parameter '");
+        append_ascii(m, parameter_start);
         append_string(m, parameter);
-        append_ascii(m, "')");
+        append_ascii(m, parameter_end);
     }
 }
 
@@ -217,38 +260,38 @@ __attribute__((noreturn)) void ChipSharp_Runtime_Throw(const string *exception, 
     message m;
     m.count = 0;
     append_string(&m, exception);
-    append_ascii(&m, ": ");
+    append_ascii(&m, colon);
     append_string(&m, text);
     append_parameter(&m, parameter);
     stop(&m);
 }
 
 // An ArgumentOutOfRangeException that says the value too, on a line of its own: "Actual value was 13.".
-__attribute__((noreturn)) void ChipSharp_Runtime_ThrowValue(const string *text, const string *parameter, int value)
+__attribute__((noreturn)) void ChipSharp_Runtime_ThrowValue(const string *text, const string *parameter, s32 value)
 {
     message m;
     m.count = 0;
-    append_ascii(&m, "System.ArgumentOutOfRangeException: ");
+    append_ascii(&m, out_of_range);
     append_string(&m, text);
     append_parameter(&m, parameter);
-    append_ascii(&m, "\r\nActual value was ");
+    append_ascii(&m, actual_value);
     append_int(&m, value);
-    append_ascii(&m, ".");
+    append_ascii(&m, full_stop);
     stop(&m);
 }
 
 // The program's text in the message: before, count UTF-16 chars from chars on, after.
 __attribute__((noreturn)) void ChipSharp_Runtime_ThrowText(const string *exception, const string *before,
-                                                           const unsigned short *chars, int count, const string *after)
+                                                           const unsigned short *chars, s32 count, const string *after)
 {
     message m;
     m.count = 0;
     append_string(&m, exception);
-    append_ascii(&m, ": ");
+    append_ascii(&m, colon);
     append_string(&m, before);
-    for (int i = 0; i < count; i++)
+    for (s32 i = 0; i < count; i++)
     {
-        append_unit(&m, chars[i]);
+        append_unit(&m, READ(unsigned short, chars + i));
     }
 
     append_string(&m, after);

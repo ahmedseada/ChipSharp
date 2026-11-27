@@ -20,7 +20,8 @@
 
 #pragma clang attribute push(__attribute__((minsize)), apply_to = function)
 
-typedef unsigned int u32;
+// 32 bits on every target: an int or a long (AVR's int has 16), as the compiler's own fixed-width types say
+typedef __UINT32_TYPE__ u32;
 typedef unsigned long long u64;
 
 // The most 32-bit words a number needs, and then some. The largest number is 10 times a value below the scale, and
@@ -153,31 +154,31 @@ static void big_subtract(big *x, const big *y)
 static int bit_length(u32 x)
 {
     int count = 0;
-    if (x >= 1u << 16)
+    if (x >= (u32)1 << 16)
     {
         count += 16;
         x >>= 16;
     }
 
-    if (x >= 1u << 8)
+    if (x >= (u32)1 << 8)
     {
         count += 8;
         x >>= 8;
     }
 
-    if (x >= 1u << 4)
+    if (x >= (u32)1 << 4)
     {
         count += 4;
         x >>= 4;
     }
 
-    if (x >= 1u << 2)
+    if (x >= (u32)1 << 2)
     {
         count += 2;
         x >>= 2;
     }
 
-    if (x >= 1u << 1)
+    if (x >= (u32)1 << 1)
     {
         count += 1;
         x >>= 1;
@@ -301,7 +302,18 @@ static int shortest_digits(u32 low, u32 high, int exponent, int lower_closer, un
     return count;
 }
 
-static int write_word(char *text, const char *word)
+// The words a float may be written as, in flash on an AVR (a constant in RAM would take RAM there: start-up copies
+// .rodata to it)
+#if defined(__AVR__)
+typedef const __flash char constant_char;
+#else
+typedef const char constant_char;
+#endif
+
+static constant_char nan_word[] = "NaN";
+static constant_char infinity_word[] = "Infinity";
+
+static int write_word(char *text, constant_char *word)
 {
     int length = 0;
     while (word[length] != 0)
@@ -314,14 +326,19 @@ static int write_word(char *text, const char *word)
 }
 
 // The text of a float or double from the fields of its bits: the sign, the biased exponent (all ones for NaN and
-// infinity), the fraction (high * 2^32 + low, without the implicit bit) and its size in bits, and the largest
-// number of digits written before the point without an exponent (.NET's precision: 17 for double, 9 for float).
-static int float_text(u32 negative, int biased, int all_ones, u32 low, u32 high, int fraction_bits, int precision, char *text)
+// infinity), the fraction (high * 2^32 + low, without the implicit bit); is_double says its format: the size of the
+// fraction in bits, the exponent's all ones, and the largest number of digits written before the point without an
+// exponent (.NET's precision: 17 for double, 9 for float). Its arguments fit in an AVR's registers (r8-r25): there a
+// call that passes some on the stack sets the stack up through r31:r30, which LLVM 22 does not take as changed.
+static int float_text(int is_double, int negative, int biased, u32 low, u32 high, char *text)
 {
+    int fraction_bits = is_double ? 52 : 23;
+    int all_ones = is_double ? 0x7FF : 0xFF;
+    int precision = is_double ? 17 : 9;
     int n = 0;
     if (biased == all_ones && (low | high) != 0)
     {
-        return write_word(text, "NaN");
+        return write_word(text, nan_word);
     }
 
     if (negative != 0)
@@ -331,7 +348,7 @@ static int float_text(u32 negative, int biased, int all_ones, u32 low, u32 high,
 
     if (biased == all_ones)
     {
-        return n + write_word(text + n, "Infinity");
+        return n + write_word(text + n, infinity_word);
     }
 
     if (biased == 0 && (low | high) == 0)
@@ -349,11 +366,11 @@ static int float_text(u32 negative, int biased, int all_ones, u32 low, u32 high,
     {
         if (fraction_bits >= 32)
         {
-            high |= 1u << (fraction_bits - 32);
+            high |= (u32)1 << (fraction_bits - 32);
         }
         else
         {
-            low |= 1u << fraction_bits;
+            low |= (u32)1 << fraction_bits;
         }
     }
 
@@ -419,12 +436,12 @@ static int float_text(u32 negative, int biased, int all_ones, u32 low, u32 high,
 int chipsharp_float64_text(u64 bits, char *text)
 {
     u32 high = (u32)(bits >> 32);
-    return float_text(high >> 31, (int)((high >> 20) & 0x7FFu), 0x7FF, (u32)bits, high & 0xFFFFFu, 52, 17, text);
+    return float_text(1, (int)(high >> 31), (int)((high >> 20) & 0x7FFu), (u32)bits, high & 0xFFFFFu, text);
 }
 
 int chipsharp_float32_text(u32 bits, char *text)
 {
-    return float_text(bits >> 31, (int)((bits >> 23) & 0xFFu), 0xFF, bits & 0x7FFFFFu, 0, 23, 9, text);
+    return float_text(0, (int)(bits >> 31), (int)((bits >> 23) & 0xFFu), bits & 0x7FFFFFu, 0, text);
 }
 
 #pragma clang attribute pop

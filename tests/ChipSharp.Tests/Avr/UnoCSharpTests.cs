@@ -12,14 +12,6 @@ public sealed class UnoCSharpTests : IDisposable
 {
     private const string Finished = "the program has finished";
 
-    /// <summary>
-    /// Why the tests of text and numbers on the console wait: Console.WriteLine of a string or a number runs the shared
-    /// runtime C (chipsharp_console.c, chipsharp_string.c), which reads a C# int as AVR's 16-bit int and the program's
-    /// text with plain loads, where an AVR keeps it in flash; and the string descriptors are not in the AVR runtime yet.
-    /// </summary>
-    private const string WaitsForSharedRuntime = "Waits for the shared runtime C made AVR-safe (32-bit ints, the program's " +
-        "data read through bit 15) and the string descriptors in the AVR runtime: then remove this Skip.";
-
     private readonly string _scratch = Path.Combine(Path.GetTempPath(), "chipsharp-tests", Guid.NewGuid().ToString("N"));
 
     public void Dispose()
@@ -237,7 +229,7 @@ public sealed class UnoCSharpTests : IDisposable
         Assert.Equal([117647], run.Usart0BaudRates);
     }
 
-    [AvrSimulatorFact(Skip = WaitsForSharedRuntime)]
+    [AvrSimulatorFact]
     public async Task Console_WriteLine_says_hello_and_writes_numbers_and_chars_on_USART0()
     {
         var program = UnoProgram.BuildCSharp(_scratch, "Hello", """
