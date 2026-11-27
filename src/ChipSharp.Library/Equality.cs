@@ -12,7 +12,8 @@ namespace ChipSharp.Library;
 /// <item>any other class: <see cref="OfObject{T}"/>, its <c>Equals(object)</c> (an override, or object's own: the same
 /// object), as .NET's ObjectEqualityComparer does;</item>
 /// <item>a type that implements <c>IComparable&lt;T&gt;</c>: <see cref="OfComparable{T}"/>; a class that implements
-/// only <c>IComparable</c>: <see cref="OfObjectComparable{T}"/>.</item>
+/// only <c>IComparable</c>: <see cref="OfObjectComparable{T}"/>;</item>
+/// <item>the hash code (<see cref="HashOf{T}"/>) of an enum is its number's.</item>
 /// </list>
 /// Null is equal to null and less than any object, as in .NET. A struct without <c>IEquatable&lt;T&gt;</c> (or
 /// <c>IComparable&lt;T&gt;</c>) would be boxed, as .NET boxes it: that arrives with M3.

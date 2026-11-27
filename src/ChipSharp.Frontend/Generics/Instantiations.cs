@@ -78,7 +78,8 @@ internal static class Instantiations
 
         IlType[] arguments = [.. typeArguments, .. reference.GenericArguments];
         var home = Home(definition.Assembly, arguments, owner);
-        if (Refusal(home, arguments) is not null)
+        if (Refusal(home, arguments) is not null
+            || !LibraryConstraints.Met(definition, typeArguments, reference.GenericArguments, home))
         {
             return reference;
         }

@@ -19,7 +19,7 @@ internal sealed partial record Unsupported
     /// object), as a heap use: objects need a heap.
     /// </summary>
     public static readonly Unsupported DefaultComparers = HeapUse(Heap(
-        "the library's default comparers (EqualityComparer<T>.Default, Comparer<T>.Default), which are objects", true,
+        "the default comparers EqualityComparer<T>.Default and Comparer<T>.Default (objects)", true,
         "For now, compare with Equals and CompareTo, through a constraint where the type is a T: " +
         "static bool Same<T>(T a, T b) where T : IEquatable<T> => a.Equals(b);"));
 

@@ -87,6 +87,36 @@ public sealed partial class IlAssembly
         ];
     }
 
+    /// <summary>
+    /// The constraints of each of <paramref name="method"/>'s own generic parameters, in order: its attributes
+    /// (<c>struct</c>, <c>class</c>, <c>new()</c>) and the types it must be (in terms of the generic parameters,
+    /// <c>!!0</c>), as its metadata says; empty for a method that is not generic.
+    /// </summary>
+    internal IReadOnlyList<(System.Reflection.GenericParameterAttributes Attributes, IReadOnlyList<IlType> Types)>
+        Constraints(IlMethod method)
+    {
+        ArgumentNullException.ThrowIfNull(method);
+        if (method.DeclaringType.Assembly != this)
+        {
+            return method.DeclaringType.Assembly.Constraints(method);
+        }
+
+        var definition = _reader.GetMethodDefinition(MetadataTokens.MethodDefinitionHandle(method.Token & 0xFFFFFF));
+        try
+        {
+            return
+            [
+                .. definition.GetGenericParameters().Select(handle => _reader.GetGenericParameter(handle)).Select(parameter =>
+                    (parameter.Attributes, (IReadOnlyList<IlType>)[.. parameter.GetConstraints()
+                        .Select(constraint => _types.Decode(_reader.GetGenericParameterConstraint(constraint).Type))])),
+            ];
+        }
+        catch (BadImageFormatException e)
+        {
+            throw new ChipSharpException($"{FilePath}: {method}: cannot read its generic parameters' constraints: {e.Message}", e);
+        }
+    }
+
     /// <summary>The metadata of <paramref name="type"/>, a type of this assembly.</summary>
     private TypeDefinition Own(IlTypeDefinition type)
     {

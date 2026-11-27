@@ -236,18 +236,22 @@ internal static partial class Specialization
     /// <c>Equality.AreEqual&lt;T&gt;</c> or <c>Equality.Compare&lt;T&gt;</c> (<paramref name="name"/>): through
     /// <c>IEquatable&lt;T&gt;</c> (<c>IComparable&lt;T&gt;</c>) for a number, a bool and a type that implements it (an enum
     /// as its number), else through object's Equals (IComparable) for a class; null when it is neither (a struct that
-    /// does not implement it, which the default comparer boxes).
+    /// does not implement it, which the default comparer boxes). For <c>Equality.HashOf&lt;T&gt;</c> of an enum, that of
+    /// its number; null for any other T, whose own GetHashCode it calls.
     /// </summary>
     private static IlMethodReference? DefaultComparison(string name, IlType type, IlAssembly owner)
     {
-        var plain = ValueTypes.Underlying(StackArrays.Primitive(ValueTypes.WithoutModifiers(type)), owner);
+        var own = StackArrays.Primitive(ValueTypes.WithoutModifiers(type));
+        var plain = ValueTypes.Underlying(own, owner);
         var generic = name == "AreEqual" ? "System.IEquatable`1" : name == "Compare" ? "System.IComparable`1" : null;
-        if (generic is null || Substitution.IsOpen(plain))
+        if (Substitution.IsOpen(plain) || (generic is null && (name != "HashOf" || plain == own)))
         {
             return null;
         }
 
-        var through = plain is IlPrimitiveType { Kind: >= IlPrimitiveKind.Bool and <= IlPrimitiveKind.Float64 }
+        // an enum's hash code is its number's
+        var through = generic is null ? "HashOf"
+            : plain is IlPrimitiveType { Kind: >= IlPrimitiveKind.Bool and <= IlPrimitiveKind.Float64 }
             || Implements(plain, new IlGenericInstanceType(new IlNamedType("System", generic[7..], null, "System.Runtime"),
                 [plain]), owner)
             ? name == "AreEqual" ? "OfEquatable" : "OfComparable"
@@ -269,7 +273,7 @@ internal static partial class Specialization
     /// True when <paramref name="type"/>, a struct or a class (or a base class of it), says it implements
     /// <paramref name="interfaceType"/>, a library interface, by its full name (whichever library assembly names it).
     /// </summary>
-    private static bool Implements(IlType type, IlType interfaceType, IlAssembly owner)
+    internal static bool Implements(IlType type, IlType interfaceType, IlAssembly owner)
     {
         var wanted = IlTypeNames.DisplayName(interfaceType);
         IReadOnlyList<IlType> arguments = interfaceType is IlGenericInstanceType generic ? generic.Arguments : [];
