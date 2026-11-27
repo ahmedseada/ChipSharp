@@ -66,6 +66,9 @@ public sealed class TirTypeDescriptor
     /// <summary>The name of the header field, the first field of every object type: the address of the descriptor.</summary>
     public const string HeaderField = "<type>";
 
+    /// <summary>The field of <see cref="Layout"/> that holds the flags (an i32): 1 for an array, 2 for an interface.</summary>
+    public const int FlagsField = 2;
+
     /// <summary>The field of <see cref="Layout"/> that holds the base (a ptr).</summary>
     public const int BaseField = 5;
 

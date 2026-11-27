@@ -84,6 +84,9 @@ internal sealed partial class MethodLowering
             // no object that could be there is ever made: it is null, which the null check stops at
             0 => returnType == TirType.Void ? null : _ir.Zero(returnType),
             1 => _ir.Call(_program.Function(targets[0]), arguments),
+            // object's Equals and GetHashCode: through a function that knows arrays, which have no virtual method table
+            _ when slot.Kind == DispatchSlotKind.Object =>
+                _ir.Call(_program.ObjectFunctions.VirtualObjectCall(slot.Name, SlotIndex(slot)), arguments),
             _ => _ir.CallIndirect(returnType, MethodAddress(slot, receiver), arguments),
         };
 
@@ -99,18 +102,21 @@ internal sealed partial class MethodLowering
     /// </summary>
     private TirValue MethodAddress(DispatchSlot slot, TirValue receiver)
     {
-        var index = _program.VirtualTables.IndexOf(slot)
-            ?? throw Error($"the call through {slot} has no place in a method table");
         var type = _ir.TypeOf(receiver);
         TirValue table = slot.Kind == DispatchSlotKind.Interface
             ? _ir.Call(_program.ObjectFunctions.FindInterface, type, _ir.AddressOf(_program.InterfaceDescriptor(slot.Owner)))
             : _ir.FieldAddress(type, TirTypeDescriptor.Layout, TirTypeDescriptor.VirtualsField);
-        return _ir.Load(TirType.Ptr, _ir.ElementAddress(table, TirType.Ptr, _ir.Const(TirType.I32, index)));
+        return _ir.Load(TirType.Ptr, _ir.ElementAddress(table, TirType.Ptr, _ir.Const(TirType.I32, SlotIndex(slot))));
     }
+
+    /// <summary>Where <paramref name="slot"/> is in the method tables (see <see cref="VirtualTables.IndexOf"/>).</summary>
+    private int SlotIndex(DispatchSlot slot) => _program.VirtualTables.IndexOf(slot)
+        ?? throw Error($"the call through {slot} has no place in a method table");
 
     /// <summary>
     /// <c>isinst</c> (<paramref name="cast"/> false) or <c>castclass</c> to <paramref name="target"/>: object, a class
-    /// of the program or an interface (the whole-program pass rejects the others).
+    /// of the program, an interface or an array type (the whole-program pass rejects the others). An array comes out as
+    /// the array value a variable of its type holds.
     /// </summary>
     private void TypeTest(IlType target, bool cast)
     {
@@ -118,34 +124,48 @@ internal sealed partial class MethodLowering
         var reference = ObjectFromStack(PopValue(), _instruction.Name);
         var assembly = _method.Assembly;
         var plain = ValueTypes.WithoutModifiers(target);
-        var isInterface = VirtualMethods.IsInterface(plain, assembly);
         var targetClass = ObjectTypes.Class(plain, assembly);
-        if (!ObjectTypes.IsSystemObject(plain) && !isInterface && targetClass is null)
-        {
-            throw Error($"{_instruction.Name} to {CSharpNames.Type(plain)} is not supported: ChipSharp tests objects " +
-                "against object, the program's classes and the interfaces they implement");
-        }
+        var kind = plain is IlArrayType ? TirTypeDescriptorKind.Array
+            : VirtualMethods.IsInterface(plain, assembly) ? TirTypeDescriptorKind.Interface
+            : targetClass is not null || ObjectTypes.IsSystemObject(plain) ? TirTypeDescriptorKind.Class
+            : throw Error($"{_instruction.Name} to {CSharpNames.Type(plain)} is not supported: ChipSharp tests objects " +
+                "against object, the program's classes, the interfaces they implement and arrays");
 
         bool Passes(IlTypeDefinition type) =>
             targetClass is not null ? VirtualMethods.IsDerived(type, targetClass) : VirtualMethods.Implements(type, plain);
 
         // against object, or a type the variable already is: the object itself (null too)
-        if (ObjectTypes.IsSystemObject(plain)
-            || (known is not null && ObjectTypes.Class(known, assembly) is { } knownClass && Passes(knownClass)))
+        TirValue result;
+        if (ObjectTypes.IsSystemObject(plain) || (known is not null && (known.Equals(plain)
+            || (kind != TirTypeDescriptorKind.Array && ObjectTypes.Class(known, assembly) is { } knownClass && Passes(knownClass)))))
         {
-            PushObject(reference);
-            return;
+            result = reference;
+        }
+        else if (!cast && kind != TirTypeDescriptorKind.Array
+            && !_program.VirtualTables.Dispatch.Created.Any(type => Passes(type) && VirtualMethods.Fits(type, known)))
+        {
+            // no object the program makes can pass: as and is give null; a cast still stops at one that is there
+            result = _ir.Zero(TirType.Ref);
+        }
+        else
+        {
+            var descriptor = kind switch
+            {
+                TirTypeDescriptorKind.Array => _program.HeapArrayDescriptor(plain, assembly),
+                TirTypeDescriptorKind.Interface => _program.InterfaceDescriptor(plain),
+                _ => _program.ClassDescriptor(targetClass!),
+            };
+            result = _ir.Call(_program.ObjectFunctions.TypeTest(kind, cast), reference, _ir.AddressOf(descriptor));
         }
 
-        // no object the program makes can pass: as and is give null; a cast still stops at one that is there
-        if (!cast && !_program.VirtualTables.Dispatch.Created.Any(type => Passes(type) && VirtualMethods.Fits(type, known)))
+        if (kind == TirTypeDescriptorKind.Array)
         {
-            PushObject(_ir.Zero(TirType.Ref));
-            return;
+            Push(ArrayToStack(result, plain));
         }
-
-        var descriptor = targetClass is null ? _program.InterfaceDescriptor(plain) : _program.ClassDescriptor(targetClass);
-        PushObject(_ir.Call(_program.ObjectFunctions.TypeTest(isInterface, cast), reference, _ir.AddressOf(descriptor)));
+        else
+        {
+            PushObject(result);
+        }
     }
 
     /// <summary>A <c>call</c> of object's own Equals or GetHashCode (<c>base.Equals(other)</c>): ChipSharp's, with no null check.</summary>

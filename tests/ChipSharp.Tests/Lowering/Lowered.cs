@@ -37,6 +37,7 @@ internal static class Lowered
             ? assembly.EntryPoint ?? throw new InvalidOperationException("The assembly has no entry point.")
             : Assert.Single(assembly.FindMethods(entryPoint));
         var methods = new List<IlMethod> { start };
+        var dispatch = new VirtualDispatch();
         for (var i = 0; i < methods.Count; i++)
         {
             // the initializers of the types it uses, as the whole-program pass adds them
@@ -48,12 +49,17 @@ internal static class Lowered
                 }
             }
 
-            foreach (var instruction in methods[i].Body?.Instructions ?? [])
+            // a virtual call reaches what its slot runs on the objects the program makes, as in the whole-program pass
+            var instructions = methods[i].Body?.Instructions ?? [];
+            for (var j = 0; j < instructions.Count; j++)
             {
-                if (instruction.Operand is IlMethodOperand { Method.Definition: { } callee } && !methods.Contains(callee))
+                if (instructions[j].Operand is IlMethodOperand { Method.Definition: { } callee } && !methods.Contains(callee)
+                    && VirtualMethods.CalledSlot(instructions, j) is null)
                 {
                     methods.Add(callee);
                 }
+
+                methods.AddRange(dispatch.Follow(instructions, j).Where(method => !methods.Contains(method)));
             }
         }
 

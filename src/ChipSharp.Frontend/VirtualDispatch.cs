@@ -27,6 +27,12 @@ internal sealed class VirtualDispatch
     /// <summary>True when the program makes objects of System.Object itself (<c>new object()</c>).</summary>
     public bool CreatesPlainObjects { get; private set; }
 
+    /// <summary>
+    /// True when the program makes arrays (<c>newarr</c>, <c>Array.Empty&lt;T&gt;()</c>), which may be objects too: they
+    /// run object's own Equals and GetHashCode.
+    /// </summary>
+    public bool CreatesArrays { get; private set; }
+
     /// <summary>The slots the program calls through, in the order first called.</summary>
     public IReadOnlyList<DispatchSlot> Called => _called;
 
@@ -55,6 +61,13 @@ internal sealed class VirtualDispatch
         if (VirtualMethods.CalledSlot(instructions, index) is { } slot)
         {
             return _isCalled.Add(slot) ? Reached(Call(slot)) : [];
+        }
+
+        if (instructions[index] is { OpCode: IlOpCode.Newarr }
+            or { OpCode: IlOpCode.Call, Operand: IlMethodOperand { Method: { Name: "Empty", Definition: null } } })
+        {
+            CreatesArrays = true;
+            return [];
         }
 
         if (instructions[index] is { OpCode: IlOpCode.Newobj, Operand: IlMethodOperand { Method: var constructor } } made
@@ -88,7 +101,7 @@ internal sealed class VirtualDispatch
             }
         }
 
-        if (slot.Kind == DispatchSlotKind.Object && CreatesPlainObjects
+        if (slot.Kind == DispatchSlotKind.Object && (CreatesPlainObjects || CreatesArrays)
             && (receiver is null || ObjectTypes.IsSystemObject(receiver))
             && new DispatchTarget(null, slot.Name) is var own && !targets.Contains(own))
         {

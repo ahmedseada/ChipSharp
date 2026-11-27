@@ -74,9 +74,10 @@ public static partial class WholeProgramPass
 
     /// <summary>
     /// Why <c>is</c>, <c>as</c> or a cast to <paramref name="type"/> in <paramref name="method"/> cannot be compiled,
-    /// or null when it can: to object, to a class of the program (when its objects can be compiled) or to an interface
-    /// an object may implement. A value (a number, a struct, an enum, a nullable) is unboxing, which is boxing's; an
-    /// array, string and a library class are type tests ChipSharp does not make yet.
+    /// or null when it can: to object, to a class of the program (when its objects can be compiled), to an interface
+    /// an object may implement, or to an array type whose arrays may be on the heap (see <see cref="HeapArrays"/>). A
+    /// value (a number, a struct, an enum, a nullable) is unboxing, which is boxing's; string, a library class and the
+    /// other arrays are type tests ChipSharp does not make yet.
     /// </summary>
     private static Unsupported? ForTypeTest(IlType type, IlMethod method)
     {
@@ -94,7 +95,8 @@ public static partial class WholeProgramPass
 
         return plain switch
         {
-            IlArrayType or IlMultiDimensionalArrayType => Unsupported.TypeTestsOf("arrays"),
+            IlArrayType { ElementType: var element } when HeapArrays.TryMapElementType(element, assembly, out _) => null,
+            IlArrayType or IlMultiDimensionalArrayType => Unsupported.TypeTestsOf(CSharpNames.Type(plain, method)),
             IlGenericInstanceType { Definition: IlNamedType { FullName: "System.Nullable`1" } } => Unsupported.Boxing,
             _ when ValueTypes.TryMapType(plain, assembly, out _) => Unsupported.Boxing,
             IlNamedType { IsDefinedInThisAssembly: true } or IlGenericInstanceType { Definition: IlNamedType { IsDefinedInThisAssembly: true } } =>
