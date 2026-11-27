@@ -57,6 +57,12 @@ public sealed class IlProgram
     public bool UnalignedAccess { get; init; } = true;
 
     /// <summary>
+    /// The narrowing the TIR gets once it is translated (see <see cref="TargetNarrowing"/>): arithmetic in 8 or 16 bits
+    /// where that gives C#'s result, on an 8-bit chip; null (when the program is not for one target, too) for none.
+    /// </summary>
+    public Ir.Optimizations.TirNarrowingOptions? Narrowing { get; init; }
+
+    /// <summary>
     /// The type initializers among <see cref="Methods"/> (static field initializers and static constructors), in the
     /// order the program runs them when it starts, before the entry point (see <see cref="StaticInitialization"/>):
     /// those of the types the entry point uses, then those of the types only the interrupt handlers use.

@@ -127,6 +127,23 @@ public sealed class TirFunction
     }
 
     /// <summary>
+    /// A slot of the same name and place as <paramref name="slot"/> that holds <paramref name="type"/> instead, which
+    /// takes its place in <see cref="Slots"/>, for a pass that makes a variable narrower
+    /// (<see cref="Optimizations.TirNarrowing"/>): the pass rewrites every load and store of the old one.
+    /// </summary>
+    internal TirSlot ReplaceSlot(TirSlot slot, TirType type)
+    {
+        if (slot.Function != this || _slots[slot.Index] != slot)
+        {
+            throw new TirException($"Slot {slot} is not a slot of function '{Name}'.");
+        }
+
+        var replacement = new TirSlot(this, slot.Index, slot.Name, type);
+        _slots[slot.Index] = replacement;
+        return replacement;
+    }
+
+    /// <summary>
     /// Adds an empty block after the existing ones; the first block added is the entry.
     /// Block names are unique within the function.
     /// </summary>
