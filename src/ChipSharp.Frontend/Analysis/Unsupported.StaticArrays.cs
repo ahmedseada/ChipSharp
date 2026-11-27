@@ -10,9 +10,10 @@ internal sealed partial record Unsupported
         "constructor", false, $"For now, assign it once, {Declared}, and change its elements instead.");
 
     public static readonly Unsupported StaticArrayInitializers = Heap(
-        "an array in a static field that is not made with a constant size and constant elements", false,
-        "For now, make it where the field is declared, with a constant size (new int[16]) or constant elements " +
-        "({ 1, 2, 3 }); a method that Main calls first can set the elements.");
+        "an array in a static field that is not made with a constant size where the field is declared", false,
+        "For now, make it there, with a constant size (new int[16]) or its elements ({ 1, 2, 3 }, " +
+        "{ new Point(1, 2) }), each computed without a branch (?:, a switch); a method that Main calls first can " +
+        "set the elements.");
 
     public static readonly Unsupported StaticArrayNull = Heap(
         "a static field of an array type that holds null (it is never given an array)", false,

@@ -22,9 +22,10 @@ public sealed class StaticArrayCheckTests : IDisposable
         + $"initializer or static constructor needs a heap, and {NoHeap} Assign it once, where the field is "
         + "declared (static int[] buffer = new int[16];), and change its elements instead.";
 
-    private const string NotConstant = "an array in a static field that is not made with a constant size and constant "
-        + $"elements needs a heap, and {NoHeap} Make it where the field is declared, with a constant size (new "
-        + "int[16]) or constant elements ({ 1, 2, 3 }); a method that Main calls first can set the elements.";
+    private const string NotConstant = "an array in a static field that is not made with a constant size where the "
+        + $"field is declared needs a heap, and {NoHeap} Make it there, with a constant size (new int[16]) or its "
+        + "elements ({ 1, 2, 3 }, { new Point(1, 2) }), each computed without a branch (?:, a switch); a method that "
+        + "Main calls first can set the elements.";
 
     private const string Null = "a static field of an array type that holds null (it is never given an array) needs "
         + $"a heap, and {NoHeap} Give it an array where the field is declared (static int[] buffer = new int[16];).";
@@ -312,14 +313,45 @@ public sealed class StaticArrayCheckTests : IDisposable
     }
 
     [Fact]
-    public void A_static_array_whose_size_or_elements_are_computed_is_rejected()
+    public void A_static_array_whose_size_is_computed_or_whose_element_branches_is_rejected()
     {
-        var problems = ProblemsWithoutHeap(Program("Console.WriteLine(Sized.Length + Computed[0] + Corners[0].X + Copy.Length);", """
+        var problems = ProblemsWithoutHeap(Program("Console.WriteLine(Sized.Length + Chosen[0]);", """
             static int size = 4;
             static readonly int[] Sized = new int[size];
+            static readonly int[] Chosen = { size > 2 ? 1 : 2, 3 };
+            """));
+
+        Assert.Equal(
+        [
+            $"Program.Main() at IL_0000 (ldsfld): {NotConstant}",
+            $"Program.Main() at IL_0007 (ldsfld): {NotConstant}",
+            "Program..cctor() at IL_000b (newarr): an array whose size is known only when the program runs needs a heap, "
+                + $"and {NoHeap} Give the array a fixed size: a constant, such as new int[16].",
+            $"Program..cctor() at IL_0010 (stsfld): {NotConstant}",
+            $"Program..cctor() at IL_002e (stsfld): {NotConstant}",
+        ], problems);
+    }
+
+    /// <summary>
+    /// Elements the initializer computes (a struct's constructor, a static field, a call) make a static fixed array that
+    /// starts at zero, whose elements the initializer sets when the program starts: in RAM, even when nothing else
+    /// writes it. Kept in another static field it is an array kept outside its field, as a constant table is.
+    /// </summary>
+    [Fact]
+    public void A_static_array_whose_elements_are_computed_is_a_fixed_array_set_when_the_program_starts()
+    {
+        var analysis = Check(Program("Console.WriteLine(Computed[0] + Corners[1].X + Steps[2].Seconds + Doubled[1]);", """
+            static int size = 4;
             static readonly int[] Computed = { size, 2 };
-            static readonly Point[] Corners = { new Point(1, 2) };
-            static readonly int[] Copy = Computed;
+            static readonly Point[] Corners = { new Point(1, 2), new Point(3, 4) };
+            static readonly Step[] Steps = [new(Light.Green, 4, true), new(Light.Yellow, 1), new(Light.Red, 2)];
+            static readonly long[] Doubled = { Twice(3), Twice(size) };
+
+            static long Twice(int value) => value * 2L;
+
+            enum Light { Red, Yellow, Green }
+
+            readonly record struct Step(Light Light, int Seconds, bool CanBeCut = false);
 
             struct Point
             {
@@ -329,20 +361,30 @@ public sealed class StaticArrayCheckTests : IDisposable
             }
             """));
 
+        Assert.Empty(analysis.Problems);
+        var arrays = analysis.ToProgram().StaticArrays;
+        Assert.Equal(
+        [
+            "Program.Computed: fixed [2 x i32] = zero",
+            "Program.Corners: fixed [2 x Program.Point] = zero",
+            "Program.Steps: fixed [3 x Program.Step] = zero",
+            "Program.Doubled: fixed [2 x i64] = zero",
+        ], Describe(arrays));
+        Assert.All(arrays.Arrays, array => Assert.True(array.IsSetAtStart));
+
+        var kept = ProblemsWithoutHeap(Program("Console.WriteLine(Copy.Length);", """
+            static int size = 4;
+            static readonly int[] Computed = { size, 2 };
+            static readonly int[] Copy = Computed;
+            """), compilesWithHeap: false);
         Assert.Equal(
         [
             $"Program.Main() at IL_0000 (ldsfld): {NotConstant}",
-            $"Program.Main() at IL_0007 (ldsfld): {NotConstant}",
-            $"Program.Main() at IL_000f (ldsfld): {NotConstant}",
-            $"Program.Main() at IL_0020 (ldsfld): {NotConstant}",
-            "Program..cctor() at IL_000b (newarr): an array whose size is known only when the program runs needs a heap, "
-                + $"and {NoHeap} Give the array a fixed size: a constant, such as new int[16].",
-            $"Program..cctor() at IL_0010 (stsfld): {NotConstant}",
-            $"Program..cctor() at IL_0027 (stsfld): {NotConstant}",
-            $"Program..cctor() at IL_0040 (stsfld): {NotConstant}",
-            $"Program..cctor() at IL_0045 (ldsfld): {NotConstant}",
-            $"Program..cctor() at IL_004a (stsfld): {NotConstant}",
-        ], problems);
+            "Program..cctor() at IL_0022 (stsfld): an array in a static field that needs no heap (a constant table, or a "
+                + "fixed array) kept outside its field: returned, stored in another field or array, or passed to a method "
+                + "that keeps it arrives later. For now, read it through its field where it is needed, or copy its "
+                + "elements into an array made with new and keep that.",
+        ], kept);
     }
 
     [Fact]
