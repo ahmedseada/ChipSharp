@@ -1,7 +1,8 @@
 {
   // AVR: Microchip's (once Atmel's) 8-bit microcontrollers, e.g. the ATmega328P of the Arduino Uno and Nano.
-  // Milestone M7, in progress: the toolchain, the .hex image, the simulator (tools/avr-sim) and the runtime "avr"
-  // (start-up, the vector table, the 8-bit math helpers, float in software) are here
+  // Milestone M7: the toolchain, the .hex image, the simulator (tools/avr-sim) and the runtime "avr" (start-up, the
+  // vector table, the 8-bit math helpers, float in software), for every AVR chip; a chip's file (atmega328p.json) adds
+  // its own runtime, memory, pins and capabilities
   "name": "avr",
   "backend": "llvm",
   // the clang and ld.lld inside Zig (zig cc, zig ld.lld): LLVM's release builds for Windows have no AVR target.

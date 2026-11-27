@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "author": "ChipSharp",
+  "editor": "wokwi",
+  "parts": [
+    {"type": "wokwi-arduino-uno", "id": "uno", "top": 0, "left": 0, "attrs": {}},
+    {"type": "wokwi-7segment", "id": "turn", "top": -110, "left": 158.68, "attrs": {"common": "cathode", "digits": "1", "color": "#00aaff"}},
+    {"type": "wokwi-pushbutton", "id": "btn", "top": -80, "left": 255, "attrs": {"color": "blue", "label": "end green", "bounce": "0"}},
+    {"type": "wokwi-led", "id": "red", "top": 245, "left": 61, "attrs": {"color": "red", "label": "Signal"}},
+    {"type": "wokwi-led", "id": "yellow", "top": 245, "left": 121, "attrs": {"color": "yellow"}},
+    {"type": "wokwi-led", "id": "green", "top": 245, "left": 181, "attrs": {"color": "green"}},
+    {"type": "wokwi-lcd1602", "id": "lcd", "top": 325, "left": -65, "attrs": {"pins": "i2c"}}
+  ],
+  "connections": [
+    ["turn:E", "uno:9", "cyan", []],
+    ["turn:D", "uno:8", "cyan", []],
+    ["turn:C", "uno:7", "cyan", ["v20.18", "h-3", "*"]],
+    ["turn:G", "uno:10", "cyan", ["v-9.78", "h-9.7", "*"]],
+    ["turn:F", "uno:11", "cyan", ["v-17.78", "h-28.8", "*"]],
+    ["turn:B", "uno:4", "cyan", ["v-9.78", "h15.9", "*"]],
+    ["turn:A", "uno:3", "cyan", ["v-17.78", "h35", "*"]],
+    ["uno:GND.1", "turn:COM.2", "black", ["v-143", "h66.9", "*"]],
+    ["btn:2.l", "uno:2", "blue", ["h-18.5", "*"]],
+    ["turn:COM.2", "btn:1.l", "black", ["v-27.78", "h62.6", "v67", "*"]],
+    ["uno:A0", "red:A", "red", ["v36.5", "h-97", "v72", "h-25", "*"]],
+    ["uno:A1", "yellow:A", "gold", ["v42.5", "h-46.5", "v66", "h-25", "*"]],
+    ["uno:A2", "green:A", "green", ["v108.5", "h-21", "*"]],
+    ["uno:GND.3", "red:C", "black", ["v30.5", "h-128", "v86", "h25", "*"]],
+    ["red:C", "yellow:C", "black", ["v21", "h60", "*"]],
+    ["yellow:C", "green:C", "black", ["v21", "h60", "*"]],
+    ["uno:5V", "lcd:VCC", "red", ["v15", "h-255", "v160", "*"]],
+    ["uno:GND.2", "lcd:GND", "black", ["v22.5", "h-254.5", "v143", "*"]],
+    ["uno:A4", "lcd:SDA", "magenta", ["v284.56", "h-351", "v-100.06", "*"]],
+    ["uno:A5", "lcd:SCL", "purple", ["v294.56", "h-370.5", "v-100.56", "*"]]
+  ],
+  "dependencies": {}
+}

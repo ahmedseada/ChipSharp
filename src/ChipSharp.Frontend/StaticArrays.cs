@@ -16,8 +16,13 @@ namespace ChipSharp.Frontend;
 /// True for a constant table: nothing in the program writes an element, so it is read-only data, in flash on a chip.
 /// False for a static fixed array: a variable, in RAM.
 /// </param>
+/// <param name="IsSetAtStart">
+/// True when the initializer computes the elements (<c>{ new Step(Light.Green, 4), ... }</c>, <c>{ size, 2 }</c>): the
+/// array is a static fixed array that starts at zero, and the initializer's element stores run when the program
+/// starts, into it.
+/// </param>
 internal sealed record StaticArray(IlField Field, TirType ElementType, int Length, IReadOnlyList<TirConst>? Elements,
-    bool IsConstant);
+    bool IsConstant, bool IsSetAtStart = false);
 
 /// <summary>
 /// Arrays in static fields without a heap: an array that a static field is given once, when the program starts, and
@@ -31,8 +36,8 @@ internal sealed record StaticArray(IlField Field, TirType ElementType, int Lengt
 /// <see cref="ArrayEscapeAnalysis"/>): a static field of an array type, of the elements arrays on the stack hold
 /// (<see cref="StackArrays"/>), is assigned exactly once in the program, in its own type's static initializer (C#'s
 /// field initializer or static constructor), where that runs exactly once (not in a loop, not only on some paths). What
-/// it is given is made right there: <c>newarr</c> of a constant size, then nothing but constant elements: the data of
-/// <c>RuntimeHelpers.InitializeArray</c> (C#'s <c>{ 1, 2, 3 }</c>), or <c>dup</c>, a constant index, a constant and
+/// it is given is made right there: <c>newarr</c> of a constant size, then nothing but its elements: the data of
+/// <c>RuntimeHelpers.InitializeArray</c> (C#'s <c>{ 1, 2, 3 }</c>), or <c>dup</c>, a constant index, a value and
 /// <c>stelem</c>, or <c>Array.Empty&lt;T&gt;()</c> (<c>[]</c>). Nothing takes the field's address (<c>ref</c>). The
 /// array itself then goes wherever an array on the stack may go: into locals, indexed, measured, passed to the
 /// program's methods (also to a method that keeps it only while it runs: it outlives them all); not returned, not
@@ -50,9 +55,13 @@ internal sealed record StaticArray(IlField Field, TirType ElementType, int Lengt
 /// <c>@Program.Digits</c>, that starts with the initializer's constants (or zero): a constant global for a table, a
 /// variable for a fixed array (see <see cref="TirModule.AddArray"/>). Reading the field (<c>ldsfld</c>) gives the usual
 /// array value of <see cref="StackArrays.ArrayType"/>, the global's address and the length, so indexing, the bounds
-/// check, <c>.Length</c> and passing it on work as for any array; an empty array is the empty array value. The
-/// initializer's instructions for the field are not compiled at all: a type initializer that does nothing else
-/// disappears.
+/// check, <c>.Length</c> and passing it on work as for any array; an empty array is the empty array value. When every
+/// element is a constant, the initializer's instructions for the field are not compiled at all: a type initializer
+/// that does nothing else disappears. When the initializer computes an element (a struct's constructor, a static
+/// field: <c>static readonly Step[] Steps = [new(Light.Green, 4), new(Light.Red, 2)];</c>), the array is a static
+/// fixed array (in RAM) that starts at zero, and only its <c>newarr</c> and <c>stsfld</c> are left out: the newarr
+/// is the global's array value, so the element stores the initializer makes go into the global when the program
+/// starts (<see cref="StaticArray.IsSetAtStart"/>).
 /// </para>
 /// </remarks>
 internal sealed class StaticArrays
@@ -62,6 +71,14 @@ internal sealed class StaticArrays
 
     /// <summary>The instructions of each type initializer that make a static array, as ranges of indexes.</summary>
     private readonly Dictionary<IlMethod, List<(int First, int Last)>> _initializers = [];
+
+    /// <summary>
+    /// For the arrays set when the program starts (<see cref="StaticArray.IsSetAtStart"/>): the newarr of each, which
+    /// is the global's array value, and the stsfld that stores it into the field, which is left out.
+    /// </summary>
+    private readonly Dictionary<(IlMethod Method, int Index), StaticArray> _madeAtStart = [];
+
+    private readonly HashSet<(IlMethod Method, int Index)> _storedAtStart = [];
 
     private StaticArrays()
     {
@@ -145,6 +162,30 @@ internal sealed class StaticArrays
         _initializers.TryGetValue(method, out var ranges) && ranges.Any(range => index >= range.First && index <= range.Last);
 
     /// <summary>
+    /// True for the newarr at <paramref name="index"/> in <paramref name="method"/> that makes an array set when the
+    /// program starts (<see cref="StaticArray.IsSetAtStart"/>): it is that array's global, which the element stores
+    /// after it go into.
+    /// </summary>
+    public bool IsMadeAtStart(IlMethod method, int index, [NotNullWhen(true)] out StaticArray? array)
+    {
+        if (_madeAtStart.TryGetValue((method, index), out var made))
+        {
+            // the array as Classify left it
+            array = _arrays[made.Field];
+            return true;
+        }
+
+        array = null;
+        return false;
+    }
+
+    /// <summary>
+    /// True for the stsfld at <paramref name="index"/> in <paramref name="method"/> that stores an array set when the
+    /// program starts into its field: the field always holds that array, so the store only takes it off IL's stack.
+    /// </summary>
+    public bool IsStoredAtStart(IlMethod method, int index) => _storedAtStart.Contains((method, index));
+
+    /// <summary>
     /// Checks the rule for <paramref name="field"/>, used at <paramref name="places"/>: if it keeps it, adds the array
     /// (as a fixed array until <see cref="Classify"/> knows better) and the range of its initializer.
     /// </summary>
@@ -176,7 +217,8 @@ internal sealed class StaticArrays
         var element = ((IlArrayType)StaticFields.Type(field)).ElementType;
         StackArrays.TryMapElementType(element, assembly, out var storage);
         var body = initializer.Body!;
-        if (Parse(body, store, element, storage!, out var problem) is not (var first, var length, var elements))
+        if (Parse(field, body, store, element, storage!, out var problem) is not (var first, var length, var elements,
+            var setAtStart))
         {
             return problem;
         }
@@ -186,13 +228,31 @@ internal sealed class StaticArrays
             return Unsupported.StaticArrayAssignments;
         }
 
-        _arrays.Add(field, new StaticArray(field, storage!, length, elements, IsConstant: false));
+        var array = new StaticArray(field, storage!, length, elements, IsConstant: false, setAtStart);
+        _arrays.Add(field, array);
         if (!_initializers.TryGetValue(initializer, out var ranges))
         {
             _initializers.Add(initializer, ranges = []);
         }
 
-        ranges.Add((first, store));
+        if (setAtStart)
+        {
+            // the length's constant (and a volatile. before the store) are left out; the newarr is the global's array
+            // value, the element stores run, the stsfld takes the array off the stack
+            ranges.Add((first, first));
+            if (body.Instructions[store - 1].OpCode == IlOpCode.Volatile)
+            {
+                ranges.Add((store - 1, store - 1));
+            }
+
+            _madeAtStart.Add((initializer, first + 1), array);
+            _storedAtStart.Add((initializer, store));
+        }
+        else
+        {
+            ranges.Add((first, store));
+        }
+
         return null;
     }
 
@@ -236,17 +296,19 @@ internal sealed class StaticArrays
 
         foreach (var array in _arrays.Values.ToList())
         {
-            _arrays[array.Field] = array with { IsConstant = !fields.Contains(array.Field) };
+            // an array whose elements the program sets when it starts is written, by its initializer
+            _arrays[array.Field] = array with { IsConstant = !array.IsSetAtStart && !fields.Contains(array.Field) };
         }
     }
 
     /// <summary>
-    /// What the static initializer stores at <paramref name="store"/> (its stsfld), when it is made right there by the
-    /// rule: the index of its first instruction, its length and its elements (null for zeros). Otherwise null, and
-    /// <paramref name="problem"/> says why.
+    /// What the static initializer stores at <paramref name="store"/> (its stsfld) into <paramref name="field"/>, when it
+    /// is made right there by the rule: the index of its first instruction, its length, its elements (null for zeros,
+    /// and when they are set at start) and whether the initializer computes them, so that they are set when the
+    /// program starts. Otherwise null, and <paramref name="problem"/> says why.
     /// </summary>
-    private static (int First, int Length, TirConst[]? Elements)? Parse(IlMethodBody body, int store, IlType element,
-        TirType storage, out Unsupported problem)
+    private static (int First, int Length, TirConst[]? Elements, bool SetAtStart)? Parse(IlField field, IlMethodBody body,
+        int store, IlType element, TirType storage, out Unsupported problem)
     {
         var instructions = body.Instructions;
         var end = store > 0 && instructions[store - 1].OpCode == IlOpCode.Volatile ? store - 1 : store;
@@ -266,21 +328,100 @@ internal sealed class StaticArrays
         if (made is { OpCode: IlOpCode.Call, Operand: IlMethodOperand { Method: var callee } }
             && StackArrays.IsEmptyArray(callee, body.Method.Assembly, out var empty) && StackArrays.Primitive(empty) == element)
         {
-            return (end - 1, 0, null);
+            return (end - 1, 0, null, false);
         }
 
-        // the newarr closest to the store whose constants reach it
+        // the newarr closest to the store whose constants reach it, or whose computed elements do
         for (var n = end - 1; n >= 1; n--)
         {
-            if (instructions[n].OpCode == IlOpCode.Newarr && StackArrays.ElementType(instructions[n]) == element
-                && Integer(instructions[n - 1]) is { } length and >= 0 and <= int.MaxValue
-                && Elements(body, n + 1, end, (int)length, storage, out var elements))
+            if (instructions[n].OpCode != IlOpCode.Newarr || StackArrays.ElementType(instructions[n]) != element
+                || Integer(instructions[n - 1]) is not { } length || length is < 0 or > int.MaxValue)
             {
-                return (n - 1, (int)length, elements);
+                continue;
+            }
+
+            if (Elements(body, n + 1, end, (int)length, storage, out var elements))
+            {
+                return (n - 1, (int)length, elements, false);
+            }
+
+            if (ComputedElements(field, body, n + 1, end, (int)length, element))
+            {
+                return (n - 1, (int)length, null, true);
             }
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// True when the instructions from <paramref name="from"/> to before <paramref name="end"/>, with a new array of
+    /// <paramref name="length"/> elements of <paramref name="element"/> on the stack, only set its elements, one or more:
+    /// <c>dup</c>, a constant index, the instructions that compute a value (a struct's constructor, static fields,
+    /// arithmetic, calls), and <c>stelem</c>, as often as they come. The value's instructions may not branch, nor take
+    /// anything off the stack that they did not put there (the array and the index), nor use <paramref name="field"/>,
+    /// which gets the array only after them.
+    /// </summary>
+    private static bool ComputedElements(IlField field, IlMethodBody body, int from, int end, int length, IlType element)
+    {
+        var instructions = body.Instructions;
+        var any = false;
+        for (var i = from; i < end;)
+        {
+            if (instructions[i].OpCode == IlOpCode.Nop)
+            {
+                i++;
+                continue;
+            }
+
+            if (instructions[i].OpCode != IlOpCode.Dup || i + 2 >= end
+                || Integer(instructions[i + 1]) is not { } index || index < 0 || index >= length)
+            {
+                return false;
+            }
+
+            // the array and the index are on the stack: what follows computes the value, up to the stelem that takes
+            // all three
+            var depth = 2;
+            var j = i + 2;
+            for (; ; j++)
+            {
+                if (j >= end)
+                {
+                    return false;
+                }
+
+                var instruction = instructions[j];
+                if (depth == 3 && instruction.OpCode is (>= IlOpCode.Stelem_I and <= IlOpCode.Stelem_R8) or IlOpCode.Stelem)
+                {
+                    if (StackArrays.ElementType(instruction) != element)
+                    {
+                        return false;
+                    }
+
+                    break;
+                }
+
+                if (IlBlock.EndsBlock(instruction) || IlBlock.Targets(instruction).Any()
+                    || instruction.Operand is IlFieldOperand { Field.Definition: { } named } && named == field)
+                {
+                    return false;
+                }
+
+                var (pops, pushes) = Analysis.IlStackEffects.Of(instruction, body.Method);
+                if (pops > depth - 2)
+                {
+                    return false;
+                }
+
+                depth += pushes - pops;
+            }
+
+            any = true;
+            i = j + 1;
+        }
+
+        return any;
     }
 
     /// <summary>

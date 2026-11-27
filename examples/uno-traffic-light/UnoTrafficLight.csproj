@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A traffic light with a 7-segment countdown, a button and a 16x2 LCD on I2C, with no heap: build with ChipSharp
+       for the target "uno" (see Program.cs) -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Pin, Timing, Registers, I2c and [Interrupt]: the Uno's hardware from C#; Lcd and SevenSegment: parts connected
+         to it, which ChipSharp compiles with the program -->
+    <ProjectReference Include="..\..\src\ChipSharp.Hardware\ChipSharp.Hardware.csproj" />
+    <ProjectReference Include="..\..\src\ChipSharp.Components\ChipSharp.Components.csproj" />
+  </ItemGroup>
+</Project>

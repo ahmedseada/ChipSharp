@@ -1,21 +1,24 @@
 # ChipSharp
 
 C# for microcontrollers. You write an ordinary C# program and build it with `dotnet build` as usual; ChipSharp then
-compiles it ahead of time, through LLVM, into native code: a small `.exe` for your PC, or a `.uf2` file for a
-Raspberry Pi Pico. On the chip there is no operating system, no .NET runtime and no interpreter: only your program, a
-small runtime written in C, and, when the program needs one, a heap with a garbage collector.
+compiles it ahead of time, through LLVM, into native code: a small `.exe` for your PC, a `.uf2` file for a Raspberry
+Pi Pico, or a `.hex` file for an Arduino Uno. On the chip there is no operating system, no .NET runtime and no
+interpreter: only your program, a small runtime written in C, and, when the program needs one, a heap with a garbage
+collector.
 
 ```
-C# --Roslyn--> IL --ChipSharp--> TIR --LLVM--> .exe (PC)   or   .elf --> .uf2 (Pico)
+C# --Roslyn--> IL --ChipSharp--> TIR --LLVM--> .exe (PC)   or   .elf --> .uf2 (Pico), .hex (Arduino Uno)
 ```
 
-Where it stands: milestones M0 to M3 are done. Numbers, structs, arrays, spans, generics, text, interrupts, `Math`,
-`TimeSpan` and `DateTime` (with its text and a clock) work on every chip, even one without a heap; on a chip with a heap (the Pico, the PC) so do classes,
-records, strings, interfaces, delegates and lambdas, boxing, exceptions you throw (not yet catch) and the collections
-(`List<T>`, `Dictionary<TKey, TValue>`, ...). Every sample prints exactly what .NET prints, on the PC and on a simulated
-Pico, and the tests compare programs, and thousands of library calls, with .NET's own results.
+Where it stands: milestones M0 to M3 and M7 (the Arduino Uno) are done. Numbers, structs, arrays, spans, generics,
+text, interrupts, `Math`, `TimeSpan` and `DateTime` (with its text and a clock) work on every chip, even one without a
+heap, such as the Uno with its 2 KB of RAM; on a chip with a heap (the Pico, the PC) so do classes, records, strings,
+interfaces, delegates and lambdas, boxing, exceptions you throw (not yet catch) and the collections (`List<T>`,
+`Dictionary<TKey, TValue>`, ...). Every sample prints exactly what .NET prints, on the PC and on a simulated Pico (and,
+when it makes no object, on a simulated Uno), and the tests compare programs, and thousands of library calls, with
+.NET's own results.
 
-**Contents:** [Quick start](#quick-start) · [Targets](#targets-what-a-chip-has) ·
+**Contents:** [Quick start](#quick-start) · [Targets](#targets-what-a-chip-has) · [Arduino Uno](#arduino-uno) ·
 [What C# compiles today](#what-c-compiles-today) · [Known differences and gaps](#known-differences-from-net-and-gaps) ·
 [Memory](#memory) · [Interrupts](#interrupts) · [Date and time](#date-and-time) · [Hardware](#hardware) ·
 [The chipsharp command](#the-chipsharp-command) ·
@@ -29,9 +32,9 @@ Pico, and the tests compare programs, and thousands of library calls, with .NET'
 |---|---|
 | [.NET 10 SDK](https://dot.net) | Building ChipSharp and your programs |
 | [LLVM](https://github.com/llvm/llvm-project/releases) (clang and ld.lld; `winget install LLVM.LLVM`) | Turning the program into native code. ChipSharp finds it in `C:\Program Files\LLVM\bin` or on the PATH, or set `CHIPSHARP_LLVM_BIN` to its `bin` folder |
-| [Node.js](https://nodejs.org) 18 or later | Only for the Pico simulator (`tools/rp2040-sim`), once: `cd tools\rp2040-sim; npm ci` |
-| [Zig](https://ziglang.org/download/) 0.17 or later | Only for the Arduino Uno ([in progress](#arduino-uno-in-progress)) |
-| avrdude (it comes with the [Arduino IDE](https://www.arduino.cc/en/software)) | Only for flashing a real Uno (`chipsharp flash -t uno`, [below](#on-an-arduino-uno)) |
+| [Node.js](https://nodejs.org) 18 or later | Only for the simulators, once each: `cd tools\rp2040-sim; npm ci` (the Pico's), `cd tools\avr-sim; npm ci` (the Uno's) |
+| [Zig](https://ziglang.org/download/) 0.17 or later | Only for the Arduino Uno: its clang and ld.lld have the AVR code generator LLVM's Windows builds lack (see [Arduino Uno](#setting-up-for-the-uno)) |
+| avrdude (it comes with the [Arduino IDE](https://www.arduino.cc/en/software)) | Only for flashing a real Uno (`chipsharp flash -t uno`, [below](#build-simulate-and-flash)) |
 | A Raspberry Pi Pico or an Arduino Uno | Optional: the simulators and [Wokwi](https://wokwi.com) run the same `.uf2` and `.hex` |
 
 ChipSharp is developed and tested on Windows; the PC target (`host`) makes Windows x64 programs.
@@ -117,8 +120,7 @@ chipsharp build bin\Release\net10.0\PicoBlink.dll -t pico      # chipsharp-outpu
 
 ### On an Arduino Uno
 
-The Uno ([in progress](#arduino-uno-in-progress)) needs Zig, and its programs are `.hex` files. The examples
-`examples\uno-blink`, `uno-timer-blink`, `uno-button` and `uno-serial` are built as the Pico's are:
+With [Zig](#setting-up-for-the-uno) installed, the same `build` makes a `.hex` for the Uno:
 
 ```powershell
 cd examples\uno-blink
@@ -131,29 +133,10 @@ chipsharp build bin\Release\net10.0\UnoBlink.dll -t uno
 flash 1.2 KB of 31.5 KB (3.7%), RAM 15 bytes of 2 KB (stack 512 bytes reserved)
 ```
 
-- **In the simulator** (avr8js, what Wokwi runs; once: `cd tools\avr-sim; npm ci`):
-  `node tools\avr-sim\run.mjs chipsharp-output\uno\UnoBlink.hex --ms 3000` prints each pin change by its Uno name
-  (`D13 high`); `--input D2=low@500ms` presses a button between D2 and GND at 0.5 s.
-- **In Wokwi** ([wokwi.com](https://wokwi.com)): start a new Arduino Uno project, replace its `diagram.json` with the
-  example's (the Uno with an LED on D13 and GND, or a button between D2 and GND, wired directly), press F1 in the code
-  editor, pick "Upload Firmware and Start Simulation...", and choose the `.hex`.
-- **On a real Uno**: plug it in by USB and run `chipsharp flash`, with the `.dll` (it builds the program first) or the
-  `.hex`. It uploads the program through the Uno's USB port to its bootloader with avrdude, as the Arduino IDE does:
-
-  ```
-  > chipsharp flash bin\Release\net10.0\UnoBlink.dll -t uno --port COM5
-  ...\chipsharp-output\uno\UnoBlink.hex
-  flash 1.2 KB of 31.5 KB (3.7%), RAM 15 bytes of 2 KB (stack 512 bytes reserved)
-  COM5: avrdude -c arduino -p atmega328p -P COM5 -b 115200 -D -U flash:w:...\chipsharp-output\uno\UnoBlink.hex:i
-  COM5: written and verified; the uno runs it
-  ```
-
-  Without `--port` it takes the one serial port that looks like an Arduino's (Arduino's USB ids, or a clone's CH340,
-  FT232R or CP210x chip), and otherwise lists the ports there are; Windows' Device Manager shows the Uno's under "Ports
-  (COM & LPT)". avrdude comes with the [Arduino IDE](https://www.arduino.cc/en/software), whose copy ChipSharp finds
-  (`%LOCALAPPDATA%\Arduino15\packages\arduino\tools\avrdude`), or [on its own](https://github.com/avrdudes/avrdude/releases):
-  put its folder on the PATH, or set `CHIPSHARP_AVRDUDE` to `avrdude.exe`. Close the serial monitor first: avrdude needs
-  the port.
+Run it in the simulator (`node tools\avr-sim\run.mjs chipsharp-output\uno\UnoBlink.hex --ms 3000`), in
+[Wokwi](https://wokwi.com) (an Arduino Uno project, F1, "Upload Firmware and Start Simulation...", the `.hex`), or put it
+on a real Uno through its USB port: `chipsharp flash bin\Release\net10.0\UnoBlink.dll -t uno --port COM5`. Everything
+about the Uno, its pins and what runs on it: [Arduino Uno](#arduino-uno).
 
 ## Targets: what a chip has
 
@@ -165,7 +148,7 @@ new board is a few lines of JSON:
 | `host` | Your PC: a Windows x64 console program, with no C runtime (inherits `x86_64`) |
 | `pico` | Raspberry Pi Pico: RP2040, 2 MB flash, LED on GPIO 25 (inherits `rp2040`, which inherits `armv6m`) |
 | `pico-w` | Pico W: like the Pico, but its LED is wired to the Wi-Fi chip |
-| `uno` | Arduino Uno: ATmega328P at 16 MHz, 32 KB flash, 2 KB RAM ([in progress](#arduino-uno-in-progress); inherits `atmega328p`, which inherits `avr`) |
+| `uno` | Arduino Uno: ATmega328P at 16 MHz, 32 KB flash, 2 KB RAM, LED on D13 (see [Arduino Uno](#arduino-uno); inherits `atmega328p`, which inherits `avr`) |
 | `rp2040`, `atmega328p`, `armv6m`, `avr`, `x86_64` | Chips and architectures, for target files to inherit; not built for directly |
 
 ```
@@ -189,18 +172,18 @@ Target pico   (pico -> rp2040 -> armv6m)
 
 The `"capabilities"` decide what a program may use on the chip:
 
-| Capability | Meaning | `pico` | `host` | `armv6m` (a new chip, until its file says) |
-|---|---|---|---|---|
-| `heap` | The most RAM the heap may take, or `false` for none. Objects, kept strings, boxes, delegates and collections need one (see [Memory](#memory)) | 224 KB | 256 MB | none |
-| `console` | Whether `Console.Write` has somewhere to go | UART0 | standard output | none |
-| `consoleInput` | Whether `Console.Read` and `Console.ReadLine` have something to read | UART0 | not yet | none |
-| `clock` | Whether a timer counts time for `DateTime.Now`, `Stopwatch`, `Environment.TickCount` and `Clock.Start` (see [Date and time](#date-and-time)) | the timer's microseconds | Windows' clock | none |
-| `uart`, `adc`, `pwm` | How many serial ports, analog inputs and PWM outputs `ChipSharp.Hardware` can use (see [Hardware](#hardware)); `"pinFunctions"` lists their pins (and `"pinNames"`, the Uno's, the names check's messages give them) | 2, 4, 16 | none | none |
-| `unalignedAccess` | Whether a word may be read at any address; without it `MemoryMarshal.Read` reads byte by byte and `MemoryMarshal.Cast` checks alignment | no | yes | no |
-| `stackCheck` | The functions that can recurse check the stack, so a stack overflow says `Stack overflow.` instead of locking the core up | yes | (Windows' guard page) | yes |
-| `narrowing` | Arithmetic in 8 or 16 bits where the values provably fit and the result is C#'s (see [Narrowing](#narrowing)); when not given, on for a chip with 2-byte pointers (the AVR) only | no | no | no |
-| `i2c`, `spi` | Whether `I2c` and `Spi` have buses (see [Hardware](#hardware)); the file's `"i2c"` and `"spi"` give each bus's pins and clocks | 2 each | none | none |
-| `hwMultiply`, `hwDivide`, `fpu`, `atomics`, `romFloat` | Describe the chip; the code itself follows the file's `triple`, `cpu` and `clang` flags (soft float on `armv6m`) | | | |
+| Capability | Meaning | `pico` | `uno` | `host` | `armv6m` (a new chip, until its file says) |
+|---|---|---|---|---|---|
+| `heap` | The most RAM the heap may take, or `false` for none. Objects, kept strings, boxes, delegates and collections need one (see [Memory](#memory)) | 224 KB | none | 256 MB | none |
+| `console` | Whether `Console.Write` has somewhere to go | UART0 | USART0 | standard output | none |
+| `consoleInput` | Whether `Console.Read` and `Console.ReadLine` have something to read | UART0 | USART0 | not yet | none |
+| `clock` | Whether a timer counts time for `DateTime.Now`, `Stopwatch`, `Environment.TickCount` and `Clock.Start` (see [Date and time](#date-and-time)) | the timer's microseconds | Timer1's half microseconds | Windows' clock | none |
+| `uart`, `adc`, `pwm` | How many serial ports, analog inputs and PWM outputs `ChipSharp.Hardware` can use (see [Hardware](#hardware)); `"pinFunctions"` lists their pins (and `"pinNames"`, the Uno's, the names check's messages give them) | 2, 4, 16 | 1, 6, 5 | none | none |
+| `unalignedAccess` | Whether a word may be read at any address; without it `MemoryMarshal.Read` reads byte by byte and `MemoryMarshal.Cast` checks alignment | no | yes | yes | no |
+| `stackCheck` | The functions that can recurse check the stack, so a stack overflow says `Stack overflow.` instead of locking the core up | yes | not yet | (Windows' guard page) | yes |
+| `narrowing` | Arithmetic in 8 or 16 bits where the values provably fit and the result is C#'s (see [Narrowing](#narrowing)); when not given, on for a chip with 2-byte pointers (the AVR) only | no | yes | no | no |
+| `i2c`, `spi` | Whether `I2c` and `Spi` have buses (see [Hardware](#hardware)); the file's `"i2c"` and `"spi"` give each bus's pins and clocks | 2 each | 1 each | none | none |
+| `hwMultiply`, `hwDivide`, `fpu`, `atomics`, `romFloat` | Describe the chip; the code itself follows the file's `triple`, `cpu` and `clang` flags (soft float on `armv6m` and `avr`; the AVR's `mul` is 8 x 8 bits, so `hwMultiply` is false) | | | | |
 
 The file also gives the memory regions, the link layout (`"link.stack"`: 8 KB on the Pico) and the interrupts each
 event uses (`"interrupts"` in `rp2040.json`). `chipsharp check -t <target>` and `chipsharp build -t <target>` judge the
@@ -208,46 +191,139 @@ program for that chip: on one without a heap or without a console, they name eac
 [below](#when-chipsharp-check-says-no)). A new chip of a known architecture is a JSON file plus its runtime; a CPU no
 code generator supports yet (the ESP32-C5's RISC-V, next) also needs a runtime for its architecture.
 
-### Arduino Uno (in progress)
+## Arduino Uno
 
-Milestone M7 adds the Uno's ATmega328P, an 8-bit AVR: `chipsharp build -t uno` builds a `.hex`. The runtime is two, as
-the Pico's: `avr` for any AVR chip (start-up, the vector table, 8-bit math helpers, float in software, the failure
-stop) and `atmega328p` for the chip at 16 MHz (pins, the clock, the events, USART0, where Console.Write and WriteLine
-go).
+Milestone M7: the Arduino Uno's ATmega328P, an 8-bit AVR at 16 MHz with 32 KB of flash and 2 KB of RAM, is the target
+`uno`. `chipsharp build -t uno` makes a `.hex` that runs on a real Uno (`chipsharp flash`), in Wokwi and in the
+simulator in `tools\avr-sim`. 2 KB of RAM leaves no room for a heap, so the Uno runs what needs none (see
+[On every chip, with no heap](#on-every-chip-with-no-heap)): numbers, floats, structs, enums, arrays and spans, static
+tables, generics over values, record structs, tuples, nullables, fixed and printed text, `Math`, `TimeSpan`,
+`DateTime` with its text and a clock, interrupts, all of `ChipSharp.Hardware` and the parts of `ChipSharp.Components`.
+A program that makes objects is refused, place by place (see [What runs on the Uno](#what-runs-on-the-uno)).
 
-- **Pins** go by the Uno's (Arduino's) numbers: 0-13 are D0-D13, 14-19 are A0-A5; the LED "L" is 13. `Pin.Input` is
-  high impedance, as on the Pico, without the AVR's pull-up: a button between a pin and GND (the usual Arduino wiring,
-  `INPUT_PULLUP`) needs the pull-up turned on after `Pin.Input`, through `Registers.Write` of PORTB, PORTC or PORTD
-  (0x25, 0x28, 0x2B: one byte; `Registers` reads and writes bytes on the Uno), or a resistor to 5 V; a button to 5 V
-  needs one to GND. D0 and D1 are the console's while it runs.
+### Setting up for the Uno
+
+| What | Why, and where |
+|---|---|
+| [Zig](https://ziglang.org/download/) 0.17 or later | LLVM's release builds for Windows have no AVR code generator, so the target's toolchain, `zig`, runs the clang and ld.lld inside Zig (its LLVM 22 has one). Download the Windows zip and unpack it anywhere, e.g. `D:\Tools\zig`. ChipSharp finds `zig.exe` through `CHIPSHARP_ZIG` (the file or its folder), then `D:\Tools\zig\zig.exe`, then the PATH. The tests that need it are skipped, saying why, without it |
+| The simulator | Node.js 18 or later, and once: `cd tools\avr-sim; npm ci` (avr8js 0.21.1, the simulator Wokwi is built on) |
+| avrdude | Only to flash a real Uno. It comes with the [Arduino IDE](https://www.arduino.cc/en/software), whose copy ChipSharp finds (`%LOCALAPPDATA%\Arduino15\packages\arduino\tools\avrdude`), or [on its own](https://github.com/avrdudes/avrdude/releases): put its folder on the PATH, or set `CHIPSHARP_AVRDUDE` to `avrdude.exe` |
+
+### Build, simulate and flash
+
+```powershell
+cd examples\uno-blink
+dotnet build -c Release
+chipsharp build bin\Release\net10.0\UnoBlink.dll -t uno
+```
+
+```
+...\chipsharp-output\uno\UnoBlink.hex
+flash 1.2 KB of 31.5 KB (3.7%), RAM 15 bytes of 2 KB (stack 512 bytes reserved)
+```
+
+The program has 31.5 KB of flash: the Uno's bootloader (optiboot), through which a program is uploaded over USB,
+keeps the last 512 bytes of the chip's 32 KB. The `.hex` is Intel HEX, what `llvm-objcopy -O ihex` writes: the
+flash's contents, the starting values of the variables included.
+
+- **In the simulator** (avr8js, in Node.js): `node tools\avr-sim\run.mjs chipsharp-output\uno\UnoBlink.hex --ms 3000`
+  prints every pin change by its Uno name (`[   20.822 ms] D13 high`), every line written to USART0
+  (`USART0: Hello`), and each PWM output as it is measured (`D9 PWM 50.00 Hz, duty 7.50% (1500.00 us high)`). It plays
+  the rest of the circuit too: `--input D2=low@500ms` drives a pin from outside (a button between D2 and GND pressed at
+  0.5 s); `--send "text\n@50ms"` types into USART0 and `--usart0 file.bin` saves what it sent; `--adc A0=2.5V` sets
+  an analog input (`A1=512`, a reading; `temp=30C`, the chip's temperature; `@100ms`, from a time on); the Pico
+  simulator's devices go on the Uno's buses ([below](#buses-in-the-simulator)): `--i2c 0:0x27=lcd1602`,
+  `--i2c 0:0x68=ds1307` (`ds1307@2026-11-27T18:00:00`, `ds1307@halted`), `--spi 0=74hc595@D10` (its latch on D10). A
+  run stops when the program has finished (it sleeps with interrupts off) or reaches a `break` (a fatal error, exit
+  code 3).
+- **In Wokwi** ([wokwi.com](https://wokwi.com), in the browser): start a new Arduino Uno project, replace its
+  `diagram.json` with the example's, press F1 in the code editor, pick "Upload Firmware and Start Simulation...", and
+  choose the `.hex`. Wokwi's serial monitor, under the circuit, is USART0. The examples' circuits name the Uno's pins
+  as Wokwi's `wokwi-arduino-uno` does: `uno:13`, `uno:2`, `uno:A0`, `uno:5V`, `uno:GND.1` (the GND beside 13; `GND.2`
+  and `GND.3` are beside `5V`).
+- **On a real Uno**: plug it in by USB and run `chipsharp flash`, with the `.dll` (it builds the program first) or the
+  `.hex`. It uploads the program through the Uno's USB port to its bootloader with avrdude, as the Arduino IDE does:
+
+  ```
+  > chipsharp flash bin\Release\net10.0\UnoBlink.dll -t uno --port COM5
+  ...\chipsharp-output\uno\UnoBlink.hex
+  flash 1.2 KB of 31.5 KB (3.7%), RAM 15 bytes of 2 KB (stack 512 bytes reserved)
+  COM5: avrdude -c arduino -p atmega328p -P COM5 -b 115200 -D -U flash:w:...\chipsharp-output\uno\UnoBlink.hex:i
+  COM5: written and verified; the uno runs it
+  ```
+
+  Without `--port` it takes the one serial port that looks like an Arduino's (Arduino's USB ids, or a clone's CH340,
+  FT232R or CP210x chip), and otherwise lists the ports there are; Windows' Device Manager shows the Uno's under "Ports
+  (COM & LPT)". Close the serial monitor first: avrdude needs the port. The flasher is the target's (`uno.json`:
+  `"flasher": "avrdude"`, and `"avrdude"`: the programmer `arduino`, optiboot's STK500 protocol, at 115200 baud; the
+  chip is the `"mmcu"`); a board with another bootloader sets its own (an old Nano's: `"baud": 57600`). When avrdude
+  fails, the error says what is likely wrong (the port would not open, the bootloader did not answer, the chip is
+  another) and shows avrdude's last lines.
+
+### The Uno's pins
+
+`Pin`, `Adc`, `Pwm`, `I2c`, `Spi` and `Uart` take the Uno's (Arduino's) numbers: 0 to 13 are D0 to D13, 14 to 19 are
+A0 to A5. `chipsharp check -t uno` names them as the headers do, and refuses a pin, a second port or bus, or a clock
+the Uno does not have: `pin 4 (D4) cannot be UART0's TX on the target 'uno' ... UART0's TX can be pin 1 (D1).`
+
+| Pin | Header | Besides `Pin` (input, output, `Watch`) |
+|---|---|---|
+| 0, 1 | D0, D1 | The serial port, USART0: RX and TX, the console's while the program runs |
+| 2, 3 | D2, D3 | Edge interrupts of their own for `Pin.Watch...` (INT0, INT1); D3 is a PWM output (Timer2) |
+| 4, 7, 8 | D4, D7, D8 | |
+| 5, 6 | D5, D6 | PWM outputs (Timer0) |
+| 9 | D9 | A PWM output timed to the half microsecond (Timer1): the pin for a servo |
+| 10 | D10 | SPI's usual chip select (an output, high, once `Spi.Open` runs); no PWM output: its timer output is the timer event's |
+| 11, 12, 13 | D11, D12, D13 | SPI's TX (MOSI), RX (MISO) and SCK; D11 is a PWM output (Timer2), D13 the LED "L" |
+| 14 to 17 | A0 to A3 | Analog inputs (`Adc`) |
+| 18, 19 | A4, A5 | Analog inputs; the I2C bus, SDA and SCL (bus 0) |
+
+`Pin.Input` leaves a pin high impedance, as on the Pico, without the AVR's pull-up. A button between a pin and GND,
+the usual Arduino wiring (`INPUT_PULLUP`), needs it: after `Pin.Input`, set the pin's bit of its port's PORT register,
+PORTB (D8 to D13), PORTC (A0 to A5) or PORTD (D0 to D7), at the data addresses 0x25, 0x28 and 0x2B (`Registers` reads
+and writes the Uno's registers a byte at a time), as `examples/uno-button` does. A button to 5 V needs a resistor to
+GND instead: the ATmega328P's pins have no pull-down.
+
+```csharp
+const uint PortD = 0x2B;
+Pin.Input(2);
+Registers.Write(PortD, Registers.Read(PortD) | 1u << 2);   // D2's pull-up on: high until the button takes it to GND
+Pin.WatchFalling(2);                                        // the [Interrupt(Event.Pin)] method runs at each press
+```
+
+### The chip's timers, clock and buses
+
+The runtime is two, as the Pico's: `avr` for any AVR chip (start-up, the vector table, the 8-bit math helpers, float in
+software, the failure stop) and `atmega328p` for the chip at 16 MHz (pins, the clock, the events, USART0, the TWI,
+SPI, the ADC, PWM).
+
 - **Interrupts**: `Pin.Watch...` on D2 and D3 uses INT0 and INT1, whose edges the chip keeps; on every other pin the
   pin change interrupt of its port, whose handler compares the levels and runs the `[Interrupt(Event.Pin)]` method for
   the edges watched (a pulse shorter than a few microseconds may pass unseen). Each event's interrupt comes through the
   runtime, which checks that the event happened and then calls the method, within some 50 microseconds
   (`"interrupts"` in `atmega328p.json`: numbers past the chip's vectors, as the Pico's uart event).
-- **Timers**: Timer1 counts half microseconds (16 MHz / 8) for the clock, the delays and the timer event (its compare
-  B), so the three keep the same time: `Timing.EveryMilliseconds(40)` comes every 40 ms to the microsecond, and a delay
-  takes what it is given and a few microseconds more for the call. Timer0 and Timer2 are left free.
-- **The clock**: Timer1 and the count of its rounds make 48 bits of half microseconds since start-up (they go round
-  after 4.4 years): `Stopwatch` (1 MHz, as on the Pico), `Environment.TickCount` and `DateTime.Now` (from 1 January 2000,
-  or the date `Clock.Start` gives) read it.
+- **Timers and the clock**: Timer1 counts half microseconds (16 MHz / 8) for the clock, the delays and the timer event
+  (its compare B), so the three keep the same time: `Timing.EveryMilliseconds(40)` comes every 40 ms to the
+  microsecond, and a delay takes what it is given and a few microseconds more for the call. With the count of its
+  rounds it makes 48 bits of half microseconds since start-up (they go round after 4.4 years): `Stopwatch` (1 MHz, as
+  on the Pico), `Environment.TickCount` and `DateTime.Now` (from 1 January 2000, or the date `Clock.Start` gives) read
+  it. Timer0 and Timer2 make the other PWM outputs.
 - **The console** is USART0 on D1 (TX) and D0 (RX) at 115200 baud: 117647 really, 2.1% fast, with U2X as the Arduino
   core's `Serial.begin(115200)` has it, which the Arduino IDE's serial monitor and the USB chip take. A byte goes out
-  when the one before has (no send buffer, no RAM taken); `Console.Read` and `Uart.Open(0, 1, 0, baud)` (489 to 2000000
-  baud) receive into a buffer of 64 bytes, filled by the receive interrupt, as the Arduino core's. `Console.ReadLine`
-  makes a string, so it needs a heap, which the Uno has none of. A failure prints .NET's message there, then stops.
-- **I2C** (`I2c`) is the TWI, bus 0, SDA on A4 and SCL on A5 (pins 18 and 19), with their pull-ups on: 490 Hz to 400
-  kHz, the nearest at or below the frequency (100 and 400 kHz exactly), the same `true` and `false` as on the Pico (no
-  answer, a refused byte, a bus held for longer than a byte's limit), a repeated start for `WriteRead`.
+  when the one before has (no send buffer, no RAM taken); `Console.Read` and `Uart.Open(0, 1, 0, baud)` (489 to
+  2000000 baud) receive into a buffer of 64 bytes, filled by the receive interrupt, as the Arduino core's. A failure
+  prints .NET's message there, then stops.
+- **I2C** (`I2c`) is the TWI, bus 0, SDA on A4 and SCL on A5, with their pull-ups on: 490 Hz to 400 kHz, the nearest
+  at or below the frequency (100 and 400 kHz exactly), the same `true` and `false` as on the Pico (no answer, a refused
+  byte, a bus held for longer than a byte's limit), a repeated start for `WriteRead`.
 - **SPI** (`Spi`) is bus 0, SCK on D13, TX (MOSI) on D11, RX (MISO) on D12, modes 0 to 3, at 16 MHz / 2, 4, 8, ...,
   128 (8 MHz to 125 kHz), the fastest at or below the frequency. D10 (SS) becomes an output, high, as the Arduino
   core's `SPI.begin` makes it: as an input that goes low it would make the chip a device; it is the usual chip select.
-- **Analog inputs** (`Adc`) are A0 to A5 (pins 14 to 19), read in the chip's own 10 bits, 0 to 1023 against the 5 V
-  supply (AVcc), as Arduino's `analogRead` reads them: `Adc.Read` is the chip's range (the Pico's is 0 to 4095), and
-  `Adc.Volts` the volts on both (reading * 5 / 1024 here). A reading takes 104 microseconds, with interrupts on (a
-  handler that reads one meanwhile gets its own); `Adc.Temperature` is the chip's sensor against its 1.1 V, by the
-  datasheet's typical readings (352 at 25 °C, 1.28 a degree), up to 10 degrees off. A4 and A5 are the I2C bus's while
-  it is open.
+- **Analog inputs** (`Adc`) are A0 to A5, read in the chip's own 10 bits, 0 to 1023 against the 5 V supply (AVcc), as
+  Arduino's `analogRead` reads them: `Adc.Read` is the chip's range (the Pico's is 0 to 4095), and `Adc.Volts` the
+  volts on both (reading * 5 / 1024 here). A reading takes 104 microseconds, with interrupts on (a handler that reads
+  one meanwhile gets its own); `Adc.Temperature` is the chip's sensor against its 1.1 V, by the datasheet's typical
+  readings (352 at 25 °C, 1.28 a degree), up to 10 degrees off. A4 and A5 are the I2C bus's while it is open.
 - **PWM** (`Pwm`) is on D3, D5, D6, D9 and D11. D5 and D6 are Timer0's, D3 and D11 Timer2's: 8-bit timers, so a few
   frequencies, the nearest to the one asked for, from 30.6 Hz to 62.5 kHz (Timer0: 62500, 31373, 7813, 3922, 977,
   490, 244, 123, 61 and 31 Hz; Timer2 also 1953, 980, 488 and 245), a timer's two pins at its one frequency, the duty
@@ -257,71 +333,116 @@ go).
   `Pwm.PulseMicroseconds(9, 1500)` are 20 ms and 1.5 ms exactly; on Timer0 and Timer2, 50 Hz would be 61 Hz in 64 us
   steps). A pulse or a gap shorter than 20 us is not made on D9 (the pin stays low, or high), and a long interrupt
   handler of the program's delays the edge after it. D10, Timer1's compare B, is the timer event's, and no PWM output.
-- **ChipSharp.Components** runs as it is: `Lcd` on A4 and A5, `Ds1307`, `SevenSegment` on any pins, a 74HC595 over SPI.
-- **What it takes**: a blink (`Pin.Output`, `Pin.Toggle`, `Timing.DelayMilliseconds`) is 1.2 KB of flash and 15 bytes
-  of RAM; one that writes a few chars to the console 1.4 KB and 30 bytes; a serial echo (`Uart.Open`, `Console.Read`,
-  `Uart.WriteByte`) 2.9 KB and 90 bytes, the receive buffer's 64 among them. A 74HC595 over SPI is 4.2 KB and 20 bytes;
-  `Lcd` showing a line and a number 5.8 KB and 76 bytes; a servo sweep on D9 5.9 KB and 48 bytes, with a potentiometer
-  on A0 6.9 KB; the time from a `Ds1307` into `Clock.Start` 8.2 KB and 90 bytes. `chipsharp check -t uno` refuses a
-  second serial port or bus, and a pin, a clock or a bus the Uno does not have for them, naming its pins as the
-  Uno's headers do: `pin 4 (D4) cannot be UART0's TX on the target 'uno' ... UART0's TX can be pin 1 (D1).`
+- **ChipSharp.Components** runs as it is: `Lcd` on A4 and A5 (a 5 V LCD needs no level shifter on the Uno),
+  `SevenSegment` on any pins, `Ds1307`, and a 74HC595's patterns over SPI.
 
-- **Zig**: LLVM's release builds for Windows have no AVR, so the target's toolchain `zig` runs the clang and ld.lld
-  inside [Zig](https://ziglang.org/download/) (0.17 or later: unpack the zip anywhere). ChipSharp finds it through
-  `CHIPSHARP_ZIG` (`zig.exe` or its folder), then `D:\Tools\zig\zig.exe`, then the PATH. The tests that need it are
-  skipped, saying why, without it.
+### What runs on the Uno
+
+On the simulated Uno, every sample and every program of the test corpora that makes no object prints exactly what
+.NET prints (numbers, floats and their text, structs, enums, `ref`, arrays on the stack and in static fields,
+constant tables, spans, generics over values, tuples, record structs, nullables, fixed and printed text, `TimeSpan`,
+`DateTime`, `Math`), and where .NET throws it says .NET's message. Those that make objects are refused, place by place,
+as the Uno has no heap; here the Pico traffic light written with classes (`examples/pico-traffic-light-m3`), first
+lines:
+
+```
+error: PicoTrafficLightM3.dll uses 9 C# features that ChipSharp does not compile yet (54 places):
+  generics over classes (a class, an interface, object or an array as a type argument) need a heap, and the target 'uno' (2 KB RAM) has no heap: 31 places in the top-level statements (IL_0000, IL_0012 and IL_0024), ... Use numbers, bools, enums and structs as type arguments: ChipSharp makes the code once for each.
+  creating objects (new ...) needs a heap, and the target 'uno' (2 KB RAM) has no heap: 5 places in the top-level statements (IL_000d, IL_001f, IL_002a and 2 more). Use structs and static methods.
+  ...
+```
+
+`examples/uno-traffic-light` is the same traffic light written with no heap (record structs in static tables, a
+struct, static classes, a method for the event, literals and numbers on the LCD), and prints the same.
+
+What things take of the 31.5 KB of flash and the 2 KB of RAM:
+
+| Program | Flash | RAM |
+|---|---|---|
+| A blink (`Pin.Output`, `Pin.Toggle`, `Timing.DelayMilliseconds`) | 1.2 KB | 15 bytes |
+| A few chars to the console | 1.4 KB | 30 bytes |
+| A serial echo (`Uart.Open`, `Console.Read`, `Uart.WriteByte`), the receive buffer's 64 bytes among its RAM | 2.9 KB | 90 bytes |
+| A 74HC595 over SPI | 4.2 KB | 20 bytes |
+| `Lcd` showing a line and a number | 5.8 KB | 76 bytes |
+| A servo sweep on D9; with a potentiometer on A0 and the angle on the console (`examples/uno-servo`) | 5.9 KB; 9.6 KB | 48; 98 bytes |
+| The time from a `Ds1307` into `Clock.Start` | 8.2 KB | 90 bytes |
+| The traffic light with an LCD, a 7-segment display and a button (`examples/uno-traffic-light`) | 13.4 KB | 136 bytes |
+| The date and the time on an LCD, `TryFormat` with names of days and months (`examples/uno-lcd-clock`) | 26.0 KB | 96 bytes |
+| The samples `Square`, `Structs`, `Spans` and `TrafficLights` | 1.7, 2.4, 5.5 and 8.2 KB | 20, 32, 66 and 68 bytes |
+| The samples `PrintedText`, `FloatMath` and `TimeSpans` | 13.4, 17.1 and 22.1 KB | 70, 20 and 23 bytes |
+
+### Limits on the Uno
+
+- **No heap**: 2 KB of RAM, 512 bytes of it the stack's. Classes, strings that are kept, boxes, delegates and lambdas,
+  collections, `throw` and `Console.ReadLine` (which makes a string; read char by char with `Console.Read`) are
+  refused by `chipsharp check -t uno` and `build`, place by place, each with what to write instead.
+- **31.5 KB of flash**: doubles are in software, and compiler-rt's add, multiply and divide take 3 to 4 KB each on an
+  AVR, so `MathFunctions`, a program of every member of `DateTime`, and `Math.Sin`, `Cos`, `Tan`, `Atan2`, `Asinh`,
+  `Acosh`, `Log`, `Log2` and `Pow` with the text of doubles do not fit (each gives the PC's bits all the same, on an AVR
+  core of 64 KB); a program too large is refused by the memory report, with both sizes. Floats and doubles cost time
+  too: every operation of theirs is a call into that software arithmetic.
+- **`nint` and `nuint` are 16 bits**, the AVR's addresses (-123456 does not fit), and **a struct has no padding**:
+  nothing is aligned on an AVR, so `struct { byte; ushort; int; }` takes 7 bytes, where the Pico and .NET take 8
+  (see [differences](#where-a-program-behaves-differently)).
+- **PWM** on five pins only: D5 and D6 share Timer0's frequency, D3 and D11 Timer2's, both a few frequencies only; D9
+  is exact, 1 Hz to 10 kHz; D10 is no PWM output. `Pin 6 shares Timer0 with pin 5, which runs at 1000 Hz, ...`
+- **The ADC** reads 0 to 1023 against 5 V (`Adc.Volts` gives the volts as on the Pico).
+- **No pull-up** in `Pin.Input`: set it with `Registers.Write` ([above](#the-unos-pins)).
+- **One** serial port, one I2C bus and one SPI bus; the console's port is D0 and D1.
+- **No stack check yet**: a recursion with no end grows the stack into the static fields and the program goes wrong,
+  where the Pico says `Stack overflow.` and stops.
+
+### How it works on an AVR
+
 - **The code**: the `llvm` code generator writes the AVR's data layout (2-byte pointers, nothing aligned; C#'s `int`
   stays 32 bits, `long` and `double` 64), and keeps every constant in flash, none of it copied to the 2 KB of RAM: the
   literals, tables, spans of constant data, enum and date names. The AVR reads flash only with its own instruction
   (LPM), so an address of flash data has bit 15 set (0x8000 plus its flash address: RAM's addresses never have it); a
   read whose address the compiler cannot place tests the bit, the others read flash or RAM straight away. The runtime
   reads what the program hands it so too. The capability `"separateFlash": false` keeps constants as ordinary data
-  instead, which start-up copies to RAM, as avr-gcc does without `PROGMEM`. Two things LLVM 22 gets wrong on an AVR
-  are kept from it: a copy of LLVM's own from flash (a loop over a table made into `memcpy`, which would read RAM), so
-  `memcpy` and `memmove` are no builtins in the program; and a call that passes arguments on the stack from a function
-  without a frame pointer, which sets the stack up through r31:r30 while it may hold a value, so such a function gets
-  one (a byte of stack). And in a function of thousands of instructions with hundreds of bytes spilled, its register
-  allocation may spill a stale byte of a register pair (the machine verifier says "Using an undefined physical
-  register"): so a function with a loop and more than 100 instructions is never inlined on an AVR (LLVM would merge
-  every function called once into its caller), and the target turns LLVM's machine-sink pass off, where it showed in
-  one such function too. Each of these has a test on the Uno.
-- **What runs**: on the simulated Uno, every sample and every program of the test corpora that makes no object prints
-  exactly what .NET prints (numbers, floats and their text, structs, enums, `ref`, arrays on the stack and in static
-  fields, constant tables, spans, generics over values, tuples, record structs, nullables, fixed and printed text,
-  `TimeSpan`, `DateTime`, `Math`), and where .NET throws it says .NET's message. Those that make objects are refused,
-  place by place, as the Uno has no heap; those larger than its 31.5 KB of flash by the memory report: doubles are in
-  software, and compiler-rt's add, multiply and divide take 3 to 4 KB each on an AVR, so `MathFunctions`, a program
-  of every member of `DateTime` and `Math.Sin`, `Cos`, `Tan`, `Atan2`, `Asinh`, `Acosh`, `Log`, `Log2` and `Pow` with
-  the text of doubles do not fit (each gives the PC's bits all the same, on an AVR core of 64 KB). The runtime's C
-  takes C#'s `int`, `char` and `bool` as 32 bits (C's `int` has 16 on an AVR) and keeps its own text and tables in
-  flash, `Math`'s tables (22 KB) too. Flash and RAM: `Square` 1.7 KB and 18 bytes, `Structs` 2.4 KB and 30 bytes,
-  `Spans` 5.5 KB, `TrafficLights` 8.2 KB and 66 bytes, `PrintedText` 13.4 KB, `FloatMath` 17.1 KB, `TimeSpans` 22.1 KB.
+  instead, which start-up copies to RAM, as avr-gcc does without `PROGMEM`. The runtime's C takes C#'s `int`, `char`
+  and `bool` as 32 bits (C's `int` has 16 on an AVR) and keeps its own text and tables in flash, `Math`'s tables
+  (22 KB) too.
 - **8-bit arithmetic**: an `int` takes four of the AVR's registers and four instructions for every addition, and C#
   makes nearly everything an `int`, loop counters and bytes on IL's stack included; so on the AVR ChipSharp does the
   arithmetic in 8 or 16 bits wherever it proves the values fit and the result is C#'s ([narrowing](#narrowing)). The
   samples' code takes 5% less flash, loops of counters and small numbers up to half less (ForLoops: 310 bytes instead
   of 588).
-- **The `.hex`** is Intel HEX, what `llvm-objcopy -O ihex` writes: the flash's contents, the starting values of the
-  variables included. The memory report reads like `flash 417 bytes of 32 KB (1.3%), RAM 12 bytes of 2 KB (stack 512
-  bytes reserved)`. Uploading through the Uno's USB port (avrdude, the Arduino IDE) goes through its bootloader, which
-  keeps the last 512 bytes of the flash.
-- **Flashing**: `chipsharp flash -t uno` uses the target's flasher, `avrdude` (`uno.json`: `"flasher"`, and
-  `"avrdude"`: the programmer `arduino`, optiboot's STK500 protocol, at 115200 baud; the chip is the `"mmcu"`), with
-  `-D -U flash:w:<file>.hex:i`; a board with another bootloader sets its own `"avrdude"` (an old Nano's: `"baud":
-  57600`). When avrdude fails, the error says what is likely wrong (the port would not open, the bootloader did not
-  answer, the chip is another) and shows avrdude's last lines. See [On an Arduino Uno](#on-an-arduino-uno).
-- **In the simulator** (avr8js, what Wokwi runs; once: `cd tools\avr-sim; npm ci`):
-  `node tools\avr-sim\run.mjs Blink.hex --ms 1000` prints every pin change by its Uno name (`[   20.822 ms] D13 high`)
-  and every line written to USART0 (`USART0: Hello`); `--input D2=high@100ms` drives a pin from outside, `--send
-  "text\n@50ms"` types into USART0, `--usart0 file.bin` saves what it sent. The Pico simulator's devices go on the
-  Uno's buses ([below](#buses-in-the-simulator)): `--i2c 0:0x27=lcd1602`, `--i2c 0:0x68=ds1307`, `--spi
-  0=74hc595@D10` (its latch on D10). `--adc A0=2.5V` sets an analog input (`A1=512`, a reading; `temp=30C`; `@100ms`
-  from a time), and a PWM output is printed as measured, `D9 PWM 50.00 Hz, duty 7.50% (1500.00 us high)`. A run stops
-  when the program sleeps with interrupts off (it has finished) or reaches a `break` (a fatal error, exit code 3).
-- **In Wokwi** ([wokwi.com](https://wokwi.com)): start a new Arduino Uno project, press F1 in the code editor, pick
-  "Upload Firmware and Start Simulation...", and choose the `.hex`. The examples' `diagram.json` name the Uno's pins as
-  Wokwi's `wokwi-arduino-uno` does: `uno:13`, `uno:2`, `uno:GND.1` (the GND beside 13; `GND.2` and `GND.3` are by
-  `5V`), `uno:A0`.
+- **What LLVM 22 gets wrong on an AVR**, and is kept from: a copy of LLVM's own from flash (a loop over a table made
+  into `memcpy`, which would read RAM), so `memcpy` and `memmove` are no builtins in the program; a call that passes
+  arguments on the stack from a function without a frame pointer, which sets the stack up through r31:r30 while it may
+  hold a value, so such a function gets one (a byte of stack); and, in a function of thousands of instructions with
+  hundreds of bytes spilled, its register allocation may spill a stale byte of a register pair (the machine verifier
+  says "Using an undefined physical register"): so a function with a loop and more than 100 instructions is never
+  inlined on an AVR (LLVM would merge every function called once into its caller), and the target turns LLVM's
+  machine-sink pass off (`-mllvm -disable-machine-sink` in `avr.json`), where it showed in one such function too. LLVM
+  itself is not changed. Each of these has a test on the Uno.
+- **Zig**: the clang inside Zig compiles the runtime's C and the program's LLVM IR with `-mcpu=atmega328p
+  -mmcu=atmega328p` (both: `-mmcu` alone would be the generic avr2, without `mul`, `jmp` and `movw`), and its ld.lld
+  links them with the target's linker script.
+
+### Examples for the Uno
+
+Built with `chipsharp build bin\Release\net10.0\<Name>.dll -t uno` in their folders, or flashed with
+`chipsharp flash ... -t uno`; each has a `diagram.json` for Wokwi.
+
+| Example | What it does | Uno |
+|---|---|---|
+| `uno-blink` | Blinks the LED "L" (D13) with a delay loop; in Wokwi, an LED on D13 and the GND beside it blinks with it | 1.2 KB, 15 bytes of RAM |
+| `uno-timer-blink` | Blinks the LED "L" from the timer event (Timer1), while `Main` does nothing; the same circuit | 1.6 KB, 24 bytes of RAM |
+| `uno-button` | A button between D2 and GND toggles the LED "L" through the pin event (INT0, falling edges); the program turns D2's pull-up on with `Registers.Write` of PORTD, so the button needs no resistor | 1.4 KB, 24 bytes of RAM |
+| `uno-serial` | A count on the console (USART0, 115200 baud) every second, and what is typed into it sent straight back (`Uart.Available`, `ReadByte`, `WriteByte`); in Wokwi, the serial monitor under the Uno | 5.4 KB, 132 bytes of RAM |
+| `uno-traffic-light` | The Pico traffic light with an LCD brought to the Uno, with no heap: one signal (A0, A1, A2) for two lanes, the turn's countdown on a 7-segment display (D3, D4, D7 to D11, `SevenSegment`), a 16x2 LCD on I2C (`Road 1   turn 8s`, `green         4s`), a button on D2 that cuts a green short, the LED "L" blinking from the timer event; over the serial port exactly what the Pico's traffic lights print, line for line | 13.4 KB, 136 bytes of RAM |
+| `uno-lcd-clock` | The date and the time on a 16x2 LCD, once a second, from a DS1307 read at start-up (`Clock.Start(Ds1307.Read())`) or a date it sets a halted one to; `TryFormat` into a span for `Lcd.Line`; both on I2C (A4, A5) | 26.0 KB, 96 bytes of RAM |
+| `uno-servo` | A servo on D9 follows a potentiometer on A0 (`Adc.Read`, then `Pwm.PulseMicroseconds` of 1 to 2 ms at 50 Hz), and each change of 5 degrees goes to the console | 9.6 KB, 98 bytes of RAM |
+
+The circuits are wired directly (Wokwi needs no resistors; a real LED or segment needs one of 220 ohm), with no wire
+across a part: the LEDs' and the display's commons on GND, the button between D2 and GND, the LCD in I2C mode and the
+DS1307 on 5V, the servo and the knob on 5V. Where two parts' pins come in another order than the Uno's (an LCD's SDA
+above its SCL, A4 to the left of A5), two wires cross each other. In the simulator they all run as the tests run them
+(`node tools\avr-sim\run.mjs ...`, as each `Program.cs` says): the traffic light with
+`--input D2=low@2500ms --input D2=high@2700ms --i2c 0:0x27=lcd1602`, the clock with `--i2c 0:0x27=lcd1602
+--i2c 0:0x68=ds1307`, the servo with `--adc A0=2.5V`.
 
 ## What C# compiles today
 
@@ -341,7 +462,7 @@ gets no heap at all, even on the Pico. `chipsharp check` tells you for your prog
 | Nullables | `int?`, `bool?`, nullable enums and structs: `HasValue`, `Value`, `GetValueOrDefault`, `??`, lifted arithmetic and comparisons, `is int n` |
 | Tuples | `(1, 2.5)`, `(int Min, int Max)`: `System.ValueTuple` of any number of elements, a struct of its elements as .NET lays it out. Named elements and `Item1`..., deconstruction into new and existing variables (`var (min, max) = Range(a);`, `(a, b) = (b, a)`, nested, with `_`), tuples as locals, parameters (`ref` too), return values, fields, static fields and array elements; `==` and `!=`, `Equals`, `CompareTo` and `GetHashCode` (element by element, as the default comparers compare them), `switch` on a tuple (`(light, waiting) switch { (Light.Red, > 3) => ... }`), `ValueTuple.Create`. Only `ToString()` (`(1, a)`) needs a heap |
 | Generics over values | Generic methods, structs and static classes over numbers, bools, enums and structs, with constraints; interfaces implemented by structs and called through a constraint (`static void Run<T>(ref T device) where T : struct, IDevice`, static abstract members too); generic math (`INumber<T>`: operators, `T.Zero`, `T.One`, `MinValue`, `MaxValue`). Each instance is compiled for its type, like a C++ template, so `Max<int>` costs what a hand-written `int` version costs |
-| Arrays | On the stack: a constant size, made in a method and passed down to the methods it calls. In static fields: `static readonly byte[] Digits = { 0x3F, ... };` is a constant table in flash when nothing writes it; `static int[] buffer = new int[16];` a fixed array in RAM. `foreach`, `Length`, bounds checks |
+| Arrays | On the stack: a constant size, made in a method and passed down to the methods it calls. In static fields: `static readonly byte[] Digits = { 0x3F, ... };` is a constant table in flash when nothing writes it; `static int[] buffer = new int[16];` a fixed array in RAM; a table whose elements its initializer computes (`static readonly Step[] Steps = [new(Light.Green, 4), new(Light.Red, 2)];` of record structs, tuples, calls) a fixed array the program fills when it starts. `foreach`, `Length`, bounds checks |
 | Spans | `Span<T>` and `ReadOnlySpan<T>` of arrays, of `stackalloc` (a constant size), of constant data (`static ReadOnlySpan<byte> Table => new byte[] { ... };`, in flash) and of variables; indexer, `Slice`, ranges and indices (`s[2..5]`, `s[^1]`), `CopyTo`, `Fill`, `Clear`; `MemoryExtensions` (`IndexOf`, `SequenceEqual`, `StartsWith`, ...), `BinaryPrimitives` and `MemoryMarshal` (`Read`, `Write`, `Cast`, `AsBytes`), at any offset, also on a chip that faults on unaligned words |
 | Fixed text | String literals anywhere a string may be: printed, compared, measured and searched (`Length`, `s[i]`, `==`, `IndexOf`, `StartsWith`, `switch`); each is a constant object in flash (8 bytes and 1 byte per char on the Pico) |
 | Printed text | Text built and printed straight away, with no string ever made (also in the body of a `foreach` over a collection or a `using`, where C# makes it otherwise): `Console.WriteLine($"road : {lane}")`, `Console.Write("lane " + lane + '!')`, `x.ToString()` printed, `Console.WriteLine("{0,4} {1:X2}", a, b)`. Holes of numbers, bools, chars, text, enums (by name, `[Flags]` combined), structs (their `ToString`) and nullables; alignments (`{x,5}`, `{x,-5}`); the formats `D`, `D<n>`, `X<n>`, `x<n>` and `G` of whole numbers, `G` and `R` of floats; dates with every format of theirs (`$"{now:HH:mm:ss}"`, `now.ToString("d")`, `Console.WriteLine(now)`, see [Date and time](#date-and-time)) |
@@ -349,7 +470,7 @@ gets no heap at all, even on the Pico. `chipsharp check` tells you for your prog
 | Math | `Math` and `MathF`: trigonometry (`Sin`, `Cos`, `Tan`, `SinCos`, `Asin`, `Acos`, `Atan`, `Atan2`), hyperbolic functions and their inverses, `Exp`, `Log` (in any base), `Log2`, `Log10`, `Pow`, `Sqrt`, `Cbrt`; `Floor`, `Ceiling`, `Truncate`, `Round` (to digits, by every `MidpointRounding`), `Clamp`, `Sign`, `Abs`, `Min`, `Max`, `MinMagnitude`, `MaxMagnitude`, `CopySign`, `FusedMultiplyAdd`, `IEEERemainder`, `ScaleB`, `ILogB`, `BitIncrement`, `BitDecrement`, the reciprocal estimates, `E`, `PI`, `Tau`; for every whole-number type `Abs`, `Min`, `Max`, `Clamp`, `Sign`, `DivRem`, and `BigMul`; `double.Sin(x)` and the like, and generic math over float types (`T.Sqrt`, `T.Sin`, ...). The exact ones give .NET's bits; the transcendental ones the same bits on the PC and the Pico, and .NET's but for the last bit of a few results (see [differences](#where-a-program-behaves-differently)). A program links only the functions it calls (`Math.Sin`: 9 KB on the Pico) |
 | Library | `Console.Write` and `WriteLine`; `TimeSpan` (factories in any unit, parts, totals, arithmetic, comparisons); `DateTime`, `DateOnly` and `TimeOnly` (parts, arithmetic, comparisons, `TryFormat` into a span), `DateTime.Now`, `Stopwatch.GetTimestamp` and `GetElapsedTime`, `Environment.TickCount` (see [Date and time](#date-and-time)); `System.Array`: `Copy`, `ConstrainedCopy`, `CopyTo`, `Clear`, `Fill`, `IndexOf`, `LastIndexOf`, `Reverse`, and `Sort` and `BinarySearch` of numbers, bools and structs that implement `IComparable<T>` |
 | Hardware | `ChipSharp.Hardware`: `Pin` (`Output`, `Input`, `Write`, `Read`, `Toggle`, `Watch`, `WatchRising`, `WatchFalling`, `Unwatch`), `Timing` (`Delay(TimeSpan)`, `DelayMilliseconds`, `DelayMicroseconds`, `EveryMilliseconds`, `EveryMicroseconds`, `AfterMilliseconds`, `AfterMicroseconds`, `Stop`), `Registers.Read` and `Write`, `Clock.Start`, and `[Interrupt]` methods (see [Interrupts](#interrupts)); the serial ports and the console's input, the analog inputs, the PWM outputs and the I2C and SPI buses: `Uart` (and `Console.Read`), `Adc`, `Pwm`, `I2c` and `Spi`; and `ChipSharp.Components`, the parts connected to the chip: `Lcd`, `SevenSegment` and `Ds1307` (see [Hardware](#hardware)) |
-| Failures | Where .NET throws (an index outside an array, a whole number divided by zero, `int.MinValue / -1`, a `TimeSpan` too long, a field of null, a cast that fails, ...), the program stops with the message .NET prints: on standard error with exit code 1 on the PC, over UART0 and then at a breakpoint on a chip |
+| Failures | Where .NET throws (an index outside an array, a whole number divided by zero, `int.MinValue / -1`, a `TimeSpan` too long, a field of null, a cast that fails, ...), the program stops with the message .NET prints: on standard error with exit code 1 on the PC, over the console's serial port (the Pico's UART0, the Uno's USART0) and then at a breakpoint on a chip |
 
 ### On a chip with a heap (the Pico and the PC)
 
@@ -396,7 +517,8 @@ available yet", followed by the list of the library methods it can call (`--deta
 |---|---|---|---|
 | A failure | An exception, which a `catch` may handle | `try`/`catch` does not compile yet; a `throw`, or anything .NET would throw for, stops the program as an exception nothing catches does | Report failures through return values (`bool TryRead(out int value)`) |
 | `finally` after a failure | .NET 10 prints the unhandled exception, then runs the `finally` blocks around the throw (a `using`'s `Dispose` too) | Stops right after printing it; a `finally` runs only when its `try` block is left normally (its end, `return`, `break`, `continue`) | Do not count on clean-up after a failure |
-| What a failure prints | The exception and a stack trace. A stack overflow lists the methods that were running | The exception's first lines (`Unhandled exception. System...: message`) or `Stack overflow.`, with no stack trace; exit code 1 (stack overflow: .NET's 0xC00000FD). On a chip: over UART0, then the core stops at a breakpoint | |
+| What a failure prints | The exception and a stack trace. A stack overflow lists the methods that were running | The exception's first lines (`Unhandled exception. System...: message`) or `Stack overflow.`, with no stack trace; exit code 1 (stack overflow: .NET's 0xC00000FD). On a chip: over the console's serial port, then the core stops at a breakpoint | |
+| A stack overflow on the Uno | `Stack overflow.` | The Uno's functions do not check the stack yet (`"stackCheck"` is false for the AVR): a recursion with no end grows the stack into the static fields, and the program goes wrong without a message | Keep recursion shallow on the Uno: its stack has 512 bytes |
 | Comparing text | `CompareTo`, `string.Compare`, `StartsWith(string)`, `EndsWith(string)` and `IndexOf(string)` follow the PC's culture: `"a".CompareTo("B")` is -1 | Ordinal, char by char, as .NET's invariant mode compares: 31 (`==`, `Equals` and `Contains` are ordinal in both) | `string.CompareOrdinal(a, b)`, which gives the same in both |
 | Upper and lower case | Every Unicode letter, and the culture's rules (Turkish `i`) | `ToUpper`, `ToLower`, `char.IsLetter`, `IsUpper`, ... know the letters up to U+00FF (ASCII and Latin-1, `ÿ` to `Ÿ` too); from U+0100 on a char is no letter and keeps its case (`IsWhiteSpace` knows all of .NET's spaces) | Keep text that changes case ASCII or Latin-1 |
 | Numbers as text | `ToString`, `$"{x}"` and `Parse` follow the PC's culture (`1,5` in German) | Always as the invariant culture: `1.5` | To compare with .NET, run it with `InvariantGlobalization` (the samples' expected files are made so) |
@@ -409,6 +531,7 @@ available yet", followed by the list of the library methods it can call (`--deta
 | The last bit of `Sin`, `Exp`, `Pow`, ... | Calls the C runtime: on Windows the UCRT, whose x64 functions are AMD's math library (some in C, some in assembly that uses the fused multiply-add of processors with FMA3), on Linux glibc; not always correctly rounded, so the last bit depends on the PC | One implementation for every target, the same bits on the PC and the Pico: .NET's result for 88 to 100 % of values (above 97 % for most functions), 1 ulp away for the rest (see [Math](#math)); `Cbrt`: 70 %, up to 2 ulps | Compare transcendental results with a tolerance (as with .NET on two operating systems), or round them for display |
 | `MathF.ReciprocalEstimate`, `MathF.ReciprocalSqrtEstimate` | On x64, the processor's estimate instructions (`rcpss`, `rsqrtss`: about 12 bits, different on Intel and AMD) | `1f / x` and `1f / MathF.Sqrt(x)`, what .NET computes without them (and for doubles everywhere) | |
 | `nint` and `nuint` | 64 bits on a 64-bit PC | The chip's address size: 32 bits on the Pico, 16 on the Uno, where -123456 does not fit in an `nint` | `int` or `long` for numbers |
+| `Adc.Read` | (.NET IoT's ADC readings are the converter's own) | The chip's own range: 0 to 4095 (3.3 V) on the Pico, 0 to 1023 (5 V) on the Uno | `Adc.Volts`, the same on both |
 | A struct's bytes (`MemoryMarshal.Read` and `Write`, `sizeof`) | Fields aligned to their size, with padding between: `struct { byte; ushort; int; }` takes 8 bytes | The same on the Pico; on the Uno nothing is aligned, so no padding: 7 bytes | Write and read the fields one by one with `BinaryPrimitives`, or order them from the largest down |
 
 ### What does not compile yet
@@ -690,7 +813,7 @@ var celsius = Adc.Temperature();    // the chip's own sensor: 27 - (volts - 0.70
 The Pico's analog inputs are GPIO 26, 27 and 28, and 29, which measures a third of VSYS. A reading takes 2
 microseconds, with interrupts off; the temperature sensor needs no `Input` and is not calibrated (a few degrees off).
 The Uno's are A0 to A5 (pins 14 to 19), read in its 10 bits: `Adc.Read(14)` is 0 to 1023 (5 V), `Adc.Volts` reading *
-5 / 1024, so the volts are the same on both chips and the readings each chip's own (see [Arduino Uno](#arduino-uno-in-progress)).
+5 / 1024, so the volts are the same on both chips and the readings each chip's own (see [Arduino Uno](#the-chips-timers-clock-and-buses)).
 
 ### PWM outputs
 
@@ -714,7 +837,7 @@ Unhandled exception. System.InvalidOperationException: GPIO 17 shares PWM slice 
 
 The Uno's PWM pins are D3, D5, D6 and D11, on two 8-bit timers at a few frequencies (the nearest is taken), and D9,
 whose edges Timer1's compare times to the half microsecond, the servo's pin: the same code runs there with `Pwm.Output(9,
-50)` (see [Arduino Uno](#arduino-uno-in-progress)). Its timers are shared as the Pico's slices: `Pin 6 shares Timer0
+50)` (see [Arduino Uno](#the-chips-timers-clock-and-buses)). Its timers are shared as the Pico's slices: `Pin 6 shares Timer0
 with pin 5, which runs at 1000 Hz, ...`.
 
 ### I2C
@@ -966,8 +1089,9 @@ the Pico:
 | `Tuples` | A crossroads' readings as tuples: the busiest lane and a summary returned together, a light switched on `(light, waiting)`, a grid keyed by `(row, column)`, collection expressions of lanes and of their names | 28.1 KB + heap |
 | `GenericClasses`, `Delegates`, `ArrayMethods`, `Collections` | Generic classes; callbacks, closures and events; `Array.Copy`, `Sort`, `Resize`; `List`, `Dictionary`, `Queue`, `Stack` | 13.8 to 36.6 KB + heap |
 
-**`examples/`** holds projects for the Pico, each a `.csproj` that references `ChipSharp.Hardware`, built with
-`dotnet build -c Release` and then `chipsharp build bin\Release\net10.0\<Name>.dll -t pico` in its folder:
+**`examples/`** holds projects for the Pico (`pico-*`) and the Arduino Uno (`uno-*`), each a `.csproj` that references
+`ChipSharp.Hardware`, built with `dotnet build -c Release` and then
+`chipsharp build bin\Release\net10.0\<Name>.dll -t pico` (or `-t uno`) in its folder. The Pico's:
 
 | Example | What it does | Pico |
 |---|---|---|
@@ -985,22 +1109,14 @@ the Pico:
 | `pico-adc-pwm` | A potentiometer on GPIO 26 sets the brightness of an LED on GPIO 15 through 1 kHz PWM, and each change of 0.1 V goes to the console. No heap | 10.5 KB, 128 bytes of RAM |
 | `pico-servo` | A servo on GPIO 22 sweeps from 0 to 180 degrees and back with 50 Hz pulses of 1 to 2 ms. No heap | 6.1 KB, 116 bytes of RAM |
 
-And for the Arduino Uno, built with `chipsharp build bin\Release\net10.0\<Name>.dll -t uno` (or flashed with
-`chipsharp flash ... -t uno`, see [On an Arduino Uno](#on-an-arduino-uno)):
-
-| Example | What it does | Uno |
-|---|---|---|
-| `uno-blink` | Blinks the LED "L" (D13) with a delay loop; in Wokwi, an LED on D13 and the GND beside it blinks with it | 1.2 KB, 15 bytes of RAM |
-| `uno-timer-blink` | Blinks the LED "L" from the timer event (Timer1), while `Main` does nothing; the same circuit | 1.6 KB, 24 bytes of RAM |
-| `uno-button` | A button between D2 and GND toggles the LED "L" through the pin event (INT0, falling edges); the program turns D2's pull-up on with `Registers.Write` of PORTD, so the button needs no resistor | 1.4 KB, 24 bytes of RAM |
-| `uno-serial` | A count on the console (USART0, 115200 baud) every second, and what is typed into it sent straight back (`Uart.Available`, `ReadByte`, `WriteByte`); in Wokwi, the serial monitor under the Uno | 5.4 KB, 132 bytes of RAM |
+The Arduino Uno's examples (the blink, the button, the serial port, a traffic light with an LCD, a clock, a servo) are
+in [Examples for the Uno](#examples-for-the-uno).
 
 The traffic lights, the bus examples, the 7-segment counter, the clock, the command prompt, the knob and the servo have a
 `diagram.json` for Wokwi with the whole circuit, wired directly (Wokwi needs no resistors): common-cathode displays,
 the button between GPIO 22 and 3V3, the potentiometer between 3V3 and GND, the servo on VBUS, the LCD in I2C mode and the DS1307 on
-3V3, UART0 on the serial monitor (where the prompt's commands are typed); so do the Uno's, with a few parts placed so
-that no wire crosses one. With the button pressed at 2.5 s, both
-traffic lights print:
+3V3, UART0 on the serial monitor (where the prompt's commands are typed); so do the Uno's. With the button pressed at
+2.5 s, both traffic lights print, and so does the Uno's (`examples/uno-traffic-light`, line for line):
 
 ```
 road : 1
@@ -1023,14 +1139,16 @@ dotnet build -c Release
 dotnet test -c Release --no-build
 ```
 
-The 2,000 or so tests (about 2 minutes once the build cache is warm) check each stage on its own (reading IL, the whole-program pass, TIR, the LLVM code, linking, the `.uf2`),
-then compile C# programs and run them: on the PC, and on the simulated Pico, comparing what they print, byte for byte,
-with what .NET prints for the same program; the library code (collections, `StringBuilder`, sorting, `TimeSpan`, `DateTime` and its formats)
+The 2,565 tests (about 3 minutes once the build cache is warm) check each stage on its own (reading IL, the
+whole-program pass, TIR, the LLVM code, linking, the `.uf2` and the `.hex`), then compile C# programs and run them: on
+the PC, on the simulated Pico and on the simulated Uno, comparing what they print, byte for byte, with what .NET prints
+for the same program; the library code (collections, `StringBuilder`, sorting, `TimeSpan`, `DateTime` and its formats)
 runs next to .NET's own on thousands of random operations, and the math functions on hundreds of thousands of values,
 computed both with the PC's float hardware and in software as the Pico computes them. The PC tests need LLVM; the Pico tests also need Node.js
 and `npm ci` in `tools\rp2040-sim` (the Uno's, Zig and `npm ci` in `tools\avr-sim`), and are skipped, saying why,
-without them. The example projects are built with
-`dotnet build` and `chipsharp build` and run in the simulator, the traffic lights with the button pressed.
+without them. The example projects are built with `dotnet build` and `chipsharp build` and run in the simulators, with
+what their circuits would give them: the traffic lights with the button pressed, the clocks with a simulated LCD and
+DS1307, the servo with a knob turned; and their Wokwi circuits are checked, wire by wire.
 `chipsharp flash` runs no real tool in the tests: avrdude is a batch file that keeps the command line it was given, and
 the Pico's drive a folder.
 
@@ -1054,7 +1172,7 @@ allow for both. Its TWI takes no time on the bus: the I2C transfers' timing is t
 | `src/ChipSharp.Library` | ChipSharp's own C# for library types (`TimeSpan`, `List<T>`, `StringBuilder`, the exceptions, ...), compiled together with the programs that use them |
 | `src/ChipSharp.Backend.Llvm` | The `llvm` code generator: TIR in, LLVM IR text out |
 | `src/ChipSharp.Toolchain.Clang` | The `clang` toolchain: LLVM IR and runtime sources in, a linked program out; as the `zig` toolchain, the same with the clang and ld.lld inside Zig (AVR) |
-| `src/ChipSharp.Runtime.*` | The runtimes, in C: `Shared` (console, text, floats, heap and collector), `Windows` (the PC), `ArmV6M` and `Rp2040` (start-up, UART0, timers, pins, interrupts), `Avr` (any AVR chip's start-up, multiply and divide helpers, soft float) and `Atmega328p` (the Uno's pins, Timer1's clock and delays, the pin and timer events, USART0) |
+| `src/ChipSharp.Runtime.*` | The runtimes, in C: `Shared` (console, text, floats, heap and collector), `Windows` (the PC), `ArmV6M` and `Rp2040` (start-up, UART0, timers, pins, interrupts), `Avr` (any AVR chip's start-up, multiply and divide helpers, soft float) and `Atmega328p` (the Uno's pins, Timer1's clock and delays, the pin and timer events, USART0, the TWI, SPI, the ADC and PWM) |
 | `src/ChipSharp.Image.Uf2`, `src/ChipSharp.Image.Hex`, `src/ChipSharp.Build`, `src/ChipSharp.Cli` | The `.uf2` and `.hex` images, the build pipeline, and the `chipsharp` command |
 | `src/ChipSharp.Hardware` | The library programs reference for pins, timing, the clock, registers, interrupts, serial ports, analog inputs, PWM and the I2C and SPI buses |
 | `src/ChipSharp.Components` | Drivers of parts connected to a chip (the character LCD, the 7-segment display, the DS1307 real-time clock), plain C# that ChipSharp compiles with the program |
@@ -1254,6 +1372,7 @@ of its own (`src/ChipSharp.Backend.Llvm/LlvmStackChecks.cs`).
 | M1 (done, in the simulator) | Blink the Raspberry Pi Pico's LED; every sample also runs on the simulated RP2040 and matches .NET over UART0 |
 | M2 (done) | Code for chips without a heap: static fields, `float` and `double` bit for bit, structs, enums, `ref`/`out`/`in`, arrays on the stack, interrupts (timer and pin), `TimeSpan` and the first library substitutes |
 | M3 (done) | The heap: classes, garbage collector, strings, interfaces, generics, `Span<T>`, delegates, boxing, records, exceptions you throw, collections |
+| M7 (done) | Arduino Uno: the ATmega328P, an 8-bit AVR with 2 KB of RAM and no heap, through the LLVM in Zig; constants in flash, 8- and 16-bit arithmetic, its pins, timers, clock, serial port, I2C, SPI, ADC and PWM, `chipsharp flash` with avrdude, Wokwi circuits and examples (see [Arduino Uno](#arduino-uno)) |
 | M4 | ESP32-C5 (RISC-V) |
 | M5 | CH32V003, C# on a 10-cent chip with 2 KB of RAM: M2-style code and the M3 pieces that need no heap (generics over values, spans, fixed and printed text, record structs) |
 | Later | Catching exceptions (`try`/`catch`); more chips, including 8-bit ones through a C code generator, and an interpreter mode for the smallest |

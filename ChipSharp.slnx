@@ -7,8 +7,11 @@
     <Project Path="examples/pico-traffic-light-m3/PicoTrafficLightM3.csproj" />
     <Project Path="examples/uno-blink/UnoBlink.csproj" />
     <Project Path="examples/uno-button/UnoButton.csproj" />
+    <Project Path="examples/uno-lcd-clock/UnoLcdClock.csproj" />
     <Project Path="examples/uno-serial/UnoSerial.csproj" />
+    <Project Path="examples/uno-servo/UnoServo.csproj" />
     <Project Path="examples/uno-timer-blink/UnoTimerBlink.csproj" />
+    <Project Path="examples/uno-traffic-light/UnoTrafficLight.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/ChipSharp.Abstractions/ChipSharp.Abstractions.csproj" />

@@ -42,6 +42,10 @@ public sealed class StaticArrayProgramTests : IDisposable
         PrintsWhatDotnetPrints(StaticArrayPrograms.Initializers);
 
     [HostFact]
+    public Task Tables_of_record_structs_and_computed_elements_are_set_when_the_program_starts() =>
+        PrintsWhatDotnetPrints(StaticArrayPrograms.ComputedElements);
+
+    [HostFact]
     public async Task An_index_outside_a_table_stops_the_program_with_IndexOutOfRangeException_and_exit_code_1()
     {
         var module = Lowered.Lower(WholeProgramPass.Analyze(IlAssembly.Load(
@@ -359,6 +363,90 @@ internal static class StaticArrayPrograms
         }
         """;
 
+    /// <summary>
+    /// Elements the initializers compute: a table of record structs (a traffic light's steps), constructors, tuples,
+    /// calls and static fields, set when the program starts; one of them written later too.
+    /// </summary>
+    public const string ComputedElements = """
+        using System;
+
+        enum Light { Red, Yellow, Green }
+
+        readonly record struct Step(Light Light, int Seconds, bool CanBeCut = false);
+
+        static class Plan
+        {
+            public static int Pause = 3;
+            public static readonly Step[] Steps =
+            [
+                new(Light.Green, 4, CanBeCut: true),
+                new(Light.Yellow, 1),
+                new(Light.Red, Pause - 1),
+            ];
+        }
+
+        struct Point
+        {
+            public int X;
+            public int Y;
+
+            public Point(int x, int y)
+            {
+                X = x;
+                Y = y;
+            }
+        }
+
+        class Program
+        {
+            static int scale = 10;
+            static readonly int[] Scaled = { scale, scale * 2, Twice(scale) + 1 };
+            static readonly (int Min, int Max)[] Ranges = { (1, 5), (scale, scale + 5) };
+            static readonly Point[] Corners = { new Point(1, 2), new(-3, 4), default };
+            static long[] totals = { Twice(3), 7 };
+
+            static int Twice(int value) => value * 2;
+
+            static int Seconds(Step[] steps)
+            {
+                int seconds = 0;
+                foreach (var step in steps)
+                {
+                    seconds += step.Seconds;
+                }
+
+                return seconds;
+            }
+
+            static void Main()
+            {
+                foreach (var step in Plan.Steps)
+                {
+                    Console.WriteLine($"{step.Light} {step.Seconds} {step.CanBeCut}");
+                }
+
+                Console.WriteLine(Seconds(Plan.Steps));
+                for (int i = 0; i < Scaled.Length; i++)
+                {
+                    Console.WriteLine(Scaled[i]);
+                }
+
+                foreach (var (min, max) in Ranges)
+                {
+                    Console.WriteLine($"{min}..{max}");
+                }
+
+                foreach (var corner in Corners)
+                {
+                    Console.WriteLine($"({corner.X}, {corner.Y})");
+                }
+
+                totals[1] += totals[0];
+                Console.WriteLine(totals[1]);
+            }
+        }
+        """;
+
     public const string OutOfRange = """
         using System;
 
@@ -386,5 +474,6 @@ internal static class StaticArrayPrograms
         ("Buffer", Buffer),
         ("ElementTypes", ElementTypes),
         ("Initializers", Initializers),
+        ("ComputedElements", ComputedElements),
     ];
 }
