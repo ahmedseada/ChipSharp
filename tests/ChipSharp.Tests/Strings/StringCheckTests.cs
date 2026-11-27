@@ -115,7 +115,7 @@ public sealed class StringCheckTests : IDisposable
                     Console.WriteLine(kept.ToUpper());
                     Console.WriteLine(Report(1.5f).Substring(1));
                     Console.WriteLine("a,b".Split(',').Length);
-                    ReadOnlySpan<char> span = "chars".AsSpan();
+                    ReadOnlySpan<char> span = "chars".AsSpan(); // a literal's chars: a constant, no heap
                     Console.WriteLine(span.Length);
                 }
             }
@@ -137,7 +137,6 @@ public sealed class StringCheckTests : IDisposable
             $"Program.Main() at IL_001d (callvirt): {Making} {NeedsHeap}. Print the parts one after another with Console.Write.",
             $"Program.Main() at IL_0032 (callvirt): {Making} {NeedsHeap}. Print the parts one after another with Console.Write.",
             $"Program.Main() at IL_0044 (call): {Making} {NeedsHeap}. Print the parts one after another with Console.Write.",
-            $"Program.Main() at IL_0055 (call): {Making} {NeedsHeap}. Print the parts one after another with Console.Write.",
             $"Program.Report(float) at IL_001f (call): keeping built text in a variable {NeedsHeap}. Print it straight " +
                 "away: Console.WriteLine($\"...\").",
         ], analysis.Problems.Select(problem => problem.Line));

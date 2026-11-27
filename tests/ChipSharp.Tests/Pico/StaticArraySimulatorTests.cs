@@ -194,7 +194,8 @@ public sealed class StaticArraySimulatorTests : IDisposable
         // the RP2040's runtime says so on UART0 first: its strong functions replace these weak ones when they link
         var failures = ArmV6MRuntime.Source(ArmV6MRuntime.FailuresFileName).Content;
         var functions = LibrarySubstitutes.Assembly.FindType(LibrarySubstitutes.RuntimeType)!.Methods
-            .Where(method => method.IsStatic && method.Name != ".cctor" && method.Parameters.Count == 0)
+            .Where(method => method.IsStatic && method.Name != ".cctor" && method.Parameters.Count == 0
+                && method.ReturnType == ChipSharp.Frontend.Il.IlType.Void) // (not the clock's, which give a time)
             .Select(method => $"ChipSharp.Runtime.{method.Name}");
 
         Assert.Contains(ArmV6MRuntime.FailuresFileName, new ArmV6MRuntime().Startup(TinyTarget()).Files.Select(f => f.FileName));

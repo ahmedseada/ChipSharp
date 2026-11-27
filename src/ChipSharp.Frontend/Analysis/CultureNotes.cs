@@ -18,7 +18,9 @@ namespace ChipSharp.Frontend.Analysis;
 /// <item><c>ToUpper()</c> and <c>ToLower()</c> of a string and of a char (not their Invariant forms);</item>
 /// <item><c>Parse</c> and <c>TryParse</c> of the whole numbers;</item>
 /// <item>a float or double written as text: <c>Console.Write(x)</c>, <c>$"{x}"</c>, <c>"a" + x</c>,
-/// <c>x.ToString()</c>, <c>string.Format("{0}", x)</c>.</item>
+/// <c>x.ToString()</c>, <c>string.Format("{0}", x)</c>;</item>
+/// <item>a DateTime, DateOnly or TimeOnly written as text: <c>$"{now}"</c>, <c>now.ToString("d")</c>,
+/// <c>now.TryFormat(...)</c>.</item>
 /// </list>
 /// </remarks>
 internal static class CultureNotes
@@ -41,6 +43,13 @@ internal static class CultureNotes
         "language settings in .NET (1,5 with German settings); ChipSharp writes it as .NET's invariant culture does (1.5)",
         "");
 
+    /// <summary>A DateTime, DateOnly or TimeOnly written as text.</summary>
+    private static readonly Difference DateText = new("a date or time as text",
+        "a date or time written as text ($\"{now}\", now.ToString(\"d\"), TryFormat) depends on the PC's language settings " +
+        "in .NET (27.11.2026 18:05:09 with German settings, its names of months and days, its separators); ChipSharp " +
+        "writes it as .NET's invariant culture does (11/27/2026 18:05:09)",
+        "");
+
     /// <summary>The notes of the program in <paramref name="assembly"/>, whose methods are <paramref name="methods"/>.</summary>
     public static IReadOnlyList<Note> Find(IlAssembly assembly, IReadOnlyList<IlMethod> methods)
     {
@@ -57,15 +66,16 @@ internal static class CultureNotes
                 }
             }
 
-            if (MayWriteFloats(instructions))
+            if (MayWriteFloats(instructions) || FormattedValues.MayWrite(method))
             {
                 var printed = PrintedText.Of(method);
                 foreach (var piece in printed.Prints.Values.Concat(printed.Builds.Values).SelectMany(site => site.Pieces)
-                    .Where(piece => piece is { Literal: null, Type.Kind: IlPrimitiveKind.Float32 or IlPrimitiveKind.Float64 }))
+                    .Where(piece => piece.Formatted is not null
+                        || piece is { Literal: null, Type.Kind: IlPrimitiveKind.Float32 or IlPrimitiveKind.Float64 }))
                 {
                     if (noted.Add(piece.Source))
                     {
-                        notes.Add(new Note(method, piece.Source, FloatText));
+                        notes.Add(new Note(method, piece.Source, piece.Formatted is null ? FloatText : DateText));
                     }
                 }
             }
@@ -140,6 +150,13 @@ internal static class CultureNotes
                 || callee.Name == "AppendFormatted" && callee.GenericArguments.Any(IsFloat)))
         {
             return FloatText;
+        }
+
+        // a date's TryFormat, or its ToString of a format printed text does not know (a string made by ToString itself)
+        if (callee is { Name: "TryFormat" or "ToString", Definition: { } definition }
+            && FormattedValues.Of(definition.DeclaringType.Type, definition.DeclaringType.Assembly) is not null)
+        {
+            return DateText;
         }
 
         if (callee.Definition is not null)

@@ -18,6 +18,8 @@
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_math_amd.c" LogicalName="chipsharp_math_amd.c" />
     <EmbeddedResource Include="chipsharp_failures.c" LogicalName="chipsharp_failures.c" />
     <EmbeddedResource Include="chipsharp_memory.c" LogicalName="chipsharp_memory.c" />
+    <!-- the clock (DateTime.Now, Clock.Start) and the uptime (Stopwatch, Environment.TickCount) -->
+    <EmbeddedResource Include="chipsharp_clock.c" LogicalName="chipsharp_clock.c" />
     <EmbeddedResource Include="chipsharp_chkstk.S" LogicalName="chipsharp_chkstk.S" />
     <!-- objects, the allocator and the garbage collector, shared with the other runtimes; and what they need from Windows -->
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_heap.c" LogicalName="chipsharp_heap.c" />

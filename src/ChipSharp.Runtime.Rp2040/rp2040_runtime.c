@@ -10,6 +10,8 @@
 //   ChipSharp_Runtime_Pin...           ChipSharp.Hardware.Pin: GPIO 0-29 through SIO (Output or Input first, then
 //                                      Write, Toggle, Read); other pin numbers are ignored
 //   ChipSharp_Runtime_Delay...         ChipSharp.Hardware.Timing: sleeps on timer alarm 0 (TIMER_IRQ_0, IRQ 0)
+//   ChipSharp_Runtime_Clock...         the clock (DateTime.Now, Clock.Start) and the uptime (Stopwatch,
+//                                      Environment.TickCount): the timer's 64-bit count of microseconds
 //   ChipSharp_Runtime_Register...      ChipSharp.Hardware.Registers: 32-bit reads and writes of any address
 //   chipsharp_console_write            where Console.Write and Console.WriteLine write: UART0 on GPIO 0 (TX) and 1
 //                                      (RX), 115200 baud, 8N1, set up on the first write (the text they write, with
@@ -74,6 +76,7 @@
 
 #define TIMER_ALARM0 0x40054010u
 #define TIMER_ARMED 0x40054020u
+#define TIMER_TIMERAWH 0x40054024u
 #define TIMER_TIMERAWL 0x40054028u
 #define TIMER_INTR 0x40054034u
 #define TIMER_INTE 0x40054038u
@@ -324,6 +327,92 @@ void ChipSharp_Runtime_DelayMilliseconds(int milliseconds)
         sleep_microseconds(step * 1000u);
         left -= step;
     }
+}
+
+// ---- The clock and the uptime ------------------------------------------------------------------------------------
+
+// The timer's count of microseconds since start-up, all 64 bits: the high word read again after the low one, until
+// the low one did not wrap in between (TIMERAWH and TIMERAWL read the count without latching it, so an interrupt
+// handler may read it too).
+static unsigned long long timer_microseconds(void)
+{
+    unsigned int high = REG(TIMER_TIMERAWH);
+    for (;;)
+    {
+        unsigned int low = REG(TIMER_TIMERAWL);
+        unsigned int again = REG(TIMER_TIMERAWH);
+        if (again == high)
+        {
+            return ((unsigned long long)high << 32) | low;
+        }
+
+        high = again;
+    }
+}
+
+// The software clock, in DateTime's ticks of 100 ns: the date it was given (Clock.Start), or 1 January 2000 until it
+// is given one, and the timer's count then. Read and written with interrupts off, so that a handler that starts the
+// clock never leaves half of it for Main to read.
+static long long clock_ticks = 630822816000000000LL;
+static unsigned long long clock_microseconds;
+
+static unsigned int interrupts_off(void)
+{
+    unsigned int primask;
+    __asm__ volatile("mrs %0, primask\n\tcpsid i" : "=r"(primask) : : "memory");
+    return primask;
+}
+
+static void interrupts_back(unsigned int primask)
+{
+    __asm__ volatile("msr primask, %0" : : "r"(primask) : "memory");
+}
+
+// DateTime.UtcNow, DateTime.Now: the chip has no time zones, so both are the clock's date and the time since.
+long long ChipSharp_Runtime_ClockUtcTicks(void)
+{
+    unsigned int primask = interrupts_off();
+    long long ticks = clock_ticks;
+    unsigned long long since = timer_microseconds() - clock_microseconds;
+    interrupts_back(primask);
+    return ticks + (long long)since * 10;
+}
+
+long long ChipSharp_Runtime_ClockLocalTicks(void)
+{
+    return ChipSharp_Runtime_ClockUtcTicks();
+}
+
+// Clock.Start(date): the clock counts from date's ticks from now on.
+void ChipSharp_Runtime_ClockStart(long long ticks)
+{
+    unsigned int primask = interrupts_off();
+    clock_ticks = ticks;
+    clock_microseconds = timer_microseconds();
+    interrupts_back(primask);
+}
+
+// Stopwatch.GetTimestamp, in microseconds since start-up; Stopwatch.Frequency is 1,000,000.
+long long ChipSharp_Runtime_ClockTimestamp(void)
+{
+    return (long long)timer_microseconds();
+}
+
+long long ChipSharp_Runtime_ClockFrequency(void)
+{
+    return 1000000;
+}
+
+// Stopwatch.GetElapsedTime: 10 ticks of 100 ns a microsecond, exactly what .NET's double arithmetic gives.
+long long ChipSharp_Runtime_ClockElapsedTicks(long long start, long long end)
+{
+    return (end - start) * 10;
+}
+
+// Environment.TickCount64: milliseconds since start-up.
+long long ChipSharp_Runtime_ClockTickCount64(void)
+{
+    return (long long)(timer_microseconds() / 1000u);
 }
 
 // ---- Registers ---------------------------------------------------------------------------------------------------
