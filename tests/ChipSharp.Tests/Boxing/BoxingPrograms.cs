@@ -324,6 +324,11 @@ internal static class BoxingPrograms
                 Console.WriteLine(warm.CompareTo(new Temperature { Degrees = 25 }) + " " + warm.CompareTo(new Temperature()));
                 object maybe = new Counter();
                 Console.WriteLine((maybe is IDevice) + " " + (maybe is IComparable) + " " + (5 is IComparable) + " " + (maybe as IDevice)?.Name);
+
+                // a delegate of a struct's method is made of a box of a copy, which its calls change
+                var ticker = new Counter { Count = 100 };
+                Func<int> tick = ticker.Tick;
+                Console.WriteLine(tick() + " " + tick() + " " + ticker.Count);
             }
         }
         """;

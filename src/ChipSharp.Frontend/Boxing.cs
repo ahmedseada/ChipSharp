@@ -110,6 +110,13 @@ internal static class Boxing
             : null;
     }
 
+    /// <summary>The boxed type of a struct or enum of the program (an instance of a generic struct too); null when it is none.</summary>
+    public static BoxedType? OfDefinition(IlTypeDefinition type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        return Of(type.GenericDefinition is null ? type.Type : StructType(type), type.Assembly);
+    }
+
     /// <summary>
     /// The value type instruction <paramref name="index"/> of <paramref name="instructions"/> (of a method of
     /// <paramref name="assembly"/>) boxes, for <see cref="VirtualDispatch"/>: <c>box</c> (but of a number or an enum that

@@ -51,10 +51,17 @@ internal sealed class DelegateFunctions(TirModule module, ProgramFunctions progr
     public TirFunction Remove => _remove ??= DefineRemove();
 
     /// <summary>A delegate's Equals(object): what object's Equals slot runs on one.</summary>
-    public TirFunction SameAs => _equals ??= DefineEquals();
+    // (both read a list of delegates, a Delegate[]: its array type is in the module even if no list is ever made)
+    public TirFunction SameAs => _equals ??= WithListType(DefineEquals);
 
     /// <summary>A delegate's GetHashCode(): what object's GetHashCode slot runs on one.</summary>
-    public TirFunction HashCode => _hashCode ??= DefineHashCode();
+    public TirFunction HashCode => _hashCode ??= WithListType(DefineHashCode);
+
+    private TirFunction WithListType(Func<TirFunction> define)
+    {
+        _ = program.DelegateArrayDescriptor;
+        return define();
+    }
 
     public TirFunction Equality => _equality ??= DefineEquality();
 
