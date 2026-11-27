@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A potentiometer on GPIO 26 (Adc) sets an LED's brightness on GPIO 15 (Pwm), and the voltage goes to the console:
+       build with ChipSharp for the target "pico" (see Program.cs) -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Adc, Pwm and Timing: the Pico's hardware from C# -->
+    <ProjectReference Include="..\..\src\ChipSharp.Hardware\ChipSharp.Hardware.csproj" />
+  </ItemGroup>
+</Project>

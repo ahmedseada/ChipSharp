@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "author": "ChipSharp",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-pi-pico", "id": "pico", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-servo", "id": "servo", "top": 80, "left": 150, "attrs": {} }
+  ],
+  "connections": [
+    ["servo:PWM", "pico:GP15", "orange", []],
+    ["servo:V+", "pico:VBUS", "red", []],
+    ["servo:GND", "pico:GND.4", "black", []],
+    ["pico:GP0", "$serialMonitor:RX", "", []],
+    ["pico:GP1", "$serialMonitor:TX", "", []]
+  ],
+  "dependencies": {}
+}

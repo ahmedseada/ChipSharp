@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "author": "ChipSharp",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-pi-pico", "id": "pico", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-potentiometer", "id": "knob", "top": -30, "left": 150, "attrs": { "value": "50" } },
+    { "type": "wokwi-resistor", "id": "r-lamp", "top": 160, "left": -170, "attrs": { "value": "220" } },
+    { "type": "wokwi-led", "id": "lamp", "top": 120, "left": -240, "attrs": { "color": "yellow" } }
+  ],
+  "connections": [
+    ["knob:VCC", "pico:3V3", "red", []],
+    ["knob:GND", "pico:GND.8", "black", []],
+    ["knob:SIG", "pico:GP26", "green", []],
+    ["pico:GP15", "r-lamp:2", "green", []],
+    ["r-lamp:1", "lamp:A", "green", []],
+    ["lamp:C", "pico:GND.4", "black", []],
+    ["pico:GP0", "$serialMonitor:RX", "", []],
+    ["pico:GP1", "$serialMonitor:TX", "", []]
+  ],
+  "dependencies": {}
+}

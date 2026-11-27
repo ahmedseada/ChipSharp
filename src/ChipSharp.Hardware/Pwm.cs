@@ -17,7 +17,7 @@ namespace ChipSharp.Hardware;
 /// </para>
 /// <para>
 /// The frequency can be from 8 Hz to 62.5 MHz; the chip makes it as exactly as its clock (125 MHz) divides, and the
-/// duty cycle in up to 65536 steps (fewer above 1907 Hz: 125 MHz / frequency steps).
+/// duty cycle in up to 65535 steps (fewer above 1907 Hz: 125 MHz / frequency steps).
 /// </para>
 /// <para>
 /// These methods run on a chip, in a program built with ChipSharp. On .NET itself they throw

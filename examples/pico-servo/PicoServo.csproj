@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A servo on GPIO 15 sweeps from 0 to 180 degrees and back, driven by 50 Hz PWM pulses of 1 to 2 ms: build with
+       ChipSharp for the target "pico" (see Program.cs) -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Pwm and Timing: the Pico's hardware from C# -->
+    <ProjectReference Include="..\..\src\ChipSharp.Hardware\ChipSharp.Hardware.csproj" />
+  </ItemGroup>
+</Project>
