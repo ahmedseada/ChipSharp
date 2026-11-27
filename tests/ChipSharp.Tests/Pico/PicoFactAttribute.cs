@@ -1,5 +1,6 @@
 using ChipSharp.Abstractions;
 using ChipSharp.Toolchain.Clang;
+using Xunit.Sdk;
 
 namespace ChipSharp.Tests.Pico;
 
@@ -7,6 +8,7 @@ namespace ChipSharp.Tests.Pico;
 /// A test that builds a program for the Pico with clang and ld.lld. It is skipped, with the reason, on a machine
 /// without LLVM.
 /// </summary>
+[XunitTestCaseDiscoverer("ChipSharp.Tests.Support.OwnCollectionFactDiscoverer", "ChipSharp.Tests")]
 public sealed class PicoFactAttribute : FactAttribute
 {
     public PicoFactAttribute()
@@ -22,6 +24,7 @@ public sealed class PicoFactAttribute : FactAttribute
 /// A test that builds a program for the Pico and runs it in the rp2040js simulator (tools/rp2040-sim). It is
 /// skipped, with the reason, when LLVM, Node.js or the simulator's packages are missing.
 /// </summary>
+[XunitTestCaseDiscoverer("ChipSharp.Tests.Support.OwnCollectionFactDiscoverer", "ChipSharp.Tests")]
 public sealed class SimulatorFactAttribute : FactAttribute
 {
     public SimulatorFactAttribute()
@@ -34,6 +37,7 @@ public sealed class SimulatorFactAttribute : FactAttribute
 }
 
 /// <summary>Like <see cref="SimulatorFactAttribute"/>, for a test that runs once per case.</summary>
+[XunitTestCaseDiscoverer("ChipSharp.Tests.Support.OwnCollectionTheoryDiscoverer", "ChipSharp.Tests")]
 public sealed class SimulatorTheoryAttribute : TheoryAttribute
 {
     public SimulatorTheoryAttribute()

@@ -151,36 +151,11 @@ public sealed class ArrayMethodProgramTests(ITestOutputHelper output) : IDisposa
 }
 
 /// <summary>
-/// .NET running a program that throws (<see cref="HostRun.RunOnDotnetAsync"/> wants one that does not): its output and
-/// its standard error, with the exception's message and stack trace.
+/// .NET running a program that throws (<see cref="HostRun.RunOnDotnetAsync(byte[], string, string)"/> wants one that
+/// does not): its output and its standard error, with the exception's message and stack trace.
 /// </summary>
 internal static class ThrowingDotnet
 {
-    public static async Task<ProgramRun> RunAsync(byte[] assembly, string folder)
-    {
-        Directory.CreateDirectory(folder);
-        var dll = Path.Combine(folder, "Program.dll");
-        await File.WriteAllBytesAsync(dll, assembly);
-        var (major, minor) = (Environment.Version.Major, Environment.Version.Minor);
-        await File.WriteAllTextAsync(Path.Combine(folder, "Program.runtimeconfig.json"), $$"""
-            {
-              "runtimeOptions": {
-                "tfm": "net{{major}}.{{minor}}",
-                "framework": { "name": "Microsoft.NETCore.App", "version": "{{major}}.{{minor}}.0" },
-                "configProperties": { "System.Globalization.Invariant": true }
-              }
-            }
-            """);
-        return await HostRun.RunAsync(DotnetPath, [dll], folder);
-    }
-
-    private static string DotnetPath
-    {
-        get
-        {
-            var framework = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
-            var beside = Path.GetFullPath(Path.Combine(framework, "..", "..", "..", "dotnet.exe"));
-            return File.Exists(beside) ? beside : "dotnet";
-        }
-    }
+    public static Task<ProgramRun> RunAsync(byte[] assembly, string folder) =>
+        HostRun.RunOnDotnetAsync(assembly, "Program", folder, failing: true);
 }

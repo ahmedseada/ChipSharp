@@ -25,6 +25,10 @@ internal static class HostRun
 {
     private static readonly TargetLoader Targets = new(Path.Combine(AppContext.BaseDirectory, "targets"));
 
+    /// <summary>What each assembly printed on .NET, by its name and the hash of its bytes.</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Lazy<Task<ProgramRun>>> DotnetRuns =
+        new(StringComparer.Ordinal);
+
     /// <summary>Builds <paramref name="module"/> into <paramref name="folder"/> as a Windows program and runs it.</summary>
     public static async Task<ProgramRun> BuildAndRunAsync(TirModule module, string folder)
     {
@@ -70,7 +74,10 @@ internal static class HostRun
             }
             """);
 
-        var run = await RunAsync(Dotnet(), [dll], folder);
+        // the same assembly prints the same: it runs on .NET once per test run (the tests of the PC and of the Pico,
+        // in Release and in Debug, compare with the same program), from the folder of the first test that runs it
+        var key = $"{name}|{Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(assembly))}";
+        var run = await DotnetRuns.GetOrAdd(key, _ => new Lazy<Task<ProgramRun>>(() => RunAsync(Dotnet(), [dll], folder))).Value;
         Assert.True(failing || run.Errors.Length == 0, $"dotnet {dll} failed:\n{run}");
         return run;
     }
