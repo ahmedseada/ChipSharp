@@ -90,6 +90,37 @@ public sealed partial class IlToTirOpCodeTests
                 il.Emit(OpCodes.Callvirt, typeof(Func<int>).GetMethod("Invoke")!);
                 il.Emit(OpCodes.Ret);
             }, [5, 3], [-2, 7]);
+
+            // a reference to an object: Counter kept = new Counter(a); ref Counter r = ref copy; r = kept; r.Count
+            Add("ObjectReferences", typeof(int), [typeof(int)], il =>
+            {
+                il.DeclareLocal(counter);
+                il.DeclareLocal(counter);
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Newobj, constructor);
+                il.Emit(OpCodes.Stloc_0);
+                il.Emit(OpCodes.Ldloca_S, (byte)1);
+                il.Emit(OpCodes.Ldloc_0);
+                il.Emit(OpCodes.Stind_Ref);
+                il.Emit(OpCodes.Ldloca_S, (byte)1);
+                il.Emit(OpCodes.Ldind_Ref);
+                il.Emit(OpCodes.Ldfld, count);
+                il.Emit(OpCodes.Ret);
+            }, [9]);
+
+            // throw: if (a < 0) throw new InvalidOperationException(); return a (run with a number that does not throw)
+            Add("Throws", typeof(int), [typeof(int)], il =>
+            {
+                var fine = il.DefineLabel();
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Ldc_I4_0);
+                il.Emit(OpCodes.Bge_S, fine);
+                il.Emit(OpCodes.Newobj, typeof(InvalidOperationException).GetConstructor([])!);
+                il.Emit(OpCodes.Throw);
+                il.MarkLabel(fine);
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Ret);
+            }, [4]);
         }
     }
 }

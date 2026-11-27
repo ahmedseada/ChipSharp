@@ -117,6 +117,13 @@ public static partial class WholeProgramPass
                 }
 
                 methods.AddRange(dispatch.Follow(instructions, j, methods[i].Assembly).Where(found.Add));
+                methods.AddRange(dispatch.FollowArrays(methods[i], j).Where(found.Add)); // arrays as interfaces
+
+                // a throw calls the library's Thrown.Unhandled (see Exceptions)
+                if (Exceptions.Reached(instructions[j]) is { } thrower && found.Add(thrower))
+                {
+                    methods.Add(thrower);
+                }
             }
         }
 
@@ -281,6 +288,11 @@ public static partial class WholeProgramPass
             && interpolations.Contains(local))
         {
             return Unsupported.BuildingText;
+        }
+
+        if (instruction.OpCode == IlOpCode.Throw)
+        {
+            return Unsupported.Throwing; // an exception is an object: a heap use
         }
 
         if (!SupportedSubset.OpCodes.Contains(instruction.OpCode))

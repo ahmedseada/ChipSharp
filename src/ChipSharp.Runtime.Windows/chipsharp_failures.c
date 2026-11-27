@@ -17,6 +17,8 @@
 //   ChipSharp_Runtime_LengthOutOfRange   MemoryMarshal.Read and Write on too few bytes (ArgumentOutOfRangeException)
 //   ChipSharp_Runtime_DestinationTooShort  a span's CopyTo a shorter one (ArgumentException)
 //   ChipSharp_Runtime_DataMisaligned     MemoryMarshal.Cast on a chip without unaligned access (DataMisalignedException)
+//   ChipSharp_Runtime_Unhandled          C#'s throw: an exception nothing catches, with its ToString() (as UTF-8, from
+//                                        chipsharp_exceptions.c), as .NET prints it
 //   ChipSharp_Runtime_InvalidCast        a cast to a type the object is not of (InvalidCastException), with the names of
 //                                        both types as their descriptors hold them (.NET's, e.g. Program+Node)
 //   ChipSharp_Runtime_EnumCompareType    IComparable's CompareTo of a boxed enum and a box of another type
@@ -403,4 +405,15 @@ __declspec(noreturn) void ChipSharp_Runtime_SourceIndexBelowZero(int value)
 __declspec(noreturn) void ChipSharp_Runtime_DestinationIndexBelowZero(int value)
 {
     fail_below_zero("destinationIndex", "must be greater than or equal to '0'.", value);
+}
+
+// ---- C#'s throw ---------------------------------------------------------------------------------------------------
+
+// In chipsharp_exceptions.c: a string object as UTF-8 ending with a 0 byte.
+const char *chipsharp_unhandled_text(const void *text);
+
+// An exception nothing catches (ChipSharp.Library's Exceptions.Thrown): "Unhandled exception. " and its ToString().
+__declspec(noreturn) void ChipSharp_Runtime_Unhandled(const void *text)
+{
+    chipsharp_fail(chipsharp_unhandled_text(text));
 }

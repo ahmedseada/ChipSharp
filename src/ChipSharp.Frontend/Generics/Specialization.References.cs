@@ -72,6 +72,16 @@ internal static partial class Specialization
                 when IsReference(zeroed, owner) && previous is not null && StoreOfNull(previous) is { } store:
                 return Replaced(instructions, index - 1, 2, [(IlOpCode.Ldnull, null), store], targets);
 
+            // through a reference to an object (an out T, ObjectReferences): what ldind.ref and stind.ref do
+            case { OpCode: IlOpCode.Initobj, Operand: IlTypeOperand { Type: var zeroed } } when IsReference(zeroed, owner):
+                return Replaced(instructions, index, 1, [(IlOpCode.Ldnull, null), (IlOpCode.Stind_Ref, null)], targets);
+
+            case { OpCode: IlOpCode.Ldobj, Operand: IlTypeOperand { Type: var loaded } } when IsReference(loaded, owner):
+                return Replaced(instructions, index, 1, [(IlOpCode.Ldind_Ref, null)], targets);
+
+            case { OpCode: IlOpCode.Stobj, Operand: IlTypeOperand { Type: var stored } } when IsReference(stored, owner):
+                return Replaced(instructions, index, 1, [(IlOpCode.Stind_Ref, null)], targets);
+
             case { OpCode: IlOpCode.Constrained, Operand: IlTypeOperand { Type: var type } }
                 when IsReference(type, owner) && next is { OpCode: IlOpCode.Callvirt, Operand: IlMethodOperand { Method: var callee } }:
                 return CallOnObject(instructions, index, callee, instance, targets);

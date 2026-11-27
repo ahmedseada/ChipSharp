@@ -82,6 +82,7 @@ public sealed class IlTypeDefinition
 public sealed class IlMethod
 {
     private readonly Lazy<IlMethodBody?> _body;
+    private readonly Lazy<IlMethodBody?> _read;
     private readonly IlAssembly? _context;
 
     internal IlMethod(IlTypeDefinition declaringType, int token, string name, MethodAttributes attributes,
@@ -97,7 +98,8 @@ public sealed class IlMethod
         Parameters = parameters;
         GenericParameters = genericParameters;
         HasBody = relativeVirtualAddress != 0;
-        _body = new Lazy<IlMethodBody?>(() => HasBody ? declaringType.Assembly.ReadBody(this, relativeVirtualAddress) : null);
+        _read = new Lazy<IlMethodBody?>(() => HasBody ? declaringType.Assembly.ReadBody(this, relativeVirtualAddress) : null);
+        _body = new Lazy<IlMethodBody?>(() => _read.Value is { } read ? TryFinally.Fold(read) : null);
     }
 
     /// <summary>
@@ -125,6 +127,7 @@ public sealed class IlMethod
         MethodArguments = methodArguments;
         HasBody = generic.HasBody;
         _body = new Lazy<IlMethodBody?>(() => HasBody ? body(this) : null);
+        _read = _body;
     }
 
     public IlTypeDefinition DeclaringType { get; }
@@ -177,10 +180,14 @@ public sealed class IlMethod
     public bool HasBody { get; }
 
     /// <summary>
-    /// The decoded IL, or null when <see cref="HasBody"/> is false. Decoded on first use; malformed IL throws a
+    /// The IL ChipSharp compiles, or null when <see cref="HasBody"/> is false: <see cref="BodyAsRead"/>, with its
+    /// try/finally regions made plain branches (<see cref="TryFinally"/>). Decoded on first use; malformed IL throws a
     /// <see cref="ChipSharp.Abstractions.ChipSharpException"/> that names the file, the method and the offset.
     /// </summary>
     public IlMethodBody? Body => _body.Value;
+
+    /// <summary>The decoded IL as the assembly has it, exception regions and all (what <c>chipsharp il</c> prints).</summary>
+    public IlMethodBody? BodyAsRead => _read.Value;
 
     /// <summary>The display name and the parameter types, e.g. "Program.Square(int32)".</summary>
     public override string ToString() => $"{DisplayName}({string.Join(", ", Signature.ParameterTypes)})";

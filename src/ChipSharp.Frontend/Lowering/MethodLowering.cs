@@ -153,8 +153,9 @@ internal sealed partial class MethodLowering
 
         if (_body.ExceptionRegions.Count > 0)
         {
+            // a try/finally is plain branches by now (TryFinally); what is left catches
             throw LoweringErrors.At(_method, _body.ExceptionRegions[0].TryOffset,
-                "try, catch and finally are not supported yet (they arrive later)");
+                "catching exceptions (try/catch) is not supported yet (it arrives later)");
         }
 
         CheckPrintedText();
@@ -256,6 +257,10 @@ internal sealed partial class MethodLowering
                 LowerReference(instruction);
                 break;
 
+            case IlOpCode.Ldind_Ref or IlOpCode.Stind_Ref:
+                LowerObjectReference(instruction); // see MethodLowering.ObjectReferences.cs
+                break;
+
             case IlOpCode.Ldfld or IlOpCode.Ldflda or IlOpCode.Stfld or IlOpCode.Initobj or IlOpCode.Ldobj
                 or IlOpCode.Stobj or IlOpCode.Cpobj or IlOpCode.Newobj:
                 LowerStruct(instruction);
@@ -293,6 +298,10 @@ internal sealed partial class MethodLowering
 
             case IlOpCode.Ret:
                 Return();
+                break;
+
+            case IlOpCode.Throw:
+                Throw(); // see MethodLowering.Exceptions.cs
                 break;
 
             case IlOpCode.Br_S or IlOpCode.Br:

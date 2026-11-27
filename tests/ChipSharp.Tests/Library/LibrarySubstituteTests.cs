@@ -23,19 +23,57 @@ public sealed class LibrarySubstituteTests
     private static readonly TargetLoader Targets = new(Path.Combine(AppContext.BaseDirectory, "targets"));
 
     [Fact]
-    public void The_library_next_to_the_frontend_has_substitutes_for_TimeSpan_and_Timing()
+    public void The_library_next_to_the_frontend_has_substitutes_for_TimeSpan_Timing_the_exceptions_and_the_collections()
     {
         Assert.Equal(
             [
                 "ChipSharp.Library.Array for System.Array",
                 "ChipSharp.Library.BinaryPrimitives for System.Buffers.Binary.BinaryPrimitives",
+                "ChipSharp.Library.Collections.CollectionExtensions for System.Collections.Generic.CollectionExtensions",
+                "ChipSharp.Library.Collections.CollectionsMarshal for System.Runtime.InteropServices.CollectionsMarshal",
+                "ChipSharp.Library.Collections.Dictionary`2 for System.Collections.Generic.Dictionary`2",
+                "ChipSharp.Library.Collections.Dictionary`2+Enumerator for System.Collections.Generic.Dictionary`2+Enumerator",
+                "ChipSharp.Library.Collections.Dictionary`2+KeyCollection for System.Collections.Generic.Dictionary`2+KeyCollection",
+                "ChipSharp.Library.Collections.Dictionary`2+KeyCollection+Enumerator for System.Collections.Generic.Dictionary`2+KeyCollection+Enumerator",
+                "ChipSharp.Library.Collections.Dictionary`2+ValueCollection for System.Collections.Generic.Dictionary`2+ValueCollection",
+                "ChipSharp.Library.Collections.Dictionary`2+ValueCollection+Enumerator for System.Collections.Generic.Dictionary`2+ValueCollection+Enumerator",
+                "ChipSharp.Library.Collections.HashSet`1 for System.Collections.Generic.HashSet`1",
+                "ChipSharp.Library.Collections.HashSet`1+Enumerator for System.Collections.Generic.HashSet`1+Enumerator",
+                "ChipSharp.Library.Collections.List`1 for System.Collections.Generic.List`1",
+                "ChipSharp.Library.Collections.List`1+Enumerator for System.Collections.Generic.List`1+Enumerator",
+                "ChipSharp.Library.Collections.Queue`1 for System.Collections.Generic.Queue`1",
+                "ChipSharp.Library.Collections.Queue`1+Enumerator for System.Collections.Generic.Queue`1+Enumerator",
+                "ChipSharp.Library.Collections.Stack`1 for System.Collections.Generic.Stack`1",
+                "ChipSharp.Library.Collections.Stack`1+Enumerator for System.Collections.Generic.Stack`1+Enumerator",
                 "ChipSharp.Library.Comparer`1 for System.Collections.Generic.Comparer`1",
                 "ChipSharp.Library.EqualityComparer`1 for System.Collections.Generic.EqualityComparer`1",
+                "ChipSharp.Library.Exceptions.ApplicationException for System.ApplicationException",
+                "ChipSharp.Library.Exceptions.ArgumentException for System.ArgumentException",
+                "ChipSharp.Library.Exceptions.ArgumentNullException for System.ArgumentNullException",
+                "ChipSharp.Library.Exceptions.ArgumentOutOfRangeException for System.ArgumentOutOfRangeException",
+                "ChipSharp.Library.Exceptions.ArithmeticException for System.ArithmeticException",
+                "ChipSharp.Library.Exceptions.DivideByZeroException for System.DivideByZeroException",
+                "ChipSharp.Library.Exceptions.Exception for System.Exception",
+                "ChipSharp.Library.Exceptions.FormatException for System.FormatException",
+                "ChipSharp.Library.Exceptions.IndexOutOfRangeException for System.IndexOutOfRangeException",
+                "ChipSharp.Library.Exceptions.InvalidCastException for System.InvalidCastException",
+                "ChipSharp.Library.Exceptions.InvalidOperationException for System.InvalidOperationException",
+                "ChipSharp.Library.Exceptions.KeyNotFoundException for System.Collections.Generic.KeyNotFoundException",
+                "ChipSharp.Library.Exceptions.NotImplementedException for System.NotImplementedException",
+                "ChipSharp.Library.Exceptions.NotSupportedException for System.NotSupportedException",
+                "ChipSharp.Library.Exceptions.NullReferenceException for System.NullReferenceException",
+                "ChipSharp.Library.Exceptions.ObjectDisposedException for System.ObjectDisposedException",
+                "ChipSharp.Library.Exceptions.OverflowException for System.OverflowException",
+                "ChipSharp.Library.Exceptions.SystemException for System.SystemException",
+                "ChipSharp.Library.Exceptions.TimeoutException for System.TimeoutException",
                 "ChipSharp.Library.MemberInfo for System.Reflection.MemberInfo",
                 "ChipSharp.Library.MemoryExtensions for System.MemoryExtensions",
+                "ChipSharp.Library.Pairs.KeyValuePair for System.Collections.Generic.KeyValuePair",
+                "ChipSharp.Library.Pairs.KeyValuePair`2 for System.Collections.Generic.KeyValuePair`2",
                 "ChipSharp.Library.RuntimeHelpers for System.Runtime.CompilerServices.RuntimeHelpers",
                 "ChipSharp.Library.StringBuilder for System.Text.StringBuilder",
-                "ChipSharp.Library.TimeSpan for System.TimeSpan", "ChipSharp.Library.Timing for ChipSharp.Hardware.Timing",
+                "ChipSharp.Library.TimeSpan for System.TimeSpan",
+                "ChipSharp.Library.Timing for ChipSharp.Hardware.Timing",
                 "ChipSharp.Library.Type for System.Type",
             ],
             LibrarySubstitutes.Substituted.Select(pair => $"{pair.Key.FullName} for {pair.Value}").Order(StringComparer.Ordinal));
@@ -264,15 +302,18 @@ public sealed class LibrarySubstituteTests
         // the ones given a parameter's name and a message (StringBuilder's) are the shared runtime's, with the heap's
         var text = new WindowsX64Runtime().Startup(Targets.Load("host")).Files
             .Single(file => file.FileName == WindowsX64Runtime.StringHeapFileName).Content;
+        static bool OfText(IlMethod method) => method.Parameters.Count > 0 && method.Name != "Unhandled";
 
-        Assert.Equal(26, functions.Count);
-        Assert.All(functions.Where(method => method.Parameters.Count == 0), method =>
+        Assert.Equal(27, functions.Count);
+        Assert.All(functions.Where(method => !OfText(method)), method =>
         {
+            // Unhandled takes the text of an exception, a string object
             var symbol = LlvmCodeGenerator.SymbolName($"ChipSharp.Runtime.{method.Name}");
-            Assert.Contains($"__declspec(noreturn) void {symbol}(void)", windows);
-            Assert.Contains($"__attribute__((noreturn)) void {symbol}(void)", pico);
+            var parameters = method.Parameters.Count == 0 ? "void" : "const void *text";
+            Assert.Contains($"__declspec(noreturn) void {symbol}({parameters})", windows);
+            Assert.Contains($"__attribute__((noreturn)) void {symbol}({parameters})", pico);
         });
-        Assert.All(functions.Where(method => method.Parameters.Count > 0), method =>
+        Assert.All(functions.Where(OfText), method =>
             Assert.Contains($"__attribute__((noreturn)) void {LlvmCodeGenerator.SymbolName($"ChipSharp.Runtime.{method.Name}")}(",
                 text));
     }
@@ -285,18 +326,15 @@ public sealed class LibrarySubstituteTests
             .OrderBy(method => method.Name)
             .Select(method => Assert.Throws<TargetInvocationException>(() => method.Invoke(null,
                 [.. method.GetParameters().Select(parameter => parameter.ParameterType == typeof(int) ? -1
-                    : (object)(parameter.Name == "message" ? "a message" : "count"))])).InnerException!)
-            .Select(exception => $"{exception.GetType().Name}: {exception.Message.ReplaceLineEndings("
-")}");
+                    : (object)(parameter.Name is "message" or "text" ? "a message" : "count"))])).InnerException!)
+            .Select(exception => $"{exception.GetType().Name}: {exception.Message.ReplaceLineEndings("\n")}");
 
         Assert.Equal(
             [
                 "ArgumentNullException: Value cannot be null. (Parameter 'action')",
                 "ArgumentException: a message (Parameter 'count')",
-                "ArgumentOutOfRangeException: count ('-1') must be a non-negative value. (Parameter 'count')
-Actual value was -1.",
-                "ArgumentOutOfRangeException: count ('-1') must be a non-negative and non-zero value. (Parameter 'count')
-" +
+                "ArgumentOutOfRangeException: count ('-1') must be a non-negative value. (Parameter 'count')\nActual value was -1.",
+                "ArgumentOutOfRangeException: count ('-1') must be a non-negative and non-zero value. (Parameter 'count')\n" +
                     "Actual value was -1.",
                 "ArgumentNullException: Value cannot be null. (Parameter 'count')",
                 "ArgumentOutOfRangeException: a message (Parameter 'count')",
@@ -325,6 +363,7 @@ Actual value was -1.",
                 "ArgumentException: TimeSpan does not accept floating point Not-a-Number values. (Parameter 'factor')",
                 "ArgumentOutOfRangeException: TimeSpan overflowed because the duration is too long.",
                 "OverflowException: TimeSpan overflowed because the duration is too long.",
+                "InvalidOperationException: Unhandled exception. a message",
             ],
             thrown);
     }

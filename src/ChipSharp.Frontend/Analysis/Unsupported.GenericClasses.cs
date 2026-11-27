@@ -24,13 +24,12 @@ internal sealed partial record Unsupported
         "static bool Same<T>(T a, T b) where T : IEquatable<T> => a.Equals(b);"));
 
     /// <summary>
-    /// An array used as an interface (<c>IEnumerable&lt;int&gt; values = numbers;</c>): .NET's arrays implement the
-    /// collections' interfaces, ChipSharp's arrays have no interface map yet.
+    /// An array used as an interface (<c>IEnumerable&lt;int&gt; values = numbers;</c>), a heap use: the array is an object
+    /// (see <see cref="ArrayInterfaces"/>).
     /// </summary>
-    public static readonly Unsupported ArraysAsInterfaces = Coming(
+    public static readonly Unsupported ArraysAsInterfaces = HeapUse(Heap(
         "arrays used as interfaces (an array as an IEnumerable<T>, ICollection<T>, IList<T> or IReadOnlyList<T>)", true,
-        "For now, take the array itself (T[]) or a span (ReadOnlySpan<T>), or wrap it in a class of your own that " +
-        "implements the interface.", WithCollections);
+        "For now, take the array itself (T[]) or a span (ReadOnlySpan<T>)."));
 
     public static readonly Unsupported DisposedEnumerators = Coming(
         "foreach over an enumerator that is disposed (one that implements IDisposable, as IEnumerator<T> does, and so a " +

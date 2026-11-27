@@ -146,7 +146,18 @@ internal static partial class VirtualMethods
         IlGenericInstanceType instance => new IlGenericInstanceType(Canonical(instance.Definition),
             [.. instance.Arguments.Select(Canonical)]),
         IlArrayType array => new IlArrayType(Canonical(array.ElementType)),
+        IlByRefType reference => new IlByRefType(Canonical(reference.ElementType)),
         var other => other,
+    };
+
+    /// <summary>
+    /// <paramref name="signature"/> with its types <see cref="Canonical"/>: how an interface's slot and the methods that
+    /// fill it are compared, whichever of .NET's assemblies the program's and the library's IL name the types with.
+    /// </summary>
+    public static IlMethodSignature CanonicalSignature(IlMethodSignature signature) => signature with
+    {
+        ReturnType = Canonical(signature.ReturnType),
+        ParameterTypes = [.. signature.ParameterTypes.Select(Canonical)],
     };
 
     private static IlNamedType CanonicalNamed(IlNamedType type) => type with

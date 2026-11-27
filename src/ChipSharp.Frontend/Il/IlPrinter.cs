@@ -123,7 +123,7 @@ public static class IlPrinter
             .Append('(').Append(string.Join(", ", method.Parameters)).Append(")\n");
         text.Append("{\n");
 
-        if (method.Body is { } body)
+        if (method.BodyAsRead is { } body)
         {
             if (method.IsEntryPoint)
             {

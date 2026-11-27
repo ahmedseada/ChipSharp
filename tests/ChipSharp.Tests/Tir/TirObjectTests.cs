@@ -134,7 +134,8 @@ public sealed class TirObjectTests
         AssertError(
             "Module 'Test', type Program.Shape: its method table names 'Other.Run', a function of module 'Other'.",
             "Module 'Test', type Program.Shape: it implements int[], which is not an interface of this module.",
-            "Module 'Test', type int[]: only a class has virtual methods and interfaces, and this is an array type.",
+            "Module 'Test', type int[]: only a class has virtual methods and interfaces (and an array type interfaces), and " +
+                "this is an array type.",
             "Module 'Test', type int[]: its element type Program.Shape must be a type of this module, and only an array " +
                 "of refs has one.");
     }

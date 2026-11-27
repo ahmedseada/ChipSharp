@@ -18,6 +18,8 @@
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_string.c" LogicalName="chipsharp_string.c" />
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_string_heap.c" LogicalName="chipsharp_string_heap.c" />
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_text.c" LogicalName="chipsharp_float_text.c" />
+    <!-- C#'s throw, shared with the other runtimes (a target with a heap: an exception is an object) -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_exceptions.c" LogicalName="chipsharp_exceptions.c" />
     <!-- fmod, square roots, Math.Min and the like, shared with the other runtimes -->
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_math.c" LogicalName="chipsharp_float_math.c" />
     <!-- float arithmetic in software: LLVM's compiler-rt builtins (llvmorg-23.1.6, compiler-rt/lib/builtins), unchanged;

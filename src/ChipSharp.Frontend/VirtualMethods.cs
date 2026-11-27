@@ -269,7 +269,7 @@ internal static partial class VirtualMethods
                 assembly.FindType(named.FullName) is { IsInterface: true, GenericParameters.Count: 0 },
             IlGenericInstanceType { Definition: IlNamedType { IsDefinedInThisAssembly: true } } instance =>
                 Instantiations.Type(instance, assembly) is { IsInterface: true },
-            IlGenericInstanceType { Definition: IlNamedType library, Arguments: [_] } instance =>
+            IlGenericInstanceType { Definition: IlNamedType library, Arguments.Count: > 0 } instance =>
                 LibraryInterfaces.Contains(library.FullName) && Instantiations.Refusal(assembly, instance.Arguments) is null,
             IlNamedType library => LibraryInterfaces.Contains(library.FullName),
             _ => false,
@@ -293,11 +293,7 @@ internal static partial class VirtualMethods
             IlPrimitiveKind.NativeUInt => "UIntPtr",
             _ => kind.ToString(),
         },
-        // a library substitute's class by the library type's name (ChipSharp.Library.StringBuilder: System.Text.StringBuilder)
-        IlNamedType { IsDefinedInThisAssembly: true, Namespace: "ChipSharp.Library" } named
-            when LibrarySubstitutes.Assembly.FindType(named.FullName) is { } substitute
-            && LibrarySubstitutes.Substituted.TryGetValue(substitute, out var library) => library,
-        IlNamedType named => named.FullName,
+        IlNamedType named => LibrarySubstitutes.SubstitutedName(named) ?? named.FullName,
         IlGenericInstanceType instance =>
             $"{RuntimeName(instance.Definition)}[{string.Join(",", instance.Arguments.Select(RuntimeName))}]",
         IlArrayType array => RuntimeName(array.ElementType) + "[]",
@@ -353,7 +349,9 @@ internal static partial class VirtualMethods
             : argument == 0 ? method.DeclaringType.Type
             : Parameter(method, argument - 1),
         { OpCode: IlOpCode.Ldfld or IlOpCode.Ldsfld, Operand: IlFieldOperand { Field: var field } } => field.FieldType,
-        { OpCode: IlOpCode.Call or IlOpCode.Callvirt, Operand: IlMethodOperand { Method: var callee } } => callee.ReturnType,
+        // (a library generic type's method names its result in terms of !0: IEnumerator<object>.Current is an object)
+        { OpCode: IlOpCode.Call or IlOpCode.Callvirt, Operand: IlMethodOperand { Method: var callee } } =>
+            Arguments(callee.DeclaringType).Apply(callee.ReturnType),
         { OpCode: IlOpCode.Newobj, Operand: IlMethodOperand { Method: var constructor } } => constructor.DeclaringType,
         { OpCode: IlOpCode.Isinst or IlOpCode.Castclass, Operand: IlTypeOperand { Type: var type } } => type,
         { OpCode: IlOpCode.Newarr, Operand: IlTypeOperand { Type: var element } } => new IlArrayType(StackArrays.Primitive(element)),
@@ -460,7 +458,8 @@ internal static partial class VirtualMethods
     private static DispatchSlot InterfaceSlot(IlMethodReference callee)
     {
         var owner = Canonical(callee.DeclaringType);
-        return new DispatchSlot(DispatchSlotKind.Interface, owner, callee.Name, Arguments(owner).Apply(callee.Signature));
+        return new DispatchSlot(DispatchSlotKind.Interface, owner, callee.Name,
+            CanonicalSignature(Arguments(owner).Apply(callee.Signature)));
     }
 
     /// <summary>The type arguments of an instance of a generic interface, for its <c>!0</c>, <c>!1</c>, ...</summary>
@@ -497,7 +496,7 @@ internal static partial class VirtualMethods
             {
                 var implicitly = current.Methods.FirstOrDefault(method => method is { IsStatic: false }
                     && (method.Attributes & MethodAttributes.MemberAccessMask) == MethodAttributes.Public
-                    && method.Name == slot.Name && method.Signature == slot.Signature);
+                    && method.Name == slot.Name && CanonicalSignature(method.Signature) == slot.Signature);
                 if (implicitly is not null)
                 {
                     return Final(type, implicitly);
@@ -505,7 +504,8 @@ internal static partial class VirtualMethods
             }
         }
 
-        return VariantInterface(type, slot.Owner) is { } implemented
+        // (one that is the slot's own interface, which the class lists, has no method for it: no variance makes it one)
+        return VariantInterface(type, slot.Owner) is { } implemented && implemented != slot.Owner
             ? ResolveVariant(type, slot, implemented)
             : DefaultMethod(type, slot);
     }
@@ -539,7 +539,7 @@ internal static partial class VirtualMethods
         }
 
         return InterfaceDefinition(slot.Owner, assembly)?.Methods.FirstOrDefault(method => method is { IsStatic: false, HasBody: true }
-            && method.Name == slot.Name && method.Signature == slot.Signature) is { } own
+            && method.Name == slot.Name && CanonicalSignature(method.Signature) == slot.Signature) is { } own
             ? DispatchTarget.Of(own)
             : null;
     }
@@ -561,7 +561,7 @@ internal static partial class VirtualMethods
     {
         var owner = Canonical(new Substitution(implementer.TypeArguments, []).Apply(declaration.DeclaringType));
         return owner == slot.Owner && declaration.Name == slot.Name
-            && Arguments(owner).Apply(declaration.Signature) == slot.Signature;
+            && CanonicalSignature(Arguments(owner).Apply(declaration.Signature)) == slot.Signature;
     }
 
     /// <summary>What an implementation runs on an object of <paramref name="type"/>: itself, or when it is virtual, its slot's method there.</summary>

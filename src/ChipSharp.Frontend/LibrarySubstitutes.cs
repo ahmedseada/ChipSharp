@@ -75,6 +75,20 @@ internal static class LibrarySubstitutes
     }
 
     /// <summary>
+    /// The full name of the library type that <paramref name="type"/>, a substitute as ChipSharp.Library's IL names it
+    /// (<c>ChipSharp.Library.List`1</c>), stands for (<c>System.Collections.Generic.List`1</c>); null for any other type.
+    /// What a descriptor of a substitute's class says its name is, as .NET's.
+    /// </summary>
+    public static string? SubstitutedName(IlNamedType type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        return type.IsDefinedInThisAssembly && type.FullName.StartsWith("ChipSharp.Library.", StringComparison.Ordinal)
+            && Assembly.FindType(type.FullName) is { } definition && Substituted.TryGetValue(definition, out var name)
+            ? name
+            : null;
+    }
+
+    /// <summary>
     /// True for a method of the library: a substitute's member, or what it uses, also an instance of its generic code over
     /// the program's types (made in the program, see Generics.Instantiations).
     /// </summary>
@@ -195,19 +209,32 @@ internal static class LibrarySubstitutes
     /// <summary>The members of <paramref name="type"/>, the substitute for <paramref name="library"/>: see Members.</summary>
     private static IEnumerable<string> MembersOf(IlTypeDefinition type, string library)
     {
-        // a generic type as C# writes it: System.Collections.Generic.EqualityComparer<T>
-        if (library.IndexOf('`', StringComparison.Ordinal) is > 0 and var tick)
+        // a generic type as C# writes it: System.Collections.Generic.EqualityComparer<T>, and a type nested in one:
+        // System.Collections.Generic.Dictionary<TKey, TValue>.KeyCollection
+        var given = 0;
+        var segments = library.Split('+');
+        for (var s = 0; s < segments.Length; s++)
         {
-            library = $"{library[..tick]}<{string.Join(", ", type.GenericParameters)}>";
+            if (segments[s].IndexOf('`', StringComparison.Ordinal) is > 0 and var tick
+                && int.TryParse(segments[s][(tick + 1)..], out var arity))
+            {
+                segments[s] = $"{segments[s][..tick]}<{string.Join(", ", type.GenericParameters.Skip(given).Take(arity))}>";
+                given += arity;
+            }
         }
 
-        var name = library[(library.LastIndexOf('.') + 1)..];
+        library = string.Join(".", segments);
+        var name = segments[^1].Split('<')[0];
+        name = name[(name.LastIndexOf('.') + 1)..];
         foreach (var field in type.Fields.Where(field => IsPublic(field.Attributes)))
         {
             yield return $"{library}.{field.Name}";
         }
 
-        foreach (var method in type.Methods.Where(method => IsPublic(method.Attributes) && method.Name != ".cctor"))
+        // (a property's setter, the indexer's too, is the property's)
+        foreach (var method in type.Methods.Where(method => IsPublic(method.Attributes)
+            && method.Name != ".cctor" && !(method.Name.StartsWith("set_", StringComparison.Ordinal)
+                && (method.Attributes & MethodAttributes.SpecialName) != 0)))
         {
             var parameters = string.Join(", ", method.Parameters.Select(parameter => CSharpName(parameter.Type, method)));
             var special = (method.Attributes & MethodAttributes.SpecialName) != 0;
@@ -225,6 +252,7 @@ internal static class LibrarySubstitutes
                 ['g', 'e', 't', '_', ..] when special && method.Parameters.Count > 0 => $"{library}.this[{parameters}]",
                 ['g', 'e', 't', '_', .. var property] when special && method.Parameters.Count == 0 =>
                     $"{library}.{property}",
+                "get_Item" when special => $"{library}.Item", // the indexer, a property named Item
                 ['o', 'p', '_', .. var symbol] when special && Operators.TryGetValue(symbol, out var op) =>
                     $"{library}.operator {op}({parameters})",
                 _ => $"{library}.{method.Name}({parameters})",
@@ -236,11 +264,16 @@ internal static class LibrarySubstitutes
     /// A type of the library's signatures as C# writes it, a substitute as the type it stands for, and a generic parameter
     /// by its name in <paramref name="method"/> (T).
     /// </summary>
-    private static string CSharpName(IlType type, IlMethod method) =>
-        type is IlNamedType { IsDefinedInThisAssembly: true } named && Assembly.FindType(named.FullName) is { } definition
-            && Substituted.TryGetValue(definition, out var library)
-            ? library
-            : CSharpNames.Type(type, method);
+    private static string CSharpName(IlType type, IlMethod method) => type switch
+    {
+        IlNamedType { IsDefinedInThisAssembly: true } named when SubstitutedName(named) is { } library => library,
+
+        // an instance of a generic substitute: Dictionary<TKey, TValue> for ChipSharp.Library.Collections.Dictionary`2
+        IlGenericInstanceType { Definition: IlNamedType { IsDefinedInThisAssembly: true } generic } instance
+            when SubstitutedName(generic) is { } library && library.IndexOf('`', StringComparison.Ordinal) is > 0 and var tick =>
+            $"{library[..tick]}<{string.Join(", ", instance.Arguments.Select(argument => CSharpName(argument, method)))}>",
+        _ => CSharpNames.Type(type, method),
+    };
 
     private static bool IsPublic(MethodAttributes attributes) =>
         (attributes & MethodAttributes.MemberAccessMask) == MethodAttributes.Public;
@@ -321,7 +354,9 @@ internal static class LibrarySubstitutes
 
             Substituted = substituted;
             Substitutes = substitutes;
-            Members = new(() => [.. substituted.SelectMany(pair => MembersOf(pair.Key, pair.Value))]);
+            // a collection's struct enumerator is what its foreach uses, not a type a program names
+            Members = new(() => [.. substituted.Where(pair => !pair.Value.EndsWith("+Enumerator", StringComparison.Ordinal))
+                .SelectMany(pair => MembersOf(pair.Key, pair.Value))]);
         }
 
         public IlAssembly Assembly { get; }

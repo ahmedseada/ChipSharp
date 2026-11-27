@@ -1,0 +1,17 @@
+session commands open
+undo temp
+undo fan 2
+session commands closed
+led: 4
+temp: 3
+beep: 2
+undo: 2
+fan: 1
+jobs: [led on] [temp] [led off] [led on] [beep 3] [temp] [fan 2] [temp] [led off] [beep 1]
+history 8, last beep 1
+cellar 12
+south 17
+north 21
+roof 30
+warm: 2
+total 64160

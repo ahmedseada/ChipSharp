@@ -727,6 +727,13 @@ internal static partial class ArrayEscapeAnalysis
                     Passed(instruction, callee, pops - 1 - i, value);
                     var argument = pops - 1 - i + (instruction.OpCode == IlOpCode.Newobj && callee.HasThis ? 1 : 0);
                     PassedOnHeap(instruction, callee, argument, value, parameterType);
+
+                    // an array an interface's method is called on is an object there (ArrayInterfaces)
+                    if (argument == 0 && callee.HasThis && instruction.OpCode != IlOpCode.Newobj && value.Kind == Kind.Array
+                        && VirtualMethods.IsInterface(callee.DeclaringType, _method.Assembly))
+                    {
+                        Kept(instruction, value);
+                    }
                 }
 
                 if (value.Kind == Kind.Array && IsComparison(instruction.OpCode))
