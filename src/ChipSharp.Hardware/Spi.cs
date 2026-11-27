@@ -33,7 +33,8 @@ public static class Spi
     /// register; no <paramref name="tx"/> for one that only talks), with its clock at <paramref name="frequency"/>
     /// hertz, from 2_000 to 62_500_000 (the chip takes the nearest it can make below it), in SPI
     /// <paramref name="mode"/> 0 to 3: 0 (the clock low when idle, bits read on its rising edge) suits most devices,
-    /// 1 reads on the falling edge, 2 and 3 are 0 and 1 with the clock high when idle. Call it again to change them.
+    /// 1 reads on the falling edge, 2 and 3 are 0 and 1 with the clock high when idle. Call it again to change the
+    /// frequency or the mode, e.g. for another device on the same bus.
     /// </summary>
     public static void Open(int bus, int sck, int tx, int rx, int frequency, int mode) => throw ChipOnly.Method("Spi.Open");
 

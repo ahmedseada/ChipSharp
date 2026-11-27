@@ -43,7 +43,10 @@ internal static class HardwareBuses
                 if (instructions[i] is not
                     {
                         OpCode: IlOpCode.Call,
-                        Operand: IlMethodOperand { Method: { DeclaringType: IlNamedType { Namespace: "ChipSharp.Hardware" } type } callee },
+                        Operand: IlMethodOperand
+                        {
+                            Method: { DeclaringType: IlNamedType { Namespace: "ChipSharp.Hardware", DeclaringType: null } type } callee,
+                        },
                     }
                     || Buses.FirstOrDefault(bus => bus.Type == type.Name) is not { } bus)
                 {
@@ -59,7 +62,8 @@ internal static class HardwareBuses
                 else if (callee.Name == "Open" && callee.ParameterTypes.Count == bus.Parameters.Length)
                 {
                     targets ??= BranchTargets(instructions);
-                    foreach (var unsupported in Check(bus, target, Constants(instructions, i, bus.Parameters.Length, targets)))
+                    var arguments = Constants(instructions, i, bus.Parameters.Length, targets);
+                    foreach (var unsupported in Check(bus, target, arguments))
                     {
                         problems.Add(Problem.At(method, instructions[i], unsupported));
                         found = true;

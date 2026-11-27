@@ -29,7 +29,7 @@ public static class I2c
     /// Sets up <paramref name="bus"/> on the pins <paramref name="sda"/> and <paramref name="scl"/> (with the chip's
     /// pull-ups on; a long bus or a fast one needs resistors of its own, e.g. 4.7 kΩ to 3.3 V), with its clock at
     /// <paramref name="frequency"/> hertz: 100_000 (standard mode), 400_000 (fast mode) or up to 1_000_000 (fast mode
-    /// plus); from 2_000. Call it again to change the pins or the frequency.
+    /// plus); from 2_000. Call it again to change the frequency.
     /// </summary>
     public static void Open(int bus, int sda, int scl, int frequency) => throw ChipOnly.Method("I2c.Open");
 
