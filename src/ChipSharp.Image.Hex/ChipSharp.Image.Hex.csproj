@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The hex image format: a linked .elf in, an Intel HEX file out (for an AVR: avrdude, the Arduino IDE, Wokwi) -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+    <!-- ElfFile, the .elf reader the uf2 format and this one share -->
+    <ProjectReference Include="..\ChipSharp.Image.Uf2\ChipSharp.Image.Uf2.csproj" />
+  </ItemGroup>
+</Project>

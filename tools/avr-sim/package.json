@@ -1,0 +1,12 @@
+{
+  "name": "chipsharp-avr-sim",
+  "private": true,
+  "description": "Runs a ChipSharp .hex in the avr8js ATmega328P simulator and prints pin changes and USART0 output",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "avr8js": "0.21.1"
+  }
+}

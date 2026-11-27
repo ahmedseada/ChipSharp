@@ -189,6 +189,7 @@ try
                   --method <name>         tir, il: only the methods with this display name, e.g. Program.Main
                   --targets <folder>      where the target files are (or set CHIPSHARP_TARGETS)
                 build finds LLVM's clang in its install folder or on the PATH, or set CHIPSHARP_LLVM_BIN to its bin folder.
+                For an AVR (the Arduino Uno: -t uno) it runs the clang inside Zig: set CHIPSHARP_ZIG to zig.exe.
                 """);
             return 2;
         }

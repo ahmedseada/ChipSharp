@@ -14,7 +14,8 @@ public sealed record RegionUse(string Region, ulong Used, ulong Size);
 /// <summary>
 /// How big a built program is, as <c>chipsharp build</c> reports it (<see cref="Text"/>). For a chip it is read from the
 /// linked .elf: the flash the program takes (its code, constants and the starting values of its variables: the bytes it
-/// loads into the region "link.code" names) and the RAM (its variables, in the region "link.data" names), the heap the
+/// loads into the region "link.code" names) and the RAM (its variables, in the region "link.data" names, at the .elf's
+/// addresses less "link.dataOffset": an AVR's .elf has RAM at 0x800000 and up), the heap the
 /// linker script keeps after them (<see cref="Heap"/>, the target's "heap" capability) and the stack "link.stack" keeps
 /// at the end of the RAM. For a PC it is the size of the program's file.
 /// </summary>
@@ -69,14 +70,18 @@ public sealed record MemoryReport(string FileName, ulong FileSize, RegionUse? Co
         }
 
         var elf = ElfFile.Read(binary.Path);
+        var offset = Size(target, "link.dataOffset");
         var loaded = elf.Segments.Where(segment => segment.Data.Length > 0 && Contains(code.Region, segment.PhysicalAddress))
             .Select(segment => (ulong)segment.PhysicalAddress + (ulong)segment.Data.Length);
-        var variables = elf.Segments.Where(segment => segment.MemorySize > 0 && Contains(data.Region, segment.VirtualAddress))
-            .Select(segment => (ulong)segment.VirtualAddress + segment.MemorySize);
+        // the variables' segments, at their data addresses: an AVR's .elf has them at 0x800000 and up (link.dataOffset)
+        var variables = elf.Segments
+            .Where(segment => segment.MemorySize > 0 && segment.VirtualAddress >= offset
+                && Contains(data.Region, segment.VirtualAddress - offset))
+            .Select(segment => segment.VirtualAddress - offset + segment.MemorySize);
         return new MemoryReport(fileName, fileSize,
             new RegionUse(code.Name, Used(loaded, code.Region), code.Region.Size),
             new RegionUse(data.Name, Used(variables, data.Region), data.Region.Size),
-            StackSize(target))
+            Size(target, "link.stack"))
         {
             Heap = elf.Symbols.TryGetValue("__chipsharp_heap_start", out var heapStart)
                 && elf.Symbols.TryGetValue("__chipsharp_heap_end", out var heapEnd) && heapEnd > heapStart
@@ -93,22 +98,23 @@ public sealed record MemoryReport(string FileName, ulong FileSize, RegionUse? Co
     private static (string Name, MemoryRegion Region)? Region(TargetDescription target, string setting) =>
         target.Setting(setting) is { } name && target.Memory.TryGetValue(name, out var region) ? (name, region) : null;
 
-    private static bool Contains(MemoryRegion region, uint address) => address >= region.Origin && address < region.End;
+    private static bool Contains(MemoryRegion region, ulong address) => address >= region.Origin && address < region.End;
 
     /// <summary>How far into <paramref name="region"/> the furthest of the <paramref name="ends"/> reaches; 0 for none.</summary>
     private static ulong Used(IEnumerable<ulong> ends, MemoryRegion region) =>
         ends.Select(end => end - region.Origin).DefaultIfEmpty(0UL).Max();
 
-    private static ulong StackSize(TargetDescription target)
+    /// <summary>A size or address the target's "link" settings give, e.g. "link.stack"; 0 when not given.</summary>
+    private static ulong Size(TargetDescription target, string setting)
     {
-        var text = target.Setting("link.stack");
+        var text = target.Setting(setting);
         try
         {
             return text is null ? 0 : SizeParser.Parse(text);
         }
         catch (Exception e) when (e is FormatException or OverflowException)
         {
-            throw new ChipSharpException($"Target '{target.Name}': 'link.stack' is \"{text}\"; write it like 8K or 256.", e);
+            throw new ChipSharpException($"Target '{target.Name}': '{setting}' is \"{text}\"; write it like 8K, 256 or 0x800000.", e);
         }
     }
 }

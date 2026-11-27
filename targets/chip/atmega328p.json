@@ -1,0 +1,18 @@
+{
+  // Microchip ATmega328P: AVR (avr5), 32 KB flash, 2 KB RAM, 1 KB EEPROM; the Arduino Uno's and Nano's chip
+  "name": "atmega328p",
+  "inherits": "avr",
+  "mmcu": "atmega328p",           // the microcontroller, as avr-gcc and clang name it (-mmcu; with Zig, -mcpu too)
+  "memory": {
+    "flash": { "origin": "0x0", "size": "32K" },
+    // RAM's data addresses: 0x000-0x0ff are the 32 registers and the I/O registers, RAM follows
+    "ram":   { "origin": "0x100", "size": "2K" }
+  },
+  "link": {
+    "stack": "512"                // of the 2 KB of RAM, the stack's, at its end (SP starts at 0x8ff, RAMEND)
+  },
+  "capabilities": {
+    "heap": false,                // 2 KB of RAM: structs, static fields and stack arrays, no objects
+    "console": false              // Console.Write goes to USART0 once the runtime "avr" has it
+  }
+}

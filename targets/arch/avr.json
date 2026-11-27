@@ -1,0 +1,47 @@
+{
+  // AVR: Microchip's (once Atmel's) 8-bit microcontrollers, e.g. the ATmega328P of the Arduino Uno and Nano.
+  // Milestone M7, in progress: the toolchain, the .hex image and the simulator (tools/avr-sim) are here; the runtime
+  // "avr" (start-up, the 8-bit math helpers, float in software) is not yet, so a build for an AVR stops with
+  // "Architecture runtime 'avr' is not registered"
+  "name": "avr",
+  "backend": "llvm",
+  // the clang and ld.lld inside Zig (zig cc, zig ld.lld): LLVM's release builds for Windows have no AVR target.
+  // Zig is found by $env:CHIPSHARP_ZIG, then D:\Tools\zig\zig.exe, then the PATH
+  "toolchain": "zig",
+  "runtime": "avr",
+  "triple": "avr",
+  "zig": { "target": "avr-freestanding-none" },   // zig cc's name of the target (--target)
+  "pointerSize": 2,       // data addresses (RAM) are 16 bits; C#'s int stays 32 bits, double 64
+  "endian": "little",
+  "capabilities": {
+    "hwMultiply": false,  // an 8 x 8-bit multiply (mul) at most: 16- and 32-bit products call a helper
+    "hwDivide": false,    // no divide instruction: a / b calls a software routine
+    "fpu": false,         // no float hardware
+    "atomics": "none",    // no atomic instructions: briefly disable interrupts instead
+    "unalignedAccess": true,  // an 8-bit processor reads and writes byte by byte: any address will do
+    "stackCheck": false,  // not yet: the functions that may recurse do not check the stack pointer (see armv6m.json)
+    "heap": false,        // a chip's file says what it has
+    "console": false,
+    "clock": false        // no timer counts microseconds for DateTime.Now and Stopwatch until the runtime "avr" has one
+  },
+  "clang": {
+    // passed to clang (zig cc) after --target, -mcpu and -mmcu (the chip's "mmcu"): optimized for size, no C library
+    // and none of avr-gcc's start-up files (the runtime is all a program needs); each function and variable in a
+    // section of its own, so that the linker keeps only those the program uses
+    "flags": [
+      "-Os", "-ffreestanding", "-fno-builtin", "-nostdlib", "-ffunction-sections", "-fdata-sections",
+      "-fno-unwind-tables", "-fno-asynchronous-unwind-tables", "-Wno-override-module"
+    ]
+  },
+  "link": {
+    "entry": "chipsharp_reset",   // in the runtime: the reset handler, which the reset vector (at address 0) jumps to
+    "code": "flash",              // the vectors, code, constants in flash and .data's starting values
+    "data": "ram",                // variables, the constants an ordinary pointer reads, and the stack at its end
+    // the .elf has RAM's data addresses at 0x800000 and up, so that they do not overlap flash's (binutils' convention):
+    // the linker script, the memory report and the .hex take them off
+    "dataOffset": "0x800000",
+    "vectorAlign": 2,             // the vectors start at address 0, where the processor starts
+    "flags": ["--gc-sections"]    // passed to ld.lld: drops every function and variable nothing uses
+  },
+  "image": "hex"                  // Intel HEX: what avrdude, the Arduino IDE and Wokwi load into flash
+}
