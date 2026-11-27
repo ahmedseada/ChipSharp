@@ -32,13 +32,13 @@ public sealed class AvrMemoryReportTests : IDisposable
         // flash: the vectors, the constants in flash, the code, then .data's starting values, one after another
         var flash = new[] { ".vectors", ".progmem", ".text", ".data" }.Sum(name => (long)Section(name).Size);
         Assert.Equal(flash, Section(".data").LoadAddress + Section(".data").Size);
-        Assert.Equal(("flash", (ulong)flash, 32UL << 10), (report.Code!.Region, report.Code.Used, report.Code.Size));
+        Assert.Equal(("flash", (ulong)flash, (32UL << 10) - 512), (report.Code!.Region, report.Code.Used, report.Code.Size));
         // RAM, from its first data address (0x100): .data (the greeting) and .bss (the count)
         Assert.Equal(("ram", 12UL, 2UL << 10), (report.Data!.Region, report.Data.Used, report.Data.Size));
         Assert.Equal(Section(".data").Size + Section(".bss").Size, report.Data.Used);
         Assert.Equal((512UL, 0UL), (report.Stack, report.Heap));
         Assert.Equal(string.Create(CultureInfo.InvariantCulture,
-            $"flash {flash} bytes of 32 KB ({100.0 * flash / (32 << 10):0.0}%), RAM 12 bytes of 2 KB (stack 512 bytes reserved)"),
+            $"flash {flash} bytes of 31.5 KB ({100.0 * flash / ((32 << 10) - 512):0.0}%), RAM 12 bytes of 2 KB (stack 512 bytes reserved)"),
             report.Text);
     }
 
@@ -51,7 +51,7 @@ public sealed class AvrMemoryReportTests : IDisposable
             """));
 
         Assert.Matches("^Blink does not fit in target 'uno': its code, constants and the starting values of its variables " +
-            @"need 32\.\d KB of flash, \d+ bytes more than the target's 32 KB\. Make the program smaller, or build it for a " +
+            @"need 32\.\d KB of flash, (\d+ bytes|\d+(\.\d)? KB) more than the target's 31\.5 KB\. Make the program smaller, or build it for a " +
             @"chip with more memory\.$", error.Message);
     }
 

@@ -36,7 +36,8 @@ public sealed class AvrToolchainTests : IDisposable
         Assert.Equal(("llvm", "zig", "avr", "avr", "hex"), (uno.Backend, uno.Toolchain, uno.Runtime, uno.Triple, uno.Image));
         Assert.Equal(2, uno.PointerSize);
         Assert.Equal(Endianness.Little, uno.Endian);
-        Assert.Equal(new MemoryRegion(0, 32 << 10), uno.Memory["flash"]);
+        // the Uno leaves the last 512 bytes of the chip's 32 KB to its bootloader (optiboot)
+        Assert.Equal(new MemoryRegion(0, (32 << 10) - 512), uno.Memory["flash"]);
         Assert.Equal(new MemoryRegion(0x100, 2 << 10), uno.Memory["ram"]);
         Assert.False(uno.HasHeap);
         Assert.False(uno.HasConsole); // until the runtime "avr" has USART0
@@ -93,7 +94,7 @@ public sealed class AvrToolchainTests : IDisposable
 
         Assert.Contains("ENTRY(chipsharp_reset)", script);
         // RAM's data addresses 0x100-0x8ff at 0x800000 in the .elf; its last 512 bytes the stack's
-        Assert.Contains("  flash (rx) : ORIGIN = 0x0, LENGTH = 0x8000\n", script);
+        Assert.Contains("  flash (rx) : ORIGIN = 0x0, LENGTH = 0x7e00\n", script);   // up to the Uno's bootloader
         Assert.Contains("  ram (rwx) : ORIGIN = 0x800100, LENGTH = 0x600\n", script);
         Assert.Contains("  stack (rw) : ORIGIN = 0x800700, LENGTH = 0x200\n", script);
         // the vectors first at address 0, then the constants in flash, then the code, then .data's starting values
