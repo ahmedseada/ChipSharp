@@ -554,7 +554,12 @@ internal static partial class ArrayEscapeAnalysis
                     }
                     else
                     {
-                        Verdict(instruction, Unsupported.TypeHandles);
+                        // the token of a type is a type object's (WholeProgramPass.TypeObjects.cs), of a method no one's
+                        if (instruction.Operand is not IlTypeOperand)
+                        {
+                            Verdict(instruction, Unsupported.TypeHandles);
+                        }
+
                         stack.Add(Value.Other);
                     }
 

@@ -193,6 +193,12 @@ internal static partial class ArrayEscapeAnalysis
                     Nullable(call);
                 }
 
+                // the object object's own methods run on (array.ToString(), GetHashCode, GetType): an array object
+                if (value.Kind == Kind.Array && parameter is null && callee.HasThis && ObjectTypes.IsSystemObject(callee.DeclaringType))
+                {
+                    Kept(call, value);
+                }
+
                 return;
             }
 

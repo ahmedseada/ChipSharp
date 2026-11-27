@@ -89,7 +89,8 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
 
             // a constant array (a table) keeps its symbol, internal, and is read-only data too; so does a constant
             // object (an empty array), whose header is the address of its type descriptor
-            var value = global.Header is { } header ? ObjectValue((TirStructType)global.Type, typeSymbols[header], types)
+            var value = global.Header is { } header
+                ? ObjectValue((TirStructType)global.Type, typeSymbols[header], global.FieldValues, globalSymbols, typeSymbols, types)
                 : global.Elements is { } elements ? Elements((TirArrayType)global.Type, elements, types)
                 : global.InitialValue is { } initial ? LlvmText.Constant(initial)
                 : LlvmText.Zero(global.Type);
@@ -256,9 +257,17 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
 
     /// <summary>The elements a global array starts with, as an LLVM constant: <c>[i32 1, i32 2]</c>.</summary>
     /// <summary>A constant object: <c>{ ptr @type.int__, i32 0, ptr null }</c>, its header and then zeros.</summary>
-    private static string ObjectValue(TirStructType type, string header, LlvmTypes types) =>
-        $"{{ ptr @{header}{string.Concat(type.Fields.Skip(1).Select(field =>
-            $", {types.Of(field.Type)} {LlvmText.Zero(field.Type)}"))} }}";
+    /// <summary>A constant object's value: its header, then each field's (zero, a constant, an address).</summary>
+    private static string ObjectValue(TirStructType type, string header, IReadOnlyList<TirValue?>? values,
+        IReadOnlyDictionary<TirGlobal, string> globalSymbols, IReadOnlyDictionary<TirTypeDescriptor, string> typeSymbols,
+        LlvmTypes types) =>
+        $"{{ ptr @{header}{string.Concat(type.Fields.Skip(1).Select((field, i) => (values?[i]) switch
+        {
+            TirConst constant => $", {types.Of(field.Type)} {LlvmText.Constant(constant)}",
+            TirGlobalAddress address => $", ptr @{globalSymbols[address.Global]}",
+            TirTypeAddress address => $", ptr @{typeSymbols[address.TypeDescriptor]}",
+            _ => $", {types.Of(field.Type)} {LlvmText.Zero(field.Type)}",
+        }))} }}";
 
     private static string Elements(TirArrayType array, IReadOnlyList<TirConst> elements, LlvmTypes types)
     {

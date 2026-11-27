@@ -64,6 +64,7 @@ public static class IlToTir
             StaticArrays = program.StaticArrays,
             HeapArrays = program.HeapArrays,
             UnalignedAccess = program.UnalignedAccess,
+            Program = program.Assembly,
         };
 
         // a type initializer that only sets fields to constants becomes their globals' initial values, not code
@@ -83,6 +84,7 @@ public static class IlToTir
         // the virtual method tables and interface maps hold the functions of the methods that virtual calls run
         functions.FillVirtualTables();
         functions.FillDelegateTables();
+        functions.FillTypeObjects();
 
         functions.AddInterruptEntries(program);
         module.EntryPoint = functions.Start(program);

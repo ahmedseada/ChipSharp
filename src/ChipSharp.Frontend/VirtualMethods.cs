@@ -293,6 +293,10 @@ internal static partial class VirtualMethods
             IlPrimitiveKind.NativeUInt => "UIntPtr",
             _ => kind.ToString(),
         },
+        // a library substitute's class by the library type's name (ChipSharp.Library.StringBuilder: System.Text.StringBuilder)
+        IlNamedType { IsDefinedInThisAssembly: true, Namespace: "ChipSharp.Library" } named
+            when LibrarySubstitutes.Assembly.FindType(named.FullName) is { } substitute
+            && LibrarySubstitutes.Substituted.TryGetValue(substitute, out var library) => library,
         IlNamedType named => named.FullName,
         IlGenericInstanceType instance =>
             $"{RuntimeName(instance.Definition)}[{string.Join(",", instance.Arguments.Select(RuntimeName))}]",

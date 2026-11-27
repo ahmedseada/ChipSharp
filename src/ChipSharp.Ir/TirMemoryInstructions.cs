@@ -52,11 +52,13 @@ public sealed class TirSlotAddress : TirInstruction
 
 /// <summary>
 /// <c>%0 = addr @Program.counter</c>: the address of a global, a ptr; of a constant object
-/// (<see cref="TirModule.AddConstantObject"/>), a ref to the object.
+/// (<see cref="TirModule.AddConstantObject"/>, or one given its fields, see <see cref="TirGlobal.FieldValues"/>), a ref
+/// to the object.
 /// </summary>
 public sealed class TirGlobalAddress : TirInstruction
 {
-    public TirGlobalAddress(TirGlobal global) : base(global?.ObjectType is null ? TirType.Ptr : TirType.Ref)
+    public TirGlobalAddress(TirGlobal global)
+        : base(global?.ObjectType is null && global?.FieldValues is null ? TirType.Ptr : TirType.Ref)
     {
         ArgumentNullException.ThrowIfNull(global);
         Global = global;

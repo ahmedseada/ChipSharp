@@ -217,10 +217,12 @@ public static partial class WholeProgramPass
         var strings = ForStrings(method);
         var boxing = ForBoxing(method);
         var delegates = ForDelegates(method);
-        // after the arrays' and spans' verdicts: boxing's, delegates', strings', generics', virtual calls', classes',
-        // building text, the struct/reference rules, the rest
+        var typeObjects = ForTypeObjects(method);
+        // after the arrays' and spans' verdicts: type objects', boxing's, delegates', strings', generics', virtual calls',
+        // classes', building text, the struct/reference rules, the rest
         Unsupported? Others(IlInstruction instruction) =>
-            boxing.TryGetValue(instruction, out var forBoxing) ? forBoxing
+            typeObjects.TryGetValue(instruction, out var forTypeObjects) ? forTypeObjects
+            : boxing.TryGetValue(instruction, out var forBoxing) ? forBoxing
             : delegates.TryGetValue(instruction, out var forDelegates) ? forDelegates
             : strings.TryGetValue(instruction, out var forStrings) ? forStrings
             : generics.TryGetValue(instruction, out var generic) ? generic

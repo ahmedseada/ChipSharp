@@ -125,6 +125,13 @@ internal sealed class VirtualDispatch
             return [];
         }
 
+        // typeof(X) and GetType() give a type object, an object of ChipSharp.Library's Type (see TypeObjects)
+        if (TypeObjects.GivesTypeObject(instructions, index))
+        {
+            var type = TypeObjects.TypeClass;
+            return _isCreated.Add(type) ? Reached(Create(type)) : [];
+        }
+
         if (instructions[index] is { OpCode: IlOpCode.Newarr }
             or { OpCode: IlOpCode.Call, Operand: IlMethodOperand { Method: { Name: "Empty", Definition: null } } })
         {
