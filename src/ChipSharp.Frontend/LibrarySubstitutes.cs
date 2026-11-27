@@ -360,8 +360,10 @@ internal static class LibrarySubstitutes
 
             Substituted = substituted;
             Substitutes = substitutes;
-            // a collection's struct enumerator is what its foreach uses, not a type a program names
-            Members = new(() => [.. substituted.Where(pair => !pair.Value.EndsWith("+Enumerator", StringComparison.Ordinal))
+            // a collection's struct enumerator is what its foreach uses, not a type a program names; an enum's values
+            // (MidpointRounding's) are no methods to call
+            Members = new(() => [.. substituted.Where(pair => !pair.Value.EndsWith("+Enumerator", StringComparison.Ordinal)
+                    && pair.Key.BaseType is not IlNamedType { FullName: "System.Enum" })
                 .SelectMany(pair => MembersOf(pair.Key, pair.Value))]);
         }
 

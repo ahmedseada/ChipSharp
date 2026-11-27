@@ -32,17 +32,18 @@ public sealed class WindowsRuntimeFilesTests
 
         Assert.Equal(
             ["chipsharp_runtime.c", "chipsharp_console.c", "chipsharp_float_text.c", "chipsharp_float_math.c",
-                "chipsharp_failures.c", "chipsharp_memory.c", "chipsharp_chkstk.S", "chipsharp_string.c",
-                "chipsharp_exceptions.c", "chipsharp_heap.c", "chipsharp_heap_windows.c", "chipsharp_heap_size.c",
+                "chipsharp_math.c", "chipsharp_math_musl.c", "chipsharp_math_amd.c", "chipsharp_failures.c",
+                "chipsharp_memory.c", "chipsharp_chkstk.S", "chipsharp_string.c", "chipsharp_exceptions.c",
+                "chipsharp_heap.c", "chipsharp_heap_windows.c", "chipsharp_heap_size.c",
                 "chipsharp_string_heap.c"],
             files.Select(f => f.FileName));
         Assert.All(files, file => Assert.DoesNotContain("#include", file.Content));
-        Assert.Contains("void ChipSharp_Runtime_IndexOutOfRange(void)", files[4].Content);
-        Assert.Contains("ExitProcess(1);", files[4].Content);
-        Assert.Contains("void *memset(void *target, int value, size_t count)", files[5].Content);
-        Assert.Contains("void *memcpy(void *target, const void *source, size_t count)", files[5].Content);
-        Assert.Contains("void *memmove(void *target, const void *source, size_t count)", files[5].Content);
-        Assert.Contains("__chkstk:", files[6].Content);
+        Assert.Contains("void ChipSharp_Runtime_IndexOutOfRange(void)", files[7].Content);
+        Assert.Contains("ExitProcess(1);", files[7].Content);
+        Assert.Contains("void *memset(void *target, int value, size_t count)", files[8].Content);
+        Assert.Contains("void *memcpy(void *target, const void *source, size_t count)", files[8].Content);
+        Assert.Contains("void *memmove(void *target, const void *source, size_t count)", files[8].Content);
+        Assert.Contains("__chkstk:", files[9].Content);
     }
 
     [Fact]

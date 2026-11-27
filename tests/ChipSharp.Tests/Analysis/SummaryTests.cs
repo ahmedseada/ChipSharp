@@ -150,21 +150,21 @@ public sealed class SummaryTests
             {
                 static void Main()
                 {
-                    Console.WriteLine(Math.Abs(-3));
-                    Console.WriteLine(Math.Max(1, 2));
-                    Console.WriteLine(Math.Abs(-4));
+                    Console.WriteLine(int.Abs(-3));
+                    Console.WriteLine(int.Max(1, 2));
+                    Console.WriteLine(int.Abs(-4));
                 }
             }
             """);
 
-        Assert.Equal(["the library method System.Math.Abs(int)", "the library method System.Math.Max(int, int)"],
+        Assert.Equal(["the library method int.Abs(int)", "the library method int.Max(int, int)"],
             analysis.Groups.Select(group => group.Feature));
         Assert.All(analysis.Groups, group => Assert.True(group.IsLibraryCall));
         Assert.Equal([2, 1], analysis.Groups.Select(group => group.Problems.Count));
         Assert.Equal($"""
             Test.dll uses 2 C# features that ChipSharp does not compile yet (3 places):
-              the library method System.Math.Abs(int) is not available yet: 2 places in Program.Main() (IL_0002 and IL_001a).
-              the library method System.Math.Max(int, int) is not available yet: 1 place in Program.Main() (IL_000e).
+              the library method int.Abs(int) is not available yet: 2 places in Program.Main() (IL_0002 and IL_001a).
+              the library method int.Max(int, int) is not available yet: 1 place in Program.Main() (IL_000e).
             {LibraryCalls}
             For every place, run: chipsharp check Test.dll --details
             """.ReplaceLineEndings("\n"), analysis.Summary);

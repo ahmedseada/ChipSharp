@@ -68,8 +68,11 @@ public sealed class LibrarySubstituteTests
                 "ChipSharp.Library.Exceptions.OverflowException for System.OverflowException",
                 "ChipSharp.Library.Exceptions.SystemException for System.SystemException",
                 "ChipSharp.Library.Exceptions.TimeoutException for System.TimeoutException",
+                "ChipSharp.Library.Math for System.Math",
+                "ChipSharp.Library.MathF for System.MathF",
                 "ChipSharp.Library.MemberInfo for System.Reflection.MemberInfo",
                 "ChipSharp.Library.MemoryExtensions for System.MemoryExtensions",
+                "ChipSharp.Library.MidpointRounding for System.MidpointRounding",
                 "ChipSharp.Library.Pairs.KeyValuePair for System.Collections.Generic.KeyValuePair",
                 "ChipSharp.Library.Pairs.KeyValuePair`2 for System.Collections.Generic.KeyValuePair`2",
                 "ChipSharp.Library.RuntimeHelpers for System.Runtime.CompilerServices.RuntimeHelpers",
@@ -313,16 +316,17 @@ public sealed class LibrarySubstituteTests
         // the ones given a parameter's name and a message (StringBuilder's) are the shared runtime's, with the heap's
         var text = new WindowsX64Runtime().Startup(Targets.Load("host")).Files
             .Single(file => file.FileName == WindowsX64Runtime.StringHeapFileName).Content;
-        static bool OfText(IlMethod method) => method.Parameters.Count > 0 && method.Name != "Unhandled";
+        static bool OfText(IlMethod method) => method.Parameters.Count > 0 && method.Name != "Unhandled"
+            && method.Parameters[0].Type == IlType.String;
 
-        Assert.Equal(27, functions.Count);
+        Assert.Equal(34, functions.Count);
         Assert.All(functions.Where(method => !OfText(method)), method =>
         {
-            // Unhandled takes the text of an exception, a string object
+            // Unhandled takes the text of an exception, a string object; Math's the numbers their messages say
             var symbol = LlvmCodeGenerator.SymbolName($"ChipSharp.Runtime.{method.Name}");
-            var parameters = method.Parameters.Count == 0 ? "void" : "const void *text";
-            Assert.Contains($"__declspec(noreturn) void {symbol}({parameters})", windows);
-            Assert.Contains($"__attribute__((noreturn)) void {symbol}({parameters})", pico);
+            var parameters = method.Parameters.Count == 0 ? "void)" : method.Name == "Unhandled" ? "const void *text)" : "";
+            Assert.Contains($"__declspec(noreturn) void {symbol}({parameters}", windows);
+            Assert.Contains($"__attribute__((noreturn)) void {symbol}({parameters}", pico);
         });
         Assert.All(functions.Where(OfText), method =>
             Assert.Contains($"__attribute__((noreturn)) void {LlvmCodeGenerator.SymbolName($"ChipSharp.Runtime.{method.Name}")}(",
@@ -332,12 +336,11 @@ public sealed class LibrarySubstituteTests
     [Fact]
     public void On_dotnet_each_runtime_function_throws_the_exception_dotnet_throws_there()
     {
-        // (each given a parameter's name, a message and a value: "count", "a message", -1)
+        // (each given a parameter's name, a message and a value: "count", "a message", -1; and Math's numbers, see Argument)
         var thrown = typeof(global::ChipSharp.Library.Runtime).GetMethods(BindingFlags.Public | BindingFlags.Static)
             .OrderBy(method => method.Name)
             .Select(method => Assert.Throws<TargetInvocationException>(() => method.Invoke(null,
-                [.. method.GetParameters().Select(parameter => parameter.ParameterType == typeof(int) ? -1
-                    : (object)(parameter.Name is "message" or "text" ? "a message" : "count"))])).InnerException!)
+                [.. method.GetParameters().Select(Argument)])).InnerException!)
             .Select(exception => $"{exception.GetType().Name}: {exception.Message.ReplaceLineEndings("\n")}");
 
         Assert.Equal(
@@ -349,6 +352,7 @@ public sealed class LibrarySubstituteTests
                     "Actual value was -1.",
                 "ArgumentNullException: Value cannot be null. (Parameter 'count')",
                 "ArgumentOutOfRangeException: a message (Parameter 'count')",
+                "ArithmeticException: Function does not accept floating point Not-a-Number values.",
                 "ArgumentNullException: Value cannot be null. (Parameter 'array')",
                 "ArgumentNullException: Value cannot be null. (Parameter 'comparison')",
                 "ArgumentNullException: Value cannot be null. (Parameter 'converter')",
@@ -356,13 +360,21 @@ public sealed class LibrarySubstituteTests
                     "string/array/collection. (Parameter 'count')",
                 "ArgumentException: Delegates must be of the same type.",
                 "IndexOutOfRangeException: Index was outside the bounds of the array.",
+                "ArgumentException: The value '-1' is not valid for this usage of the type MidpointRounding. " +
+                    "(Parameter 'mode')",
                 "ArgumentException: Offset and length were out of bounds for the array or count is greater than the " +
                     "number of elements from index to the end of the source collection.",
                 "ArgumentNullException: Value cannot be null. (Parameter 'match')",
+                "ArgumentException: '1.5' cannot be greater than 1.5.",
+                "ArgumentException: '2.5' cannot be greater than 2.5.",
+                "ArgumentException: '-1' cannot be greater than -1.",
+                "ArgumentException: '1' cannot be greater than 1.",
                 "OverflowException: Negating the minimum value of a twos complement number is invalid.",
                 "ArgumentOutOfRangeException: Non-negative number required. (Parameter 'index')",
                 "ArgumentOutOfRangeException: Non-negative number required. (Parameter 'length')",
                 "OutOfMemoryException: Insufficient memory to continue the execution of the program.",
+                "ArgumentOutOfRangeException: Rounding digits must be between 0 and -1, inclusive. " +
+                    "(Parameter 'digits')",
                 "ArgumentOutOfRangeException: Index was out of range. Must be non-negative and less than the size of the " +
                     "collection. (Parameter 'startIndex')",
                 "ArgumentOutOfRangeException: Index was out of range. Must be non-negative and less than or equal to the " +
@@ -441,6 +453,20 @@ public sealed class LibrarySubstituteTests
         Assert.DoesNotContain(LibrarySubstitutes.Members, member => member.Contains("Interval", StringComparison.Ordinal));
         Assert.Equal(LibrarySubstitutes.Members.Count, LibrarySubstitutes.Members.Distinct().Count());
     }
+
+    /// <summary>
+    /// What a runtime function is given to say its message: "a message" for a message or a text, "count" for any other
+    /// string, -1 for an int or a long, 1 for an ulong, 2.5 for a double and 1.5 for a float.
+    /// </summary>
+    private static object Argument(ParameterInfo parameter) => parameter.ParameterType switch
+    {
+        var type when type == typeof(int) => -1,
+        var type when type == typeof(long) => -1L,
+        var type when type == typeof(ulong) => 1UL,
+        var type when type == typeof(double) => 2.5,
+        var type when type == typeof(float) => 1.5f,
+        _ => parameter.Name is "message" or "text" ? "a message" : "count",
+    };
 
     private static IlAssembly Load(string source) => IlAssembly.Load(CSharpCompiler.Compile(source, "Test"), "Test.dll");
 
