@@ -12,15 +12,17 @@ namespace ChipSharp.Frontend.Lowering;
 /// check of the object, then a call of what the slot runs. When only one method can run there, on every object of a
 /// class the program makes that the object's variable can hold (its type is known from the instruction that loaded it,
 /// <see cref="VirtualMethods.StackType"/>: a local, a parameter, a field, a call's result, a <c>new</c>, a cast), it is
-/// a plain call of that method: devirtualized, as a call on a sealed class or of a sealed override is. When none can (no such object is ever made, so it is null) the
-/// null check is all there is. Else the method's address is loaded from the object's virtual method table (the
-/// descriptor its header points to: <c>typeof</c>, the slot's element of <c>virtuals</c>) or from the interface's
-/// method table in its interface map (<c>ChipSharp.Object.FindInterface</c>), and called: <c>call indirect</c>.</item>
+/// a plain call of that method: devirtualized, as a call on a sealed class or of a sealed override is. When none can
+/// (no such object is ever made, so it is null) the null check is all there is. Else the method's address is loaded
+/// from the object's virtual method table (the descriptor its header points to: <c>typeof</c>, the slot's element of
+/// <c>virtuals</c>) or from the interface's method table in its interface map (<c>ChipSharp.Object.FindInterface</c>),
+/// and called: <c>call indirect</c>; object's Equals and GetHashCode go through a function that knows arrays, which
+/// have no table.</item>
 /// <item><c>isinst</c> (C#'s <c>is</c> and <c>as</c>) and <c>castclass</c> (<c>(T)x</c>) test the object's class (and
-/// its bases) or its interface map against the type's descriptor (<see cref="ObjectFunctions.TypeTest"/>). A test
-/// against object, or against a type the object's variable already is, is the object itself; an <c>is</c> or
-/// <c>as</c> that no object the program makes can pass is null. A cast that fails stops the program with .NET's
-/// InvalidCastException message.</item>
+/// its bases), its interface map or its array type against the type's descriptor
+/// (<see cref="ObjectFunctions.TypeTest"/>). A test against object, or against a type the object's variable already
+/// is, is the object itself; an <c>is</c> or <c>as</c> that no object the program makes can pass is null. A cast that
+/// fails stops the program with .NET's InvalidCastException message.</item>
 /// <item>A <c>call</c> of object's own Equals or GetHashCode (C#'s <c>base.Equals(other)</c>) calls ChipSharp's.</item>
 /// </list>
 /// </summary>

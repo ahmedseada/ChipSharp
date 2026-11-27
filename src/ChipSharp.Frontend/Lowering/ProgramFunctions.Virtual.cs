@@ -39,9 +39,6 @@ internal sealed partial class ProgramFunctions
         return descriptor;
     }
 
-    /// <summary>The class of the program whose descriptor <paramref name="descriptor"/> is; null for System.Object's and the others.</summary>
-    public IlTypeDefinition? ClassOf(TirTypeDescriptor descriptor) =>
-        _classes.FirstOrDefault(pair => pair.Value == descriptor).Key;
 
     /// <summary>The function <paramref name="target"/> is: a method of the program's, or object's own Equals or GetHashCode.</summary>
     public TirFunction Function(DispatchTarget target)

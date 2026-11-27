@@ -15,8 +15,8 @@ public static partial class WholeProgramPass
     /// <list type="bullet">
     /// <item>a <c>callvirt</c> through a slot of an interface (one an object may implement, see
     /// <see cref="VirtualMethods.IsInterface"/>) or of object's Equals or GetHashCode; of a generic virtual method,
-    /// <see cref="Unsupported.GenericVirtualMethods"/>; of object's ToString, <see cref="Unsupported.ObjectMethods"/>
-    /// (it makes a string); of its GetType, <see cref="Unsupported.TypeHandles"/>;</item>
+    /// <see cref="Unsupported.GenericVirtualMethods"/>; of object's ToString on an object of the program's,
+    /// <see cref="Unsupported.ObjectMethods"/> (it makes a string); of its GetType, <see cref="Unsupported.TypeHandles"/>;</item>
     /// <item>a <c>call</c> of object's Equals or GetHashCode (C#'s <c>base.Equals(other)</c>);</item>
     /// <item><c>isinst</c> and <c>castclass</c> (<see cref="ForTypeTest"/>).</item>
     /// </list>
@@ -99,7 +99,8 @@ public static partial class WholeProgramPass
             IlArrayType or IlMultiDimensionalArrayType => Unsupported.TypeTestsOf(CSharpNames.Type(plain, method)),
             IlGenericInstanceType { Definition: IlNamedType { FullName: "System.Nullable`1" } } => Unsupported.Boxing,
             _ when ValueTypes.TryMapType(plain, assembly, out _) => Unsupported.Boxing,
-            IlNamedType { IsDefinedInThisAssembly: true } or IlGenericInstanceType { Definition: IlNamedType { IsDefinedInThisAssembly: true } } =>
+            IlNamedType { IsDefinedInThisAssembly: true }
+                or IlGenericInstanceType { Definition: IlNamedType { IsDefinedInThisAssembly: true } } =>
                 ForAnyType(plain, assembly, method) ?? Unsupported.TypeTestsOf(CSharpNames.Type(plain)),
             _ => Unsupported.TypeTestsOf(CSharpNames.Type(plain)),
         };
