@@ -82,6 +82,7 @@ public sealed class ArrayMethodSimulatorTests(ITestOutputHelper output) : IDispo
     }
 
     [SimulatorFact]
+    [RunsLong]
     public async Task Where_dotnet_throws_the_program_says_so_on_UART0_and_stops_at_a_breakpoint()
     {
         // a failure of each kind: the messages with the value in them, null, too short, a start, a count, a range

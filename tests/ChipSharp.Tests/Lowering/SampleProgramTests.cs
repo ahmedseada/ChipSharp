@@ -147,6 +147,7 @@ public sealed class SampleProgramTests : IDisposable
     /// before each branch), and must still give the same output.
     /// </summary>
     [HostFact]
+    [Support.RunsLong]
     public async Task Every_sample_compiled_in_Debug_prints_the_same()
     {
         var wrong = await Support.Concurrently.SelectAsync([.. Names()], async name =>

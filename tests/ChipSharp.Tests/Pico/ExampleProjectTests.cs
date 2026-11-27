@@ -41,6 +41,7 @@ public sealed class ExampleProjectTests : IDisposable
 
     [SimulatorTheory]
     [MemberData(nameof(Examples))]
+    [RunsLong]
     public async Task Every_example_project_builds_for_the_pico_and_blinks_in_the_simulator(string example)
     {
         var project = Directory.GetFiles(Path.Combine(Repository.Examples, example), "*.csproj").Single();

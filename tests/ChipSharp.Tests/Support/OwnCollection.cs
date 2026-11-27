@@ -23,8 +23,9 @@ internal static class OwnCollection
         var testClass = testMethod.TestClass;
         var name = $"{testClass.Class.Name}.{testMethod.Method.Name}{key}";
         var id = new Guid(MD5.HashData(Encoding.UTF8.GetBytes(name)));
+        var runsLong = testMethod.Method.GetCustomAttributes(typeof(RunsLongAttribute)).Any() ? RunsLongAttribute.Mark : "";
         var collection = new TestCollection(testClass.TestCollection.TestAssembly, testClass.TestCollection.CollectionDefinition,
-            $"{name} (in a collection of its own)", id);
+            $"{name} (in a collection of its own){runsLong}", id);
         return new TestMethod(new TestClass(collection, testClass.Class), testMethod.Method);
     }
 

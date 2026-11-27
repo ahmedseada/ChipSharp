@@ -182,6 +182,7 @@ public sealed class FragmentationTests(ITestOutputHelper output) : IDisposable
     /// The README gives what it found.
     /// </summary>
     [HostFact]
+    [RunsLong]
     public async Task How_much_of_a_32_KB_heap_the_workload_keeps_alive_before_it_runs_out()
     {
         var table = new StringBuilder();

@@ -32,6 +32,7 @@ public sealed partial class PicoFloatMathTests : IDisposable
     /// conversions from integers: tens of thousands of results, each computed on the simulated Cortex-M0+.
     /// </summary>
     [SimulatorFact]
+    [RunsLong]
     public async Task Thousands_of_float_and_double_results_on_the_simulated_Pico_match_dotnet()
     {
         var doubles = FloatMathProgram.SpecialDoubles;

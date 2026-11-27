@@ -23,6 +23,7 @@ public sealed class ChipSharpBuilderTests : IDisposable
     }
 
     [HostFact]
+    [RunsLong]
     public async Task Every_sample_builds_for_the_host_and_prints_exactly_what_dotnet_prints()
     {
         var output = Path.Combine(_scratch, "out");

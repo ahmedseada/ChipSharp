@@ -130,6 +130,7 @@ public sealed class StackOverflowTests(ITestOutputHelper output) : IDisposable
         """;
 
     [HostFact]
+    [RunsLong]
     public async Task On_the_PC_an_endless_recursion_writes_Stack_overflow_and_exits_with_dotnets_code()
     {
         var bytes = CSharpCompiler.Compile(Endless, "Endless");

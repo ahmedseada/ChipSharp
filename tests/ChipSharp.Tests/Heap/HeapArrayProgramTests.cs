@@ -49,6 +49,7 @@ public sealed class HeapArrayProgramTests(ITestOutputHelper output) : IDisposabl
         PrintsWhatDotnetPrints(HeapArrayPrograms.Spans(5000), "host-16K");
 
     [HostFact]
+    [RunsLong]
     public async Task Null_a_negative_length_and_an_index_out_of_range_stop_the_program_with_dotnets_messages()
     {
         foreach (var what in HeapArrayPrograms.Failures)
