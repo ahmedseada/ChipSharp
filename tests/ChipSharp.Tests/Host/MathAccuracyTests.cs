@@ -118,7 +118,9 @@ public sealed class MathAccuracyTests(ITestOutputHelper output)
         foreach (var function in Functions(f))
         {
             var op = MathLibrary.Op(function.Name, f);
-            var random = new Random(function.Name.GetHashCode(StringComparison.Ordinal) & 0xffff);
+            // the same values in every run (string.GetHashCode is different in every process, which made the share
+            // move around the threshold)
+            var random = new Random(function.Name.Aggregate(17, (hash, c) => unchecked(hash * 31 + c)) & 0xffff);
             long total = 0, same = 0, worstUlps = 0;
             var worst = "";
             foreach (var range in function.Ranges)
