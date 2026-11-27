@@ -46,7 +46,7 @@ that ChipSharp does not compile yet, where, when it is planned, and what to writ
 on a line of its own, and every library method ChipSharp can call). `tir` shows the program in TIR. `build` compiles
 it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` also keeps the `.tir` and `.ll` files.
 
-`dotnet test` runs 1521 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
+`dotnet test` runs 1556 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
 `CHIPSHARP_LLVM_BIN`); the Pico tests also need the simulator (see below), and are skipped, saying why, without it.
 
 ## What C# compiles today
@@ -648,7 +648,7 @@ The heap is where objects live: what classes, strings, boxes, delegates and coll
   the code generator starts every slot of a function at zero, and right before `GC.Collect()` and
   `GC.GetTotalMemory(true)` it clears the callee-saved registers (`LlvmCollectCalls.cs`; LLVM first puts what it still
   needs on the stack). A method that builds a list of 2000 objects and returns its sum, then `GC.Collect()`: before,
-  the whole list (176 KB on the Pico, 203 KB on the PC) was still in use after the collection, held by a register of
+  the whole list (172 KB on the Pico, 203 KB on the PC) was still in use after the collection, held by a register of
   the inlined method; now nothing is.
 - **Fragmentation.** The collector never moves an object, so the free memory can be in pieces. A workload that keeps
   slots of text (10 to 200 chars), arrays (4 to 256 ints), arrays grown by `Array.Resize` and chains of small objects,
