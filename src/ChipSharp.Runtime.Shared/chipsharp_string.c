@@ -50,10 +50,11 @@ typedef __UINT32_TYPE__ u32;
 
 // A string the program gives may be one of its constants, which on an AVR stay in flash: there an address with bit 15
 // set is 0x8000 plus a flash address, read with LPM (see src/ChipSharp.Backend.Llvm/LlvmFlash.cs); RAM's addresses
-// never have it. READ(type, address) reads a value of the type at such an address, from RAM or flash; on every other
-// target it is a plain read. MESSAGE(text) is a failure's message, which chipsharp_fail reads so too: on an AVR in
-// flash, a section of its own each (the linker keeps only those a program can fail with), with bit 15 set, for a
-// constant in RAM would take RAM there (start-up copies .rodata to it).
+// never have it. READ(type, address) reads a value of the type at such an address, from RAM or flash (it uses the
+// address twice: nothing like ++ in it); on every other target it is a plain read. MESSAGE(text) is a failure's
+// message, which chipsharp_fail reads so too: on an AVR in flash, a section of its own each (the linker keeps only
+// those a program can fail with), with bit 15 set, for a constant in RAM would take RAM there (start-up copies .rodata
+// to it).
 #if defined(__AVR__)
 #define READ(type, address)                                                                                            \
     (((uintptr_t)(address) & 0x8000u) != 0 ? *(const __flash type *)((uintptr_t)(address) & 0x7FFFu)                   \
@@ -686,7 +687,7 @@ __attribute__((noreturn)) static void fail_with(const char *prefix, const string
 {
     char message[96 + 200 * 3 + 64];
     u32 n = 0;
-    for (char c = READ(char, prefix); c != 0; c = READ(char, ++prefix))
+    for (char c = READ(char, prefix); c != 0; prefix++, c = READ(char, prefix))
     {
         message[n++] = c;
     }
@@ -717,7 +718,7 @@ __attribute__((noreturn)) static void fail_with(const char *prefix, const string
         }
     }
 
-    for (char c = READ(char, suffix); c != 0; c = READ(char, ++suffix))
+    for (char c = READ(char, suffix); c != 0; suffix++, c = READ(char, suffix))
     {
         message[n++] = c;
     }

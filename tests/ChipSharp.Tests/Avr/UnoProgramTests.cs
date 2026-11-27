@@ -66,4 +66,27 @@ public sealed class UnoProgramTests : IDisposable
         Assert.Equal(dotnet.Text, Encoding.UTF8.GetString(run.Usart0));
         Assert.Equal(dotnet.Output, run.Usart0);
     }
+
+    /// <summary>
+    /// Text that is not ASCII, fixed (a literal of 2 bytes per char in flash) and printed: UTF-8, a lone surrogate as
+    /// U+FFFD (.NET writes the console's code page when its output is not a console, so the expected bytes are written
+    /// out here, as the PC's and the Pico's tests have them).
+    /// </summary>
+    [AvrSimulatorFact]
+    public async Task Text_that_is_not_ASCII_goes_over_USART0_as_UTF8()
+    {
+        foreach (var (name, source, output) in new[]
+        {
+            ("NotAscii", TextPrograms.NotAscii, TextPrograms.NotAsciiOutput),
+            ("PrintedNotAscii", PrintedTextPrograms.NotAscii, PrintedTextPrograms.NotAsciiOutput),
+        })
+        {
+            var program = UnoBuild.Build(source, name, Path.Combine(_scratch, name));
+
+            var run = await AvrSimulator.RunAsync(program.Hex, 10_000);
+
+            Assert.True(run.ExitCode == 0, run.ToString());
+            Assert.Equal(Encoding.UTF8.GetBytes(output), run.Usart0);
+        }
+    }
 }
