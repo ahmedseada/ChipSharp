@@ -135,7 +135,10 @@ public static partial class WholeProgramPass
 
         if (!definition.IsStatic)
         {
-            return ValueTypes.IsStruct(definition.DeclaringType) ? Unsupported.DelegateOfValue : null;
+            // a struct's method runs on the box the delegate holds (see Boxing)
+            return ValueTypes.IsStruct(definition.DeclaringType) && Boxing.OfDefinition(definition.DeclaringType) is null
+                ? Unsupported.DelegateOfValue
+                : null;
         }
 
         // a static method closed over its first argument (an extension method), which is the delegate's target

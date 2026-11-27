@@ -100,7 +100,11 @@ internal sealed partial class MethodLowering
     {
         if (method.Definition is { IsStatic: false } instance)
         {
-            Push(_ir.AddressOf(_program.Get(instance).Function));
+            // a struct's method: on the value in the box that is the delegate's target (see BoxingFunctions.OnBox)
+            Push(_ir.AddressOf(ValueTypes.IsStruct(instance.DeclaringType)
+                && Boxing.OfDefinition(instance.DeclaringType) is { } boxed
+                    ? _program.Boxes.OnBox(DispatchTarget.Of(instance) with { Boxed = boxed })
+                    : _program.Get(instance).Function));
             return;
         }
 
@@ -149,8 +153,14 @@ internal sealed partial class MethodLowering
         var receiver = NullCheck(ObjectFromStack(PopValue(), $"the object whose {method.Name} a delegate calls"));
         if (slot is null)
         {
-            Push(_ir.AddressOf(_program.Get(method.Definition
-                ?? throw Error($"ldvirtftn of {method.DisplayName}, a method of the library, is not supported")).Function));
+            var definition = method.Definition
+                ?? throw Error($"ldvirtftn of {method.DisplayName}, a method of the library, is not supported");
+
+            // a struct's method (an interface's it implements is virtual): on the value in the box that is the target
+            Push(_ir.AddressOf(ValueTypes.IsStruct(definition.DeclaringType)
+                && Boxing.OfDefinition(definition.DeclaringType) is { } boxed
+                    ? _program.Boxes.OnBox(DispatchTarget.Of(definition) with { Boxed = boxed })
+                    : _program.Get(definition).Function));
             return;
         }
 

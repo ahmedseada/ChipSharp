@@ -17,6 +17,7 @@
 //                                        a span's start or length outside it, too few bytes for MemoryMarshal.Read or
 //                                        Write, a CopyTo a shorter span, a MemoryMarshal.Cast this chip cannot read
 //   ChipSharp_Runtime_InvalidCast        a cast to a type the object is not of (InvalidCastException)
+//   ChipSharp_Runtime_EnumCompareType    IComparable's CompareTo of a boxed enum and a box of another type
 //   ChipSharp_Runtime_ArrayNull, ...     the arguments of the methods of System.Array (Array.Copy, Fill, IndexOf, ...):
 //                                        null, an index or a length outside the array, a destination too short
 //
@@ -57,6 +58,13 @@ __attribute__((weak, noreturn)) void ChipSharp_Runtime_InvalidCast(const char *f
 }
 
 __attribute__((weak, noreturn)) void chipsharp_fail(const char *message) { (void)message; fail(); }
+
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_EnumCompareType(const char *passed, const char *type)
+{
+    (void)passed;
+    (void)type;
+    fail();
+}
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_ArrayNull(void) { fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_SourceArrayNull(void) { fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_DestinationArrayNull(void) { fail(); }

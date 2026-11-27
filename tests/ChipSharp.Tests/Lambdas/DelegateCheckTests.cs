@@ -223,7 +223,7 @@ public sealed class DelegateCheckTests : IDisposable
     }
 
     [Fact]
-    public void Function_pointers_delegates_of_arrays_and_of_struct_methods_and_BeginInvoke_are_rejected()
+    public void Function_pointers_delegates_of_arrays_and_BeginInvoke_are_rejected_and_one_of_a_struct_method_compiles()
     {
         var problems = WholeProgram.Problems("""
             using System;
@@ -256,7 +256,7 @@ public sealed class DelegateCheckTests : IDisposable
             "For now, use a delegate (Func<int, int>, Action), or call the method directly.", StringComparison.Ordinal));
         Assert.Contains(problems, line => line.Contains("delegates that take or return arrays or spans " +
             "(Action<int[]>, Func<Span<int>>) arrive later.", StringComparison.Ordinal));
-        Assert.Contains(problems, line => line.Contains("(ldftn): delegates of a method of a struct, or of an extension " +
-            "method of a value or an array arrive later.", StringComparison.Ordinal));
+        // a delegate of a struct's method runs on the box it is made of (Boxing.BoxingPrograms.Interfaces)
+        Assert.DoesNotContain(problems, line => line.Contains("delegates of a method of a struct", StringComparison.Ordinal));
     }
 }

@@ -23,7 +23,7 @@ namespace ChipSharp.Frontend.Analysis;
 /// loop) is <see cref="Mixed"/> with what it held before, which is rejected. An array of strings that goes anywhere else is a plain
 /// array, which <see cref="ArrayEscapeAnalysis"/> judges: the analysis then runs again without it.
 /// </remarks>
-internal sealed class PrintedTextFlow
+internal sealed partial class PrintedTextFlow
 {
     /// <summary>The most parts a <c>string.Concat(string[])</c> array may have; a bigger one is a plain array.</summary>
     private const int MostArrayParts = 1024;
@@ -206,6 +206,11 @@ internal sealed class PrintedTextFlow
     private void Step(IlInstruction instruction, int index, State state)
     {
         var stack = state.Stack;
+        if (InlineArrayStep(instruction, index, state)) // a params span of a format: PrintedTextFlow.Params.cs
+        {
+            return;
+        }
+
         switch (instruction.OpCode)
         {
             case >= IlOpCode.Ldc_I4_M1 and <= IlOpCode.Ldc_I4_8:
@@ -326,6 +331,11 @@ internal sealed class PrintedTextFlow
     /// <summary>A value an instruction takes that is not for printed text: built text there is kept.</summary>
     private void Consume(IlInstruction instruction, Value value, bool dropped)
     {
+        if (ConsumeInline(value))
+        {
+            return;
+        }
+
         switch (value)
         {
             case Built built when !dropped:
@@ -456,7 +466,8 @@ internal sealed class PrintedTextFlow
     {
         if (callee is not { HasThis: false, GenericArguments.Count: 0 } || callee.ParameterTypes is not
             [IlPrimitiveType { Kind: IlPrimitiveKind.String }, _, ..] parameters || parameters.Count > 4
-            || parameters.Skip(1).Any(parameter => parameter is not IlPrimitiveType { Kind: IlPrimitiveKind.Object }))
+            || (parameters.Skip(1).Any(parameter => parameter is not IlPrimitiveType { Kind: IlPrimitiveKind.Object })
+                && !(parameters.Count == 2 && IsObjectSpan(parameters[1]))))
         {
             return null;
         }
@@ -479,6 +490,7 @@ internal sealed class PrintedTextFlow
             values[i] = Pop(stack);
         }
 
+        values = ParamsValues(instruction, callee, values) ?? values; // a params span (PrintedTextFlow.Params.cs)
         var format = Pop(stack);
         var (parts, problem) = format is Literal { Text: { } text }
             ? FormatParts(instruction, index, text, values)
@@ -552,11 +564,16 @@ internal sealed class PrintedTextFlow
             }
 
             Flush();
-            var (more, problem) = values[number] is Boxed boxed
+
+            // a value of a params span waits in its slot from the stind.ref that writes it (PrintedTextFlow.Params.cs)
+            var (value, source, at, depth, operand) = values[number] is Element element
+                ? (element.Value, element.Store, element.At, 0, 1)
+                : (values[number], instruction, index, values.Length - 1 - number, number + 1);
+            var (more, problem) = value is Boxed boxed
                 ? HoleParts(boxed.Type, boxed, boxed.Box, 0, alignment, holeFormat)
-                : values[number] is Literal or Built || StringMethods.IsStringOperand(_method, index, values.Length - 1 - number)
-                    ? TextParts(values[number], instruction, number + 1, alignment)
-                    : (null, Unsupported.ObjectMethods);
+                : value is Literal or Built || StringMethods.IsStringOperand(_method, at, depth)
+                    ? TextParts(value, source, operand, alignment)
+                    : ObjectValueParts(value, source, at, depth, operand, alignment, holeFormat);
             if (problem is not null)
             {
                 return (null, problem);
@@ -594,7 +611,8 @@ internal sealed class PrintedTextFlow
 
     /// <summary>True for a type a boxed value of is a hole: a number, bool or char that Console.Write prints, or an enum.</summary>
     private bool IsBoxedHole(IlType type) => EnumOf(type) is not null
-        || (PrintedText.TryGetPrinted(StackArrays.Primitive(type), out var kind) && kind != IlPrimitiveKind.String);
+        || (PrintedText.TryGetPrinted(StackArrays.Primitive(type), out var kind) && kind != IlPrimitiveKind.String)
+        || IsValueHole(type);
 
     /// <summary>A call on the handler in local <paramref name="local"/>; false for a method of it that is not supported.</summary>
     private bool HandlerCall(IlInstruction instruction, int index, IlMethodReference callee, int local, State state)
@@ -894,7 +912,8 @@ internal sealed class PrintedTextFlow
                 OpCode: IlOpCode.Callvirt,
                 Operand: IlMethodOperand { Method: { Name: "ToString", ParameterTypes.Count: 0, HasThis: true } },
             } call
-            && !PrintedText.TryGetPrinted(StackArrays.Primitive(type), out _) && StringMethods.Find(_method, index + 1) is null)
+            && !PrintedText.TryGetPrinted(StackArrays.Primitive(type), out _) && StringMethods.Find(_method, index + 1) is null
+            && Boxing.ConstrainedAt(_body.Instructions, index + 1, _method.Assembly) is null) // a value's ToString (Boxing)
         {
             var problem = ForOtherValue(StackArrays.Primitive(type));
             Problem(instruction, problem);
@@ -912,6 +931,12 @@ internal sealed class PrintedTextFlow
         if (EnumOf(type) is var (enumType, underlying))
         {
             return EnumParts(enumType, underlying, instruction, operand, alignment, format);
+        }
+
+        // a nullable, a struct or an object (see PrintedTextFlow.Objects.cs)
+        if (ObjectHoleParts(type, value, instruction, operand, alignment, format) is { } objectParts)
+        {
+            return objectParts;
         }
 
         if (!PrintedText.TryGetPrinted(type, out var kind))

@@ -41,9 +41,16 @@ internal sealed record DispatchSlot(DispatchSlotKind Kind, IlType Owner, string 
 /// </summary>
 internal sealed record DispatchTarget(IlMethod? Method, string? ObjectMethod)
 {
+    /// <summary>
+    /// For a box (see <see cref="Frontend.Boxing"/>): the boxed type, on whose value in the box the method runs (a
+    /// struct's, or what ChipSharp makes for the type when <see cref="Method"/> is null); null for an object of a class.
+    /// </summary>
+    public BoxedType? Boxed { get; init; }
+
     public static DispatchTarget Of(IlMethod method) => new(method, null);
 
-    public override string ToString() => Method?.ToString() ?? $"System.Object.{ObjectMethod}";
+    public override string ToString() =>
+        (Method?.ToString() ?? $"System.Object.{ObjectMethod}") + (Boxed is { } boxed ? $" on a {boxed}" : "");
 }
 
 /// <summary>

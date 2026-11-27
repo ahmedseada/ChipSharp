@@ -18,12 +18,12 @@ public sealed class IlToTirErrorTests
         var error = Error("""
             class Program
             {
-                static object Box() => 1;
-                static void Main() => System.Console.WriteLine(Box() == null);
+                static int Add(int a, int b) => checked(a + b);
+                static void Main() => System.Console.WriteLine(Add(1, 2));
             }
             """);
 
-        Assert.Equal("Test.dll: Program.Box() at IL_0001: box is not supported yet.",
+        Assert.Equal("Test.dll: Program.Add(int32, int32) at IL_0002: add.ovf is not supported yet.",
             error.Message);
     }
 

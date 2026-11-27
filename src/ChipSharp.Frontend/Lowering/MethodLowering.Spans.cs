@@ -44,7 +44,9 @@ internal sealed partial class MethodLowering
     /// </summary>
     private void CheckSpans()
     {
-        var problem = WholeProgramPass.ForSpans(_method).Where(verdict => verdict.Value is { IsHeapUse: false })
+        // (printed text's own instructions are its to judge: the params span of a format)
+        var problem = WholeProgramPass.ForSpans(_method)
+            .Where(verdict => verdict.Value is { IsHeapUse: false } && !IsPrintedText(verdict.Key))
             .OrderBy(verdict => verdict.Key.Offset).FirstOrDefault();
         if (problem.Value is { } unsupported)
         {
