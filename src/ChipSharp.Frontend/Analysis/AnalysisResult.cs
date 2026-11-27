@@ -48,6 +48,9 @@ public sealed class AnalysisResult
     /// <summary>Whether the target reads values at any address (see <see cref="IlProgram.UnalignedAccess"/>).</summary>
     internal bool UnalignedAccess { get; init; } = true;
 
+    /// <summary>The narrowing the target asks for (see <see cref="IlProgram.Narrowing"/>).</summary>
+    internal Ir.Optimizations.TirNarrowingOptions? Narrowing { get; init; }
+
     /// <summary>The problems by feature, in the order each feature first appears in <see cref="Problems"/>.</summary>
     public IReadOnlyList<ProblemGroup> Groups { get; }
 
@@ -96,7 +99,10 @@ public sealed class AnalysisResult
     /// <summary>The program, for the IL-to-TIR translation.</summary>
     /// <exception cref="ChipSharpException">The program has problems; the message is the <see cref="Summary"/>.</exception>
     public IlProgram ToProgram() => IsSupported
-        ? new IlProgram(Assembly, Methods) { InterruptHandlers = InterruptHandlers, UnalignedAccess = UnalignedAccess }
+        ? new IlProgram(Assembly, Methods)
+        {
+            InterruptHandlers = InterruptHandlers, UnalignedAccess = UnalignedAccess, Narrowing = Narrowing,
+        }
         : throw new ChipSharpException(Summary);
 
     /// <summary>

@@ -1,5 +1,6 @@
 using ChipSharp.Abstractions;
 using ChipSharp.Ir;
+using ChipSharp.Ir.Optimizations;
 
 namespace ChipSharp.Frontend.Lowering;
 
@@ -88,6 +89,13 @@ public static class IlToTir
 
         functions.AddInterruptEntries(program);
         module.EntryPoint = functions.Start(program);
+
+        // on an 8-bit chip, arithmetic in 8 or 16 bits where the values fit (Ir.Optimizations.TirNarrowing)
+        if (program.Narrowing is { } narrowing)
+        {
+            TirNarrowing.Run(module, narrowing);
+        }
+
         return module;
     }
 }
