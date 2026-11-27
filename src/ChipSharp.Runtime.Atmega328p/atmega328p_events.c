@@ -6,8 +6,8 @@
 // event happened and then calls the program's method: its entry, chipsharp_isr_irq<n>, n from the target's "interrupts"
 // table (atmega328p.json), an ordinary function. No "clear" function: the handlers here clear what needs it first.
 //
-//   ChipSharp_Runtime_Pin...Watch      Pin.Watch, WatchRising, WatchFalling and Unwatch: the pin event, chipsharp_isr_irq26.
-//   ChipSharp_Runtime_PinUnwatch       D2 and D3 on INT0 and INT1, whose edges the chip itself picks and keeps until the
+//   ChipSharp_Runtime_Pin...           Pin.Watch, WatchRising, WatchFalling and Unwatch: the pin event, chipsharp_isr_irq26.
+//                                      D2 and D3 on INT0 and INT1, whose edges the chip itself picks and keeps until the
 //                                      handler runs; every other pin (D0, D1, D4-D13, A0-A5) on the pin change interrupt of
 //                                      its port (PCINT0: port B, PCINT1: port C, PCINT2: port D), which comes for any change
 //                                      of the port's watched pins: the handler compares the levels with the ones it saw

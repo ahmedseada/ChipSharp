@@ -14,7 +14,7 @@
 //                                      pull-up turned on through Registers after Pin.Input (its bit of PORTB, PORTC or
 //                                      PORTD set: 0x25, 0x28, 0x2b). While the console runs, USART0 has D1 (and D0 once it
 //                                      receives)
-//   ChipSharp_Runtime_Delay...         ChipSharp.Hardware.Timing: waits, reading the clock, until the time has passed
+//   ChipSharp_Runtime_Delay...         ChipSharp.Hardware.Timing: waits, watching Timer1, a few microseconds more than given
 //   ChipSharp_Runtime_Clock...         the clock (DateTime.Now, Clock.Start) and the uptime (Stopwatch,
 //                                      Environment.TickCount), from Timer1's count of half microseconds
 //   ChipSharp_Runtime_Register...      ChipSharp.Hardware.Registers: the chip's registers are bytes, so a read or write is
@@ -28,7 +28,7 @@
 //                                      runtime file that uses each interrupt put in chipsharp_interrupt_hooks
 //
 // The clock: Timer1 counts 16 MHz / 8, two counts a microsecond, from 0 to 0xffff and round again (normal mode, every
-// 32.768 ms), and its overflow interrupt (TIMER1_OVF, __vector_13, the one handler here that is always in the program)
+// 32.768 ms), and its overflow interrupt (TIMER1_OVF, __vector_13, a few instructions in every program, as Arduino's)
 // counts the rounds in 32 bits: 48 bits of half microseconds, which go round after 4.46 years. Timer1's compare B is the
 // timer event's (atmega328p_events.c); Timer0 and Timer2 are left to the program.
 //
@@ -46,7 +46,6 @@ typedef unsigned long long u64;
 #define REG(address) (*(volatile u8 *)(u16)(address))
 
 #define SREG 0x5f
-#define SREG_I 0x80u
 
 #define TIFR1 0x36
 #define TIFR1_TOV1 0x01u

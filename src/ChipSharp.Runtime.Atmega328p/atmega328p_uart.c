@@ -218,8 +218,8 @@ void ChipSharp_Runtime_UartOpen(i32 port, i32 tx, i32 rx, i32 baud)
 
     if (baud < BAUD_MIN || baud > BAUD_MAX)
     {
-        fail(FLASH("System.ArgumentOutOfRangeException: UART0 cannot run at {0} baud: the ATmega328P's runs at 489 to "
-            "2000000 baud. (Parameter 'baud')"), baud);
+        fail(FLASH("System.ArgumentOutOfRangeException: UART0 cannot run at {0} baud: on the Uno's 16 MHz ATmega328P it "
+            "runs at 489 to 2000000 baud. (Parameter 'baud')"), baud);
     }
 
     // 16 MHz / (8 * (divisor + 1)), rounded down as the Arduino core rounds it: (16 MHz / 4 / baud - 1) / 2
