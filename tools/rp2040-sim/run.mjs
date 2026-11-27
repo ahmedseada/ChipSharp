@@ -29,7 +29,9 @@
 // --i2c and --spi put simulated devices on the I2C and SPI buses (devices/buses.mjs): --i2c 0:0x68=mpu6050 an
 // MPU-6050 at address 0x68 on I2C0, --i2c 0:0x76=bmp280 a BMP280, --spi 0=74hc595@17 a 74HC595 shift register on
 // SPI0 with its latch on GPIO 17, --spi 0=loopback RX wired to TX, --i2c 1:0x27=lcd1602 a 16x2 character LCD on a
-// PCF8574 backpack at 0x27 on I2C1 (lcd2004: 20x4). An I2C address without a device does not answer.
+// PCF8574 backpack at 0x27 on I2C1 (lcd2004: 20x4), --i2c 1:0x68=ds1307 a DS1307 real-time clock that keeps the PC's
+// time (ds1307@2026-11-27T18:00:00 from a date, ds1307@halted a new one). An I2C address without a device does not
+// answer.
 //
 // Booting: the RP2040's boot ROM checks the CRC-32 of the first 256 bytes of flash (the second-stage
 // bootloader, boot2), copies them to the top of RAM (0x20041f00) and runs them with lr = 0; boot2 sets up the

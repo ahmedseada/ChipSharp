@@ -8,7 +8,8 @@
   "triple": "x86_64-pc-windows-msvc",
   "capabilities": {
     "heap": "256M",       // the memory of the program's heap (M3), taken from Windows at the start (its pages only when used)
-    "console": true       // Console.Write and Console.WriteLine go to standard output
+    "console": true,      // Console.Write and Console.WriteLine go to standard output
+    "clock": true         // DateTime.Now from Windows' clock and time zone; Stopwatch from the performance counter
   },
   "clang": {
     // passed to clang after --target; -nostdlib: no C runtime, the windows-x64 runtime is all the program needs;
@@ -23,9 +24,11 @@
     "imports": {
       // DLL -> the functions the program calls in it; the toolchain makes an import library from this list
       // (VirtualAlloc: the heap's memory, taken once at the start by a program that makes objects;
-      // SetThreadStackGuarantee and AddVectoredExceptionHandler: a stack overflow ends the program as .NET ends it)
+      // SetThreadStackGuarantee and AddVectoredExceptionHandler: a stack overflow ends the program as .NET ends it;
+      // the rest: the clock, DateTime.Now and Stopwatch)
       "kernel32.dll": ["GetStdHandle", "WriteFile", "ExitProcess", "VirtualAlloc", "AddVectoredExceptionHandler",
-        "SetThreadStackGuarantee"]
+        "SetThreadStackGuarantee", "GetSystemTimePreciseAsFileTime", "GetTimeZoneInformation", "QueryPerformanceCounter",
+        "QueryPerformanceFrequency", "GetTickCount64"]
     }
   }
 }

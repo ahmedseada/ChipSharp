@@ -21,12 +21,31 @@ internal sealed partial class MethodLowering
     private TirType? ObjectPartType(PrintedPiece piece) =>
         piece.Nullable is { } nullable ? MapType(nullable, "a nullable in text")
         : piece.Value is { } value ? value.ValueType
+        : piece.Formatted is { } formatted ? ValueTypes.StructType(formatted)
         : piece.Object is not null ? TirType.Ref
         : null;
+
+    /// <summary>
+    /// The arguments of a formatted value's Print and Text (see <see cref="FormattedValues"/>): the value's address, its
+    /// format as a span of constant chars (empty for none), its alignment, and whether it is its ToString.
+    /// </summary>
+    private TirValue[] FormattedArguments(PrintedPiece piece)
+    {
+        var format = piece.TextFormat is { Length: > 0 } text
+            ? _ir.Call(_program.Arrays.Make, _ir.AddressOf(_program.CharData(text)), _ir.Const(TirType.I32, text.Length))
+            : _ir.Call(_program.Arrays.Make, _ir.Zero(TirType.Ptr), _ir.Const(TirType.I32, 0));
+        return [_ir.AddressOf(PartSlot(piece)), format, _ir.Const(TirType.I32, piece.Alignment), _ir.Const(piece.ViaToString)];
+    }
 
     /// <summary>Writes an object, struct or nullable part; false for any other part, which <see cref="WritePart"/> writes.</summary>
     private bool WriteObjectPart(PrintedPiece piece)
     {
+        if (piece.Formatted is { } formatted)
+        {
+            _ir.Call(_program.Function(DispatchTarget.Of(FormattedValues.Print(formatted)!)), FormattedArguments(piece));
+            return true;
+        }
+
         if (piece.Nullable is { } nullableType)
         {
             var nullable = (TirStructType)MapType(nullableType, "a nullable in text");
@@ -71,6 +90,11 @@ internal sealed partial class MethodLowering
     /// <summary>The text of an object, struct or nullable part, as a string for kept text; null for any other part.</summary>
     private TirValue? ObjectPartText(PrintedPiece piece)
     {
+        if (piece.Formatted is { } formatted)
+        {
+            return _ir.Call(_program.Function(DispatchTarget.Of(FormattedValues.Text(formatted)!)), FormattedArguments(piece));
+        }
+
         if (piece.Nullable is { } nullableType)
         {
             var nullable = (TirStructType)MapType(nullableType, "a nullable in text");

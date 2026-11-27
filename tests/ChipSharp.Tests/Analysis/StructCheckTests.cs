@@ -224,10 +224,10 @@ public sealed class StructCheckTests
                 static int Low(Union union) => 0;
                 static int Length(Buffer buffer) => 0;
                 static int Start(Window window) => 0;
-                static int Days(DateTime date) => 0;
+                static int Id(Guid id) => 0;
 
                 static void Main() => Console.WriteLine(Value(default) + Low(default) + Length(default) + Start(default)
-                    + Days(default));
+                    + Id(default));
             }
             """);
 
@@ -241,8 +241,8 @@ public sealed class StructCheckTests
                 + "and Program.Length(Buffer) (parameter 'buffer'). For now, use ref parameters, ref locals and structs.",
             "ref fields arrive later: 3 places in Program.Main() (IL_002e and local V_3) and Program.Start(Window) "
                 + "(parameter 'window'). For now, keep references in parameters and locals.",
-            "the type System.DateTime arrives later: 3 places in Program.Main() (IL_003d and local V_4) and "
-                + "Program.Days(System.DateTime) (parameter 'date'). "
+            "the type System.Guid arrives later: 3 places in Program.Main() (IL_003d and local V_4) and "
+                + "Program.Id(System.Guid) (parameter 'id'). "
                 + "For now, use bool, the whole-number types (sbyte to ulong, nint, nuint), float, double, string (for "
                 + "fixed text), and the program's own structs and enums.",
         ], analysis.Groups.Select(group => group.Line));

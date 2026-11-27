@@ -9,15 +9,16 @@ small runtime written in C, and, when the program needs one, a heap with a garba
 C# --Roslyn--> IL --ChipSharp--> TIR --LLVM--> .exe (PC)   or   .elf --> .uf2 (Pico)
 ```
 
-Where it stands: milestones M0 to M3 are done. Numbers, structs, arrays, spans, generics, text, interrupts, `Math` and
-`TimeSpan` work on every chip, even one without a heap; on a chip with a heap (the Pico, the PC) so do classes,
+Where it stands: milestones M0 to M3 are done. Numbers, structs, arrays, spans, generics, text, interrupts, `Math`,
+`TimeSpan` and `DateTime` (with its text and a clock) work on every chip, even one without a heap; on a chip with a heap (the Pico, the PC) so do classes,
 records, strings, interfaces, delegates and lambdas, boxing, exceptions you throw (not yet catch) and the collections
 (`List<T>`, `Dictionary<TKey, TValue>`, ...). Every sample prints exactly what .NET prints, on the PC and on a simulated
 Pico, and the tests compare programs, and thousands of library calls, with .NET's own results.
 
 **Contents:** [Quick start](#quick-start) · [Targets](#targets-what-a-chip-has) ·
 [What C# compiles today](#what-c-compiles-today) · [Known differences and gaps](#known-differences-from-net-and-gaps) ·
-[Memory](#memory) · [Interrupts](#interrupts) · [Hardware](#hardware) · [The chipsharp command](#the-chipsharp-command) ·
+[Memory](#memory) · [Interrupts](#interrupts) · [Date and time](#date-and-time) · [Hardware](#hardware) ·
+[The chipsharp command](#the-chipsharp-command) ·
 [Samples and examples](#samples-and-examples) · [Tests](#tests) · [How it works](#how-it-works) · [Roadmap](#roadmap)
 
 ## Quick start
@@ -136,7 +137,7 @@ Target pico   (pico -> rp2040 -> armv6m)
   memory
     flash      0x10000000  2 MB
     ram        0x20000000  264 KB
-  capabilities hwMultiply=true, hwDivide=false, fpu=false, atomics=none, unalignedAccess=false, stackCheck=true, heap=224K, console=true, romFloat=true, consoleInput=true, uart=2, adc=4, pwm=16, i2c=true, spi=true
+  capabilities hwMultiply=true, hwDivide=false, fpu=false, atomics=none, unalignedAccess=false, stackCheck=true, heap=224K, console=true, clock=true, romFloat=true, consoleInput=true, uart=2, adc=4, pwm=16, i2c=true, spi=true
   pins         LED=25
   interrupts   timer=IRQ 1, pin=IRQ 13, uart=IRQ 26
 ```
@@ -148,6 +149,7 @@ The `"capabilities"` decide what a program may use on the chip:
 | `heap` | The most RAM the heap may take, or `false` for none. Objects, kept strings, boxes, delegates and collections need one (see [Memory](#memory)) | 224 KB | 256 MB | none |
 | `console` | Whether `Console.Write` has somewhere to go | UART0 | standard output | none |
 | `consoleInput` | Whether `Console.Read` and `Console.ReadLine` have something to read | UART0 | not yet | none |
+| `clock` | Whether a timer counts time for `DateTime.Now`, `Stopwatch`, `Environment.TickCount` and `Clock.Start` (see [Date and time](#date-and-time)) | the timer's microseconds | Windows' clock | none |
 | `uart`, `adc`, `pwm` | How many serial ports, analog inputs and PWM outputs `ChipSharp.Hardware` can use (see [Hardware](#hardware)); `"pinFunctions"` lists their pins | 2, 4, 16 | none | none |
 | `unalignedAccess` | Whether a word may be read at any address; without it `MemoryMarshal.Read` reads byte by byte and `MemoryMarshal.Cast` checks alignment | no | yes | no |
 | `stackCheck` | The functions that can recurse check the stack, so a stack overflow says `Stack overflow.` instead of locking the core up | yes | (Windows' guard page) | yes |
@@ -181,11 +183,11 @@ gets no heap at all, even on the Pico. `chipsharp check` tells you for your prog
 | Arrays | On the stack: a constant size, made in a method and passed down to the methods it calls. In static fields: `static readonly byte[] Digits = { 0x3F, ... };` is a constant table in flash when nothing writes it; `static int[] buffer = new int[16];` a fixed array in RAM. `foreach`, `Length`, bounds checks |
 | Spans | `Span<T>` and `ReadOnlySpan<T>` of arrays, of `stackalloc` (a constant size), of constant data (`static ReadOnlySpan<byte> Table => new byte[] { ... };`, in flash) and of variables; indexer, `Slice`, ranges and indices (`s[2..5]`, `s[^1]`), `CopyTo`, `Fill`, `Clear`; `MemoryExtensions` (`IndexOf`, `SequenceEqual`, `StartsWith`, ...), `BinaryPrimitives` and `MemoryMarshal` (`Read`, `Write`, `Cast`, `AsBytes`), at any offset, also on a chip that faults on unaligned words |
 | Fixed text | String literals anywhere a string may be: printed, compared, measured and searched (`Length`, `s[i]`, `==`, `IndexOf`, `StartsWith`, `switch`); each is a constant object in flash (8 bytes and 1 byte per char on the Pico) |
-| Printed text | Text built and printed straight away, with no string ever made (also in the body of a `foreach` over a collection or a `using`, where C# makes it otherwise): `Console.WriteLine($"road : {lane}")`, `Console.Write("lane " + lane + '!')`, `x.ToString()` printed, `Console.WriteLine("{0,4} {1:X2}", a, b)`. Holes of numbers, bools, chars, text, enums (by name, `[Flags]` combined), structs (their `ToString`) and nullables; alignments (`{x,5}`, `{x,-5}`); the formats `D`, `D<n>`, `X<n>`, `x<n>` and `G` of whole numbers, `G` and `R` of floats |
+| Printed text | Text built and printed straight away, with no string ever made (also in the body of a `foreach` over a collection or a `using`, where C# makes it otherwise): `Console.WriteLine($"road : {lane}")`, `Console.Write("lane " + lane + '!')`, `x.ToString()` printed, `Console.WriteLine("{0,4} {1:X2}", a, b)`. Holes of numbers, bools, chars, text, enums (by name, `[Flags]` combined), structs (their `ToString`) and nullables; alignments (`{x,5}`, `{x,-5}`); the formats `D`, `D<n>`, `X<n>`, `x<n>` and `G` of whole numbers, `G` and `R` of floats; dates with every format of theirs (`$"{now:HH:mm:ss}"`, `now.ToString("d")`, `Console.WriteLine(now)`, see [Date and time](#date-and-time)) |
 | Type objects | `typeof(X)`, `typeof(T)`: `Name`, `FullName`, `Namespace`, `ToString()` as .NET 10 writes them, `==`, `IsValueType`, `IsArray`, `IsEnum`, `IsClass`, `IsInterface`, `IsPrimitive`, `IsGenericType` (constant objects in flash) |
 | Math | `Math` and `MathF`: trigonometry (`Sin`, `Cos`, `Tan`, `SinCos`, `Asin`, `Acos`, `Atan`, `Atan2`), hyperbolic functions and their inverses, `Exp`, `Log` (in any base), `Log2`, `Log10`, `Pow`, `Sqrt`, `Cbrt`; `Floor`, `Ceiling`, `Truncate`, `Round` (to digits, by every `MidpointRounding`), `Clamp`, `Sign`, `Abs`, `Min`, `Max`, `MinMagnitude`, `MaxMagnitude`, `CopySign`, `FusedMultiplyAdd`, `IEEERemainder`, `ScaleB`, `ILogB`, `BitIncrement`, `BitDecrement`, the reciprocal estimates, `E`, `PI`, `Tau`; for every whole-number type `Abs`, `Min`, `Max`, `Clamp`, `Sign`, `DivRem`, and `BigMul`; `double.Sin(x)` and the like, and generic math over float types (`T.Sqrt`, `T.Sin`, ...). The exact ones give .NET's bits; the transcendental ones the same bits on the PC and the Pico, and .NET's but for the last bit of a few results (see [differences](#where-a-program-behaves-differently)). A program links only the functions it calls (`Math.Sin`: 9 KB on the Pico) |
-| Library | `Console.Write` and `WriteLine`; `TimeSpan` (factories in any unit, parts, totals, arithmetic, comparisons); `System.Array`: `Copy`, `ConstrainedCopy`, `CopyTo`, `Clear`, `Fill`, `IndexOf`, `LastIndexOf`, `Reverse`, and `Sort` and `BinarySearch` of numbers, bools and structs that implement `IComparable<T>` |
-| Hardware | `ChipSharp.Hardware`: `Pin` (`Output`, `Input`, `Write`, `Read`, `Toggle`, `Watch`, `WatchRising`, `WatchFalling`, `Unwatch`), `Timing` (`Delay(TimeSpan)`, `DelayMilliseconds`, `DelayMicroseconds`, `EveryMilliseconds`, `EveryMicroseconds`, `AfterMilliseconds`, `AfterMicroseconds`, `Stop`), `Registers.Read` and `Write`, and `[Interrupt]` methods (see [Interrupts](#interrupts)); the serial ports and the console's input, the analog inputs, the PWM outputs and the I2C and SPI buses: `Uart` (and `Console.Read`), `Adc`, `Pwm`, `I2c` and `Spi`; and `ChipSharp.Components`, the parts connected to the chip: `Lcd` and `SevenSegment` (see [Hardware](#hardware)) |
+| Library | `Console.Write` and `WriteLine`; `TimeSpan` (factories in any unit, parts, totals, arithmetic, comparisons); `DateTime`, `DateOnly` and `TimeOnly` (parts, arithmetic, comparisons, `TryFormat` into a span), `DateTime.Now`, `Stopwatch.GetTimestamp` and `GetElapsedTime`, `Environment.TickCount` (see [Date and time](#date-and-time)); `System.Array`: `Copy`, `ConstrainedCopy`, `CopyTo`, `Clear`, `Fill`, `IndexOf`, `LastIndexOf`, `Reverse`, and `Sort` and `BinarySearch` of numbers, bools and structs that implement `IComparable<T>` |
+| Hardware | `ChipSharp.Hardware`: `Pin` (`Output`, `Input`, `Write`, `Read`, `Toggle`, `Watch`, `WatchRising`, `WatchFalling`, `Unwatch`), `Timing` (`Delay(TimeSpan)`, `DelayMilliseconds`, `DelayMicroseconds`, `EveryMilliseconds`, `EveryMicroseconds`, `AfterMilliseconds`, `AfterMicroseconds`, `Stop`), `Registers.Read` and `Write`, `Clock.Start`, and `[Interrupt]` methods (see [Interrupts](#interrupts)); the serial ports and the console's input, the analog inputs, the PWM outputs and the I2C and SPI buses: `Uart` (and `Console.Read`), `Adc`, `Pwm`, `I2c` and `Spi`; and `ChipSharp.Components`, the parts connected to the chip: `Lcd`, `SevenSegment` and `Ds1307` (see [Hardware](#hardware)) |
 | Failures | Where .NET throws (an index outside an array, a whole number divided by zero, `int.MinValue / -1`, a `TimeSpan` too long, a field of null, a cast that fails, ...), the program stops with the message .NET prints: on standard error with exit code 1 on the PC, over UART0 and then at a breakpoint on a chip |
 
 ### On a chip with a heap (the Pico and the PC)
@@ -196,7 +198,7 @@ gets no heap at all, even on the Pico. `chipsharp check` tells you for your prog
 | Records | `record` / `record class` (positional, with members of their own, derived, generic, `sealed`, `abstract`): `init` properties, `required` members, `with`, `Deconstruct`, `Equals`, `==`, `GetHashCode` and `ToString` as C# makes them (`Point { X = 1, Y = 2 }`) |
 | Virtual calls and interfaces | `virtual`, `override`, `abstract`, `sealed override`, `base.M()`, `new virtual`; interfaces (explicit implementations, default methods, properties, generic interfaces with `in`/`out` variance); `object`'s `Equals`, `GetHashCode` and `ToString`. A call only one method can answer is a plain call, and a method no object of the program can run is left out |
 | Type tests and casts | `is`, `as`, `(T)x`, `x is Square s`, property patterns, `switch` on types, against classes, interfaces, `object` and arrays; a failed cast stops with .NET's `InvalidCastException` message; `x.GetType()` |
-| Strings | Text built and kept (`string s = $"..."`, `+`, `+=`, `ToString()` with the formats printed text has, `string.Concat`, `string.Join` of an array, `string.Format` of a literal format), in fields, arrays and collections; `Substring`, `IndexOf`, `Replace`, `Trim`, `PadLeft`, `ToUpper`, `Split`, `Insert`, `Remove`, `ToCharArray`, `new string(...)`, `CompareOrdinal`, `CompareTo`, `IsNullOrEmpty`, `GetHashCode`, ...; `int.Parse` and `TryParse` (and those of the other whole numbers); spans of chars |
+| Strings | Text built and kept (`string s = $"..."`, `+`, `+=`, `ToString()` with the formats printed text has, `string.Concat`, `string.Join` of an array, `string.Format` of a literal format), in fields, arrays and collections; `Substring`, `IndexOf`, `Replace`, `Trim`, `PadLeft`, `ToUpper`, `Split`, `Insert`, `Remove`, `ToCharArray`, `new string(...)`, `CompareOrdinal`, `CompareTo`, `IsNullOrEmpty`, `GetHashCode`, ...; `int.Parse` and `TryParse` (and those of the other whole numbers); spans of chars; the text of dates kept (`string s = now.ToString("D")`), and `Stopwatch` objects (`Stopwatch.StartNew()`, `Elapsed`, `Restart()`) |
 | StringBuilder | Its constructors, `Append` of every kind (also `Append($"...")` part by part), `AppendLine`, `AppendFormat` of a literal format, `AppendJoin` of an array, `Insert`, `Remove`, `Replace`, `Clear`, `Length`, `Capacity`, the indexer, `ToString`, with .NET's results and messages |
 | Boxing | Any value as an object or an interface (`object o = 5;`, `object[] { 1, "a", 2.5, Color.Red, point }`, `IComparable c = 4;`), named and compared as .NET does; unboxing (`(int)o`, `o is int n`, `switch` on values) with .NET's rules; objects in formatted text (`$"{shape}"`, `string.Format("{0}", o)`) |
 | Generics over classes | Generic classes (`class Stack<T>`, `class Derived<T> : Base<T>`), classes, interfaces, `object` and arrays as type arguments, constraints (`class`, a base class, an interface, `new()`), `default(T)`, `new T()`, generic virtual methods; `EqualityComparer<T>.Default` and `Comparer<T>.Default` |
@@ -237,6 +239,8 @@ available yet", followed by the list of the library methods it can call (`--deta
 | Comparing text | `CompareTo`, `string.Compare`, `StartsWith(string)`, `EndsWith(string)` and `IndexOf(string)` follow the PC's culture: `"a".CompareTo("B")` is -1 | Ordinal, char by char, as .NET's invariant mode compares: 31 (`==`, `Equals` and `Contains` are ordinal in both) | `string.CompareOrdinal(a, b)`, which gives the same in both |
 | Upper and lower case | Every Unicode letter, and the culture's rules (Turkish `i`) | `ToUpper`, `ToLower`, `char.IsLetter`, `IsUpper`, ... know the letters up to U+00FF (ASCII and Latin-1, `ÿ` to `Ÿ` too); from U+0100 on a char is no letter and keeps its case (`IsWhiteSpace` knows all of .NET's spaces) | Keep text that changes case ASCII or Latin-1 |
 | Numbers as text | `ToString`, `$"{x}"` and `Parse` follow the PC's culture (`1,5` in German) | Always as the invariant culture: `1.5` | To compare with .NET, run it with `InvariantGlobalization` (the samples' expected files are made so) |
+| Dates as text | `ToString`, `$"{now}"` and `TryFormat` follow the PC's culture: its patterns, names of months and days, AM/PM and separators (`27.11.2026 18:05:09` in German) | Always as the invariant culture: `11/27/2026 18:05:09`, `Friday`, `November`, `PM` | A custom format with numbers and quoted separators (`yyyy'-'MM'-'dd HH':'mm`) gives the same text with every culture; `chipsharp build` notes each place |
+| Time zones | `DateTime.Now` is UTC moved by the time zone's rules for that moment; the `z` and `K` formats (and `o` and `U`) of a local time take the offset at the date written | A chip has no time zones: `Now` is `UtcNow` (Kind Local), the offset `+00:00`. On the PC `Now` has the time zone's offset now, and `z`, `K`, `o` and `U` take the offset now for every date; once the program calls `Clock.Start`, as on a chip | Keep times in UTC; write `z` only of UTC times |
 | Hash codes | A string's, a struct's (boxed or through `ValueType`), a record's, a tuple's and a `Type`'s `GetHashCode` differ from run to run | The same in every run (a string's is FNV-1a of its chars, a tuple's its elements' combined as `HashCode.Combine` combines them from a seed of 0); object's own is its address divided by 8 | Never store hash codes or count on their order (true for .NET too) |
 | `StringBuilder.Capacity` | Grows by chunks, and drops or splits them on `Clear`, a shorter `Length` or an `Insert` | The same capacity for a builder that only appends; after those three it may differ. The text never does | Do not test `Capacity` |
 | Memory numbers | `GC.GetTotalMemory` counts .NET's heap | ChipSharp's heap: each object's block, its size rounded up to 8 | |
@@ -262,10 +266,10 @@ available yet", followed by the list of the library methods it can call (`--deta
 | `Math.BigMul` into `Int128` and `UInt128`; the methods of `double` and `float` that `Math` has not (`double.Exp10`, `double.IsNaN`, `Lerp`, ...) | `Math.BigMul(a, b, out low)`; `x != x` for NaN, `Math.Pow(10, x)` |
 | `double.Parse`, `float.Parse`, `Enum.Parse` | `int.Parse` and a scale; a `switch` on the text |
 | `Enum.HasFlag` | `(access & Access.Read) != 0` |
-| `DateTime`, `Stopwatch`, `Environment.TickCount` | Count time with `Timing` or a timer interrupt |
+| `DateTime.Parse`, `TryParse` and `ParseExact` (and DateOnly's and TimeOnly's), `ToLocalTime`, `ToUniversalTime`, `DateTimeOffset`, `TimeZoneInfo`, the overloads of dates with a `Calendar` or an `IFormatProvider` (but `TryFormat`'s, which takes the invariant culture) | Read the numbers with `int.Parse` and `new DateTime(year, month, day, ...)`; keep times in UTC |
 | Reflection beyond a type's names and `Is...` flags (`GetMethods`, attributes, `BaseType`, `Activator`) | A virtual method that says it, or a `switch` on the object's type |
 | `typeof(List<>)` (an open generic type) | `typeof(List<int>)` |
-| Boxing a library struct (`object o = TimeSpan.Zero;`, its `GetType()`), `TimeSpan.ToString()` and `Parse` | Keep it in its own type; print `span.TotalMilliseconds` |
+| Boxing a library struct (`object o = TimeSpan.Zero;`, its `GetType()`; a date boxed for a format, `Console.WriteLine(now)`, is no box), `TimeSpan.ToString()` and `Parse` | Keep it in its own type; print `span.TotalMilliseconds` |
 | Type tests against `System.ValueType`, `System.Enum` or library classes | Test against your own classes and interfaces |
 | Delegates that take or return arrays or spans (`Action<int[]>`), function pointers (`delegate*`), `BeginInvoke` | Keep the array in a field the method reads, or call the method directly |
 | Non-generic `IList` and `ICollection`, `List<T>.AsReadOnly`, `SortedDictionary`, `SortedSet`, `LinkedList` and the other collections | `List<T>` (sorted with `Sort`), `Dictionary<TKey, TValue>`, `IReadOnlyList<T>` |
@@ -359,16 +363,95 @@ only. `chipsharp check` enforces the rules, naming the place that breaks one:
 The rules hold for everything a handler runs: the methods it calls, virtual calls and the delegates it invokes.
 `examples/pico-traffic-light-m3` shows the usual shape: the handler sets a `volatile bool`, and `Main` does the rest.
 
+## Date and time
+
+`DateTime`, `DateOnly`, `TimeOnly`, `DayOfWeek` and `DateTimeKind` are .NET 10's own code, ported to
+ChipSharp.Library: structs of 8 and 4 bytes, with no heap on any chip, and .NET's results bit for bit (its date
+arithmetic, its text, its exceptions' messages). A clock that `DateTime.Now` reads, and a counter of uptime for
+measuring, come from the chip's timer:
+
+```csharp
+Clock.Start(new DateTime(2026, 11, 27, 18, 0, 0));      // ChipSharp.Hardware: DateTime.Now counts from this date
+Console.WriteLine($"{DateTime.Now:HH:mm:ss}");            // 18:00:00, printed straight away: no string made
+Span<char> text = stackalloc char[16];
+if (DateTime.Now.TryFormat(text, out int n, "ddd dd MMM")) Lcd.Line(0, text[..n]);   // "Fri 27 Nov" on an LCD
+long start = Stopwatch.GetTimestamp();                    // the timer: microseconds on a chip
+TimeSpan took = Stopwatch.GetElapsedTime(start);          // since then
+```
+
+**The types.** The constructors (to the microsecond, with a Kind; of a DateOnly and a TimeOnly), `Year`, `Month`,
+`Day`, `Hour`, `Minute`, `Second`, `Millisecond`, `Microsecond`, `Nanosecond`, `DayOfWeek`, `DayOfYear`, `Date`,
+`TimeOfDay`, `Ticks`, `Kind`; `Add`, `AddYears`, `AddMonths`, `AddDays` ... `AddMicroseconds`, `AddTicks`, `Subtract`,
+`-` of two dates (a `TimeSpan`), `+` and `-` of a `TimeSpan`, `==`, `<`, ..., `Compare`, `CompareTo`, `Equals`,
+`GetHashCode` (.NET's, the same in every run), `DaysInMonth`, `IsLeapYear`, `SpecifyKind`, `Deconstruct`, `MinValue`,
+`MaxValue`, `UnixEpoch`; DateOnly's and TimeOnly's own (`FromDateTime`, `FromDayNumber`, `DayNumber`, `ToDateTime`,
+`AddDays`, `Add(span, out wrappedDays)`, `IsBetween`, `-`, ...). 31 February, a date past 9999, a bad format: the
+program stops with .NET's message, `Unhandled exception. System.ArgumentOutOfRangeException: Year, Month, and Day
+parameters describe an un-representable DateTime.`, also on a chip without a heap.
+
+**Text.** As .NET's invariant culture writes it (ChipSharp has no other: see [differences](#where-a-program-behaves-differently)),
+every standard and custom format; three ways, of which only the last needs a heap:
+
+| Way | Example | Heap |
+|---|---|---|
+| Printed straight away | `$"{now:HH:mm:ss}"`, `$"{today,12:d}"`, `Console.WriteLine(now.ToString("yyyy-MM-dd"))`, `Console.WriteLine(now)`, `Console.WriteLine("{0:t}", now)`, `"at " + now.ToShortTimeString()` | none: the text goes to the console 32 chars at a time |
+| Into a span | `now.TryFormat(buffer, out int written, "HH:mm")`, `date.TryFormat(...)`: false (and 0) when it does not fit | none |
+| Kept | `string s = now.ToString("D");`, `string t = $"{now:t}";` | a string |
+
+| Format | 2026-11-27 18:05:09.123 (UTC) | Format | |
+|---|---|---|---|
+| (none), `G` | `11/27/2026 18:05:09` | `o` | `2026-11-27T18:05:09.1230000Z` |
+| `d`, `D` | `11/27/2026`, `Friday, 27 November 2026` | `r` | `Fri, 27 Nov 2026 18:05:09 GMT` |
+| `f`, `F` | `Friday, 27 November 2026 18:05`, `... 18:05:09` | `s`, `u` | `2026-11-27T18:05:09`, `2026-11-27 18:05:09Z` |
+| `g` | `11/27/2026 18:05` | `t`, `T` | `18:05`, `18:05:09` |
+| `m`, `y` | `November 27`, `2026 November` | `U` | `Friday, 27 November 2026 18:05:09` |
+
+Custom formats: `yyyy`, `yy`, `y`, `MMMM`, `MMM`, `MM`, `M`, `dddd`, `ddd`, `dd`, `d`, `HH`, `H`, `hh`, `h`, `mm`, `ss`,
+`f` to `fffffff`, `F` to `FFFFFFF` (which take a `.` before them back when they write nothing), `tt`, `t`, `z`, `zz`,
+`zzz`, `K`, `g`, `:` and `/`, text in quotes, `\` before a char, `%` before a lone one. A DateOnly takes `d D m o r y`
+and custom formats without a time, a TimeOnly `t T o r` and ones without a date. The formatter costs about 6.7 KB of
+flash on the Pico (a program that prints `$"{now:HH:mm:ss}"` is 9.1 KB, one that prints a number 2.4 KB), and nothing
+in a program that writes no date as text; dates themselves, their parts and arithmetic, add next to nothing.
+
+**The clock.** `DateTime.Now`, `UtcNow` and `Today` read the target's clock (`"clock": true` in its file):
+
+- On a chip, a software clock: a date, and the microseconds the timer has counted since (on the RP2040 its 64-bit
+  timer, which counts from start-up and will not wrap for 584,000 years). `Clock.Start(date)` sets it, at any time,
+  with interrupts off for the moment it takes; until then it starts at 1 January 2000 0:00. A chip has no time zones:
+  `Now` is the same time as `UtcNow` (Kind Local and Kind Utc), its offset `+00:00`. It is as exact as the chip's
+  crystal (the Pico's: some 30 ppm, 2.6 s a day); a real-time clock chip keeps the time while the power is off: read
+  it at start-up, `Clock.Start(Ds1307.Read())` (see [below](#real-time-clock-ds1307)), and again now and then.
+- On the PC, Windows' clock (`GetSystemTimePreciseAsFileTime`, as .NET reads it), `Now` with the time zone's offset
+  now (`GetTimeZoneInformation`); after `Clock.Start`, a software clock as on a chip, so the same program shows the
+  same time on both.
+
+An interrupt handler may read the clock (it does not wait). On a target without a clock, `chipsharp check` names each
+place: `System.DateTime.get_Now() needs a clock, and the target 'tiny' has none: ...`.
+
+**Measuring.** `Stopwatch.GetTimestamp()`, `Stopwatch.Frequency` (1,000,000 on a chip; the performance counter's on
+a PC, 10 MHz), `Stopwatch.IsHighResolution`, `Stopwatch.GetElapsedTime(start)` and `GetElapsedTime(start, end)` (a
+`TimeSpan`), `Environment.TickCount` and `TickCount64` (milliseconds since start-up; on a PC since Windows started, as
+in .NET) need no heap; a `Stopwatch` object (`Stopwatch.StartNew()`, `Elapsed`, `ElapsedMilliseconds`, `Restart()`)
+is a class, which needs one. Timing a pulse on a pin, such as an HC-SR04's echo:
+
+```csharp
+while (!Pin.Read(15)) { }                                 // the echo starts
+long rise = Stopwatch.GetTimestamp();
+while (Pin.Read(15)) { }                                  // and ends
+double centimetres = Stopwatch.GetElapsedTime(rise).TotalMicroseconds / 58;
+```
+
 ## Hardware
 
 Two libraries, as .NET IoT has System.Device.Gpio and Iot.Device.Bindings: **`ChipSharp.Hardware`** is what the chip
-has (pins, timing, registers, interrupts, serial ports, analog inputs, PWM, the I2C and SPI buses), which the chip's
-runtime does; **`ChipSharp.Components`** is the parts you connect to it (a character LCD, a 7-segment display, below),
+has (pins, timing, the clock, registers, interrupts, serial ports, analog inputs, PWM, the I2C and SPI buses), which
+the chip's runtime does; **`ChipSharp.Components`** is the parts you connect to it (a character LCD, a 7-segment
+display, a real-time clock, below),
 drivers in plain C# over `ChipSharp.Hardware`, which ChipSharp compiles with the program like any class library it
 references (only what the program calls). A program references either or both.
 
 `ChipSharp.Hardware` is what a program references to use the chip: `Pin`, `Timing`, `Registers` and `[Interrupt]`
-(above), and the serial ports, analog inputs, PWM outputs and buses below. Every method is static and takes numbers and
+(above), `Clock` (see [Date and time](#date-and-time)), and the serial ports, analog inputs, PWM outputs and buses below. Every method is static and takes numbers and
 spans, so nothing allocates and a chip without a heap has them all; those that do not wait can be called from an
 interrupt handler. Each is set up before it is used, as a pin is with `Pin.Output`: `Uart.Open`, `Adc.Input`,
 `Pwm.Output`, a bus's `Open`. A port, pin, clock or mode the chip does not have is a mistake in the program:
@@ -580,6 +663,39 @@ bytes; the shapes are a table of 16 bytes in flash. Nothing waits, so an interru
 nothing in a program that does not use it. A real display needs a resistor for each segment (220 ohm on 3.3 V);
 Wokwi's needs none.
 
+### Real-time clock (DS1307)
+
+A DS1307, a clock chip at I2C address 0x68 with a battery of its own (a CR2032 on the common modules), so the date and
+time it keeps go on while the board has no power: `Ds1307` in `ChipSharp.Components`. Read it once at start-up and give
+the time to the chip's clock (see [Date and time](#date-and-time)), which keeps it from then on
+(`examples/pico-clock`):
+
+```csharp
+I2c.Open(1, sda: 26, scl: 27, frequency: 100_000);
+if (Ds1307.Open(1) && Ds1307.Running)               // it answers at 0x68, and its clock runs
+{
+    Clock.Start(Ds1307.Read());                       // DateTime.Now counts from its time
+}
+else
+{
+    Ds1307.Write(new DateTime(2026, 11, 27, 18, 0, 0));   // set it, and start it
+}
+```
+
+| Member | What it does |
+|---|---|
+| `Ds1307.Open(bus, address = 0x68)` | Chooses the clock on a bus `I2c.Open` has set up: `true` when it answers |
+| `Ds1307.Read()` | The date and time it keeps, to the second, Kind Unspecified: its seven registers (BCD, 24- or 12-hour form) in one transfer, which the DS1307 copies when the transfer starts, so a read never mixes two seconds |
+| `Ds1307.Write(time)` | Sets it (24-hour form; the years it keeps are 2000 to 2099) and starts it: `true` when it took the bytes |
+| `Ds1307.Running` | Whether its clock runs: a new DS1307, or one whose battery ran out, is halted at 1 January 2000 |
+
+Nothing allocates and nothing stops the program: before `Open` (or after one that said `false`), or when it does not
+answer, `Read` gives `default(DateTime)` (1 January 0001), as it does for registers that hold no date, and `Write`
+`false`. The driver is plain C# over `I2c.WriteRead` and `I2c.Write` (`src/ChipSharp.Components/Ds1307.cs`), about
+2.5 KB of flash with the DateTime code it calls and 8 bytes of RAM; a transfer takes about 1 ms at 100 kHz. A real
+DS1307 is a 5 V part: it keeps time from its supply only at 4.5 V or more (VBUS), and its module's pull-ups then take
+SDA and SCL to 5 V: take them off, use a level shifter, or a DS3231, which runs on 3.3 V and has the same registers.
+
 ### Buses in the simulator
 
 `tools/rp2040-sim/run.mjs` puts simulated devices on the buses (`tools/rp2040-sim/devices`), and prints what the buses
@@ -593,6 +709,7 @@ do with the pin changes:
 | `--spi 0=74hc595@17` | A 74HC595 on SPI0, its latch on GPIO 17: its outputs reported like pins (`SPI0 74HC595 Q3 high`) |
 | `--spi 0=loopback`, `--spi 1=loopback@13` | RX wired to TX: every byte comes back (with a pin: only while it is low) |
 | `--i2c 1:0x27=lcd1602`, `--i2c 0:0x3f=lcd2004` | A 16x2 (20x4) character LCD on a PCF8574 backpack: an HD44780 in 4- and 8-bit mode with its instructions, its DDRAM and its busy times, printing what it shows (below) |
+| `--i2c 1:0x68=ds1307`, `ds1307@2026-11-27T18:00:00`, `ds1307@halted` | A DS1307 real-time clock: its registers, RAM and clock-halt bit, counting with the simulated time from the PC's local time, from a date, or halted as a new one is; a write of the time prints `DS1307 0x68 set to 2026-11-27 18:00:00 (Friday, day 6), running` |
 
 An address without a device does not answer. Each I2C transfer is a line, `I2C0 0x68 write 3b, read 20 00 f0 ...`
 (a comma for a repeated start) or `I2C0 0x50 write: no answer`; each new clock a line too, `I2C0 100000 Hz`,
@@ -688,13 +805,14 @@ the Pico:
 | `pico-spi-shift-register` | Counts on a 7-segment digit through a 74HC595 shift register over SPI: three pins (GPIO 17, 18, 19) for eight segments. No heap | 6.0 KB, 24 bytes of RAM |
 | `pico-i2c-lcd1602` | A title and a count, once a second, on a 16x2 character LCD on an I2C backpack (I2C1, GPIO 26 and 27) with `ChipSharp.Components`' `Lcd`. No heap | 7.6 KB, 60 bytes of RAM |
 | `pico-seven-segment` | Counts from 0 to 9, once a second, on a 7-segment display on GPIO 2 to 8 with `ChipSharp.Components`' `SevenSegment`, and over UART0. No heap | 3.4 KB, 16 bytes of RAM |
+| `pico-clock` | The date and the time on a 16x2 LCD, once a second, set from a DS1307 real-time clock at start-up (or from a date when there is none) and kept by the Pico's clock: `Clock.Start`, `DateTime.Now`, `TryFormat` into a span for `Lcd.Line`; both on I2C1 (GPIO 26 and 27). No heap | 18.7 KB, 88 bytes of RAM |
 | `pico-uart-echo` | A command prompt on the console: `led on`, `led off` and `status` read with `Console.ReadLine` and a `switch` on the line, anything else answered with what was typed | 16.3 KB, 1.2 KB of RAM + heap |
 | `pico-adc-pwm` | A potentiometer on GPIO 26 sets the brightness of an LED on GPIO 15 through 1 kHz PWM, and each change of 0.1 V goes to the console. No heap | 10.5 KB, 128 bytes of RAM |
 | `pico-servo` | A servo on GPIO 22 sweeps from 0 to 180 degrees and back with 50 Hz pulses of 1 to 2 ms. No heap | 6.1 KB, 116 bytes of RAM |
 
-The traffic lights, the bus examples, the 7-segment counter, the command prompt, the knob and the servo have a
+The traffic lights, the bus examples, the 7-segment counter, the clock, the command prompt, the knob and the servo have a
 `diagram.json` for Wokwi with the whole circuit, wired directly (Wokwi needs no resistors): common-cathode displays,
-the button between GPIO 22 and 3V3, the potentiometer between 3V3 and GND, the servo on VBUS, the LCD in I2C mode on
+the button between GPIO 22 and 3V3, the potentiometer between 3V3 and GND, the servo on VBUS, the LCD in I2C mode and the DS1307 on
 3V3, UART0 on the serial monitor (where the prompt's commands are typed). With the button pressed at 2.5 s, both
 traffic lights print:
 
@@ -721,7 +839,7 @@ dotnet test -c Release --no-build
 
 The 2,000 or so tests (about 2 minutes once the build cache is warm) check each stage on its own (reading IL, the whole-program pass, TIR, the LLVM code, linking, the `.uf2`),
 then compile C# programs and run them: on the PC, and on the simulated Pico, comparing what they print, byte for byte,
-with what .NET prints for the same program; the library code (collections, `StringBuilder`, sorting, `TimeSpan`)
+with what .NET prints for the same program; the library code (collections, `StringBuilder`, sorting, `TimeSpan`, `DateTime` and its formats)
 runs next to .NET's own on thousands of random operations, and the math functions on hundreds of thousands of values,
 computed both with the PC's float hardware and in software as the Pico computes them. The PC tests need LLVM; the Pico tests also need Node.js
 and `npm ci` in `tools\rp2040-sim`, and are skipped, saying why, without them. The example projects are built with
@@ -745,8 +863,8 @@ the PC tests.
 | `src/ChipSharp.Toolchain.Clang` | The `clang` toolchain: LLVM IR and runtime sources in, a linked program out |
 | `src/ChipSharp.Runtime.*` | The runtimes, in C: `Shared` (console, text, floats, heap and collector), `Windows` (the PC), `ArmV6M` and `Rp2040` (start-up, UART0, timers, pins, interrupts) |
 | `src/ChipSharp.Image.Uf2`, `src/ChipSharp.Build`, `src/ChipSharp.Cli` | The `.uf2` image, the build pipeline, and the `chipsharp` command |
-| `src/ChipSharp.Hardware` | The library programs reference for pins, timing, registers, interrupts, serial ports, analog inputs, PWM and the I2C and SPI buses |
-| `src/ChipSharp.Components` | Drivers of parts connected to a chip (the character LCD, the 7-segment display), plain C# that ChipSharp compiles with the program |
+| `src/ChipSharp.Hardware` | The library programs reference for pins, timing, the clock, registers, interrupts, serial ports, analog inputs, PWM and the I2C and SPI buses |
+| `src/ChipSharp.Components` | Drivers of parts connected to a chip (the character LCD, the 7-segment display, the DS1307 real-time clock), plain C# that ChipSharp compiles with the program |
 | `src/ChipSharp.Abstractions`, `src/ChipSharp.Targets` | The contracts (code generator, toolchain, image, runtime) and the target files' reader |
 | `targets/arch`, `chip`, `board` | Target files |
 | `samples`, `examples`, `tests`, `tools/rp2040-sim` | See above |
@@ -775,7 +893,11 @@ what C# makes of `$"..."`, `+` and `ToString()` (a `DefaultInterpolatedStringHan
 evaluation stack to the `Console.Write` that prints it, and writes the parts one after another: every hole is worked out
 first, in order, like .NET, and no string is made. Text that is kept (stored, returned, measured, passed on) is a
 **string** (`Strings.cs`): its length, then its chars, 1 byte each when every char is below U+0100 and 2 bytes (UTF-16)
-otherwise, always so, so two equal strings have the same form. Reading strings (compare, search, measure, print) needs
+otherwise, always so, so two equal strings have the same form. A
+hole of a DateTime, DateOnly or TimeOnly (`$"{now:HH:mm}"`, `now.ToString("d")` printed) is a part of its own
+(`FormattedValues.cs`): its format, known from the IL, becomes a constant span of UTF-16 chars in flash, as any string
+literal passed as a `ReadOnlySpan<char>` does, and the struct's own `Print` writes it, a few chars at a time through a
+buffer on the stack; kept text calls its `Text`, which makes the string. Reading strings (compare, search, measure, print) needs
 no heap; making them is the runtime's C (`chipsharp_string.c`, `chipsharp_string_heap.c`), with .NET's results and
 messages. Text is written as UTF-8 on every target.
 
