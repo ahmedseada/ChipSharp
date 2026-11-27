@@ -9,7 +9,8 @@ public sealed partial class IlToTirOpCodeTests
     {
         /// <summary>
         /// A class Counter { int Count; } with a constructor that calls object's and an instance method, made with newobj
-        /// and called with callvirt, as C# calls every instance method of a class.
+        /// and called with callvirt, as C# calls every instance method of a class; tested against its class with isinst
+        /// and castclass.
         /// </summary>
         private void AddClasses()
         {
@@ -51,6 +52,17 @@ public sealed partial class IlToTirOpCodeTests
                 il.Emit(OpCodes.Callvirt, add);
                 il.Emit(OpCodes.Ret);
             }, [5, 3], [-1, 10]);
+
+            // ((Counter)(object)new Counter(a) as Counter).Count
+            Add("TypeTests", typeof(int), [typeof(int)], il =>
+            {
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Newobj, constructor);
+                il.Emit(OpCodes.Castclass, counter);
+                il.Emit(OpCodes.Isinst, counter);
+                il.Emit(OpCodes.Ldfld, count);
+                il.Emit(OpCodes.Ret);
+            }, [7]);
         }
     }
 }

@@ -75,23 +75,25 @@ public static partial class WholeProgramPass
     }
 
     /// <summary>
-    /// Why an instance method of a class (or of an interface, or a delegate's) cannot be compiled, or null when it can.
-    /// Null too for one of a generic class: the generic type is reported on its own.
+    /// Why an instance method of a class (or of an interface, or a delegate's) cannot be compiled, or null when it can: a
+    /// virtual one too, and an interface's default method (one with a body), which a virtual call reaches. Null too for
+    /// one of a generic class: the generic type is reported on its own.
     /// </summary>
     private static Unsupported? ForClassMethod(IlMethod method)
     {
         var type = method.DeclaringType;
         if (!ObjectTypes.IsClass(type))
         {
-            return type.IsInterface ? Unsupported.Interfaces : Unsupported.Delegates;
+            return type.IsInterface ? method.HasBody ? null : Unsupported.Interfaces : Unsupported.Delegates;
         }
 
-        return type.GenericParameters.Count > 0 ? null
-            : ClassRules.IsOverridable(method) ? Unsupported.VirtualMethods
-            : ForClass(type);
+        return type.GenericParameters.Count > 0 ? null : ForClass(type);
     }
 
-    /// <summary>What a <c>callvirt</c> of <paramref name="callee"/>, a method of the program, needs; null for a plain call.</summary>
+    /// <summary>
+    /// What a <c>callvirt</c> of <paramref name="callee"/>, a method of the program, needs; null for a plain call and a
+    /// virtual one (an interface's is <see cref="ForVirtualCalls"/>').
+    /// </summary>
     private static Unsupported? ForInstanceCall(IlMethod callee)
     {
         var type = callee.DeclaringType;
@@ -99,7 +101,6 @@ public static partial class WholeProgramPass
             : ValueTypes.IsStruct(type) ? Unsupported.InstanceCalls
             : !ObjectTypes.IsClass(type) ? Unsupported.Delegates
             : type.GenericParameters.Count > 0 ? Unsupported.GenericClasses
-            : ClassRules.IsOverridable(callee) ? Unsupported.VirtualMethods
             : ForClass(type);
     }
 

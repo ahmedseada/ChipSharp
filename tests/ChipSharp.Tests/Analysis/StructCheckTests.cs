@@ -289,9 +289,9 @@ public sealed class StructCheckTests
     }
 
     [Fact]
-    public void A_class_instance_method_reached_through_call_compiles_like_a_struct_one_but_a_virtual_one_does_not()
+    public void A_class_instance_method_reached_through_call_compiles_like_a_struct_one_and_a_virtual_one_too()
     {
-        var problems = Problems("""
+        var analysis = Check("""
             class Counter
             {
                 public int Next() => 1;
@@ -317,12 +317,6 @@ public sealed class StructCheckTests
             }
             """);
 
-        const string Virtual = "virtual methods (virtual, override, abstract) arrive with M3 (virtual calls). For now, " +
-            "leave out virtual, override and abstract, and give a derived class's method a name of its own.";
-        Assert.Equal(
-        [
-            $"Program.Main() at IL_0027 (callvirt): {Virtual}",
-            $"Counter.Last(): {Virtual}",
-        ], problems);
+        Assert.True(analysis.IsSupported, analysis.Details);
     }
 }

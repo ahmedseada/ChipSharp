@@ -78,6 +78,9 @@ public sealed class SampleProgramTests : IDisposable
     public Task Projectile() => PrintsWhatDotnetPrints();
 
     [HostFact]
+    public Task Shapes() => PrintsWhatDotnetPrints();
+
+    [HostFact]
     public Task ShortCircuit() => PrintsWhatDotnetPrints();
 
     [HostFact]

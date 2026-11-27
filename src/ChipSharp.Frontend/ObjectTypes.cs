@@ -26,7 +26,8 @@ namespace ChipSharp.Frontend;
 /// <item>Each class has one type descriptor per module, made with its base's first; System.Object's has no base (see
 /// <c>ProgramFunctions.ClassDescriptor</c>).</item>
 /// </list>
-/// It knows System.Object and the program's own classes that are not generic. A parameter, local, return value, static
+/// It knows System.Object, the program's own classes that are not generic and the interfaces they may implement (see
+/// <see cref="VirtualMethods.IsInterface"/>). A parameter, local, return value, static
 /// field or struct field may be of any of them (<see cref="SupportedSubset.TryMapType(IlType, IlAssembly, out TirType?)"/>
 /// asks this mapping); what keeps a class from compiling (<see cref="ClassRules"/>) is reported where the program
 /// makes one, uses its fields or runs its methods.
@@ -42,15 +43,18 @@ internal static class ObjectTypes
     public const string SystemObjectName = "System.Object";
 
     /// <summary>
-    /// <see cref="TirType.Ref"/> for a reference type this mapping knows: System.Object (C#'s <c>object</c>) and the
-    /// classes of the program (<see cref="Class"/>). False for any other type, e.g. a struct, which
+    /// <see cref="TirType.Ref"/> for a reference type this mapping knows: System.Object (C#'s <c>object</c>), the
+    /// classes of the program (<see cref="Class"/>) and the interfaces their objects implement
+    /// (<see cref="VirtualMethods.IsInterface"/>). False for any other type, e.g. a struct, which
     /// <see cref="ValueTypes"/> maps.
     /// </summary>
     public static bool TryMapType(IlType type, IlAssembly assembly, [NotNullWhen(true)] out TirType? tirType)
     {
         ArgumentNullException.ThrowIfNull(type);
         ArgumentNullException.ThrowIfNull(assembly);
-        tirType = IsSystemObject(type) || Class(type, assembly) is not null ? TirType.Ref : null;
+        tirType = IsSystemObject(type) || Class(type, assembly) is not null || VirtualMethods.IsInterface(type, assembly)
+            ? TirType.Ref
+            : null;
         return tirType is not null;
     }
 

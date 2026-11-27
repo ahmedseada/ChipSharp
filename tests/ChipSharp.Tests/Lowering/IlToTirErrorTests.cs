@@ -111,12 +111,12 @@ public sealed class IlToTirErrorTests
     }
 
     [Fact]
-    public void Virtual_and_generic_methods_are_errors()
+    public void Abstract_and_generic_methods_are_errors()
     {
         var assembly = Lowered.Compile("""
-            class C
+            abstract class C
             {
-                protected virtual int Field() => 1;
+                protected abstract int Field();
                 static T Same<T>(T value) => value;
             }
             """);
@@ -126,8 +126,9 @@ public sealed class IlToTirErrorTests
         var generic = Assert.Throws<ChipSharpException>(
             () => IlToTir.Lower(new IlProgram(assembly, [.. assembly.FindMethods("C.Same")])));
 
-        Assert.Equal("Test.dll: C.Field(): virtual methods (virtual, override, abstract) are not supported yet (they " +
-            "arrive with M3, virtual calls).", instance.Message);
+        // only an override of an abstract method runs; the program never has the abstract method itself
+        Assert.Equal("Test.dll: C.Field(): it has no IL to compile (it is abstract, extern or implemented by the " +
+            "runtime).", instance.Message);
         Assert.Equal("Test.dll: C.Same(!!0): generic methods and the methods of generic types are not supported yet " +
             "(they arrive with M3, the heap).", generic.Message);
     }

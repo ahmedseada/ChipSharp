@@ -36,6 +36,8 @@ internal sealed partial class ProgramFunctions
             : ValueTypes.WithoutModifiers(element) is IlArrayType inner ? HeapArrayDescriptor(inner, assembly)
             : ObjectTypes.Class(element, assembly) is { } type ? ClassDescriptor(type)
             : ObjectDescriptor;
-        return ArrayDescriptor(CSharpNames.Type(plain), storage, elementDescriptor);
+        var descriptor = ArrayDescriptor(CSharpNames.Type(plain), storage, elementDescriptor);
+        descriptor.RuntimeName ??= VirtualMethods.RuntimeName(plain);
+        return descriptor;
     }
 }
