@@ -336,14 +336,14 @@ internal sealed partial class BoxingFunctions
 
             case IlPrimitiveKind.Float32:
                 // if (((bits - 1) & 0x7FFFFFFF) >= 0x7F800000) bits &= 0x7F800000: NaN, 0.0 and -0.0
-                var bits = ir.Load(TirType.I32, address);
+                var bits = ir.Load(TirType.I32, Untyped(ir, address));
                 var special = ir.Compare(TirCompareOp.GeUnsigned, ir.Binary(TirBinaryOp.And,
                     ir.Binary(TirBinaryOp.Sub, bits, ir.Const(TirType.I32, 1)), ir.Const(TirType.I32, 0x7FFFFFFF)),
                     ir.Const(TirType.I32, 0x7F800000));
                 return ir.Binary(TirBinaryOp.And, bits, Mask(ir, special, TirType.I32, 0x7F800000));
 
             case IlPrimitiveKind.Float64:
-                var wide = ir.Load(TirType.I64, address);
+                var wide = ir.Load(TirType.I64, Untyped(ir, address));
                 var nan = ir.Compare(TirCompareOp.GeUnsigned, ir.Binary(TirBinaryOp.And,
                     ir.Binary(TirBinaryOp.Sub, wide, ir.Const(TirType.I64, 1)), ir.Const(TirType.I64, 0x7FFF_FFFF_FFFF_FFFF)),
                     ir.Const(TirType.I64, 0x7FF0_0000_0000_0000));
@@ -356,6 +356,9 @@ internal sealed partial class BoxingFunctions
                 return Halves(ir, ir.Load(TirType.I64, address));
         }
     }
+
+    /// <summary>The address of a float as an address of no type, to read its bits: through a number, as TIR knows no other way.</summary>
+    private static TirValue Untyped(TirBuilder ir, TirValue address) => ir.IntToPtr(ir.PtrToInt(address, TirType.NativeInt));
 
     /// <summary><paramref name="keep"/> when <paramref name="condition"/>, else all ones: a mask with no branch.</summary>
     private static TirValue Mask(TirBuilder ir, TirValue condition, TirType type, long keep)

@@ -9,7 +9,7 @@ namespace ChipSharp.Frontend.Generics;
 /// <item><c>box T</c>, <c>isinst X</c> and a test of the result against null (<c>brtrue</c>, <c>brfalse</c>, or
 /// <c>ldnull</c> and <c>cgt.un</c> or <c>ceq</c>), C#'s <c>value is IComparable</c> and the first half of
 /// <c>value is int n</c>: true or false, as a box of T is an X or not (an interface it implements, object, or exactly
-/// the value type X);</item>
+/// the value type X); and <c>box T</c>, <c>isinst T</c>, <c>unbox.any T</c>, the second half: the value;</item>
 /// <item><c>box T</c> and <c>unbox.any X</c> where a box of T unboxes to X (the same type, or an enum and its
 /// underlying type), the other half of <c>value is int n</c> and C#'s <c>(int)(object)value</c>: nothing, the value
 /// stays.</item>
@@ -33,6 +33,13 @@ internal static partial class Specialization
         switch (At(index + 1))
         {
             case { OpCode: IlOpCode.Isinst, Operand: IlTypeOperand { Type: var tested } } when IsBoxTest(boxed, tested, owner) is { } passes:
+                // value is int n's unboxing: box, isinst and unbox.any of the value's own type are the value
+                if (passes && At(index + 2) is { OpCode: IlOpCode.Unbox_Any, Operand: IlTypeOperand { Type: var value } }
+                    && !Nullables.IsNullable(value) && Boxing.Of(value, owner) == boxed)
+                {
+                    return Replaced(instructions, index, 3, [], targets);
+                }
+
                 if (At(index + 2)?.OpCode is IlOpCode.Brtrue or IlOpCode.Brtrue_S or IlOpCode.Brfalse or IlOpCode.Brfalse_S)
                 {
                     return Replaced(instructions, index, 2, [(IlOpCode.Pop, null), (passes ? IlOpCode.Ldc_I4_1 : IlOpCode.Ldc_I4_0, null)],

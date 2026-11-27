@@ -159,8 +159,8 @@ public sealed class PrintedTextCheckTests : IDisposable
     [Fact]
     public void A_hole_that_cannot_be_printed_yet_says_what_to_write_instead()
     {
-        // a struct, a float with a format or an alignment, the formats of whole numbers that are not D, X or G, a nint
-        // (an enum, by its name, and a char compile)
+        // a float with a format or an alignment, the formats of whole numbers that are not D, X or G, a nint, a struct
+        // with a format (an enum, by its name, a char and a struct, by its ToString, compile)
         var problems = Problems("""
             using System;
 
@@ -189,14 +189,13 @@ public sealed class PrintedTextCheckTests : IDisposable
                     Console.WriteLine(n.ToString("E3"));
                     Console.WriteLine($"{'c'}");
                     Console.WriteLine($"{size}");
+                    Console.WriteLine($"{point:X2}");
                 }
             }
             """);
 
         Assert.Equal(
         [
-            "Program.Main() at IL_0066 (call): the text of a Point ($\"{value}\", value.ToString()) arrives with M3 (the "
-                + "heap). For now, print the numbers, bools and text it holds one after another.",
             $"Program.Main() at IL_0088 (call): the format \"F2\" in printed text arrives later. {Formats}",
             "Program.Main() at IL_009d (call): aligning a float or a double ($\"{x,8}\") arrives later. For now, leave "
                 + "out the alignment of floats and doubles, or print them on their own.",
@@ -205,6 +204,7 @@ public sealed class PrintedTextCheckTests : IDisposable
             $"Program.Main() at IL_00f2 (call): the format \"E3\" in printed text arrives later. {Formats}",
             "Program.Main() at IL_0127 (call): the text of a nint or nuint ($\"{size}\") arrives later. For now, "
                 + "convert it: $\"{(long)size}\".",
+            $"Program.Main() at IL_0149 (call): the format \"X2\" in printed text arrives later. {Formats}",
         ], problems);
     }
 

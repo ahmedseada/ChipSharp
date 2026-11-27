@@ -206,6 +206,11 @@ internal sealed partial class PrintedTextFlow
     private void Step(IlInstruction instruction, int index, State state)
     {
         var stack = state.Stack;
+        if (InlineArrayStep(instruction, index, state)) // a params span of a format: PrintedTextFlow.Params.cs
+        {
+            return;
+        }
+
         switch (instruction.OpCode)
         {
             case >= IlOpCode.Ldc_I4_M1 and <= IlOpCode.Ldc_I4_8:
@@ -326,6 +331,11 @@ internal sealed partial class PrintedTextFlow
     /// <summary>A value an instruction takes that is not for printed text: built text there is kept.</summary>
     private void Consume(IlInstruction instruction, Value value, bool dropped)
     {
+        if (ConsumeInline(value))
+        {
+            return;
+        }
+
         switch (value)
         {
             case Built built when !dropped:
@@ -456,7 +466,8 @@ internal sealed partial class PrintedTextFlow
     {
         if (callee is not { HasThis: false, GenericArguments.Count: 0 } || callee.ParameterTypes is not
             [IlPrimitiveType { Kind: IlPrimitiveKind.String }, _, ..] parameters || parameters.Count > 4
-            || parameters.Skip(1).Any(parameter => parameter is not IlPrimitiveType { Kind: IlPrimitiveKind.Object }))
+            || (parameters.Skip(1).Any(parameter => parameter is not IlPrimitiveType { Kind: IlPrimitiveKind.Object })
+                && !(parameters.Count == 2 && IsObjectSpan(parameters[1]))))
         {
             return null;
         }
@@ -479,6 +490,7 @@ internal sealed partial class PrintedTextFlow
             values[i] = Pop(stack);
         }
 
+        values = ParamsValues(instruction, callee, values) ?? values; // a params span (PrintedTextFlow.Params.cs)
         var format = Pop(stack);
         var (parts, problem) = format is Literal { Text: { } text }
             ? FormatParts(instruction, index, text, values)
@@ -552,12 +564,16 @@ internal sealed partial class PrintedTextFlow
             }
 
             Flush();
-            var (more, problem) = values[number] is Boxed boxed
+
+            // a value of a params span waits in its slot from the stind.ref that writes it (PrintedTextFlow.Params.cs)
+            var (value, source, at, depth, operand) = values[number] is Element element
+                ? (element.Value, element.Store, element.At, 0, 1)
+                : (values[number], instruction, index, values.Length - 1 - number, number + 1);
+            var (more, problem) = value is Boxed boxed
                 ? HoleParts(boxed.Type, boxed, boxed.Box, 0, alignment, holeFormat)
-                : values[number] is Literal or Built || StringMethods.IsStringOperand(_method, index, values.Length - 1 - number)
-                    ? TextParts(values[number], instruction, number + 1, alignment)
-                    : ObjectValueParts(values[number], instruction, index, values.Length - 1 - number, number + 1, alignment,
-                        holeFormat);
+                : value is Literal or Built || StringMethods.IsStringOperand(_method, at, depth)
+                    ? TextParts(value, source, operand, alignment)
+                    : ObjectValueParts(value, source, at, depth, operand, alignment, holeFormat);
             if (problem is not null)
             {
                 return (null, problem);

@@ -93,7 +93,7 @@ internal sealed class VirtualDispatch
         if (assembly is not null && Boxing.ConstrainedAt(instructions, index, assembly) is var (value, target))
         {
             IlMethod[] called = target.Method is { } method && !Generics.Instantiations.IsGeneric(method) ? [method] : [];
-            return [.. called, .. value.Kind == BoxedKind.Struct ? Box(value) : []];
+            return [.. called.Concat(value.Kind == BoxedKind.Struct ? Box(value) : []).Distinct()];
         }
 
         if (Boxing.IsObjectEquals(instructions[index]))

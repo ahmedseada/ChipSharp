@@ -59,7 +59,7 @@ internal static class Lowered
                     methods.Add(callee);
                 }
 
-                methods.AddRange(dispatch.Follow(instructions, j).Where(method => !methods.Contains(method)));
+                methods.AddRange(dispatch.Follow(instructions, j, methods[i].Assembly).Where(method => !methods.Contains(method)));
             }
         }
 

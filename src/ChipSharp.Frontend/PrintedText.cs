@@ -116,8 +116,17 @@ internal sealed class PrintedText
         }
 
         var flow = new PrintedTextFlow(method, body, handlers).Run();
-        return new PrintedText(flow.Roles, flow.Verdicts, flow.Prints, handlers, flow.Builds);
+        return new PrintedText(flow.Roles, flow.Verdicts, flow.Prints, handlers, flow.Builds)
+        {
+            InlineArrayLocals = flow.InlineArrayLocals,
+        };
     }
+
+    /// <summary>
+    /// The InlineArray locals C# passes a <c>params</c> span of a format in (<c>Console.WriteLine("{0} {1} {2} {3}", ...)</c>),
+    /// used only for that: like a handler's, only their address is used.
+    /// </summary>
+    public IReadOnlySet<int> InlineArrayLocals { get; private init; } = new HashSet<int>();
 
     /// <summary>True for an instruction printed text is about (see <see cref="Verdicts"/>).</summary>
     public bool Owns(IlInstruction instruction) => Verdicts.ContainsKey(instruction);

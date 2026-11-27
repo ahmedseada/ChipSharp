@@ -33,6 +33,13 @@ internal sealed partial class PrintedTextFlow
         int operand, int alignment, string? format)
     {
         var plain = StackArrays.Primitive(ValueTypes.WithoutModifiers(type));
+
+        // a value boxed for an object's hole ($"{(object)color}") is a hole of its own type, from its box
+        if (value is Boxed boxedValue && !ValueTypes.TryMapType(plain, _method.Assembly, out _))
+        {
+            return HoleParts(boxedValue.Type, boxedValue, boxedValue.Box, 0, alignment, format);
+        }
+
         if (Nullables.ValueOf(plain) is { } inner)
         {
             if (Nullables.IsNullable(inner) || !ValueTypes.TryMapType(plain, _method.Assembly, out _))

@@ -58,6 +58,7 @@ internal sealed partial class MethodLowering
     /// address taken: a ptr slot that stays unused.
     /// </summary>
     private TirType LocalSlotType(IlLocal local) => Printed.HandlerLocals.Contains(local.Index)
+        || Printed.InlineArrayLocals.Contains(local.Index)
         ? TirType.Ptr
         : LoweringErrors.MapType(_method, local.Type, $"local V_{local.Index} has type");
 
