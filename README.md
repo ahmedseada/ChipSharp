@@ -167,9 +167,37 @@ code generator supports yet (the ESP32-C5's RISC-V, next) also needs a runtime f
 
 ### Arduino Uno (in progress)
 
-Milestone M7 adds the Uno's ATmega328P, an 8-bit AVR. The toolchain, the `.hex` image and a simulator are in; the AVR
-runtime (start-up, 8-bit math helpers, float in software) is not yet, so `chipsharp build -t uno` stops at "Architecture
-runtime 'avr' is not registered".
+Milestone M7 adds the Uno's ATmega328P, an 8-bit AVR: `chipsharp build -t uno` builds a `.hex`. The runtime is two, as
+the Pico's: `avr` for any AVR chip (start-up, the vector table, 8-bit math helpers, float in software, the failure
+stop) and `atmega328p` for the chip at 16 MHz (pins, the clock, the events, USART0). Console.Write and WriteLine still
+wait for the shared runtime's C to be made safe for AVR's 16-bit int and its constants in flash (Console.Read and the
+serial port work).
+
+- **Pins** go by the Uno's (Arduino's) numbers: 0-13 are D0-D13, 14-19 are A0-A5; the LED "L" is 13. `Pin.Input` is
+  high impedance, as on the Pico, without the AVR's pull-up: a button between a pin and GND (the usual Arduino wiring,
+  `INPUT_PULLUP`) needs the pull-up turned on after `Pin.Input`, through `Registers.Write` of PORTB, PORTC or PORTD
+  (0x25, 0x28, 0x2B: one byte; `Registers` reads and writes bytes on the Uno), or a resistor to 5 V; a button to 5 V
+  needs one to GND. D0 and D1 are the console's while it runs.
+- **Interrupts**: `Pin.Watch...` on D2 and D3 uses INT0 and INT1, whose edges the chip keeps; on every other pin the
+  pin change interrupt of its port, whose handler compares the levels and runs the `[Interrupt(Event.Pin)]` method for
+  the edges watched (a pulse shorter than a few microseconds may pass unseen). Each event's interrupt comes through the
+  runtime, which checks that the event happened and then calls the method, within some 50 microseconds
+  (`"interrupts"` in `atmega328p.json`: numbers past the chip's vectors, as the Pico's uart event).
+- **Timers**: Timer1 counts half microseconds (16 MHz / 8) for the clock, the delays and the timer event (its compare
+  B), so the three keep the same time: `Timing.EveryMilliseconds(40)` comes every 40 ms to the microsecond, and a delay
+  takes what it is given and a few microseconds more for the call. Timer0 and Timer2 are left free.
+- **The clock**: Timer1 and the count of its rounds make 48 bits of half microseconds since start-up (they go round
+  after 4.4 years): `Stopwatch` (1 MHz, as on the Pico), `Environment.TickCount` and `DateTime.Now` (from 1 January 2000,
+  or the date `Clock.Start` gives) read it.
+- **The console** is USART0 on D1 (TX) and D0 (RX) at 115200 baud: 117647 really, 2.1% fast, with U2X as the Arduino
+  core's `Serial.begin(115200)` has it, which the Arduino IDE's serial monitor and the USB chip take. A byte goes out
+  when the one before has (no send buffer, no RAM taken); `Console.Read` and `Uart.Open(0, 1, 0, baud)` (489 to 2000000
+  baud) receive into a buffer of 64 bytes, filled by the receive interrupt, as the Arduino core's. `Console.ReadLine`
+  makes a string, so it needs a heap, which the Uno has none of. A failure prints .NET's message there, then stops.
+- **What it takes**: a blink (`Pin.Output`, `Pin.Toggle`, `Timing.DelayMilliseconds`) is 1.2 KB of flash and 15 bytes
+  of RAM; one that writes a few chars to the console 1.4 KB and 30 bytes; a serial echo (`Uart.Open`, `Console.Read`,
+  `Uart.WriteByte`) 2.9 KB and 90 bytes, the receive buffer's 64 among them. `chipsharp check -t uno` refuses what the
+  Uno has not yet (analog inputs, PWM, I2C, SPI) and a second serial port.
 
 - **Zig**: LLVM's release builds for Windows have no AVR, so the target's toolchain `zig` runs the clang and ld.lld
   inside [Zig](https://ziglang.org/download/) (0.17 or later: unpack the zip anywhere). ChipSharp finds it through
@@ -900,7 +928,7 @@ the PC tests.
 | `src/ChipSharp.Library` | ChipSharp's own C# for library types (`TimeSpan`, `List<T>`, `StringBuilder`, the exceptions, ...), compiled together with the programs that use them |
 | `src/ChipSharp.Backend.Llvm` | The `llvm` code generator: TIR in, LLVM IR text out |
 | `src/ChipSharp.Toolchain.Clang` | The `clang` toolchain: LLVM IR and runtime sources in, a linked program out; as the `zig` toolchain, the same with the clang and ld.lld inside Zig (AVR) |
-| `src/ChipSharp.Runtime.*` | The runtimes, in C: `Shared` (console, text, floats, heap and collector), `Windows` (the PC), `ArmV6M` and `Rp2040` (start-up, UART0, timers, pins, interrupts), `Avr` (any AVR chip's start-up, multiply and divide helpers, soft float) |
+| `src/ChipSharp.Runtime.*` | The runtimes, in C: `Shared` (console, text, floats, heap and collector), `Windows` (the PC), `ArmV6M` and `Rp2040` (start-up, UART0, timers, pins, interrupts), `Avr` (any AVR chip's start-up, multiply and divide helpers, soft float) and `Atmega328p` (the Uno's pins, Timer1's clock and delays, the pin and timer events, USART0) |
 | `src/ChipSharp.Image.Uf2`, `src/ChipSharp.Image.Hex`, `src/ChipSharp.Build`, `src/ChipSharp.Cli` | The `.uf2` and `.hex` images, the build pipeline, and the `chipsharp` command |
 | `src/ChipSharp.Hardware` | The library programs reference for pins, timing, the clock, registers, interrupts, serial ports, analog inputs, PWM and the I2C and SPI buses |
 | `src/ChipSharp.Components` | Drivers of parts connected to a chip (the character LCD, the 7-segment display, the DS1307 real-time clock), plain C# that ChipSharp compiles with the program |

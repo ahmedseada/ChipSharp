@@ -21,7 +21,7 @@
     "stackCheck": false,  // not yet: the functions that may recurse do not check the stack pointer (see armv6m.json)
     "heap": false,        // a chip's file says what it has
     "console": false,
-    "clock": false        // no timer counts microseconds for DateTime.Now and Stopwatch until the runtime "avr" has one
+    "clock": false        // a chip's file says, with its runtime's timer (the atmega328p's: Timer1)
   },
   "clang": {
     // passed to clang (zig cc) after --target, -mcpu and -mmcu (the chip's "mmcu"): optimized for size, no C library
