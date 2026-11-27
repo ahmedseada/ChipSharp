@@ -10,9 +10,9 @@ namespace ChipSharp.Frontend.Lowering;
 /// function ref ChipSharp.Array.ToObject(ChipSharp.Array %array)
 /// function i32 ChipSharp.Array.LengthOrNull(ChipSharp.Array %array)
 /// function void ChipSharp.Array.CheckIndexOrNull(ChipSharp.Array %array, i32 %index)   (also with an nint or i64 index)
-/// function ChipSharp.Array ChipSharp.Array.Empty()
+/// function ChipSharp.Array ChipSharp.Array.Empty<int[]>()          (one per array type)
 /// function i32 ChipSharp.Array.NewLength(nint %length)
-/// constant [1 x ChipSharp.EmptyArray] @ChipSharp.Array.Empty
+/// constant ChipSharp.EmptyArray @ChipSharp.Array.Empty<int[]> = object int[]
 /// external function void ChipSharp.Runtime.NullReference()
 /// external function void ChipSharp.Runtime.Overflow()
 /// </code>
@@ -26,17 +26,18 @@ internal sealed class HeapArrayFunctions(TirModule module, ArrayFunctions arrays
     private static readonly TirStructType ArrayType = StackArrays.ArrayType;
 
     /// <summary>
-    /// The empty array object outside the heap: a header (left null: nothing reads an array's type yet), a length of 0,
-    /// and a word where its elements would start, so that their address is inside it.
+    /// An empty array object outside the heap: its header (the address of its array type's descriptor, so that a type
+    /// test reads it like any array's), a length of 0, and a word where its elements would start, so that their address
+    /// is inside it.
     /// </summary>
     private static readonly TirStructType EmptyType =
         new("ChipSharp.EmptyArray", ("header", TirType.Ptr), ("length", TirType.I32), ("elements", TirType.Ptr));
 
     private readonly Dictionary<TirType, TirFunction> _fromObject = [];
     private readonly Dictionary<TirType, TirFunction> _checks = [];
+    private readonly Dictionary<TirTypeDescriptor, TirFunction> _empty = [];
     private TirFunction? _toObject;
     private TirFunction? _lengthOrNull;
-    private TirFunction? _empty;
     private TirFunction? _newLength;
     private TirFunction? _nullReference;
     private TirFunction? _overflow;
@@ -60,8 +61,20 @@ internal sealed class HeapArrayFunctions(TirModule module, ArrayFunctions arrays
     /// <summary>The length of an array that may be null.</summary>
     public TirFunction LengthOrNull => _lengthOrNull ??= DefineLengthOrNull();
 
-    /// <summary>The empty array of <c>Array.Empty&lt;T&gt;()</c>: one array object outside the heap, for every T.</summary>
-    public TirFunction Empty => _empty ??= DefineEmpty();
+    /// <summary>
+    /// The empty array of <c>Array.Empty&lt;T&gt;()</c> (and of an empty static array) of <paramref name="arrayType"/>:
+    /// one array object outside the heap, in flash on a chip, for each T, as .NET has one for each.
+    /// </summary>
+    public TirFunction Empty(TirTypeDescriptor arrayType)
+    {
+        if (!_empty.TryGetValue(arrayType, out var function))
+        {
+            function = DefineEmpty(arrayType);
+            _empty.Add(arrayType, function);
+        }
+
+        return function;
+    }
 
     /// <summary>The length of a new array given as an nint: as an i32, or the stop of a negative length when it does not fit.</summary>
     public TirFunction NewLength => _newLength ??= DefineNewLength();
@@ -174,13 +187,13 @@ internal sealed class HeapArrayFunctions(TirModule module, ArrayFunctions arrays
         return function;
     }
 
-    private TirFunction DefineEmpty()
+    private TirFunction DefineEmpty(TirTypeDescriptor arrayType)
     {
-        var global = module.AddArray("ChipSharp.Array.Empty", new TirArrayType(EmptyType, 1), null, isConstant: true);
-        var function = module.AddFunction("ChipSharp.Array.Empty", ArrayType);
+        var name = $"ChipSharp.Array.Empty<{arrayType.Name}>";
+        var global = module.AddObject(name, EmptyType, arrayType);
+        var function = module.AddFunction(name, ArrayType);
         var ir = new TirBuilder(function.AddBlock("entry"));
-        var empty = ir.ElementAddress(ir.AddressOf(global), EmptyType, ir.Const(TirType.I32, 0));
-        ir.Return(ir.Call(arrays.Make, ir.FieldAddress(empty, EmptyType, 2), ir.Const(TirType.I32, 0)));
+        ir.Return(ir.Call(arrays.Make, ir.FieldAddress(ir.AddressOf(global), EmptyType, 2), ir.Const(TirType.I32, 0)));
         return function;
     }
 

@@ -91,7 +91,11 @@ internal sealed class ArrayFunctions(TirModule module)
         ir.Return();
 
         ir.Block = outOfRange;
-        ir.Call(_indexOutOfRange ??= module.AddExternalFunction(StackArrays.IndexOutOfRange, TirType.Void));
+        // the methods of System.Array may have declared it already (Array.Clear)
+        _indexOutOfRange ??= module.Functions.FirstOrDefault(f => f is
+            { Kind: TirFunctionKind.External, Name: StackArrays.IndexOutOfRange })
+            ?? module.AddExternalFunction(StackArrays.IndexOutOfRange, TirType.Void);
+        ir.Call(_indexOutOfRange);
         ir.Return();
         return function;
     }

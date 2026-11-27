@@ -270,7 +270,7 @@ public static partial class WholeProgramPass
         if (instruction is
             {
                 OpCode: IlOpCode.Call or IlOpCode.Callvirt, Operand: IlMethodOperand { Method: { Definition: null } callee },
-            } && !KnownExternals.TryMap(callee, out _))
+            } && !KnownExternals.TryMap(callee, out _) && ArrayMethods.Call(callee) is null)
         {
             return Unsupported.LibraryMethod(CSharpNames.Method(callee));
         }

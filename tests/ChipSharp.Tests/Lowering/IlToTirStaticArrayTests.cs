@@ -80,12 +80,12 @@ public sealed class IlToTirStaticArrayTests
             }
             """);
 
-        // an empty array has no global of its own: its value is the program's empty array (see HeapArrays), whose data is
-        // not null, and a length of 0
+        // an empty array has no global of its own: its value is the program's empty array of its type (see HeapArrays),
+        // whose data is not null, and a length of 0
         Assert.Equal(
         [
             "constant [2 x i32] @Program.Late = [7, 8]",
-            "constant [1 x ChipSharp.EmptyArray] @ChipSharp.Array.Empty",
+            "constant ChipSharp.EmptyArray @ChipSharp.Array.Empty<int[]> = object int[]",
             "global i32 @Program.count",
             "constant [3 x i32] @Program.Squares = [0, 1, 4]",
         ], Globals(module));
@@ -108,7 +108,7 @@ public sealed class IlToTirStaticArrayTests
               return
 
             """.ReplaceLineEndings("\n"), Function(module, "Program..cctor"));
-        Assert.Contains("  %7 = call ChipSharp.Array ChipSharp.Array.Empty()\n  %8 = call i32 ChipSharp.Array.Length(%7)\n",
+        Assert.Contains("  %7 = call ChipSharp.Array ChipSharp.Array.Empty<int[]>()\n  %8 = call i32 ChipSharp.Array.Length(%7)\n",
             Function(module, "Program.Main"), StringComparison.Ordinal);
     }
 

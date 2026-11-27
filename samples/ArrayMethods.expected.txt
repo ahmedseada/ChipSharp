@@ -1,0 +1,14 @@
+285 906 377 643 121 898 790 
+median 790, band 4
+median 643, band 3
+median 643, band 3
+median 619, band 3
+median 619, band 3
+898 790 882 619 363 618 290 
+290 363 618 619 790 882 898 
+2 2 2 1 1 1 1 
+first high 0, last low -1
+1 1 1 1 2 2 2 
+0 0 0 0 0 0 0 
+5 logged in 8
+790 643 643 619 619 0 0 0 
