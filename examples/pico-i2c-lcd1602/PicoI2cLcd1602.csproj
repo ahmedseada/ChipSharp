@@ -5,7 +5,9 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
   <ItemGroup>
-    <!-- I2c, Lcd and Timing: the Pico's hardware from C# -->
+    <!-- I2c and Timing: the Pico's hardware from C#; Lcd: a part connected to it, which ChipSharp compiles with the
+         program -->
     <ProjectReference Include="..\..\src\ChipSharp.Hardware\ChipSharp.Hardware.csproj" />
+    <ProjectReference Include="..\..\src\ChipSharp.Components\ChipSharp.Components.csproj" />
   </ItemGroup>
 </Project>

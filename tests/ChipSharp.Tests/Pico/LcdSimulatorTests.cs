@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using ChipSharp.Abstractions;
 using ChipSharp.Image.Uf2;
 using ChipSharp.Targets;
 using ChipSharp.Tests.Build;
@@ -7,7 +8,7 @@ using ChipSharp.Tests.Build;
 namespace ChipSharp.Tests.Pico;
 
 /// <summary>
-/// ChipSharp.Hardware's Lcd on the simulated Pico, with run.mjs's simulated LCD (tools/rp2040-sim/devices/lcd1602.mjs,
+/// ChipSharp.Components' Lcd on the simulated Pico, with run.mjs's simulated LCD (tools/rp2040-sim/devices/lcd1602.mjs,
 /// a PCF8574 and an HD44780): the bytes it writes to the backpack, byte for byte, and what the HD44780 takes from them
 /// at each fall of E, with the datasheet's waits between; what the display shows (rows, padding, numbers, chars it
 /// does not have, text cut off at a row's end), on a Pico without a heap; a 20x4 display; a display that is not there;
@@ -30,8 +31,9 @@ public sealed class LcdSimulatorTests : IDisposable
     [SimulatorFact]
     public async Task Open_sets_the_HD44780_up_the_datasheets_way_and_each_byte_is_one_transfer_of_five()
     {
-        var program = PicoBuild.Build("""
+        var program = Build("""
             using System;
+            using ChipSharp.Components;
             using ChipSharp.Hardware;
 
             I2c.Open(1, sda: 26, scl: 27, frequency: 400_000);
@@ -42,7 +44,7 @@ public sealed class LcdSimulatorTests : IDisposable
             Lcd.Write(0, 0, 'A');
             Lcd.Backlight(true);
             Console.WriteLine("done");
-            """, "LcdBytes", _scratch);
+            """, "LcdBytes");
 
         var run = await Rp2040Simulator.RunAsync(program.Uf2, 1000, "--i2c", "1:0x27=lcd1602");
 
@@ -95,8 +97,9 @@ public sealed class LcdSimulatorTests : IDisposable
     {
         var noHeap = new TargetLoader(TargetFiles.WithShipped(Path.Combine(_scratch, "targets"),
             ("pico-no-heap", """{ "inherits": "pico", "capabilities": { "heap": false } }"""))).Load("pico-no-heap");
-        var program = PicoBuild.Build("""
+        var program = Build("""
             using System;
+            using ChipSharp.Components;
             using ChipSharp.Hardware;
 
             class Program
@@ -159,7 +162,7 @@ public sealed class LcdSimulatorTests : IDisposable
 
                 static void Settle() => Timing.DelayMilliseconds(20);
             }
-            """, "LcdText", _scratch, noHeap);
+            """, "LcdText", noHeap);
 
         var run = await Rp2040Simulator.RunAsync(program.Uf2, 1000, "--i2c", "1:0x27=lcd1602");
 
@@ -184,7 +187,8 @@ public sealed class LcdSimulatorTests : IDisposable
     [SimulatorFact]
     public async Task On_a_20x4_display_rows_2_and_3_follow_rows_0_and_1_and_text_never_runs_on_into_them()
     {
-        var program = PicoBuild.Build("""
+        var program = Build("""
+            using ChipSharp.Components;
             using ChipSharp.Hardware;
 
             I2c.Open(0, sda: 4, scl: 5, frequency: 400_000);
@@ -198,7 +202,7 @@ public sealed class LcdSimulatorTests : IDisposable
             Lcd.Write(15, 0, "spills over");
             Lcd.Write(15, 1, "spills over");
             Lcd.Write(18, 3, 99);
-            """, "Lcd2004", _scratch);
+            """, "Lcd2004");
 
         var run = await Rp2040Simulator.RunAsync(program.Uf2, 1000, "--i2c", "0:0x3f=lcd2004");
 
@@ -215,8 +219,9 @@ public sealed class LcdSimulatorTests : IDisposable
     [SimulatorFact]
     public async Task A_display_that_is_not_there_or_of_a_size_no_HD44780_has_says_false_at_once_and_the_rest_do_nothing()
     {
-        var program = PicoBuild.Build("""
+        var program = Build("""
             using System;
+            using ChipSharp.Components;
             using ChipSharp.Hardware;
 
             I2c.Open(1, sda: 26, scl: 27, frequency: 100_000);
@@ -236,7 +241,7 @@ public sealed class LcdSimulatorTests : IDisposable
             {
                 static int Value(int value) => value;
             }
-            """, "LcdMissing", _scratch);
+            """, "LcdMissing");
 
         var run = await Rp2040Simulator.RunAsync(program.Uf2, 1000, "--i2c", "1:0x27=lcd1602");
 
@@ -252,8 +257,9 @@ public sealed class LcdSimulatorTests : IDisposable
     public async Task The_simulated_HD44780_loses_what_comes_while_it_is_busy_and_says_so()
     {
         // the bytes of Lcd's own initialisation, without its waits
-        var program = PicoBuild.Build("""
+        var program = Build("""
             using System;
+            using ChipSharp.Components;
             using ChipSharp.Hardware;
 
             I2c.Open(1, sda: 26, scl: 27, frequency: 100_000);
@@ -267,7 +273,7 @@ public sealed class LcdSimulatorTests : IDisposable
             I2c.Write(1, 0x27, eightBits);
             Timing.DelayMilliseconds(5);
             I2c.Write(1, 0x27, eightBits);
-            """, "LcdBusy", _scratch);
+            """, "LcdBusy");
 
         var run = await Rp2040Simulator.RunAsync(program.Uf2, 1000, "--i2c", "1:0x27=lcd1602");
 
@@ -277,6 +283,10 @@ public sealed class LcdSimulatorTests : IDisposable
         Assert.Matches(@"^LCD 0x27 busy: lost a write 0\.\d{3} ms into power-up \(40\.000 ms\)$", lost[0]);
         Assert.Matches(@"^LCD 0x27 busy: lost a write 0\.0\d{2} ms into function set \(4\.100 ms\)$", lost[1]);
     }
+
+    /// <summary>Builds <paramref name="source"/> for the Pico (or <paramref name="target"/>) with ChipSharp.Components.</summary>
+    private PicoProgram Build(string source, string name, TargetDescription? target = null) =>
+        PicoBuild.Build(source, name, _scratch, target ?? PicoBuild.Pico, [PicoBuild.ComponentsAssembly]);
 
     /// <summary>The transfers to the backpack at 0x27 on I2C1: when, and their bytes in hex.</summary>
     private static List<(double Milliseconds, string Bytes)> Transfers(SimulatorRun run) =>

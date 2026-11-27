@@ -28,6 +28,12 @@ public sealed partial class IlAssembly
     {
         ArgumentNullException.ThrowIfNull(method);
         ArgumentException.ThrowIfNullOrEmpty(typeFullName);
+        if (method.Assembly != this && IsLibrary(method.Assembly))
+        {
+            // a method of a library compiled with this assembly: that library's metadata
+            return method.Assembly.FindAttributes(method, typeFullName);
+        }
+
         if (method.Assembly != this)
         {
             throw new ArgumentException($"{method} is a method of {method.Assembly}, not of {this}.", nameof(method));

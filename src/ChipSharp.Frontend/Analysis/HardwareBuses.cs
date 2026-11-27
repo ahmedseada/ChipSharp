@@ -6,9 +6,8 @@ using ChipSharp.Frontend.Il;
 namespace ChipSharp.Frontend.Analysis;
 
 /// <summary>
-/// ChipSharp.Hardware's buses, I2c and Spi, and Lcd, a display on an I2C bus, on a target (see
-/// <see cref="TargetRules"/>): a program that uses one needs a target with the bus, the capability "i2c" or "spi"; and
-/// the constant arguments of its Open must be ones the target has,
+/// ChipSharp.Hardware's buses, I2c and Spi, on a target (see <see cref="TargetRules"/>): a program that uses one needs a
+/// target with it, the capability "i2c" or "spi"; and the constant arguments of its Open must be ones the target has,
 /// as its "i2c" and "spi" settings say: the buses there are, the pins of each (<c>"buses": [{ "sda": [0, 4, ...],
 /// ... }, ...]</c>) and the lowest and highest clock (<c>"frequency": [2000, 1000000]</c>). An argument known only when
 /// the program runs is the chip's runtime's to check, and it stops the program on a mistake.
@@ -24,9 +23,6 @@ internal static class HardwareBuses
     [
         new("I2c", "I2C", "i2c", ["bus", "sda", "scl", "frequency"], ["sda", "scl"], []),
         new("Spi", "SPI", "spi", ["bus", "sck", "tx", "rx", "frequency", "mode"], ["sck", "tx", "rx"], ["tx", "rx"]),
-
-        // a display on an I2C bus (ChipSharp.Library's Lcd writes to it with I2c.Write): its Open's bus
-        new("Lcd", "I2C", "i2c", ["bus", "address", "columns", "rows"], [], []),
     ];
 
     /// <summary>
@@ -117,7 +113,7 @@ internal static class HardwareBuses
         }
 
         var frequency = Array.IndexOf(bus.Parameters, "frequency");
-        if (frequency >= 0 && arguments[frequency] is { } hertz && Integers(settings["frequency"]) is [var lowest, var highest]
+        if (arguments[frequency] is { } hertz && Integers(settings["frequency"]) is [var lowest, var highest]
             && (hertz < lowest || hertz > highest))
         {
             yield return Unsupported.BusArgument(
@@ -130,17 +126,6 @@ internal static class HardwareBuses
         {
             yield return Unsupported.BusArgument($"SPI mode {Text(spiMode)} ({open}'s mode) does not exist",
                 "The mode is 0, 1, 2 or 3; mode 0 suits most devices.");
-        }
-
-        // Lcd.Open's size: what an HD44780's 80 characters of memory show (ChipSharp.Library's Lcd.Fits)
-        var columns = Array.IndexOf(bus.Parameters, "columns");
-        if (columns >= 0 && arguments[columns] is { } across && arguments[columns + 1] is { } down
-            && !(across >= 1 && down >= 1 && down <= 4 && across <= (down > 2 ? 20 : 40)))
-        {
-            yield return Unsupported.BusArgument(
-                $"an LCD of {Text(across)} by {Text(down)} characters ({open}'s columns and rows) is not one an " +
-                "HD44780 shows",
-                "It shows 1 to 4 rows of 1 to 40 columns, 20 on more than two rows: e.g. 16 columns and 2 rows, or 20 and 4.");
         }
     }
 
@@ -195,7 +180,7 @@ internal static class HardwareBuses
     private static string Text(int number) => number.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>
-    /// One of ChipSharp.Hardware's buses (or Lcd, a device on one, which has no pins of its own): its class, its name in messages, the capability (and the target setting) that
+    /// One of ChipSharp.Hardware's buses: its class, its name in messages, the capability (and the target setting) that
     /// gives it, the parameters of its Open, those of them that are pins (as the target's bus table names them), and the
     /// pins that may be -1 for none (Spi's tx and rx).
     /// </summary>

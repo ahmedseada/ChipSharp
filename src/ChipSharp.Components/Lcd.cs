@@ -1,32 +1,54 @@
-namespace ChipSharp.Library;
+using ChipSharp.Hardware;
+
+namespace ChipSharp.Components;
 
 /// <summary>
-/// ChipSharp's C# for <see cref="ChipSharp.Hardware.Lcd"/>: an HD44780 in 4-bit mode behind a PCF8574, written with
-/// <see cref="ChipSharp.Hardware.I2c.Write"/> and the waits of <see cref="ChipSharp.Hardware.Timing"/>, as the
-/// HD44780's datasheet (Hitachi ADE-207-272, figure 24, "4-bit interface") has it. Each byte the PCF8574 takes is at
-/// once the level of its eight outputs: P0 RS, P1 RW (always 0: the program only writes), P2 E, P3 the backlight, P4
-/// to P7 D4 to D7.
+/// A character LCD on an I2C bus: an HD44780 (or a chip that works like one: a 16×2 "1602", a 20×4 "2004") behind a
+/// PCF8574 "backpack", the 8-bit port expander that turns the bus into the display's pins, usually at address 0x27
+/// (0x3F for a PCF8574A). <see cref="I2c.Open"/> the bus, then <see cref="Open"/> the display before writing on it:
+/// <code>
+/// I2c.Open(1, sda: 26, scl: 27, frequency: 100_000);
+/// Lcd.Open(bus: 1, address: 0x27, columns: 16, rows: 2);
+/// Lcd.Write(0, 0, "Hello");
+/// Lcd.Write(6, 0, 42);
+/// Lcd.Line(1, "ready");
+/// </code>
 /// </summary>
 /// <remarks>
 /// <para>
-/// The HD44780 takes D4 to D7 when E falls. A byte for it, an instruction (RS 0) or a character (RS 1), goes as its
-/// upper four bits, then its lower four, in one I2C transfer of five bytes: the upper bits with E low (RS and the data
-/// set before E rises), with E high, with E low again (taken), then the lower bits with E high and with E low (taken).
-/// Then it waits the 37 us the HD44780 takes to carry the byte out (50 us, for a slower oscillator), whatever the bus's
-/// clock; clearing the display takes 1.52 ms (2 ms). The HD44780's busy flag is not read: the waits are the datasheet's.
+/// Columns and rows count from 0 at the top left. Text that does not fit is cut off at the end of its row (it never
+/// runs on into another row), and a row or column outside the display shows nothing of it. The display shows ASCII,
+/// from ' ' to '~', as its ROM (the HD44780's A00, the usual one) has it, except that it shows '\' as '¥' and '~' as
+/// '→'; any other char (é, ü, a line end) shows as '?'.
+/// </para>
+/// <para>
+/// Nothing allocates: text is a string (a string literal needs no heap), a span of chars (e.g. of <c>stackalloc</c>)
+/// or a number, which is written digit by digit. Nothing stops the program either: before <see cref="Open"/> (or after
+/// one that said false) the other methods do nothing. One display at a time: the last <see cref="Open"/> chooses it.
+/// </para>
+/// <para>
+/// How it drives it, as the HD44780's datasheet (Hitachi ADE-207-272, figure 24, "4-bit interface") has it: each byte
+/// the PCF8574 takes is at once the level of its eight outputs, P0 RS (0 for an instruction, 1 for a character), P1 RW
+/// (always 0: the program only writes), P2 E, P3 the backlight, P4 to P7 D4 to D7: the layout of the common modules
+/// and of Wokwi's <c>wokwi-lcd1602</c>. The HD44780 takes D4 to D7 when E falls. A byte for it goes as its upper four
+/// bits, then its lower four, in one I2C transfer of five bytes: the upper bits with E low (RS and the data set before
+/// E rises), with E high, with E low again (taken), then the lower bits with E high and with E low (taken). Then it
+/// waits the 37 us the HD44780 takes to carry the byte out (50 us, for a slower oscillator), so any clock of the bus
+/// works (the PCF8574 is made for 100 kHz; most take 400 kHz): at 100 kHz a whole row of 16 takes about 10 ms.
+/// Clearing takes 1.52 ms (2 ms). The busy flag is not read: the waits are the datasheet's. <see cref="Open"/> and
+/// <see cref="Clear"/> wait longer (about 60 ms and 2 ms), so an interrupt handler cannot call them.
 /// </para>
 /// <para>
 /// Where a row starts in the HD44780's memory (its DDRAM): row 0 at 0x00 and row 1 at 0x40; on a display of four rows,
 /// rows 2 and 3 go on after rows 0 and 1, at 0x00 + columns and 0x40 + columns (0x14 and 0x54 for 20 columns).
 /// </para>
 /// <para>
-/// Nothing stops the program: a display not open takes nothing (its size is 0 by 0), and <see cref="Open"/> of a size
-/// no HD44780 has says false (chipsharp check names a constant one). A message would cost the runtime's buffer for the
-/// text of an exception, 900 bytes of RAM.
+/// Plain C# over <see cref="I2c.Write"/> and <see cref="Timing"/>: ChipSharp compiles what a program calls of it with
+/// the program, for a chip whose target has I2C. On .NET itself <see cref="Open"/> reaches ChipSharp.Hardware, which
+/// throws <see cref="PlatformNotSupportedException"/> there.
 /// </para>
 /// </remarks>
-[Substitute(typeof(ChipSharp.Hardware.Lcd))]
-internal static class Lcd
+public static class Lcd
 {
     // the PCF8574's outputs
     private const int RegisterSelect = 0x01;   // P0, RS: 0 for an instruction, 1 for a character
@@ -53,6 +75,14 @@ internal static class Lcd
     private static int _rows;
     private static int _light;                 // Light, or 0 with the backlight off
 
+    /// <summary>
+    /// Sets up the display of <paramref name="columns"/> by <paramref name="rows"/> characters (16 and 2 for a 1602, 20
+    /// and 4 for a 2004; 1 to 4 rows, at most 40 columns, and 20 on more than two rows) whose backpack is at
+    /// <paramref name="address"/> on <paramref name="bus"/>, which <see cref="I2c.Open"/> has set up: it waits for the
+    /// display to power up (40 ms), puts it in 4-bit mode the HD44780's datasheet's way, clears it and turns it and the
+    /// backlight on, with no cursor. True when the backpack answered; false, at once, when nothing answers at the
+    /// address or the size is not one an HD44780 has, and then the other methods do nothing.
+    /// </summary>
     public static bool Open(int bus, int address, int columns, int rows)
     {
         _columns = 0;
@@ -69,7 +99,7 @@ internal static class Lcd
         // every output low but the backlight's: E low. Nothing answers: no display there
         Span<byte> port = stackalloc byte[1];
         port[0] = Light;
-        if (!ChipSharp.Hardware.I2c.Write(bus, address, port))
+        if (!I2c.Write(bus, address, port))
         {
             return false;
         }
@@ -80,11 +110,11 @@ internal static class Lcd
         // more than 40 ms after the supply reaches 2.7 V; then a function set of 8-bit data three times (4.1 ms after
         // the first, 100 us after the second), which puts it in 8-bit mode from any state, also from the middle of a
         // byte in 4-bit mode; then one of 4-bit data
-        ChipSharp.Hardware.Timing.DelayMilliseconds(50);
+        Timing.DelayMilliseconds(50);
         var answered = Half(EightBits);
-        ChipSharp.Hardware.Timing.DelayMicroseconds(4500);
+        Timing.DelayMicroseconds(4500);
         answered &= Half(EightBits);
-        ChipSharp.Hardware.Timing.DelayMicroseconds(100);
+        Timing.DelayMicroseconds(100);
         answered &= Half(EightBits);
         answered &= Half(FourBits >> 4);
 
@@ -92,21 +122,26 @@ internal static class Lcd
         answered &= Send(FourBits | (rows > 1 ? TwoLines : 0), 0);
         answered &= Send(DisplayOff, 0);
         answered &= Send(ClearDisplay, 0);
-        ChipSharp.Hardware.Timing.DelayMilliseconds(ClearMilliseconds);
+        Timing.DelayMilliseconds(ClearMilliseconds);
         answered &= Send(EntryMode, 0);
         answered &= Send(DisplayOn, 0);
         return answered;
     }
 
+    /// <summary>Clears the display (every character a space) and waits the 2 ms it takes.</summary>
     public static void Clear()
     {
         if (_columns > 0)
         {
             Send(ClearDisplay, 0);
-            ChipSharp.Hardware.Timing.DelayMilliseconds(ClearMilliseconds);
+            Timing.DelayMilliseconds(ClearMilliseconds);
         }
     }
 
+    /// <summary>
+    /// Writes <paramref name="text"/> from <paramref name="column"/> on, in <paramref name="row"/>; what is there after it
+    /// stays. Nothing for null.
+    /// </summary>
     public static void Write(int column, int row, string text)
     {
         var length = text is null ? 0 : text.Length;
@@ -122,6 +157,7 @@ internal static class Lcd
         }
     }
 
+    /// <summary>Writes the chars of <paramref name="text"/> from <paramref name="column"/> on, in <paramref name="row"/>.</summary>
     public static void Write(int column, int row, ReadOnlySpan<char> text)
     {
         var end = End(column, row, text.Length);
@@ -136,6 +172,7 @@ internal static class Lcd
         }
     }
 
+    /// <summary>Writes one char at <paramref name="column"/> in <paramref name="row"/>.</summary>
     public static void Write(int column, int row, char character)
     {
         if (column >= 0 && End(column, row, 1) > 0)
@@ -145,6 +182,10 @@ internal static class Lcd
         }
     }
 
+    /// <summary>
+    /// Writes <paramref name="number"/> in decimal, from <paramref name="column"/> on, in <paramref name="row"/>: '-' and
+    /// its digits, as many as it has ("7", "-120"), with no string made.
+    /// </summary>
     public static void Write(int column, int row, int number)
     {
         // the digits from the last, then '-': int.MinValue's magnitude is a uint
@@ -166,6 +207,10 @@ internal static class Lcd
         Write(column, row, (ReadOnlySpan<char>)digits[at..]);
     }
 
+    /// <summary>
+    /// Writes <paramref name="text"/> as the whole of <paramref name="row"/>: from column 0, then spaces to the end, so
+    /// nothing of what was there before is left (the way to show a status line). Spaces only for null.
+    /// </summary>
     public static void Line(int row, string text)
     {
         if (row >= 0 && row < _rows)
@@ -179,6 +224,7 @@ internal static class Lcd
         }
     }
 
+    /// <summary>Writes the chars of <paramref name="text"/> as the whole of <paramref name="row"/>, then spaces to its end.</summary>
     public static void Line(int row, ReadOnlySpan<char> text)
     {
         if (row >= 0 && row < _rows)
@@ -191,6 +237,7 @@ internal static class Lcd
         }
     }
 
+    /// <summary>Turns the backlight on (true, as <see cref="Open"/> leaves it) or off; the text stays.</summary>
     public static void Backlight(bool on)
     {
         if (_columns > 0)
@@ -198,7 +245,7 @@ internal static class Lcd
             _light = on ? Light : 0;
             Span<byte> port = stackalloc byte[1];
             port[0] = (byte)_light;
-            ChipSharp.Hardware.I2c.Write(_bus, _address, port);
+            I2c.Write(_bus, _address, port);
         }
     }
 
@@ -252,8 +299,8 @@ internal static class Lcd
         bytes[2] = (byte)upper;
         bytes[3] = (byte)(lower | Enable);
         bytes[4] = (byte)lower;
-        var answered = ChipSharp.Hardware.I2c.Write(_bus, _address, bytes);
-        ChipSharp.Hardware.Timing.DelayMicroseconds(ByteMicroseconds);
+        var answered = I2c.Write(_bus, _address, bytes);
+        Timing.DelayMicroseconds(ByteMicroseconds);
         return answered;
     }
 
@@ -268,8 +315,8 @@ internal static class Lcd
         bytes[0] = (byte)port;
         bytes[1] = (byte)(port | Enable);
         bytes[2] = (byte)port;
-        var answered = ChipSharp.Hardware.I2c.Write(_bus, _address, bytes);
-        ChipSharp.Hardware.Timing.DelayMicroseconds(ByteMicroseconds);
+        var answered = I2c.Write(_bus, _address, bytes);
+        Timing.DelayMicroseconds(ByteMicroseconds);
         return answered;
     }
 }

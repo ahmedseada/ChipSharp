@@ -15,6 +15,12 @@ public sealed partial class IlAssembly
     {
         ArgumentNullException.ThrowIfNull(type);
         ArgumentException.ThrowIfNullOrEmpty(typeFullName);
+        if (type.Assembly != this && IsLibrary(type.Assembly))
+        {
+            // a type of a library compiled with this assembly: that library's metadata
+            return type.Assembly.FindAttributes(type, typeFullName);
+        }
+
         if (type.Assembly != this)
         {
             throw new ArgumentException($"{type} is a type of {type.Assembly}, not of {this}.", nameof(type));

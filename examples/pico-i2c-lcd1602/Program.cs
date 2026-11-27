@@ -15,16 +15,20 @@
 // SCL to 5 V, more than the RP2040's pins stand: take them off the backpack (or use a level shifter, or a 3.3 V
 // display).
 //
-// Lcd.Open waits for the display to power up, puts it in 4-bit mode and clears it; Lcd.Line writes a whole row (the
-// rest of it spaces), Lcd.Write from a column on. Each character is one I2C transfer of five bytes to the backpack.
+// Lcd comes from ChipSharp.Components, the drivers of parts connected to the chip: plain C# over I2c, which ChipSharp
+// compiles with the program (what it calls of it). Lcd.Open waits for the display to power up, puts it in 4-bit mode
+// and clears it; Lcd.Line writes a whole row (the rest of it spaces), Lcd.Write from a column on. Each character is
+// one I2C transfer of five bytes to the backpack.
 //
-// Build it with ChipSharp for the target "pico":
+// Build it with ChipSharp for the target "pico" (ChipSharp.Components.dll is next to the program's .dll, where
+// chipsharp build finds it):
 //   dotnet build -c Release
 //   chipsharp build bin\Release\net10.0\PicoI2cLcd1602.dll -t pico
 // and run it in the simulator with a simulated LCD at 0x27 on I2C1, which prints what it shows:
 //   node tools\rp2040-sim\run.mjs chipsharp-output\pico\PicoI2cLcd1602.uf2 --i2c 1:0x27=lcd1602 --ms 3500
 
 using System;
+using ChipSharp.Components;
 using ChipSharp.Hardware;
 
 const int Bus = 1;
