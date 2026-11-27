@@ -84,7 +84,12 @@ public readonly struct SevenSegment
         Pin.Output(_f - 1);
         Pin.Output(_g - 1);
         Pin.Output(_dp - 1);
-        Blank();
+
+        // Pin.Output drives each pin low: dark on a common cathode, lit on a common anode
+        if (commonAnode)
+        {
+            Blank();
+        }
     }
 
     /// <summary>Shows <paramref name="digit"/>, 0 to 9 (any other as '-'), on A to G; DP stays as it is.</summary>
