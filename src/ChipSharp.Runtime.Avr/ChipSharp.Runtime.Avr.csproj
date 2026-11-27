@@ -13,5 +13,7 @@
     <EmbeddedResource Include="avr_divide.S" LogicalName="avr_divide.S" />
     <EmbeddedResource Include="avr_memory.S" LogicalName="avr_memory.S" />
     <EmbeddedResource Include="avr_failures.c" LogicalName="avr_failures.c" />
+    <!-- fmod, square roots, Math.Round and the like, shared with the other runtimes -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_math.c" LogicalName="chipsharp_float_math.c" />
   </ItemGroup>
 </Project>

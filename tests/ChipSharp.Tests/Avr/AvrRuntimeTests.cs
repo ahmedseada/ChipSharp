@@ -20,7 +20,7 @@ public sealed class AvrRuntimeTests
     }
 
     [Fact]
-    public void The_runtime_is_the_start_up_the_helpers_compiler_rts_soft_float_and_the_failures()
+    public void The_runtime_is_the_start_up_the_helpers_soft_float_the_float_math_and_the_failures()
     {
         var runtime = new AvrRuntime();
 
@@ -28,14 +28,17 @@ public sealed class AvrRuntimeTests
 
         var softFloat = CompilerRt.Sources().Select(file => file.FileName).ToList();
         Assert.Equal(
-            ["avr_startup.S", "avr_runtime.c", "avr_multiply.S", "avr_divide.S", "avr_memory.S", .. softFloat, "avr_failures.c"],
+            ["avr_startup.S", "avr_runtime.c", "avr_multiply.S", "avr_divide.S", "avr_memory.S", .. softFloat,
+                AvrRuntime.FloatMathFileName, "avr_failures.c"],
             files.Select(file => file.FileName));
         Assert.Equal([AvrRuntime.VectorsFileName], runtime.InterruptEntry(AvrCoreProgram.Target).Files.Select(file => file.FileName));
         Assert.Empty(runtime.Atomics(AvrCoreProgram.Target).Files);
 
-        // the very compiler-rt files the armv6m runtime has; ChipSharp's own files include nothing
+        // the very compiler-rt files and float math the armv6m runtime has; ChipSharp's own files include nothing
         Assert.Equal(CompilerRt.Sources().Select(file => file.Content), files.Where(file => softFloat.Contains(file.FileName))
             .Select(file => file.Content));
+        Assert.Equal(ArmV6MRuntime.Source(ArmV6MRuntime.FloatMathFileName).Content,
+            files.Single(file => file.FileName == AvrRuntime.FloatMathFileName).Content);
         Assert.All(files.Where(file => !softFloat.Contains(file.FileName)),
             file => Assert.DoesNotContain("#include", file.Content));
     }

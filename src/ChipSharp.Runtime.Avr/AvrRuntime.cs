@@ -26,7 +26,8 @@ namespace ChipSharp.Runtime.Avr;
 /// <item>Float math in software: <see cref="CompilerRt"/>, the very compiler-rt files the armv6m runtime ships, which on
 /// AVR define the plain names LLVM calls (__addsf3, __muldf3, __ltdf2, __fixdfsi, __floatsidf, ...): float and double
 /// exactly as IEEE 754 rounds them, as .NET does. AVR's clang makes double 32 bits unless told otherwise: the target's
-/// clang flags must have -mdouble=64 (the runtime's C stops with an error without it).</item>
+/// clang flags must have -mdouble=64 (the runtime's C stops with an error without it). With them, fmod (C#'s % on
+/// floats) and the Math methods of <see cref="FloatMathFileName"/>, shared with the other runtimes.</item>
 /// <item><see cref="FailuresFileName"/>: what an index outside an array (and the other failures .NET throws an
 /// exception for) does on a chip whose runtime says nothing: the failure stop. Weak, so a chip runtime with a console
 /// replaces them; and <c>chipsharp_stack_overflow</c>, for the code generator's stack checks.</item>
@@ -52,6 +53,9 @@ public sealed class AvrRuntime : IArchRuntime
     /// <summary>The C file with the weak failure functions (ChipSharp_Runtime_IndexOutOfRange and friends).</summary>
     public const string FailuresFileName = "avr_failures.c";
 
+    /// <summary>The C file with fmod and the Math methods (src/ChipSharp.Runtime.Shared).</summary>
+    public const string FloatMathFileName = "chipsharp_float_math.c";
+
     /// <summary>The assembly file with the vector table, which <see cref="InterruptEntry"/> writes for the target.</summary>
     public const string VectorsFileName = "avr_vectors.S";
 
@@ -70,7 +74,7 @@ public sealed class AvrRuntime : IArchRuntime
         return new RuntimeSources(
         [
             Source(StartupFileName), Source(RuntimeFileName), Source(MultiplyFileName), Source(DivideFileName),
-            Source(MemoryFileName), .. CompilerRt.Sources(), Source(FailuresFileName),
+            Source(MemoryFileName), .. CompilerRt.Sources(), Source(FloatMathFileName), Source(FailuresFileName),
         ]);
     }
 

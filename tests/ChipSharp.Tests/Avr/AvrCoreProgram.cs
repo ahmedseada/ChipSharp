@@ -133,6 +133,9 @@ internal sealed class AvrCoreProgram
         return Read(await File.ReadAllBytesAsync(elf));
     }
 
+    /// <summary>The program in an AVR .elf, e.g. one a build made.</summary>
+    public static AvrCoreProgram FromElf(string path) => Read(File.ReadAllBytes(path));
+
     /// <summary>The flash image (the loaded segments, at their load addresses) and the symbols of an AVR .elf.</summary>
     private static AvrCoreProgram Read(byte[] elf)
     {

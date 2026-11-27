@@ -27,7 +27,9 @@
 
 #pragma STDC FP_CONTRACT OFF
 
-typedef unsigned int u32;
+// 32 bits on every target: an int or a long (AVR's int has 16), as the compiler's own fixed-width types say
+typedef __UINT32_TYPE__ u32;
+typedef __INT32_TYPE__ s32;
 typedef unsigned long long u64;
 
 #define INLINE static inline __attribute__((always_inline))
@@ -514,7 +516,7 @@ INLINE u64 max_magnitude_bits(u64 x, u64 y, int fraction_bits, int exponent_bits
 
 // The exponent of x: int.MinValue for 0, int.MaxValue for infinity and NaN, below the lowest normal one for a
 // subnormal value (by the leading zeros of its fraction).
-INLINE int exponent_of(u64 x, int fraction_bits, int exponent_bits)
+INLINE s32 exponent_of(u64 x, int fraction_bits, int exponent_bits)
 {
     u64 magnitude = x & ~sign_bit(fraction_bits, exponent_bits);
     if (magnitude == 0)
@@ -582,12 +584,12 @@ float ChipSharp_Runtime_MaxMagnitudeFloat32(float x, float y)
     return float32(max_magnitude_bits(bits32(x), bits32(y), 23, 8));
 }
 
-int ChipSharp_Runtime_ILogBFloat64(double value)
+s32 ChipSharp_Runtime_ILogBFloat64(double value)
 {
     return exponent_of(bits64(value), 52, 11);
 }
 
-int ChipSharp_Runtime_ILogBFloat32(float value)
+s32 ChipSharp_Runtime_ILogBFloat32(float value)
 {
     return exponent_of(bits32(value), 23, 8);
 }
@@ -596,7 +598,7 @@ int ChipSharp_Runtime_ILogBFloat32(float value)
 
 // Math.ScaleB: x * 2^n, as .NET computes it (from musl's scalbn): at most two scalings by 2^1023 or by 2^-969, then
 // one by 2^n made from its bits, so that a result that becomes subnormal is rounded once.
-double ChipSharp_Runtime_ScaleBFloat64(double x, int n)
+double ChipSharp_Runtime_ScaleBFloat64(double x, s32 n)
 {
     double y = x;
     if (n > 1023)
@@ -631,7 +633,7 @@ double ChipSharp_Runtime_ScaleBFloat64(double x, int n)
     return y * float64((u64)(0x3ff + n) << 52);
 }
 
-float ChipSharp_Runtime_ScaleBFloat32(float x, int n)
+float ChipSharp_Runtime_ScaleBFloat32(float x, s32 n)
 {
     float y = x;
     if (n > 127)

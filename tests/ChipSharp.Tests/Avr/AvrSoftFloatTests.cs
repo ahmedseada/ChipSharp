@@ -6,8 +6,8 @@ namespace ChipSharp.Tests.Avr;
 
 /// <summary>
 /// Float and double arithmetic on the ATmega328P: compiler-rt's soft-float routines as the avr runtime ships them
-/// (__addsf3, __muldf3, __ltdf2, __fixdfsi, __floatsidf, ...), called the way LLVM calls them, from functions in LLVM
-/// IR as ChipSharp's code generator writes them (<c>fadd double</c>, <c>fcmp olt</c>, <c>fptosi</c>, the saturating
+/// (__addsf3, __muldf3, __ltdf2, __fixdfsi, __floatsidf, ...) and the shared float math (fmod, Math.Sqrt, Math.Round,
+/// ...), called the way LLVM calls them, from functions in LLVM IR as ChipSharp's code generator writes them (<c>fadd double</c>, <c>fcmp olt</c>, <c>fptosi</c>, the saturating
 /// <c>llvm.fptosi.sat</c> of C#'s casts), run on <see cref="AvrCpu"/> and checked against .NET for the special values
 /// and random ones: every result must have the bits .NET's has (any NaN for a NaN). This is where AVR differs from the
 /// PC the same files are checked on (SoftFloatTests): a 16-bit int, comparisons that return a byte, and a double that
@@ -68,6 +68,20 @@ public sealed class AvrSoftFloatTests
         Saturate("fptoui", "double", "i64", a => (ulong)D(a)),
         Saturate("fptosi", "double", "i16", a => (ushort)(short)Math.Clamp(double.IsNaN(D(a)) ? 0 : Math.Truncate(D(a)), short.MinValue, short.MaxValue)),
         Saturate("fptoui", "double", "i8", a => (byte)Math.Clamp(double.IsNaN(D(a)) ? 0 : Math.Truncate(D(a)), 0, 255)),
+        // the shared float math (chipsharp_float_math.c), called as the code generator calls it
+        Runtime("fmod", "double", 2, (a, b) => Of(D(a) % D(b))),
+        Runtime("fmodf", "float", 2, (a, b) => Of(F(a) % F(b))),
+        Runtime("ChipSharp_Runtime_SqrtFloat64", "double", 1, (a, _) => Of(Math.Sqrt(D(a)))),
+        Runtime("ChipSharp_Runtime_SqrtFloat32", "float", 1, (a, _) => Of(MathF.Sqrt(F(a)))),
+        Runtime("ChipSharp_Runtime_AbsFloat64", "double", 1, (a, _) => Of(Math.Abs(D(a)))),
+        Runtime("ChipSharp_Runtime_MinFloat64", "double", 2, (a, b) => Of(Math.Min(D(a), D(b)))),
+        Runtime("ChipSharp_Runtime_MaxFloat32", "float", 2, (a, b) => Of(MathF.Max(F(a), F(b)))),
+        Runtime("ChipSharp_Runtime_FloorFloat64", "double", 1, (a, _) => Of(Math.Floor(D(a)))),
+        Runtime("ChipSharp_Runtime_CeilingFloat32", "float", 1, (a, _) => Of(MathF.Ceiling(F(a)))),
+        Runtime("ChipSharp_Runtime_TruncateFloat64", "double", 1, (a, _) => Of(Math.Truncate(D(a)))),
+        Runtime("ChipSharp_Runtime_RoundFloat64", "double", 1, (a, _) => Of(Math.Round(D(a)))),
+        Runtime("ChipSharp_Runtime_RoundFloat32", "float", 1, (a, _) => Of(MathF.Round(F(a)))),
+        Runtime("ChipSharp_Runtime_BitIncrementFloat64", "double", 1, (a, _) => Of(Math.BitIncrement(D(a)))),
     ];
 
     private static readonly ulong[] DoubleSpecials =
@@ -84,20 +98,26 @@ public sealed class AvrSoftFloatTests
         0x00800001,
     ];
 
-    private static readonly Lazy<Task<AvrCoreProgram>> Built = new(() => AvrCoreProgram.BuildAsync(
+    /// <summary>Two programs, as all of it is more than the 32 KB of flash: the arithmetic of LLVM IR, and the float math.</summary>
+    private static readonly Lazy<Task<AvrCoreProgram>> Arithmetic = new(() => AvrCoreProgram.BuildAsync(
         [.. AvrCoreProgram.RuntimeFiles, new GeneratedFile("float_test.ll", HarnessIr())],
-        Operations.Select(operation => operation.Name)));
+        Operations.Where(operation => operation.Ir.Length > 0).Select(operation => operation.Name)));
+
+    private static readonly Lazy<Task<AvrCoreProgram>> FloatMath = new(() => AvrCoreProgram.BuildAsync(
+        [.. AvrCoreProgram.RuntimeFiles, new GeneratedFile("float_test.ll", HarnessIr())],
+        Operations.Where(operation => operation.Ir.Length == 0).Select(operation => operation.Name)));
 
     [AvrFact]
     [RunsLong]
     public async Task Every_float_and_double_operation_matches_dotnet_on_the_ATmega328P()
     {
-        var program = await Built.Value;
+        var (arithmetic, floatMath) = (await Arithmetic.Value, await FloatMath.Value);
         var mismatches = new System.Collections.Concurrent.ConcurrentBag<string>();
         var count = 0;
         Parallel.For(0, Operations.Length, op =>
         {
             var operation = Operations[op];
+            var program = operation.Ir.Length > 0 ? arithmetic : floatMath;
             var cpu = program.Load();
             var random = new Random(op + 1);
             var address = program.Address(operation.Name);
@@ -228,6 +248,10 @@ public sealed class AvrSoftFloatTests
     private static Operation Convert(string instruction, string from, string to, Func<ulong, ulong> dotnet) =>
         new($"{instruction}_{from}_{to}", from, 1, to, (a, _) => dotnet(a),
             $"define {to} @{instruction}_{from}_{to}({from} %a) {{\n  %r = {instruction} {from} %a to {to}\n  ret {to} %r\n}}\n");
+
+    /// <summary>A function of the runtime, called directly: its result has the type of its operands.</summary>
+    private static Operation Runtime(string symbol, string type, int operands, Func<ulong, ulong, ulong> dotnet) =>
+        new(symbol, type, operands, type, dotnet, "");
 
     private static Operation Saturate(string instruction, string from, string to, Func<ulong, ulong> dotnet)
     {
