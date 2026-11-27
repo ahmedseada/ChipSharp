@@ -192,11 +192,9 @@ public sealed class StaticArraySimulatorTests : IDisposable
     public void A_chip_whose_runtime_has_no_console_stops_at_a_breakpoint_where_dotnet_throws()
     {
         // the RP2040's runtime says so on UART0 first: its strong functions replace these weak ones when they link
-        // (the failures take nothing and return nothing; Console.Read's and the ADC's functions return what they read)
         var failures = ArmV6MRuntime.Source(ArmV6MRuntime.FailuresFileName).Content;
         var functions = LibrarySubstitutes.Assembly.FindType(LibrarySubstitutes.RuntimeType)!.Methods
-            .Where(method => method.IsStatic && method.Name != ".cctor" && method.Parameters.Count == 0
-                && method.ReturnType == ChipSharp.Frontend.Il.IlType.Void)
+            .Where(method => method.IsStatic && method.Name != ".cctor" && method.Parameters.Count == 0)
             .Select(method => $"ChipSharp.Runtime.{method.Name}");
 
         Assert.Contains(ArmV6MRuntime.FailuresFileName, new ArmV6MRuntime().Startup(TinyTarget()).Files.Select(f => f.FileName));

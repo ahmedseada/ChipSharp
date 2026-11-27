@@ -41,8 +41,18 @@ cd ChipSharp
 dotnet build -c Release
 ```
 
-The command is then `src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe`; below it is written `chipsharp`
-(in PowerShell: `Set-Alias chipsharp "$PWD\src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe"`).
+Then install the command as a .NET tool, so `chipsharp` works in any folder:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\install-tool.ps1
+chipsharp targets list
+```
+
+The script packs `src\ChipSharp.Cli` (`artifacts\nupkg\ChipSharp.<version>.nupkg`, with the target files and the
+library inside) and installs it with `dotnet tool install --global`; run it again after changing ChipSharp to replace
+the installed one (`dotnet tool uninstall --global ChipSharp` removes it). A new terminal may be needed the first time,
+for the .NET tools folder to be on the PATH. Without installing, the command is
+`src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe`.
 
 ### Your first program, on the PC
 
@@ -92,7 +102,7 @@ chipsharp build bin\Release\net10.0\PicoBlink.dll -t pico      # chipsharp-outpu
 - **In the simulator** (rp2040js, in Node.js): `node tools\rp2040-sim\run.mjs chipsharp-output\pico\PicoBlink.uf2 --ms 3000`
   prints every pin change and every line written to UART0, with the simulated time. `--input 22=high@2500ms` drives
   an input pin from outside (a button pressed at 2.5 s), `--uart0 file.bin` saves what UART0 sent; `--send` and `--adc`
-  type into a serial port and turn a knob (see [Hardware](#in-the-simulator)).
+  type into a serial port and turn a knob (see [Hardware](#serial-ports-analog-inputs-and-pwm-in-the-simulator)).
 - **In Wokwi** ([wokwi.com](https://wokwi.com), in the browser): start a new Raspberry Pi Pico project, replace its
   `diagram.json` with the example's (the traffic lights have one: the Pico, LEDs, displays, the button, and UART0 on the
   serial monitor), press F1 and pick "Upload Firmware and Start Simulation...", then choose the `.uf2`.
@@ -126,7 +136,7 @@ Target pico   (pico -> rp2040 -> armv6m)
   memory
     flash      0x10000000  2 MB
     ram        0x20000000  264 KB
-  capabilities hwMultiply=true, hwDivide=false, fpu=false, atomics=none, unalignedAccess=false, stackCheck=true, heap=224K, console=true, romFloat=true, consoleInput=true, uart=2, adc=4, pwm=16
+  capabilities hwMultiply=true, hwDivide=false, fpu=false, atomics=none, unalignedAccess=false, stackCheck=true, heap=224K, console=true, romFloat=true, consoleInput=true, uart=2, adc=4, pwm=16, i2c=true, spi=true
   pins         LED=25
   interrupts   timer=IRQ 1, pin=IRQ 13, uart=IRQ 26
 ```
@@ -141,6 +151,7 @@ The `"capabilities"` decide what a program may use on the chip:
 | `uart`, `adc`, `pwm` | How many serial ports, analog inputs and PWM outputs `ChipSharp.Hardware` can use (see [Hardware](#hardware)); `"pinFunctions"` lists their pins | 2, 4, 16 | none | none |
 | `unalignedAccess` | Whether a word may be read at any address; without it `MemoryMarshal.Read` reads byte by byte and `MemoryMarshal.Cast` checks alignment | no | yes | no |
 | `stackCheck` | The functions that can recurse check the stack, so a stack overflow says `Stack overflow.` instead of locking the core up | yes | (Windows' guard page) | yes |
+| `i2c`, `spi` | Whether `I2c` and `Spi` have buses (see [Hardware](#hardware)); the file's `"i2c"` and `"spi"` give each bus's pins and clocks | 2 each | none | none |
 | `hwMultiply`, `hwDivide`, `fpu`, `atomics`, `romFloat` | Describe the chip; the code itself follows the file's `triple`, `cpu` and `clang` flags (soft float on `armv6m`) | | | |
 
 The file also gives the memory regions, the link layout (`"link.stack"`: 8 KB on the Pico) and the interrupts each
@@ -173,7 +184,7 @@ gets no heap at all, even on the Pico. `chipsharp check` tells you for your prog
 | Printed text | Text built and printed straight away, with no string ever made (also in the body of a `foreach` over a collection or a `using`, where C# makes it otherwise): `Console.WriteLine($"road : {lane}")`, `Console.Write("lane " + lane + '!')`, `x.ToString()` printed, `Console.WriteLine("{0,4} {1:X2}", a, b)`. Holes of numbers, bools, chars, text, enums (by name, `[Flags]` combined), structs (their `ToString`) and nullables; alignments (`{x,5}`, `{x,-5}`); the formats `D`, `D<n>`, `X<n>`, `x<n>` and `G` of whole numbers, `G` and `R` of floats |
 | Type objects | `typeof(X)`, `typeof(T)`: `Name`, `FullName`, `Namespace`, `ToString()` as .NET 10 writes them, `==`, `IsValueType`, `IsArray`, `IsEnum`, `IsClass`, `IsInterface`, `IsPrimitive`, `IsGenericType` (constant objects in flash) |
 | Library | `Console.Write` and `WriteLine`; `Math` and `MathF`: `Abs`, `Min`, `Max`, `Sqrt`; `TimeSpan` (factories in any unit, parts, totals, arithmetic, comparisons); `System.Array`: `Copy`, `ConstrainedCopy`, `CopyTo`, `Clear`, `Fill`, `IndexOf`, `LastIndexOf`, `Reverse`, and `Sort` and `BinarySearch` of numbers, bools and structs that implement `IComparable<T>` |
-| Hardware | `ChipSharp.Hardware`: `Pin` (`Output`, `Input`, `Write`, `Read`, `Toggle`, `Watch`, `WatchRising`, `WatchFalling`, `Unwatch`), `Timing` (`Delay(TimeSpan)`, `DelayMilliseconds`, `DelayMicroseconds`, `EveryMilliseconds`, `EveryMicroseconds`, `AfterMilliseconds`, `AfterMicroseconds`, `Stop`), `Registers.Read` and `Write`, `Uart`, `Adc` and `Pwm` (see [Hardware](#hardware)), `Console.Read`, and `[Interrupt]` methods (see [Interrupts](#interrupts)) |
+| Hardware | `ChipSharp.Hardware`: `Pin` (`Output`, `Input`, `Write`, `Read`, `Toggle`, `Watch`, `WatchRising`, `WatchFalling`, `Unwatch`), `Timing` (`Delay(TimeSpan)`, `DelayMilliseconds`, `DelayMicroseconds`, `EveryMilliseconds`, `EveryMicroseconds`, `AfterMilliseconds`, `AfterMicroseconds`, `Stop`), `Registers.Read` and `Write`, and `[Interrupt]` methods (see [Interrupts](#interrupts)); the serial ports and the console's input, the analog inputs, the PWM outputs and the I2C and SPI buses: `Uart` (and `Console.Read`), `Adc`, `Pwm`, `I2c` and `Spi` (see [Hardware](#hardware)) |
 | Failures | Where .NET throws (an index outside an array, a whole number divided by zero, `int.MinValue / -1`, a `TimeSpan` too long, a field of null, a cast that fails, ...), the program stops with the message .NET prints: on standard error with exit code 1 on the PC, over UART0 and then at a breakpoint on a chip |
 
 ### On a chip with a heap (the Pico and the PC)
@@ -347,20 +358,22 @@ The rules hold for everything a handler runs: the methods it calls, virtual call
 
 ## Hardware
 
-`ChipSharp.Hardware` reaches the chip's peripherals through static methods: they make no object, so they work on a
-chip without a heap, and those that do not wait can be called from an interrupt handler. Each needs its setup call
-first, as a pin needs `Pin.Output`: `Uart.Open`, `Adc.Input`, `Pwm.Output`. A pin a peripheral cannot use, or one used
-before its setup, stops the program with a message that says what to do; when the pin is a constant, `chipsharp check`
-finds it before the program runs:
+`ChipSharp.Hardware` is what a program references to use the chip: `Pin`, `Timing`, `Registers` and `[Interrupt]`
+(above), and the serial ports, analog inputs, PWM outputs and buses below. Every method is static and takes numbers and
+spans, so nothing allocates and a chip without a heap has them all; those that do not wait can be called from an
+interrupt handler. Each is set up before it is used, as a pin is with `Pin.Output`: `Uart.Open`, `Adc.Input`,
+`Pwm.Output`, a bus's `Open`. A port, pin, clock or mode the chip does not have is a mistake in the program:
+`chipsharp check -t <target>` names it where the value is a constant (the target file's `"pinFunctions"`, `"i2c"` and
+`"spi"` list the pins and clocks), and on the chip the program stops with a message that says what is wrong
+(`GPIO 6 is not an SDA pin of I2C0: its SDA pins are GPIO 0, 4, 8, 12, 16, 20, 24 and 28.`):
 
 ```
 GPIO 6 cannot be UART1's TX on the target 'pico': 1 place in the top-level statements (IL_0009). UART1's TX can be GPIO 4, 8, 20 or 24.
 ```
 
-A target file says what the chip has: the capabilities `uart` (how many serial ports), `adc` (analog inputs), `pwm`
-(PWM outputs) and `consoleInput`, and `"pinFunctions"`, the pins each can use (`"uart1.tx": [4, 8, 20, 24]`). A program
-that uses what its target does not have does not build for it: `ChipSharp.Hardware.Adc needs analog inputs (an ADC),
-and the target 'host' has none`.
+A target without the capability (`"uart"`, `"adc"`, `"pwm"`, `"consoleInput"`, `"i2c"`, `"spi"`; the PC has none of
+them) refuses the class altogether: `ChipSharp.Hardware.Adc needs analog inputs (an ADC), and the target 'host' has
+none`.
 
 ### Serial ports (UART)
 
@@ -442,7 +455,69 @@ output is in use, or a pin whose twin is a PWM output already, stops the program
 Unhandled exception. System.InvalidOperationException: GPIO 17 shares PWM slice 0 with GPIO 0, which runs at 1000 Hz, and a slice runs at one frequency. Give both the same frequency, stop GPIO 0 first, or use a pin of another slice.
 ```
 
-### In the simulator
+### I2C
+
+```csharp
+I2c.Open(0, sda: 4, scl: 5, frequency: 400_000);    // bus 0 (I2C0) on GPIO 4 and 5, 400 kHz
+Span<byte> register = stackalloc byte[1];
+Span<byte> id = stackalloc byte[1];
+register[0] = 0x75;                                  // the MPU-6050's WHO_AM_I
+if (I2c.WriteRead(0, 0x68, register, id)) Console.WriteLine($"0x{id[0]:X2}");   // 0x68
+```
+
+| Method | What it does |
+|---|---|
+| `I2c.Open(bus, sda, scl, frequency)` | Sets the bus up on its pins, with the chip's pull-ups on, its clock from 2 kHz to 1 MHz (100 kHz standard mode, 400 kHz fast mode, 1 MHz fast mode plus). The Pico's bus 0 (I2C0) has SDA on GPIO 0, 4, 8, ..., 28 and SCL on the pin after each; bus 1 (I2C1) SDA on GPIO 2, 6, 10, ..., 26 and SCL on the pin after |
+| `I2c.Write(bus, address, data)` | Sends the bytes of a `ReadOnlySpan<byte>` to the device at a 7-bit address (0 to 127) |
+| `I2c.Read(bus, address, data)` | Fills a `Span<byte>` from the device |
+| `I2c.WriteRead(bus, address, write, read)` | Both in one transfer, a repeated start between and no stop: how a device's register is read (its number, then its value) |
+| `I2c.Probe(bus, address)` | Whether a device answers at the address (it reads one byte) |
+| `I2c.Scan(bus, addresses)` | Probes 0x08 to 0x77 and puts each address that answers into the span; returns how many |
+
+Write, Read and WriteRead say whether it worked: `true` when the device answered its address and took every byte,
+`false` when nothing answered, when the device refused a byte, or when the bus did not move for a byte's time limit (1 ms
+and 50 clock periods), as when a device holds the clock low: a missing or stuck device never hangs the program.
+
+### SPI
+
+```csharp
+Spi.Open(0, sck: 18, tx: 19, rx: 16, frequency: 1_000_000, mode: 0);   // bus 0 (SPI0), 1 MHz, mode 0
+Pin.Output(17);                      // the device's chip select, a pin of the program's: high when idle
+Pin.Write(17, true);
+Pin.Write(17, false);                // select the device, then send a command and read the answer at once
+Spi.Transfer(0, command, answer);    // command and answer: spans as long as each other
+Pin.Write(17, true);
+```
+
+| Method | What it does |
+|---|---|
+| `Spi.Open(bus, sck, tx, rx, frequency, mode)` | Sets the bus up as its controller: 8 bits, most significant first, the clock the nearest the chip makes at or below `frequency` (2 kHz to 62.5 MHz), SPI `mode` 0 to 3; -1 for no `rx` (a device that only listens) or no `tx`. The Pico's bus 0 (SPI0) has SCK on GPIO 2, 6, 18 or 22, TX on 3, 7, 19 or 23, RX on 0, 4, 16 or 20; bus 1 (SPI1) SCK on 10, 14 or 26, TX on 11, 15 or 27, RX on 8, 12, 24 or 28 |
+| `Spi.Write(bus, data)` | Sends the bytes, and drops what comes back |
+| `Spi.Read(bus, data)` | Fills the span with what the device sends, sending zeros |
+| `Spi.Transfer(bus, write, read)` | Both at once, a byte back for each byte sent (the two spans may be one) |
+
+SPI has no answer to wait for, so these return nothing. Chip select is a `Pin` the program drives, so one bus serves
+several devices: low before the transfer, high after it; the methods return once the last bit has left. A 74HC595
+shift register takes its latch the same way (`examples/pico-spi-shift-register`).
+
+### Buses in the simulator
+
+`tools/rp2040-sim/run.mjs` puts simulated devices on the buses (`tools/rp2040-sim/devices`), and prints what the buses
+do with the pin changes:
+
+| Option | Device |
+|---|---|
+| `--i2c 0:0x68=mpu6050` | An MPU-6050 at 0x68 on I2C0: `WHO_AM_I` 0x68, asleep until woken, a still board's measurements |
+| `--i2c 0:0x76=bmp280` | A BMP280 with the datasheet's example calibration and readings (25.08 °C) |
+| `--i2c 1:0x50=stuck` | A device that holds the clock low once addressed: the transfer gives up |
+| `--spi 0=74hc595@17` | A 74HC595 on SPI0, its latch on GPIO 17: its outputs reported like pins (`SPI0 74HC595 Q3 high`) |
+| `--spi 0=loopback`, `--spi 1=loopback@13` | RX wired to TX: every byte comes back (with a pin: only while it is low) |
+
+An address without a device does not answer. Each I2C transfer is a line, `I2C0 0x68 write 3b, read 20 00 f0 ...`
+(a comma for a repeated start) or `I2C0 0x50 write: no answer`; each new clock a line too, `I2C0 100000 Hz`,
+`SPI0 mode 0, 992063 Hz`.
+
+### Serial ports, analog inputs and PWM in the simulator
 
 `tools/rp2040-sim/run.mjs` plays the other end. `--send "0=led on\r@100ms"` sends text to UART0's RX (or UART1's, with
 `1=`), byte after byte at the port's speed, with `\r`, `\n`, `\t`, `\\` and `\xHH` for those bytes, and prints UART1's
@@ -511,14 +586,16 @@ the Pico:
 | `pico-button` | A button on GPIO 15 toggles the LED through a pin interrupt | |
 | `pico-traffic-light` | Two lanes of traffic lights (GPIO 16 to 21), a step countdown on a 7-segment display (GPIO 2 to 8), the lane's turn on another (GPIO 9 to 15), and a button on GPIO 22 that cuts a green short; the countdown over UART0. No heap: static methods, arrays passed down, a `ref` parameter, a `volatile` flag set by the interrupt | 5.7 KB, 20 bytes of RAM |
 | `pico-traffic-light-m3` | The same lights, displays, button and output, written with classes (`Lane`, `SevenSegment`, `Crossing`), a `List<Lane>`, an enum, a table of steps and an event | 17.3 KB, 1.1 KB of RAM + heap |
+| `pico-i2c-mpu6050` | Reads an MPU-6050 accelerometer and gyroscope over I2C (GPIO 4 and 5): its `WHO_AM_I`, then its acceleration, rotation and temperature twice a second, taken apart with `BinaryPrimitives`, over UART0. No heap | 8.8 KB, 40 bytes of RAM |
+| `pico-spi-shift-register` | Counts on a 7-segment digit through a 74HC595 shift register over SPI: three pins (GPIO 17, 18, 19) for eight segments. No heap | 6.0 KB, 24 bytes of RAM |
 | `pico-uart-echo` | A command prompt on the console: `led on`, `led off` and `status` read with `Console.ReadLine` and a `switch` on the line, anything else answered with what was typed | 16.3 KB, 1.2 KB of RAM + heap |
 | `pico-adc-pwm` | A potentiometer on GPIO 26 sets the brightness of an LED on GPIO 15 through 1 kHz PWM, and each change of 0.1 V goes to the console. No heap | 10.5 KB, 128 bytes of RAM |
-| `pico-servo` | A servo on GPIO 15 sweeps from 0 to 180 degrees and back with 50 Hz pulses of 1 to 2 ms. No heap | 6.1 KB, 116 bytes of RAM |
+| `pico-servo` | A servo on GPIO 22 sweeps from 0 to 180 degrees and back with 50 Hz pulses of 1 to 2 ms. No heap | 6.1 KB, 116 bytes of RAM |
 
-The traffic lights, the command prompt, the knob and the servo have a `diagram.json` for Wokwi with the whole circuit
-(220 Ω resistors, common-cathode displays, the button between GPIO 22 and 3V3; the potentiometer between 3V3 and GND;
-the servo on VBUS; UART0 on the serial monitor, where the prompt's commands are typed). With the button pressed at
-2.5 s, both traffic lights print:
+The traffic lights, the bus examples, the command prompt, the knob and the servo have a `diagram.json` for Wokwi
+with the whole circuit, wired directly (Wokwi needs no resistors): common-cathode displays, the button between
+GPIO 22 and 3V3, the potentiometer between 3V3 and GND, the servo on VBUS, UART0 on the serial monitor (where the
+prompt's commands are typed). With the button pressed at 2.5 s, both traffic lights print:
 
 ```
 road : 1
@@ -541,7 +618,7 @@ dotnet build -c Release
 dotnet test -c Release --no-build
 ```
 
-The 1,930 or so tests (about 2 minutes once the build cache is warm) check each stage on its own (reading IL, the whole-program pass, TIR, the LLVM code, linking, the `.uf2`),
+The 1,970 or so tests (about 2 minutes once the build cache is warm) check each stage on its own (reading IL, the whole-program pass, TIR, the LLVM code, linking, the `.uf2`),
 then compile C# programs and run them: on the PC, and on the simulated Pico, comparing what they print, byte for byte,
 with what .NET prints for the same program; the library code (collections, `StringBuilder`, sorting, `TimeSpan`)
 runs next to .NET's own on thousands of random operations. The PC tests need LLVM; the Pico tests also need Node.js
@@ -566,7 +643,7 @@ the PC tests.
 | `src/ChipSharp.Toolchain.Clang` | The `clang` toolchain: LLVM IR and runtime sources in, a linked program out |
 | `src/ChipSharp.Runtime.*` | The runtimes, in C: `Shared` (console, text, floats, heap and collector), `Windows` (the PC), `ArmV6M` and `Rp2040` (start-up, UART0, timers, pins, interrupts) |
 | `src/ChipSharp.Image.Uf2`, `src/ChipSharp.Build`, `src/ChipSharp.Cli` | The `.uf2` image, the build pipeline, and the `chipsharp` command |
-| `src/ChipSharp.Hardware` | The library programs reference for pins, timing, registers, interrupts, serial ports, analog inputs and PWM |
+| `src/ChipSharp.Hardware` | The library programs reference for pins, timing, registers, interrupts, serial ports, analog inputs, PWM and the I2C and SPI buses |
 | `src/ChipSharp.Abstractions`, `src/ChipSharp.Targets` | The contracts (code generator, toolchain, image, runtime) and the target files' reader |
 | `targets/arch`, `chip`, `board` | Target files |
 | `samples`, `examples`, `tests`, `tools/rp2040-sim` | See above |

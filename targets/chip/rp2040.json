@@ -36,7 +36,9 @@
     "consoleInput": true, // Console.Read and Console.ReadLine read UART0 (GPIO 1, 115200 baud)
     "uart": 2,            // serial ports for Uart: UART0 (also the console's) and UART1
     "adc": 4,             // analog inputs for Adc: GPIO 26-29, and the temperature sensor
-    "pwm": 16             // PWM outputs: 8 slices of 2, on every GPIO (GPIO n and n + 16 are the same output)
+    "pwm": 16,            // PWM outputs: 8 slices of 2, on every GPIO (GPIO n and n + 16 are the same output)
+    "i2c": true,          // ChipSharp.Hardware.I2c: two I2C controllers ("i2c" below)
+    "spi": true           // ChipSharp.Hardware.Spi: two SPI controllers ("spi" below)
   },
   "pinFunctions": {
     // the pins each peripheral can use (datasheet 2.19.2, GPIO functions): chipsharp check holds the pins a program
@@ -45,5 +47,21 @@
     "uart1.tx": [4, 8, 20, 24], "uart1.rx": [5, 9, 21, 25],
     "adc": [26, 27, 28, 29],
     "pwm": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29]
+  },
+  // the I2C and SPI controllers: the clocks they make, lowest and highest, in hertz, and the pins each (bus 0, bus 1)
+  // can use, GPIO function 3 for I2C and 1 for SPI; chipsharp check holds the constants of I2c.Open and Spi.Open to them
+  "i2c": {
+    "frequency": [2000, 1000000],
+    "buses": [
+      { "sda": [0, 4, 8, 12, 16, 20, 24, 28], "scl": [1, 5, 9, 13, 17, 21, 25, 29] },
+      { "sda": [2, 6, 10, 14, 18, 22, 26], "scl": [3, 7, 11, 15, 19, 23, 27] }
+    ]
+  },
+  "spi": {
+    "frequency": [2000, 62500000],
+    "buses": [
+      { "sck": [2, 6, 18, 22], "tx": [3, 7, 19, 23], "rx": [0, 4, 16, 20] },
+      { "sck": [10, 14, 26], "tx": [11, 15, 27], "rx": [8, 12, 24, 28] }
+    ]
   }
 }

@@ -3,12 +3,12 @@
 // Pwm.Output makes the 50 Hz, Pwm.PulseMicroseconds the length; the chip makes the pulses on its own, so the program
 // only says where to go. Each 45 degrees goes to the console (UART0, GPIO 0, 115200 baud).
 //
-// Wire the servo's signal to GPIO 15, its + to VBUS (5 V from USB) and its - to GND. No heap. Build it with ChipSharp
+// Wire the servo's signal to GPIO 22, its + to VBUS (5 V from USB) and its - to GND. No heap. Build it with ChipSharp
 // for the target "pico", as examples/pico-blink says.
 
 using ChipSharp.Hardware;
 
-const int Servo = 15;
+const int Servo = 22;
 
 Pwm.Output(Servo, 50);
 while (true)

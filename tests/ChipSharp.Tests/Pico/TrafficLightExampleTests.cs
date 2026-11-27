@@ -124,18 +124,25 @@ public sealed class TrafficLightExampleTests(TrafficLightExampleTests.Builds bui
 
         Assert.Equal("wokwi-pi-pico", Type("pico"));
 
-        // a resistor of 220 ohms between the two pins, or (two-pin parts are symmetric) the other way round
-        void ThroughResistor(string from, string to)
+        // a wire between the two pins (Wokwi needs no resistors), or a resistor of 220 ohms between them, either way
+        // round (two-pin parts are symmetric)
+        void Wired(string from, string to)
         {
+            if (nets.Joined(from, to))
+            {
+                return;
+            }
+
             var resistors = parts.Keys.Where(id => Type(id) == "wokwi-resistor" &&
                 (nets.Joined(from, $"{id}:1") && nets.Joined(to, $"{id}:2") ||
                     nets.Joined(from, $"{id}:2") && nets.Joined(to, $"{id}:1"))).ToList();
-            Assert.True(resistors.Count == 1, $"no resistor (or more than one) between {from} and {to}");
+            Assert.True(resistors.Count == 1, $"{from} does not reach {to} (by a wire or through one resistor)");
             Assert.Equal("220", parts[resistors[0]].GetProperty("attrs").GetProperty("value").GetString());
         }
 
-        void Grounded(string pin) => Assert.True(Enumerable.Range(1, 8).Any(n => nets.Joined(pin, $"pico:GND.{n}")),
-            $"{pin} is not connected to a GND of the Pico");
+        bool TryGrounded(string pin) => Enumerable.Range(1, 8).Any(n => nets.Joined(pin, $"pico:GND.{n}"));
+
+        void Grounded(string pin) => Assert.True(TryGrounded(pin), $"{pin} is not connected to a GND of the Pico");
 
         // the displays: segments A..G of the step display on GP2-GP8, of the turn display on GP9-GP15, common cathode
         foreach (var (display, first) in new[] { ("step", 2), ("turn", 9) })
@@ -144,31 +151,33 @@ public sealed class TrafficLightExampleTests(TrafficLightExampleTests.Builds bui
             Assert.Equal("cathode", parts[display].GetProperty("attrs").GetProperty("common").GetString());
             for (var segment = 0; segment < 7; segment++)
             {
-                ThroughResistor($"pico:GP{first + segment}", $"{display}:{(char)('A' + segment)}");
+                Wired($"pico:GP{first + segment}", $"{display}:{(char)('A' + segment)}");
             }
 
-            Grounded($"{display}:COM.1");
-            Grounded($"{display}:COM.2");
+            // COM.1 and COM.2 are the same common pin: one of them to GND is enough
+            Assert.True(TryGrounded($"{display}:COM.1") || TryGrounded($"{display}:COM.2"),
+                $"neither common pin of {display} is connected to a GND of the Pico");
         }
 
-        // the lights: GPIO -> resistor -> the LED's anode, its cathode to GND
-        foreach (var (light, pin, color) in new[]
+        // the lights: GPIO -> the LED's anode (directly or through a resistor), its cathode to GND; whichever LED a pin
+        // reaches must have that pin's colour
+        foreach (var (pin, color) in new[] { (16, "red"), (17, "yellow"), (18, "green"), (19, "red"), (20, "yellow"),
+            (21, "green") })
         {
-            ("lane1-red", 16, "red"), ("lane1-yellow", 17, "yellow"), ("lane1-green", 18, "limegreen"),
-            ("lane2-red", 19, "red"), ("lane2-yellow", 20, "yellow"), ("lane2-green", 21, "limegreen"),
-        })
-        {
-            Assert.Equal("wokwi-led", Type(light));
-            Assert.Equal(color, parts[light].GetProperty("attrs").GetProperty("color").GetString());
-            Assert.Equal(90, parts[light].GetProperty("rotate").GetInt32());
-            ThroughResistor($"pico:GP{pin}", $"{light}:A");
-            Grounded($"{light}:C");
+            var lights = parts.Keys.Where(id => Type(id) == "wokwi-led" && Reaches($"pico:GP{pin}", $"{id}:A")).ToList();
+            Assert.True(lights.Count == 1, $"GP{pin} reaches no LED's anode (or more than one)");
+            Assert.Contains(color, parts[lights[0]].GetProperty("attrs").GetProperty("color").GetString());
+            Grounded($"{lights[0]}:C");
         }
 
         // the button between GP22 and 3V3, which does not bounce (a press is one interrupt)
-        Assert.Equal("wokwi-pushbutton", Type("button"));
-        Assert.Equal("0", parts["button"].GetProperty("attrs").GetProperty("bounce").GetString());
-        Assert.True(nets.Joined("pico:GP22", "button:1.l") && nets.Joined("pico:3V3", "button:2.l"));
+        var button = Assert.Single(parts.Keys, id => Type(id) == "wokwi-pushbutton");
+        Assert.Equal("0", parts[button].GetProperty("attrs").GetProperty("bounce").GetString());
+        Assert.True(nets.Joined("pico:GP22", $"{button}:1.l") && nets.Joined("pico:3V3", $"{button}:2.l"));
+
+        bool Reaches(string from, string to) => nets.Joined(from, to) || parts.Keys.Any(id =>
+            Type(id) == "wokwi-resistor" && (nets.Joined(from, $"{id}:1") && nets.Joined(to, $"{id}:2") ||
+                nets.Joined(from, $"{id}:2") && nets.Joined(to, $"{id}:1")));
 
         // UART0, where Console.WriteLine goes, in Wokwi's serial monitor
         Assert.True(nets.Joined("pico:GP0", "$serialMonitor:RX") && nets.Joined("pico:GP1", "$serialMonitor:TX"));

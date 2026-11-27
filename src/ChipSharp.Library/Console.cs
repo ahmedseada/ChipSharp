@@ -6,7 +6,7 @@ namespace ChipSharp.Library;
 /// runtime's own functions (see ChipSharp.Frontend's KnownExternals), not members of this type.
 /// </summary>
 /// <remarks>
-/// The input is the bytes the console receives, UTF-8 decoded as .NET decodes it (the runtime's ConsoleRead). Nothing is
+/// The input is the bytes the console receives, UTF-8 decoded as .NET decodes it (the chip runtime's ConsoleRead). Nothing is
 /// echoed: what the other end types is not sent back, as .NET does not echo input that comes through a pipe or a
 /// serial line. A serial line has no end, so <see cref="Read"/> never returns -1 and <see cref="ReadLine"/> never null:
 /// both wait for input.
@@ -24,13 +24,13 @@ internal static class Console
     /// <summary>The next char of the input, waiting for it: a UTF-16 code unit, '\r' and '\n' too.</summary>
     public static int Read()
     {
-        var value = Runtime.ConsoleRead();
+        var value = ChipRuntime.ConsoleRead();
         if (_afterReturn)
         {
             _afterReturn = false;
             if (value == '\n')
             {
-                value = Runtime.ConsoleRead();
+                value = ChipRuntime.ConsoleRead();
             }
         }
 

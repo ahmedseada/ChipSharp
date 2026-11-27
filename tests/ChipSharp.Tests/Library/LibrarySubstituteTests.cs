@@ -70,12 +70,14 @@ public sealed class LibrarySubstituteTests
                 "ChipSharp.Library.Exceptions.OverflowException for System.OverflowException",
                 "ChipSharp.Library.Exceptions.SystemException for System.SystemException",
                 "ChipSharp.Library.Exceptions.TimeoutException for System.TimeoutException",
+                "ChipSharp.Library.I2c for ChipSharp.Hardware.I2c",
                 "ChipSharp.Library.MemberInfo for System.Reflection.MemberInfo",
                 "ChipSharp.Library.MemoryExtensions for System.MemoryExtensions",
                 "ChipSharp.Library.Pairs.KeyValuePair for System.Collections.Generic.KeyValuePair",
                 "ChipSharp.Library.Pairs.KeyValuePair`2 for System.Collections.Generic.KeyValuePair`2",
                 "ChipSharp.Library.Pwm for ChipSharp.Hardware.Pwm",
                 "ChipSharp.Library.RuntimeHelpers for System.Runtime.CompilerServices.RuntimeHelpers",
+                "ChipSharp.Library.Spi for ChipSharp.Hardware.Spi",
                 "ChipSharp.Library.StringBuilder for System.Text.StringBuilder",
                 "ChipSharp.Library.TimeSpan for System.TimeSpan",
                 "ChipSharp.Library.Timing for ChipSharp.Hardware.Timing",
@@ -307,9 +309,8 @@ public sealed class LibrarySubstituteTests
     [Fact]
     public void Every_runtime_function_of_the_library_is_in_every_runtime()
     {
-        // (the serial ports', analog inputs' and PWM outputs' functions are a chip's, see SerialAnalogCheckTests)
         var functions = LibrarySubstitutes.Assembly.FindType(LibrarySubstitutes.RuntimeType)!.Methods
-            .Where(method => method.IsStatic && method.Name != ".cctor" && !IsSerialAnalog(method.Name)).ToList();
+            .Where(method => method.IsStatic && method.Name != ".cctor").ToList();
         var windows = new WindowsX64Runtime().Startup(Targets.Load("host")).Files
             .Single(file => file.FileName == WindowsX64Runtime.FailuresFileName).Content;
         var pico = new Rp2040Runtime().Startup(Targets.Load("pico")).Files
@@ -339,7 +340,6 @@ public sealed class LibrarySubstituteTests
     {
         // (each given a parameter's name, a message and a value: "count", "a message", -1)
         var thrown = typeof(global::ChipSharp.Library.Runtime).GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Where(method => !IsSerialAnalog(method.Name))
             .OrderBy(method => method.Name)
             .Select(method => Assert.Throws<TargetInvocationException>(() => method.Invoke(null,
                 [.. method.GetParameters().Select(parameter => parameter.ParameterType == typeof(int) ? -1
@@ -458,11 +458,4 @@ public sealed class LibrarySubstituteTests
         [.. method.Body!.Instructions.Where(i => i.OpCode is IlOpCode.Call or IlOpCode.Newobj)
             .Select(i => ((IlMethodOperand)i.Operand!).Method)];
 
-    /// <summary>
-    /// True for a runtime function of the serial ports, the console's input, the analog inputs and the PWM outputs,
-    /// which only a chip's runtime has, and which is not a failure: on .NET each says it runs on a chip.
-    /// </summary>
-    private static bool IsSerialAnalog(string name) =>
-        name.StartsWith("Uart", StringComparison.Ordinal) || name.StartsWith("Adc", StringComparison.Ordinal)
-        || name.StartsWith("Pwm", StringComparison.Ordinal) || name is "ConsoleRead" or "SerialAnalogOnChip";
 }

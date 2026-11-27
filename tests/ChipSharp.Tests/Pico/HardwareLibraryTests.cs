@@ -9,29 +9,26 @@ using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Pico;
 
-/// <summary>ChipSharp.Hardware: every method is a library call ChipSharp compiles, and none runs on .NET.</summary>
+/// <summary>
+/// ChipSharp.Hardware's pins, timing and registers: every method is a library call ChipSharp compiles, and none runs on
+/// .NET. (The buses, I2c and Spi, have tests of their own: <see cref="BusLibraryTests"/>.)
+/// </summary>
 public sealed class HardwareLibraryTests
 {
-    private static IEnumerable<MethodInfo> HardwareMethods => typeof(Pin).Assembly.GetExportedTypes()
+    private static IEnumerable<MethodInfo> HardwareMethods => new[] { typeof(Pin), typeof(Timing), typeof(Registers) }
         .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly));
 
     [Fact]
-    public void The_library_is_pins_timing_registers_serial_ports_analog_inputs_and_PWM_with_no_Set_names()
+    public void The_library_is_pins_timing_and_registers_with_int_uint_bool_and_TimeSpan_only_and_no_Set_names()
     {
         Assert.Equal(
             [
-                "Adc.Input(Int32)", "Adc.Read(Int32)", "Adc.Temperature()", "Adc.Volts(Int32)",
                 "Pin.Input(Int32)", "Pin.Output(Int32)", "Pin.Read(Int32)", "Pin.Toggle(Int32)", "Pin.Unwatch(Int32)",
                 "Pin.Watch(Int32)", "Pin.WatchFalling(Int32)", "Pin.WatchRising(Int32)", "Pin.Write(Int32, Boolean)",
-                "Pwm.Duty(Int32, Double)", "Pwm.Output(Int32, Int32)", "Pwm.PulseMicroseconds(Int32, Int32)",
-                "Pwm.Stop(Int32)",
                 "Registers.Read(UInt32)", "Registers.Write(UInt32, UInt32)",
                 "Timing.AfterMicroseconds(Int32)", "Timing.AfterMilliseconds(Int32)", "Timing.Delay(TimeSpan)",
                 "Timing.DelayMicroseconds(Int32)", "Timing.DelayMilliseconds(Int32)", "Timing.EveryMicroseconds(Int32)",
                 "Timing.EveryMilliseconds(Int32)", "Timing.Stop()",
-                "Uart.Available(Int32)", "Uart.Open(Int32, Int32, Int32, Int32)", "Uart.Read(Int32, Span`1)",
-                "Uart.ReadByte(Int32)", "Uart.Unwatch(Int32)", "Uart.Watch(Int32)", "Uart.Write(Int32, ReadOnlySpan`1)",
-                "Uart.WriteByte(Int32, Byte)",
             ],
             HardwareMethods.Select(m => $"{m.DeclaringType!.Name}.{m.Name}({string.Join(", ", m.GetParameters().Select(p => p.ParameterType.Name))})")
                 .Order(StringComparer.Ordinal));
@@ -40,8 +37,7 @@ public sealed class HardwareLibraryTests
     [Fact]
     public void On_dotnet_every_method_says_it_runs_on_a_chip()
     {
-        // (a span cannot be an object, so the methods that take one are called below)
-        Assert.All(HardwareMethods.Where(method => !method.GetParameters().Any(p => p.ParameterType.IsByRefLike)), method =>
+        Assert.All(HardwareMethods, method =>
         {
             var arguments = method.GetParameters().Select(p => Activator.CreateInstance(p.ParameterType)).ToArray();
 
@@ -51,10 +47,6 @@ public sealed class HardwareLibraryTests
             Assert.StartsWith($"ChipSharp.Hardware.{method.DeclaringType!.Name}.{method.Name} runs on a chip, not on .NET",
                 notSupported.Message);
         });
-        Assert.StartsWith("ChipSharp.Hardware.Uart.Write runs on a chip, not on .NET",
-            Assert.Throws<PlatformNotSupportedException>(() => Uart.Write(1, "hi"u8)).Message);
-        Assert.StartsWith("ChipSharp.Hardware.Uart.Read runs on a chip, not on .NET",
-            Assert.Throws<PlatformNotSupportedException>(() => Uart.Read(1, new byte[4])).Message);
     }
 
     [Fact]
@@ -95,11 +87,9 @@ public sealed class HardwareLibraryTests
             externals.Select(f => f.Name));
         Assert.Equal(TirType.I32, externals.Single(f => f.Name == "ChipSharp.Runtime.PinRead").ReturnType);
         Assert.Equal(TirType.I32, externals.Single(f => f.Name == "ChipSharp.Runtime.RegisterRead").ReturnType);
-        // all but Timing.Delay(TimeSpan), and Uart, Adc and Pwm, which are C# of ChipSharp's library
-        // (LibrarySubstituteTests, SerialAnalogTests)
+        // all but Timing.Delay(TimeSpan), which is C# of ChipSharp's library (LibrarySubstituteTests)
         Assert.Equal(
-            HardwareMethods.Count(m => m.DeclaringType != typeof(Uart) && m.DeclaringType != typeof(Adc)
-                && m.DeclaringType != typeof(Pwm)) - 1,
+            HardwareMethods.Count() - 1,
             KnownExternals.All.Count(f => f.LibraryMethod.StartsWith("ChipSharp.Hardware.", StringComparison.Ordinal)));
     }
 

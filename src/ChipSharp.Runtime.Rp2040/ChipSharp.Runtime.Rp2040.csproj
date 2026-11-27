@@ -12,6 +12,8 @@
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_text.c" LogicalName="chipsharp_float_text.c" />
     <EmbeddedResource Include="rp2040_failures.c" LogicalName="rp2040_failures.c" />
     <EmbeddedResource Include="rp2040_interrupts.c" LogicalName="rp2040_interrupts.c" />
+    <EmbeddedResource Include="rp2040_i2c.c" LogicalName="rp2040_i2c.c" />
+    <EmbeddedResource Include="rp2040_spi.c" LogicalName="rp2040_spi.c" />
     <!-- the serial ports and the console's input, the analog inputs, the PWM outputs -->
     <EmbeddedResource Include="rp2040_uart.c" LogicalName="rp2040_uart.c" />
     <EmbeddedResource Include="rp2040_adc.c" LogicalName="rp2040_adc.c" />

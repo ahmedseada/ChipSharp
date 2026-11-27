@@ -13,6 +13,7 @@
 //                                              [--input <pin>=<high|low>[@<simulated milliseconds>ms]]...
 //                                              [--send <uart>=<text>[@<simulated milliseconds>ms]]...
 //                                              [--adc <pin|temp>=<volts>V|<celsius>C|<reading>[@<...>ms]]...
+//                                              [--i2c <bus>:<address>=<device>]... [--spi <bus>=<device>[@<pin>]]...
 //
 // --input drives a pin from outside, as a button or another chip would; the program reads it with Pin.Read, and
 // Pin.Watch... sees it change. Without a time it is the level from the start; with one, e.g. --input 15=high@100ms,
@@ -21,9 +22,13 @@
 //
 // --send sends text to UART0's or UART1's RX pin, as a terminal or another chip would, e.g. --send "0=led on\r@100ms":
 // from that time (or the start), byte after byte at the port's speed (10 bits a byte, 8N1), its UTF-8 bytes; \r, \n,
-// \t, \ and \xHH stand for those bytes. Sends to one port follow each other. --adc sets the voltage an analog input
+// \t, \\ and \xHH stand for those bytes. Sends to one port follow each other. --adc sets the voltage an analog input
 // reads (GPIO 26-29, 0 to 3.3 V: 1.65V reads 2048 of 4095), or the chip's temperature (temp=30C; 27 C unless given),
 // from the start or from a time on.
+//
+// --i2c and --spi put simulated devices on the I2C and SPI buses (devices/buses.mjs): --i2c 0:0x68=mpu6050 an
+// MPU-6050 at address 0x68 on I2C0, --i2c 0:0x76=bmp280 a BMP280, --spi 0=74hc595@17 a 74HC595 shift register on
+// SPI0 with its latch on GPIO 17, --spi 0=loopback RX wired to TX. An I2C address without a device does not answer.
 //
 // Booting: the RP2040's boot ROM checks the CRC-32 of the first 256 bytes of flash (the second-stage
 // bootloader, boot2), copies them to the top of RAM (0x20041f00) and runs them with lr = 0; boot2 sets up the
@@ -47,6 +52,8 @@
 //                                                to falling): printed when a period differs from the one before,
 //                                                instead of every edge
 //     [   15.000 ms] GPIO25 PWM steady low       a PWM output with no edge for 2.5 periods (duty 0, or 1: high)
+//     [    2.000 ms] I2C0 0x68 write 75, read 68 a transfer on an I2C bus (devices/buses.mjs lists them all)
+//     [    3.000 ms] SPI0 74HC595 Q3 high        an output of a device on an SPI bus changed
 //     [ 1000.000 ms] stopped: <why>              the last line
 //
 // Exit code: 0 when the program ran (to its end or for the whole time), 1 when the image is not valid, 2 for
@@ -55,6 +62,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { ConsoleLogger, GPIOPinState, LogLevel, RP2040 } from 'rp2040js';
+import { attachBuses, parseBusOption, USAGE as BUS_USAGE } from './devices/buses.mjs';
 
 const UF2_MAGIC_START0 = 0x0a324655;
 const UF2_MAGIC_START1 = 0x9e5d5157;
@@ -77,8 +85,8 @@ const PIN_STATES = {
 function usage(message) {
   console.error(`run.mjs: ${message}`);
   console.error('Usage: node run.mjs <image.uf2> [--ms <simulated milliseconds>] [--uart0 <output file>] ' +
-    '[--input <pin>=<high|low>[@<milliseconds>ms]]... [--send <uart>=<text>[@<milliseconds>ms]]... ' +
-    '[--adc <pin|temp>=<volts>V|<celsius>C|<reading>[@<milliseconds>ms]]...');
+    `[--input <pin>=<high|low>[@<milliseconds>ms]]... ${BUS_USAGE} ` +
+    '[--send <uart>=<text>[@<milliseconds>ms]]... [--adc <pin|temp>=<volts>V|<celsius>C|<reading>[@<milliseconds>ms]]...');
   process.exit(2);
 }
 
@@ -88,7 +96,7 @@ function fail(message) {
 }
 
 function parseArguments(args) {
-  const options = { image: null, ms: 1000, uart0: null, inputs: [], sends: [], adc: [] };
+  const options = { image: null, ms: 1000, uart0: null, inputs: [], buses: [], sends: [], adc: [] };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (SERIAL_ANALOG_OPTIONS.has(arg)) {
@@ -116,6 +124,14 @@ function parseArguments(args) {
       } else {
         options.uart0 = value;
       }
+    } else if (arg === '--i2c' || arg === '--spi') {
+      // a simulated device on a bus (devices/buses.mjs)
+      const device = parseBusOption(arg, args[++i] ?? '');
+      if (device.error !== undefined) {
+        usage(device.error);
+      }
+
+      options.buses.push(device);
     } else if (arg.startsWith('--')) {
       usage(`unknown option '${arg}'.`);
     } else if (options.image === null) {
@@ -430,6 +446,9 @@ mcu.uart[0].onByte = (value) => {
   }
 };
 mcu.uart[0].onBaudRateChange = (baud) => console.log(`${milliseconds(clock.nanos)} UART0 baud ${baud}`);
+
+// the simulated devices on the I2C and SPI buses (--i2c, --spi), and what the buses do
+attachBuses(mcu, options.buses, (text) => console.log(`${milliseconds(clock.nanos)} ${text}`));
 
 // the levels from the start, then the changes at their times, as alarms of the simulated clock: a core asleep until
 // one of them wakes up for it, as the chip would

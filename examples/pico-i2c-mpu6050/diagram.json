@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "author": "ChipSharp",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-pi-pico", "id": "pico", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-mpu6050", "id": "imu", "top": 40, "left": -180, "attrs": {} }
+  ],
+  "connections": [
+    ["pico:GP4", "imu:SDA", "blue", []],
+    ["pico:GP5", "imu:SCL", "gold", []],
+    ["pico:3V3", "imu:VCC", "red", []],
+    ["pico:GND.1", "imu:GND", "black", []],
+    ["pico:GP0", "$serialMonitor:RX", "", []],
+    ["pico:GP1", "$serialMonitor:TX", "", []]
+  ],
+  "dependencies": {}
+}

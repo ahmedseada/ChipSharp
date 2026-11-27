@@ -2,9 +2,9 @@
 // drives the LED with PWM, high for as much of each millisecond as the knob is turned up. Each change of 0.1 V or more
 // goes to the console (UART0, GPIO 0, 115200 baud).
 //
-// Wire the potentiometer's ends to 3V3 and GND and its wiper to GPIO 26 (ADC0), and an LED with a 220 ohm resistor
-// from GPIO 15 to GND. No heap: numbers, and text printed straight away. Build it with ChipSharp for the target "pico",
-// as examples/pico-blink says.
+// Wire the potentiometer's ends to 3V3 and GND and its wiper to GPIO 26 (ADC0), and an LED from GPIO 15 to GND (on a
+// real board through a 220 ohm resistor; Wokwi's diagram.json needs none). No heap: numbers, and text printed straight
+// away. Build it with ChipSharp for the target "pico", as examples/pico-blink says.
 
 using ChipSharp.Hardware;
 

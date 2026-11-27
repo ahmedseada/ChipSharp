@@ -7,11 +7,11 @@ namespace ChipSharp.Library;
 [Substitute(typeof(ChipSharp.Hardware.Pwm))]
 internal static class Pwm
 {
-    public static void Output(int pin, int frequency) => Runtime.PwmOutput(pin, frequency);
+    public static void Output(int pin, int frequency) => ChipRuntime.PwmOutput(pin, frequency);
 
-    public static void Duty(int pin, double duty) => Runtime.PwmDuty(pin, duty);
+    public static void Duty(int pin, double duty) => ChipRuntime.PwmDuty(pin, duty);
 
-    public static void PulseMicroseconds(int pin, int microseconds) => Runtime.PwmPulse(pin, microseconds);
+    public static void PulseMicroseconds(int pin, int microseconds) => ChipRuntime.PwmPulse(pin, microseconds);
 
-    public static void Stop(int pin) => Runtime.PwmStop(pin);
+    public static void Stop(int pin) => ChipRuntime.PwmStop(pin);
 }

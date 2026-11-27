@@ -47,8 +47,8 @@ public sealed class Rp2040RuntimeTests
                 ArmV6MRuntime.FloatMathFileName, .. softFloat, ArmV6MRuntime.FailuresFileName, "chipsharp_string.c",
                 "chipsharp_exceptions.c",
                 "chipsharp_heap.c", "armv6m_heap.c", "chipsharp_string_heap.c", "chipsharp_float_text.c", "rp2040_boot2.S",
-                "rp2040_runtime.c", Rp2040Runtime.ConsoleFileName, "rp2040_failures.c", Rp2040Runtime.UartFileName,
-                Rp2040Runtime.AdcFileName, Rp2040Runtime.PwmFileName],
+                "rp2040_runtime.c", Rp2040Runtime.ConsoleFileName, "rp2040_failures.c", "rp2040_i2c.c", "rp2040_spi.c",
+                Rp2040Runtime.UartFileName, Rp2040Runtime.AdcFileName, Rp2040Runtime.PwmFileName],
             files.Select(f => f.FileName));
 
         // the very files the PC's runtime has

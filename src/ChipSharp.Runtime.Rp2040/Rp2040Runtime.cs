@@ -50,6 +50,12 @@ public sealed class Rp2040Runtime : IArchRuntime
     /// <summary>The C file with the events of <c>[Interrupt]</c> methods: the timer (alarm 1) and pin changes.</summary>
     public const string InterruptsFileName = "rp2040_interrupts.c";
 
+    /// <summary>The C file with the two I2C controllers (ChipSharp.Hardware.I2c).</summary>
+    public const string I2cFileName = "rp2040_i2c.c";
+
+    /// <summary>The C file with the two SPI controllers (ChipSharp.Hardware.Spi).</summary>
+    public const string SpiFileName = "rp2040_spi.c";
+
     /// <summary>The C file with UART0 and UART1 (Uart, and Console.Read on UART0): receive buffers filled by interrupts.</summary>
     public const string UartFileName = "rp2040_uart.c";
 
@@ -67,8 +73,9 @@ public sealed class Rp2040Runtime : IArchRuntime
     public string Name => "rp2040";
 
     /// <summary>
-    /// The ARMv6-M start-up and helpers, boot2, the chip's own start-up and runtime functions, the console output,
-    /// the text of floats and the peripherals (the linker keeps what the program uses).
+    /// The ARMv6-M start-up and helpers, boot2, the chip's own start-up and runtime functions, the console output, the
+    /// text of floats, the failures, the buses and the serial ports, analog inputs and PWM outputs (which the linker
+    /// leaves out of a program that does not use them).
     /// </summary>
     public RuntimeSources Startup(TargetDescription target)
     {
@@ -83,6 +90,8 @@ public sealed class Rp2040Runtime : IArchRuntime
             Source(ConsoleFileName),
             .. armv6m.Any(file => file.FileName == FloatTextFileName) ? [] : new[] { Source(FloatTextFileName) },
             Source(FailuresFileName),
+            Source(I2cFileName),
+            Source(SpiFileName),
             Source(UartFileName), Source(AdcFileName), Source(PwmFileName),
         ]);
     }

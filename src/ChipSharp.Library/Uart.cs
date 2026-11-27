@@ -7,24 +7,24 @@ namespace ChipSharp.Library;
 [Substitute(typeof(ChipSharp.Hardware.Uart))]
 internal static class Uart
 {
-    public static void Open(int port, int tx, int rx, int baud) => Runtime.UartOpen(port, tx, rx, baud);
+    public static void Open(int port, int tx, int rx, int baud) => ChipRuntime.UartOpen(port, tx, rx, baud);
 
     public static void Write(int port, ReadOnlySpan<byte> bytes)
     {
         for (var i = 0; i < bytes.Length; i++)
         {
-            Runtime.UartWriteByte(port, bytes[i]);
+            ChipRuntime.UartWriteByte(port, bytes[i]);
         }
     }
 
-    public static void WriteByte(int port, byte value) => Runtime.UartWriteByte(port, value);
+    public static void WriteByte(int port, byte value) => ChipRuntime.UartWriteByte(port, value);
 
     public static int Read(int port, Span<byte> buffer)
     {
         var count = 0;
         while (count < buffer.Length)
         {
-            var value = Runtime.UartReadByte(port);
+            var value = ChipRuntime.UartReadByte(port);
             if (value < 0)
             {
                 break;
@@ -36,11 +36,11 @@ internal static class Uart
         return count;
     }
 
-    public static int ReadByte(int port) => Runtime.UartReadByte(port);
+    public static int ReadByte(int port) => ChipRuntime.UartReadByte(port);
 
-    public static int Available(int port) => Runtime.UartAvailable(port);
+    public static int Available(int port) => ChipRuntime.UartAvailable(port);
 
-    public static void Watch(int port) => Runtime.UartWatch(port);
+    public static void Watch(int port) => ChipRuntime.UartWatch(port);
 
-    public static void Unwatch(int port) => Runtime.UartUnwatch(port);
+    public static void Unwatch(int port) => ChipRuntime.UartUnwatch(port);
 }

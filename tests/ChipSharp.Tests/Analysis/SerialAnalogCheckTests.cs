@@ -1,9 +1,14 @@
+using System.Reflection;
 using ChipSharp.Abstractions;
+using ChipSharp.Backend.Llvm;
 using ChipSharp.Frontend;
 using ChipSharp.Frontend.Analysis;
 using ChipSharp.Frontend.Il;
 using ChipSharp.Frontend.Lowering;
+using ChipSharp.Hardware;
 using ChipSharp.Ir;
+using ChipSharp.Runtime.Rp2040;
+using ChipSharp.Runtime.Windows;
 using ChipSharp.Targets;
 using ChipSharp.Tests.Build;
 using ChipSharp.Tests.Pico;
@@ -61,6 +66,81 @@ public sealed class SerialAnalogCheckTests : IDisposable
         {
             Directory.Delete(_scratch, recursive: true);
         }
+    }
+
+    private static IEnumerable<MethodInfo> Methods => new[] { typeof(Uart), typeof(Adc), typeof(Pwm) }
+        .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly));
+
+    /// <summary>The functions of ChipRuntime that Uart, Adc, Pwm and Console.Read call (the others are the buses').</summary>
+    private static List<IlMethod> RuntimeFunctions => [.. LibrarySubstitutes.Assembly
+        .FindType(LibrarySubstitutes.ChipRuntimeType)!.Methods.Where(method => method.IsStatic
+            && (method.Attributes & MethodAttributes.MemberAccessMask) == MethodAttributes.Public
+            && IsSerialAnalog($"ChipSharp.Runtime.{method.Name}"))];
+
+    [Fact]
+    public void The_classes_are_Uart_Adc_and_Pwm_with_ints_spans_and_a_double_and_no_Set_names()
+    {
+        Assert.Equal(
+            [
+                "Adc.Input(Int32 pin)", "Adc.Read(Int32 pin)", "Adc.Temperature()", "Adc.Volts(Int32 pin)",
+                "Pwm.Duty(Int32 pin, Double duty)", "Pwm.Output(Int32 pin, Int32 frequency)",
+                "Pwm.PulseMicroseconds(Int32 pin, Int32 microseconds)", "Pwm.Stop(Int32 pin)",
+                "Uart.Available(Int32 port)", "Uart.Open(Int32 port, Int32 tx, Int32 rx, Int32 baud)",
+                "Uart.Read(Int32 port, Span`1 buffer)", "Uart.ReadByte(Int32 port)", "Uart.Unwatch(Int32 port)",
+                "Uart.Watch(Int32 port)", "Uart.Write(Int32 port, ReadOnlySpan`1 bytes)",
+                "Uart.WriteByte(Int32 port, Byte value)",
+            ],
+            Methods.Select(m => $"{m.DeclaringType!.Name}.{m.Name}(" +
+                    $"{string.Join(", ", m.GetParameters().Select(p => $"{p.ParameterType.Name} {p.Name}"))})")
+                .Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void On_dotnet_every_method_says_it_runs_on_a_chip()
+    {
+        byte[] bytes = [1, 2];
+        (string Name, Action Call)[] calls =
+        [
+            ("Uart.Open", () => Uart.Open(1, 4, 5, 9600)),
+            ("Uart.Write", () => Uart.Write(1, bytes)),
+            ("Uart.WriteByte", () => Uart.WriteByte(1, 1)),
+            ("Uart.Read", () => Uart.Read(1, bytes)),
+            ("Uart.ReadByte", () => Uart.ReadByte(1)),
+            ("Uart.Available", () => Uart.Available(1)),
+            ("Uart.Watch", () => Uart.Watch(1)),
+            ("Uart.Unwatch", () => Uart.Unwatch(1)),
+            ("Adc.Input", () => Adc.Input(26)),
+            ("Adc.Read", () => Adc.Read(26)),
+            ("Adc.Volts", () => Adc.Volts(26)),
+            ("Adc.Temperature", () => Adc.Temperature()),
+            ("Pwm.Output", () => Pwm.Output(15, 1000)),
+            ("Pwm.Duty", () => Pwm.Duty(15, 0.5)),
+            ("Pwm.PulseMicroseconds", () => Pwm.PulseMicroseconds(15, 1500)),
+            ("Pwm.Stop", () => Pwm.Stop(15)),
+        ];
+
+        Assert.Equal(Methods.Count(), calls.Length);
+        Assert.All(calls, call => Assert.StartsWith($"ChipSharp.Hardware.{call.Name} runs on a chip, not on .NET",
+            Assert.Throws<PlatformNotSupportedException>(call.Call).Message));
+    }
+
+    [Fact]
+    public void The_RP2040s_runtime_has_every_function_they_call_and_the_PCs_none()
+    {
+        var pico = string.Concat(new Rp2040Runtime().Startup(Targets.Load("pico")).Files
+            .Where(f => f.FileName is Rp2040Runtime.UartFileName or Rp2040Runtime.AdcFileName or Rp2040Runtime.PwmFileName)
+            .Select(f => f.Content));
+        var windows = string.Concat(new WindowsX64Runtime().Startup(Targets.Load("host")).Files.Select(f => f.Content));
+
+        Assert.Equal(15, RuntimeFunctions.Count);
+        Assert.All(RuntimeFunctions, method =>
+        {
+            var symbol = LlvmCodeGenerator.SymbolName($"ChipSharp.Runtime.{method.Name}");
+            Assert.Contains($" {symbol}(", pico);
+            Assert.DoesNotContain(symbol, windows);
+            Assert.True(LibrarySubstitutes.TryMapRuntimeFunction(
+                new IlMethodReference(method.DeclaringType.Type, method.Name, method.Signature, [], null), out _));
+        });
     }
 
     [Fact]

@@ -79,7 +79,7 @@ public sealed partial class SerialAnalogExampleTests : IDisposable
                 "servo at 180 degrees", "servo at 135 degrees", "servo at 90 degrees", "servo at 45 degrees",
             ],
             Uart0Lines(run).Take(8));
-        var pulses = PwmLines(run, 15).Select(line => PwmPulse().Match(line.Text)).Where(match => match.Success)
+        var pulses = PwmLines(run, 22).Select(line => PwmPulse().Match(line.Text)).Where(match => match.Success)
             .Select(match => (Hertz: Number(match, 1), Microseconds: Number(match, 2))).ToList();
         Assert.All(pulses, pulse => Assert.InRange(pulse.Hertz, 49.99, 50.01));
         Assert.InRange(pulses.Min(pulse => pulse.Microseconds), 999, 1001);
@@ -98,14 +98,20 @@ public sealed partial class SerialAnalogExampleTests : IDisposable
 
         foreach (var example in new[] { "pico-uart-echo", "pico-adc-pwm", "pico-servo" })
         {
+            // direct wires, as Wokwi needs: no resistors, the Pico at the top left
+            var parts = JsonNode.Parse(File.ReadAllText(Path.Combine(Repository.Examples, example, "diagram.json")))![
+                "parts"]!.AsArray();
+            Assert.DoesNotContain(parts, part => part!["type"]!.GetValue<string>() == "wokwi-resistor");
+            var pico = parts.Single(part => part!["type"]!.GetValue<string>() == "wokwi-pi-pico")!;
+            Assert.Equal((0, 0), (pico["top"]!.GetValue<int>(), pico["left"]!.GetValue<int>()));
             var connections = Connections(example);
             Assert.True(Wired(connections, "pico:GP0", "$serialMonitor:RX"), example);
             Assert.True(Wired(connections, "pico:GP1", "$serialMonitor:TX"), example);
         }
 
         Assert.True(Wired(Connections("pico-adc-pwm"), "knob:SIG", "pico:GP26"));
-        Assert.True(Wired(Connections("pico-adc-pwm"), "pico:GP15", "r-lamp:2"));
-        Assert.True(Wired(Connections("pico-servo"), "servo:PWM", "pico:GP15"));
+        Assert.True(Wired(Connections("pico-adc-pwm"), "pico:GP15", "lamp:A"));
+        Assert.True(Wired(Connections("pico-servo"), "servo:PWM", "pico:GP22"));
     }
 
     /// <summary>
