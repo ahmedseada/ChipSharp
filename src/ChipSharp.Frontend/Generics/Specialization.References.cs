@@ -304,7 +304,7 @@ internal static partial class Specialization
             if (definition.Assembly.Interfaces(definition)
                 .Select(listed => ValueTypes.WithoutModifiers(ofType.Apply(listed)))
                 .Any(listed => IlTypeNames.DisplayName(listed) == wanted
-                    && (listed is IlGenericInstanceType instance ? instance.Arguments : []).SequenceEqual(arguments)))
+                    && SameTypes(listed is IlGenericInstanceType instance ? instance.Arguments : [], arguments, owner)))
             {
                 return true;
             }
@@ -312,6 +312,16 @@ internal static partial class Specialization
 
         return false;
     }
+
+    /// <summary>
+    /// True when <paramref name="listed"/> and <paramref name="wanted"/> name the same types, one by one: the same type,
+    /// or the same struct, which a substitute's interfaces name by the substitute (<c>IEquatable&lt;ValueTuple&lt;int,
+    /// int&gt;&gt;</c> of ChipSharp.Library's ValueTuple) and the program by the library type it stands for.
+    /// </summary>
+    private static bool SameTypes(IReadOnlyList<IlType> listed, IReadOnlyList<IlType> wanted, IlAssembly owner) =>
+        listed.Count == wanted.Count && listed.Zip(wanted).All(pair => pair.First == pair.Second
+            || (ValueTypes.Definition(pair.First, owner) is { } definition
+                && definition == ValueTypes.Definition(pair.Second, owner)));
 
     /// <summary>
     /// Replaces <paramref name="count"/> instructions from <paramref name="index"/> with <paramref name="replacement"/>,

@@ -148,7 +148,11 @@ internal static class LibrarySubstitutes
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(reference);
 
-        if (reference.Definition is null && reference.DeclaringType is IlNamedType named && FindType(named) is { } type
+        // (a field of a generic type, ValueTuple<int, int>.Item1, is the generic substitute's, which Instantiations then
+        // links to its instance)
+        var declaring = reference.DeclaringType is IlGenericInstanceType { Definition: IlNamedType generic } ? generic
+            : reference.DeclaringType as IlNamedType;
+        if (reference.Definition is null && declaring is { } named && FindType(named) is { } type
             && type.Fields.FirstOrDefault(field => IsPublic(field.Attributes) && field.Name == reference.Name
                 && Key(field.Type, Assembly) == Key(reference.FieldType, owner)) is { } substitute)
         {
