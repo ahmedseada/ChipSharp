@@ -40,6 +40,7 @@ public sealed class AvrToolchainTests : IDisposable
         Assert.Equal(new MemoryRegion(0x100, 2 << 10), uno.Memory["ram"]);
         Assert.False(uno.HasHeap);
         Assert.False(uno.HasConsole); // until the runtime "avr" has USART0
+        Assert.False(uno.HasCapability("clock")); // and a timer for DateTime.Now and Stopwatch
         Assert.Equal("16000000", uno.Setting("clockHz"));
         Assert.Equal("13", uno.Pins["LED"]);
 
