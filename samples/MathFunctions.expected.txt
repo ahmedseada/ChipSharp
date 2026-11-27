@@ -1,0 +1,39 @@
+Projectile at 20 m/s:
+  15 degrees: 20.39 m in 1.055 s, 1.37 m high, 19.3 m/s across
+  30 degrees: 35.31 m in 2.039 s, 5.1 m high, 17.3 m/s across
+  45 degrees: 40.77 m in 2.883 s, 10.19 m high, 14.1 m/s across
+  60 degrees: 35.31 m in 3.531 s, 15.29 m high, 10 m/s across
+  75 degrees: 20.39 m in 3.939 s, 19.02 m high, 5.2 m/s across
+  to land 30 m away, aim at 23.7 or 66.3 degrees
+Pendulum of 0.75 m: a swing takes 1.7373 s
+  after  0 swings: 10 degrees
+  after  5 swings: 6.477 degrees
+  after 10 swings: 4.195 degrees
+  after 15 swings: 2.717 degrees
+  after 20 swings: 1.76 degrees
+  the swing halves every 13.86 s
+Thermistor:
+  ADC   20: 199 Ohm, 125 C (display 125 to 125, 257 F)
+  ADC  180: 2135 Ohm, 68.9 C (display 68 to 69, 156 F)
+  ADC  300: 4149 Ohm, 48.7 C (display 48 to 49, 119 F)
+  ADC  512: 10020 Ohm, 24.6 C (display 24 to 25, 76 F)
+  ADC  700: 21672 Ohm, 5.8 C (display 5 to 6, 42 F)
+  ADC  900: 73171 Ohm, -20.4 C (display -21 to -20, -4 F)
+  ADC 1010: 776923 Ohm, -40 C (display -40 to -40, -40 F)
+Sound levels:
+  2E-05 Pa: 0 dB, safe
+  0.002 Pa: 40 dB, safe
+  0.0632 Pa: 70 dB, safe
+  1 Pa: 94 dB, harmful
+  20 Pa: 120 dB, harmful
+  2.5 dB shown: 2 (to even), 3 (away from zero), 2 (toward zero), 2.5 (down to a tenth), 2.5 (up to a tenth)
+  3.5 dB shown: 4 (to even), 4 (away from zero), 3 (toward zero), 3.5 (down to a tenth), 3.5 (up to a tenth)
+  -2.5 dB shown: -2 (to even), -3 (away from zero), -2 (toward zero), -2.5 (down to a tenth), -2.5 (up to a tenth)
+  72.25 dB shown: 72 (to even), 72 (away from zero), 72 (toward zero), 72.2 (down to a tenth), 72.3 (up to a tenth)
+Headings:
+  (30, 0): 0 degrees, 30 uT
+  (21.2, 21.2): 45 degrees, 29.98 uT
+  (0, 30): 90 degrees, 30 uT
+  (-18.4, 23.7): 127.8 degrees, 30 uT
+  (-30, -0.5): 181 degrees, 30 uT
+  (5.5, -29.1): 280.7 degrees, 29.62 uT

@@ -84,6 +84,9 @@ public sealed class SampleProgramTests : IDisposable
     public Task LookupTables() => PrintsWhatDotnetPrints();
 
     [HostFact]
+    public Task MathFunctions() => PrintsWhatDotnetPrints();
+
+    [HostFact]
     public Task Primes() => PrintsWhatDotnetPrints();
 
     [HostFact]
