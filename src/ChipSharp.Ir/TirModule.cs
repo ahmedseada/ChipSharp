@@ -32,6 +32,14 @@ public sealed class TirModule
     public TirFunction? EntryPoint { get; set; }
 
     /// <summary>
+    /// True when the program uses the heap: a function makes an object (<c>newobject</c>, <c>newarray</c>) or calls a
+    /// runtime function that makes objects or works on the heap (<see cref="TirFunction.MakesObjects"/>, e.g. System.GC's).
+    /// A program that does not needs no heap: neither memory for one nor the garbage collector's code.
+    /// </summary>
+    public bool UsesHeap => _functions.Any(function => function.Blocks.Any(block => block.Instructions.Any(instruction =>
+        instruction is TirNewObject or TirNewArray or TirCall { Callee.MakesObjects: true })));
+
+    /// <summary>
     /// Adds a function with a body; add its blocks with <see cref="TirFunction.AddBlock"/>.
     /// The function exists before its body, so calls to it (even from itself) can be built first.
     /// </summary>

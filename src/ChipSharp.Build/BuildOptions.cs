@@ -34,6 +34,13 @@ public sealed record BuildOptions
     /// </summary>
     public bool KeepIntermediates { get; init; }
 
+    /// <summary>
+    /// Check the whole heap after every collection (<c>chipsharp build --verify-heap</c>): every block, type descriptor
+    /// and reference, the marks and the free lists; a program whose heap is corrupted stops, saying what is wrong and
+    /// where. For finding bugs: each collection takes about twice as long.
+    /// </summary>
+    public bool VerifyHeap { get; init; }
+
     /// <summary>clang itself, for the toolchains that run it; see <see cref="ClangToolchainOptions.ClangPath"/>.</summary>
     public string? ClangPath { get; init; }
 

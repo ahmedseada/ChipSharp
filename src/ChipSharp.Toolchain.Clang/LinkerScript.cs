@@ -21,6 +21,10 @@ namespace ChipSharp.Toolchain.Clang;
 /// <item><term>__chipsharp_stack_top</term><description>the end of RAM, where the stack starts</description></item>
 /// <item><term>__chipsharp_heap_start, __chipsharp_heap_end</term><description>the heap, for a target with
 /// one</description></item>
+/// <item><term>__chipsharp_stack_bottom</term><description>the lowest the stack may go: the start of its region
+/// above the heap, or, without a heap, the end of the variables (so the stack has all the RAM they leave)</description></item>
+/// <item><term>__chipsharp_stack_limit</term><description>the bottom and a margin (<see cref="StackMargin"/>): the
+/// functions that check the stack stop the program with "Stack overflow." below it</description></item>
 /// </list>
 /// The link fails, saying why, when a head section is not exactly its size; when the program does not fit, ld.lld says
 /// by how much each region overflowed (see <see cref="MemoryOverflow"/>).
@@ -35,6 +39,8 @@ internal static class LinkerScript
     public const string StackTop = "__chipsharp_stack_top";
     public const string HeapStart = "__chipsharp_heap_start";
     public const string HeapEnd = "__chipsharp_heap_end";
+    public const string StackBottom = "__chipsharp_stack_bottom";
+    public const string StackLimit = "__chipsharp_stack_limit";
 
     /// <summary>The memory region of the stack: the last "link.stack" bytes of the data region.</summary>
     public const string StackRegion = "stack";
@@ -141,9 +147,21 @@ internal static class LinkerScript
         Line($"  /* the stack grows down from the end of {data} */");
         var top = stack > 0 ? StackRegion : data;
         Line($"  {StackTop} = ORIGIN({top}) + LENGTH({top});");
+        Line(heap > 0 && stack > 0
+            ? $"  /* down to its own region at most: the heap is below it */\n  {StackBottom} = ORIGIN({StackRegion});"
+            : $"  /* down to the variables at most: the stack has all the RAM they leave */\n  {StackBottom} = {BssEnd};");
+        Line($"  /* a function that checks the stack stops the program below this (see LlvmStackChecks) */");
+        Line($"  {StackLimit} = {StackBottom} + {Hex(StackMargin(stack))};");
         Line("}");
         return text.ToString();
     }
 
-    private static string Hex(ulong value) => "0x" + value.ToString("x", CultureInfo.InvariantCulture);
+    /// <summary>
+    /// How far above the stack's bottom the program stops with "Stack overflow.": room for what may run below the
+    /// last function that checks the stack (the functions it calls that check nothing, the runtime's, an interrupt's
+    /// handler): a quarter of "link.stack", at most 1 KB.
+    /// </summary>
+    public static ulong StackMargin(ulong stack) => Math.Min(1024UL, stack / 4) & ~7UL;
+
+    private static string Hex(ulong value) =>"0x" + value.ToString("x", CultureInfo.InvariantCulture);
 }

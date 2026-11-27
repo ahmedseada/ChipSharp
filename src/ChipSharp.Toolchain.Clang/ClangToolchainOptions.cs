@@ -31,4 +31,10 @@ public sealed record ClangToolchainOptions
 
     /// <summary>More clang arguments, after the target's "clang.flags", e.g. "-g" for debug information.</summary>
     public IReadOnlyList<string> ExtraFlags { get; init; } = [];
+
+    /// <summary>
+    /// The flag of <c>chipsharp build --verify-heap</c>, for <see cref="ExtraFlags"/>: the runtime's heap
+    /// (chipsharp_heap.c) checks the whole heap after every collection, and stops the program saying what is wrong.
+    /// </summary>
+    public const string VerifyHeapFlag = "-DCHIPSHARP_VERIFY_HEAP";
 }

@@ -20,8 +20,10 @@
     "machine": "i386:x86-64",      // llvm-dlltool's name for the CPU the import libraries are made for
     "imports": {
       // DLL -> the functions the program calls in it; the toolchain makes an import library from this list
-      // (VirtualAlloc: the heap's memory, taken once at the start by a program that makes objects)
-      "kernel32.dll": ["GetStdHandle", "WriteFile", "ExitProcess", "VirtualAlloc"]
+      // (VirtualAlloc: the heap's memory, taken once at the start by a program that makes objects;
+      // SetThreadStackGuarantee and AddVectoredExceptionHandler: a stack overflow ends the program as .NET ends it)
+      "kernel32.dll": ["GetStdHandle", "WriteFile", "ExitProcess", "VirtualAlloc", "AddVectoredExceptionHandler",
+        "SetThreadStackGuarantee"]
     }
   }
 }

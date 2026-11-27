@@ -5,7 +5,8 @@
 //                                 pages zeroed, and only when the program first touches them
 //   chipsharp_scan_stack          stores the callee-saved registers (rbx, rbp, rdi, rsi, r12-r15) on the stack, then
 //                                 scans from there to the top of the thread's stack (its StackBase, from the TEB)
-//   chipsharp_heap_lock, _unlock  nothing to do: a PC program has no interrupt handlers
+//   chipsharp_heap_lock, _unlock  nothing to do: a PC program has no interrupt handlers (on a chip they keep them out of
+//                                 an event's compare and store, see DelegateFunctions)
 //   chipsharp_heap_check_thread   nothing to check, for the same reason
 
 typedef __UINTPTR_TYPE__ uintptr_t;

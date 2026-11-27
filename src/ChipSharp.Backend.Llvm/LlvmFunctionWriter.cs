@@ -51,6 +51,12 @@ internal sealed class LlvmFunctionWriter
         _declarations = declarations;
     }
 
+    /// <summary>True when the function checks the stack where it starts (see <see cref="LlvmStackChecks"/>).</summary>
+    public bool ChecksStack { get; init; }
+
+    /// <summary>The line that clears the callee-saved registers before a call that collects (<see cref="LlvmCollectCalls"/>).</summary>
+    public string? ForgetRegisters { get; init; }
+
     public void Write()
     {
         var allocas = Unique("allocas");
@@ -89,7 +95,25 @@ internal sealed class LlvmFunctionWriter
             Line($"store {_types.Of(slot.Type)} {LlvmText.Zero(slot.Type)}, {Address(slot)}");
         }
 
-        Line($"br {Label(_function.EntryBlock!)}");
+        string? stackOverflow = null;
+        if (ChecksStack)
+        {
+            stackOverflow = Unique("stack_overflow");
+            foreach (var line in LlvmStackChecks.Check("%" + Unique("stack.pointer"), "%" + Unique("stack.low"),
+                stackOverflow, _labels[_function.EntryBlock!]))
+            {
+                Line(line);
+            }
+
+            foreach (var declaration in LlvmStackChecks.Declarations)
+            {
+                _declarations.Add(declaration);
+            }
+        }
+        else
+        {
+            Line($"br {Label(_function.EntryBlock!)}");
+        }
 
         foreach (var block in _function.Blocks)
         {
@@ -104,6 +128,13 @@ internal sealed class LlvmFunctionWriter
         {
             _text.Append('\n').Append(_nullReference).Append(":\n");
             Line($"call void @{LlvmHeap.NullReferenceSymbol}()");
+            Line("unreachable");
+        }
+
+        if (stackOverflow is not null)
+        {
+            _text.Append('\n').Append(stackOverflow).Append(":\n");
+            Line($"call void @{LlvmStackChecks.OverflowSymbol}()");
             Line("unreachable");
         }
 
@@ -240,6 +271,12 @@ internal sealed class LlvmFunctionWriter
                 // and the runtime's functions take i32 and i64 only; a C function taking a bool, i8 or i16 would.
                 var arguments = string.Join(", ", call.Arguments.Select(Typed));
                 var callText = $"call {_types.Of(call.Type)} @{_symbols[call.Callee]}({arguments})";
+                if (ForgetRegisters is { } forget && call.Callee.Kind == TirFunctionKind.External
+                    && LlvmCollectCalls.Collects(_symbols[call.Callee]))
+                {
+                    Line(forget);
+                }
+
                 if (call.HasResult)
                 {
                     Define(call, callText);

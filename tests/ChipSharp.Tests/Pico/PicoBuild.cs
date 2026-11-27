@@ -55,6 +55,8 @@ internal static class PicoBuild
 
     private static PicoProgram Build(TirModule module, string folder, TargetDescription target)
     {
+        // as chipsharp build does: a program that never uses the heap is built for the target without one
+        target = module.UsesHeap ? target : target.WithoutHeap();
         IArchRuntime runtime = new Rp2040Runtime();
         var code = new GeneratedCode(
         [

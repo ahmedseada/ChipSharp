@@ -379,7 +379,9 @@ public sealed class ClassCheckTests : IDisposable
         Assert.Equal(
         [
             $"Program.Tick() at IL_0020 (newobj): {InHandler}",
+            $"Program.Tick() at IL_0027 (stsfld): {Memory.InterruptStoreRuleTests.Rule}",
             $"Step.Grow() at IL_0009 (newobj): {InHandler}",
+            $"Step.Grow() at IL_0010 (stfld): {Memory.InterruptStoreRuleTests.Rule}",
         ], analysis.Problems.Select(problem => problem.Line));
     }
 }

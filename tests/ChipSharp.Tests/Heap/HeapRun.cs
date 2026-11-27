@@ -38,22 +38,27 @@ internal static class HeapRun
         .. heaps.Select(heap => ($"pico-{heap}", $$"""{ "inherits": "pico", "capabilities": { "heap": "{{heap}}" } }""")),
     ]));
 
-    public static async Task<HeapRunResult> OnHostAsync(TirModule module, string folder, TargetDescription host)
+    /// <summary>Builds the module for <paramref name="host"/> (with the heap verifier when <paramref name="verifyHeap"/>) and runs it.</summary>
+    public static async Task<HeapRunResult> OnHostAsync(TirModule module, string folder, TargetDescription host,
+        bool verifyHeap = false)
     {
         IArchRuntime runtime = new WindowsX64Runtime();
-        var binary = new ClangToolchain(new ClangToolchainOptions { OutputFolder = folder }).Build(Code(module, host, runtime), host);
+        var binary = new ClangToolchain(Options(folder, verifyHeap)).Build(Code(module, host, runtime), host);
         var clock = Stopwatch.StartNew();
         var run = await HostRun.RunAsync(binary.Path, [], folder);
         clock.Stop();
         return new HeapRunResult(run.ExitCode, Lines(run.Text), run.Errors, clock.Elapsed, run.Text);
     }
 
-    /// <summary>Builds the module for <paramref name="pico"/> and runs it in the simulator for at most <paramref name="milliseconds"/>.</summary>
+    /// <summary>
+    /// Builds the module for <paramref name="pico"/> (with the heap verifier when <paramref name="verifyHeap"/>) and runs
+    /// it in the simulator for at most <paramref name="milliseconds"/>.
+    /// </summary>
     public static async Task<(HeapRunResult Result, SimulatorRun Run, PicoProgram Program)> OnPicoAsync(TirModule module,
-        string folder, TargetDescription pico, int milliseconds = 10_000, params string[] options)
+        string folder, TargetDescription pico, int milliseconds = 10_000, bool verifyHeap = false, params string[] options)
     {
         IArchRuntime runtime = new Rp2040Runtime();
-        var binary = new ClangToolchain(new ClangToolchainOptions { OutputFolder = folder }).Build(Code(module, pico, runtime), pico);
+        var binary = new ClangToolchain(Options(folder, verifyHeap)).Build(Code(module, pico, runtime), pico);
         var uf2 = Path.ChangeExtension(binary.Path, ".uf2");
         using (var output = File.Create(uf2))
         {
@@ -69,6 +74,12 @@ internal static class HeapRun
         return (new HeapRunResult(run.ExitCode, Lines(text), run.Errors, time, text), run,
             new PicoProgram(binary.Path, uf2));
     }
+
+    private static ClangToolchainOptions Options(string folder, bool verifyHeap) => new()
+    {
+        OutputFolder = folder,
+        ExtraFlags = verifyHeap ? [ClangToolchainOptions.VerifyHeapFlag] : [],
+    };
 
     private static GeneratedCode Code(TirModule module, TargetDescription target, IArchRuntime runtime) => new(
     [

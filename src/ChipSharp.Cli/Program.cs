@@ -15,6 +15,8 @@
 //                                the handlers in them)
 //          -o, --output <folder>  with build: where to write the program (default: chipsharp-output\<target>)
 //          --keep                 with build: also write the program's TIR and generated code (.ll) there
+//          --verify-heap          with build: check the whole heap after every garbage collection, and stop the
+//                                 program saying what is wrong when it is corrupted
 //          --details              with check: every place ChipSharp cannot compile on a line of its own, not by
 //                                 feature, and every library method it can call, with its parameters
 //          --method <name>        with il and tir: only the methods with this display name, e.g. Program.Main
@@ -39,6 +41,7 @@ try
     var target = TakeOption(rest, "--target", "-t");
     var output = TakeOption(rest, "--output", "-o");
     var keep = TakeFlag(rest, "--keep");
+    var verifyHeap = TakeFlag(rest, "--verify-heap");
     var details = TakeFlag(rest, "--details");
 
     switch (rest)
@@ -51,6 +54,7 @@ try
                 TargetsFolder = folder,
                 OutputFolder = output,
                 KeepIntermediates = keep,
+                VerifyHeap = verifyHeap,
             });
             Console.WriteLine(result.OutputPath);
             foreach (var file in result.IntermediatePaths)
@@ -146,7 +150,7 @@ try
         {
             Console.WriteLine("""
                 usage:
-                  chipsharp build <assembly.dll> [-t|--target <name>] [-o|--output <folder>] [--keep]
+                  chipsharp build <assembly.dll> [-t|--target <name>] [-o|--output <folder>] [--keep] [--verify-heap]
                   chipsharp check <assembly.dll> [--details] [-t|--target <name>]
                   chipsharp tir <assembly.dll> [--method <name>] [-t|--target <name>]
                   chipsharp il <assembly.dll> [--method <name>]
@@ -157,6 +161,7 @@ try
                                           to check the program for: its heap, console and interrupts
                   -o, --output <folder>   build: where to write the program (default: chipsharp-output\<target>)
                   --keep                  build: also write the program's TIR (.tir) and generated code (.ll) there
+                  --verify-heap           build: check the whole heap after every garbage collection
                   --details               check: list every place ChipSharp cannot compile, not one line per C#
                                           feature, and every library method it can call
                   --method <name>         tir, il: only the methods with this display name, e.g. Program.Main

@@ -4,8 +4,10 @@
 //                                 target's "heap" bytes between the variables and the stack
 //   chipsharp_scan_stack          stores the callee-saved registers (r4-r11) on the stack, then scans from there to the
 //                                 top of the stack (__chipsharp_stack_top): the program runs on the main stack
-//   chipsharp_heap_lock, _unlock  interrupts off (PRIMASK) while the collector runs, and back as they were, so that no
-//                                 handler changes a reference the collector is reading
+//   chipsharp_heap_lock, _unlock  interrupts off (PRIMASK), and back as they were: around the compare and store of an
+//                                 event's add and remove (Interlocked.CompareExchange, see DelegateFunctions), so that
+//                                 no handler stores the field in between. The collector itself runs with interrupts on
+//                                 (see chipsharp_heap.c)
 //   chipsharp_heap_check_thread   stops the program when it runs in an interrupt handler (IPSR is not 0): a handler
 //                                 may come in the middle of an allocation or a collection, so it never uses the heap
 //
