@@ -40,4 +40,20 @@ internal static class Runtime
     /// <summary>OverflowException: the negative of the smallest value, e.g. <c>-TimeSpan.MinValue</c>.</summary>
     public static void NegateOverflow() => throw new OverflowException(
         "Negating the minimum value of a twos complement number is invalid.");
+
+    /// <summary>ArgumentNullException: a method of System.Array is given null for its <c>array</c>.</summary>
+    public static void ArrayNull() => throw new ArgumentNullException("array");
+
+    /// <summary>ArgumentOutOfRangeException: a method of System.Array is given a negative <c>index</c>.</summary>
+    public static void NegativeIndex() => throw new ArgumentOutOfRangeException("index", NonNegative);
+
+    /// <summary>ArgumentOutOfRangeException: a method of System.Array is given a negative <c>length</c>.</summary>
+    public static void NegativeLength() => throw new ArgumentOutOfRangeException("length", NonNegative);
+
+    /// <summary>ArgumentException: an index and a length of a method of System.Array that pass the array's end.</summary>
+    public static void InvalidOffsetLength() => throw new ArgumentException(
+        "Offset and length were out of bounds for the array or count is greater than the number of elements from " +
+        "index to the end of the source collection.");
+
+    private const string NonNegative = "Non-negative number required.";
 }

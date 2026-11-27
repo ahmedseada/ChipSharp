@@ -189,6 +189,10 @@ internal sealed partial class MethodLowering
                 LowerArrayInstruction(instruction);
                 break;
 
+            case var _ when IsArrayMethodInstruction(instruction):
+                LowerArrayMethod(instruction); // see MethodLowering.ArrayMethods.cs
+                break;
+
             case var _ when IsVirtualInstruction(instruction):
                 LowerVirtualInstruction(instruction);
                 break;

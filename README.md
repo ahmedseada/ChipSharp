@@ -46,7 +46,7 @@ that ChipSharp does not compile yet, where, when it is planned, and what to writ
 on a line of its own, and every library method ChipSharp can call). `tir` shows the program in TIR. `build` compiles
 it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` also keeps the `.tir` and `.ll` files.
 
-`dotnet test` runs 1274 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
+`dotnet test` runs 1365 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
 `CHIPSHARP_LLVM_BIN`); the Pico tests also need the simulator (see below), and are skipped, saying why, without it.
 
 ## What C# compiles today
@@ -69,14 +69,15 @@ it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` 
 | Fixed text | String literals (`"road : 1"`, `string.Empty`) anywhere a string may be, on every target: printed (`null` as nothing, like .NET, as UTF-8), compared, measured, searched (the methods of string that make no new text). Each literal is an object in flash once on a chip: 8 bytes and 1 byte per char on the Pico |
 | Printed text | Text built and printed straight away, with no string ever made and no heap: `Console.WriteLine($"road : {lane}")`, `Console.Write("road : " + lane + '!')`, `lane.ToString()`, `Console.WriteLine("{0,4} {1:X2}", a, b)`, `Console.WriteLine(color)`; holes of text, chars, enums (by name, `[Flags]` combined too, or with `D` and `X`) and of every type `Console.Write` prints, worked out first, in order, like .NET; alignments (`{x,5}`, `{x,-5}`, not of floats) and the formats `D`, `D<n>`, `X<n>`, `x<n>` and `G` of whole numbers |
 | Strings | On a target with a heap: text built and kept (`string s = $"..."`, `+`, `+=`, `ToString()` of numbers, bools, chars and enums with the formats printed text has, `string.Concat`, `string.Join` of an array, `string.Format` of a literal format) in locals, fields of classes and structs, static fields, arrays (`string[]`), returned and passed anywhere; `==`, `!=`, `Equals`, `CompareOrdinal`, `CompareTo`, `IsNullOrEmpty`, `IsNullOrWhiteSpace`, `Length`, `s[i]`, `foreach`, `Substring`, `IndexOf`, `LastIndexOf`, `Contains`, `StartsWith`, `EndsWith`, `Replace`, `Trim`, `TrimStart`, `TrimEnd`, `PadLeft`, `PadRight`, `ToUpper`, `ToLower`, `Insert`, `Remove`, `Split`, `ToCharArray`, `new string(...)`, `GetHashCode`, `switch` on strings; `int.Parse` and `TryParse` (and those of the other whole numbers); `char.IsDigit`, `IsLetter`, `IsWhiteSpace`, `IsUpper`, `IsLower`, `ToUpper`, `ToLower`; spans of chars (`s.AsSpan()`, `stackalloc char[8]`, `span.ToString()`); `ToString()` of the program's classes (overrides, and object's own: the type's name), `Console.WriteLine(shape)`, `is string`, `as string`, `(string)o` |
-| Library | `Console.Write` and `Console.WriteLine` of text, a number or a bool; `Math` and `MathF`: `Abs`, `Min`, `Max`, `Sqrt`; `TimeSpan`: its factories in any unit (`FromMilliseconds(500)`, `FromSeconds(1.5)`), parts, totals, arithmetic and comparisons; on a chip, `ChipSharp.Hardware`: pins, timing (`Timing.Delay(TimeSpan)` too), registers and interrupts; for spans, `MemoryExtensions` (`IndexOf`, `LastIndexOf`, `Contains`, `SequenceEqual`, `StartsWith`, `EndsWith`, `Reverse`, `AsSpan`), `BinaryPrimitives` (`Read`, `Write`, `TryRead` and `TryWrite` of the whole numbers, `float` and `double`, big- and little-endian; `ReverseEndianness`) and `MemoryMarshal` (`Read`, `Write`, `TryRead`, `TryWrite`, `AsBytes`, `Cast`, `CreateSpan`), at any offset |
+| Library | `Console.Write` and `Console.WriteLine` of text, a number or a bool; `Math` and `MathF`: `Abs`, `Min`, `Max`, `Sqrt`; `TimeSpan`: its factories in any unit (`FromMilliseconds(500)`, `FromSeconds(1.5)`), parts, totals, arithmetic and comparisons; on a chip, `ChipSharp.Hardware`: pins, timing (`Timing.Delay(TimeSpan)` too), registers and interrupts; for spans, `MemoryExtensions` (`IndexOf`, `LastIndexOf`, `Contains`, `SequenceEqual`, `StartsWith`, `EndsWith`, `Reverse`, `AsSpan`), `BinaryPrimitives` (`Read`, `Write`, `TryRead` and `TryWrite` of the whole numbers, `float` and `double`, big- and little-endian; `ReverseEndianness`) and `MemoryMarshal` (`Read`, `Write`, `TryRead`, `TryWrite`, `AsBytes`, `Cast`, `CreateSpan`), at any offset; `System.Array`: `Copy` (every overload, the `long` ones too, overlapping copies within an array like .NET's), `ConstrainedCopy`, `CopyTo`, `Clear`, `Fill`, `IndexOf`, `LastIndexOf` and `Reverse` of arrays of every element type, `Sort` and `BinarySearch` of numbers and bools, with no heap; on a target with a heap also `Resize` and `Clone` |
 
 | Not yet | When |
 |---|---|
 | An object of a class in an interpolated hole (`$"{node}"`; `"x" + node` and `Console.WriteLine(node)` compile), records, `StringBuilder`, a `params` span (`string.Join(", ", a, b, c)`: give an array), the other formats (`F2`, `N0`) and `string.Format` of a format known only when the program runs, culture-aware comparisons and the case of letters past U+00FF, `ref` and `out` of a string; a struct turned into an interface or `object` (boxing) and back (unboxing: `(int)o`, `o is int`), generic virtual methods, generics over classes (`List<T>`, generic classes, a class, `object` or an array as a type argument), `ref` and `out` of an object, type tests against library classes, `?.` that gives a number (an `int?`); an array in the field of a struct, `ToArray` of a span | With M3 (the heap) |
-| Exceptions (`try`, `catch`, `finally`, `throw`, `using`), `checked` arithmetic, multi-dimensional arrays, array covariance (`object[] items = new int[2][]`), `ref` and `out` of an array, a static array kept outside its field, unsafe code (pointers, `stackalloc` into a pointer, `stackalloc` of a size known only when the program runs), collection expressions as spans (`Span<int> s = [1, 2];`), delegates and lambdas, `typeof`, finalizers, classes derived from library classes | Later |
-| The methods of `System.Array` (`Array.Copy`, `Array.Fill`, `Array.Clear`, `Array.IndexOf`, `Array.Reverse`, `array.Clone()`, ...) | Not yet: `chipsharp check` says where, and to write the loop |
-| Other library types and methods (`decimal`, `Random`, `Math.Sin`, ...) | Not yet: `chipsharp check` lists the methods there are |
+| Exceptions (`try`, `catch`, `finally`, `throw`, `using`), `checked` arithmetic, multi-dimensional arrays, array covariance (`object[] items = new int[2][]`), `ref` and `out` of an array (but `Array.Resize(ref a, n)`), a static array kept outside its field, unsafe code (pointers, `stackalloc` into a pointer, `stackalloc` of a size known only when the program runs), collection expressions as spans (`Span<int> s = [1, 2];`), delegates and lambdas, `typeof`, finalizers, classes derived from library classes | Later |
+| The methods of `System.Array` that take a delegate (`Array.Exists`, `Find`, `FindIndex`, `TrueForAll`, `ForEach`, `ConvertAll`, `Sort` with a `Comparison`) | With M3 (delegates) |
+| `Array.Copy` between arrays of different element types (`int[]` into `long[]`), `Array.Sort` and `BinarySearch` of enums, structs and objects, `Array.IndexOf` of structs, of `object` and of classes with an `Equals` of their own | Later |
+| Other library types and methods (`decimal`, `Random`, `Math.Sin`, `array.GetValue(i)`, the overloads of `System.Array` that take an `IComparer`, ...) | Not yet: `chipsharp check` lists the methods there are, and for `System.Array` says to write the loop |
 
 `chipsharp check` (and `build`) say so for each feature a program uses, with what to write for now. The first program
 ChipSharp was asked to run printed its result with `Console.WriteLine($"Logit result: {result}")`: printed text, which
@@ -97,6 +98,7 @@ A call to a library method ChipSharp does not have lists the ones it has:
 ChipSharp can call these library methods (--details lists each one with its parameters):
   Console.Write and Console.WriteLine of (nothing), text, int, uint, long, ulong, bool, float, double
   Math and MathF: Abs, Min, Max, Sqrt
+  Array: Copy, ConstrainedCopy, CopyTo, Clear, Fill, IndexOf, LastIndexOf, Reverse, Resize, Clone, Sort, BinarySearch
   MemoryExtensions: IndexOf, LastIndexOf, Contains, SequenceEqual, StartsWith, EndsWith, Reverse, AsSpan
   TimeSpan: FromTicks, FromDays, FromHours, FromMinutes, FromSeconds, FromMilliseconds, FromMicroseconds, Add, Subtract, Negate, Multiply, Divide, Duration, Compare, CompareTo, Equals, its constructors, properties and operators
   Span<T>: Slice, CopyTo, TryCopyTo, Fill, Clear, its constructors, properties and operators
@@ -115,8 +117,10 @@ methods and structs, devices used through a constraint, generic math), `Spans.cs
 offset, a checksum over its bytes), `Shapes.cs` (an abstract shape and its overrides, interfaces called through a list
 and a static field, `is`, `as`, casts and a switch on types, `Equals` and `GetHashCode`), `Classes.cs` (a linked list and a tree of
 objects, constructors calling each other, a derived class, objects in static fields, and enough short-lived objects to
-make the Pico's garbage collector run again and again) and `HeapArrays.cs` (arrays returned, of sizes known when the
-program runs, an array of arrays, an array kept in a static field and replaced, null, and many arrays used once).
+make the Pico's garbage collector run again and again), `HeapArrays.cs` (arrays returned, of sizes known when the
+program runs, an array of arrays, an array kept in a static field and replaced, null, and many arrays used once) and
+`ArrayMethods.cs` (a ring buffer of readings moved along with `Array.Copy`, medians with `Array.Sort`, levels with
+`Array.Fill` and `IndexOf`, a table searched with `BinarySearch`, a log grown with `Array.Resize` and copied with `Clone`).
 
 ### Fixed text
 
@@ -247,6 +251,39 @@ around it, is not (keeping one outside its field is rejected). An array that may
 by a caller) is measured with a null test, and its bounds check tells null from an index outside the array only when the
 index is not in range. On a chip without a heap, each of these needs a heap, and `chipsharp check` says so, with the
 same hints as before.
+
+Every empty array is an object of its own type, outside the heap (in flash on a chip): `Array.Empty<T>()`, `[]` and an
+empty static array are one empty `int[]` for `int`, as .NET has one for each `T`, so a type test reads its header like
+any array's (`(object)Array.Empty<int>() is long[]` is false), and the collector, which marks only what is in the heap,
+never touches it.
+
+### The methods of System.Array
+
+`Array.Copy` and the rest are ChipSharp's own (`src/ChipSharp.Frontend/ArrayMethods.cs`): those that take an `Array`
+learn the element type from the array on IL's evaluation stack, and work on arrays of every element type arrays hold,
+the program's enums, structs and classes too, so they are compiled as TIR (`Lowering/ArrayMethodFunctions.cs`); `Sort`
+and `BinarySearch` are a library substitute (`src/ChipSharp.Library/Array.cs`), .NET's own introsort, NaN pre-pass and
+binary search, so equal elements that are not the same bits (`-0.0` and `0.0`, NaNs) end up where .NET puts them. Each
+checks its arguments in .NET's order and stops the program with .NET's message, the value included where .NET says it
+(`length ('-1') must be a non-negative value. (Parameter 'length')` and `Actual value was -1.` on a line of its own):
+
+```csharp
+Array.Copy(window, 1, window, 0, window.Length - 1);   // overlapping, as memmove does
+Array.Sort(scratch);                                     // numbers and bools
+int band = Array.BinarySearch(Thresholds, median);       // a table in flash: only read, so it stays there
+Array.Fill(levels, Level.Normal);
+int high = Array.IndexOf(levels, Level.High);            // an enum, by value; a NaN equals NaN, as Equals says
+Array.Resize(ref log, log.Length * 2);                   // a local, a parameter or a field: needs a heap
+int[] kept = (int[])log.Clone();                         // needs a heap
+```
+
+`IndexOf` and `LastIndexOf` compare as .NET's `EqualityComparer<T>.Default` does: numbers, bools and enums by value
+(a float NaN equals NaN, `-0.0` equals `0.0`), arrays and the program's classes by reference; a struct, `object` and a
+class with an `Equals` of its own would need that `Equals`, which they do not call yet. Only the elements a method
+writes count as written (a copy's destination; the array of `Clear`, `Fill`, `Reverse`, `Sort`), so a constant table that
+`IndexOf` or `BinarySearch` reads stays in flash. Nothing allocates but `Resize` and `Clone`, which make the new array
+before they copy into it, so the references of an array are never half copied when a collection comes: the collector
+runs only when an allocation needs one.
 
 ### Spans
 

@@ -206,6 +206,7 @@ public static class TirPrinter
         { ObjectType: { } type, Data: { } bytes } =>
             $"constant object {type.Name} {global} = {global.ObjectLength}, {BytesText(bytes)}",
         { Data: { } data } => $"constant {global.Type} {global} = {BytesText(data)}",
+        { Header: { } header } => $"constant {global.Type} {global} = object {header}",
         { Elements: { } elements } => $"{(global.IsConstant ? "constant" : "global")} {global.Type} {global} = " +
             $"[{string.Join(", ", elements.Select(ConstantText))}]",
         { IsConstant: true } => $"constant {global.Type} {global}",

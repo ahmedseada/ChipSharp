@@ -11,7 +11,8 @@ namespace ChipSharp.Ir;
 public sealed class TirGlobal
 {
     internal TirGlobal(TirModule module, int index, string name, TirType type, TirConst? initialValue, byte[]? data,
-        TirConst[]? elements = null, bool isConstant = false, TirTypeDescriptor? objectType = null, int objectLength = 0)
+        TirConst[]? elements = null, bool isConstant = false, TirTypeDescriptor? header = null,
+        TirTypeDescriptor? objectType = null, int objectLength = 0)
     {
         ObjectType = objectType;
         ObjectLength = objectLength;
@@ -23,6 +24,7 @@ public sealed class TirGlobal
         Data = data is null ? null : Array.AsReadOnly(data);
         Elements = elements is null ? null : Array.AsReadOnly(elements);
         IsConstant = data is not null || isConstant;
+        Header = header;
     }
 
     public TirModule Module { get; }
@@ -61,9 +63,15 @@ public sealed class TirGlobal
     public bool IsConstant { get; }
 
     /// <summary>
-    /// For a constant object (<see cref="TirModule.AddConstantObject"/>), the array type of the object: its header is
-    /// this descriptor's address, then come <see cref="ObjectLength"/> and, from <see cref="TirLayout.ArrayDataOffset"/>
-    /// on, the elements' bytes, <see cref="Data"/>. Null for any other global.
+    /// For a constant object outside the heap (<see cref="TirModule.AddObject"/>): the type descriptor whose address its
+    /// first field holds, as an object's header does; the rest of it is zero. Null for any other global.
+    /// </summary>
+    public TirTypeDescriptor? Header { get; }
+
+    /// <summary>
+    /// For a constant object with elements (<see cref="TirModule.AddConstantObject"/>, such as a string literal), the
+    /// array type of the object: its header is this descriptor's address, then come <see cref="ObjectLength"/> and, from
+    /// <see cref="TirLayout.ArrayDataOffset"/> on, the elements' bytes, <see cref="Data"/>. Null for any other global.
     /// </summary>
     public TirTypeDescriptor? ObjectType { get; }
 

@@ -219,6 +219,35 @@ public sealed class TirModule
     /// the elements are bools, integers or floats); null for every element zero.
     /// </param>
     /// <param name="isConstant">True for read-only data.</param>
+    /// <summary>
+    /// Adds a constant object outside the heap, printed as <c>@name</c>: a struct of <paramref name="type"/> whose first
+    /// field, a ptr, holds the address of <paramref name="header"/> (as an object's header does) and whose other fields
+    /// are zero, such as the empty array of a type, which <c>Array.Empty&lt;T&gt;()</c> gives. A type test reads its
+    /// header like any object's; the collector never marks it, as it is not in the heap. Read-only data, in flash on a
+    /// chip.
+    /// </summary>
+    public TirGlobal AddObject(string name, TirStructType type, TirTypeDescriptor header)
+    {
+        CheckNewGlobal(name);
+        ArgumentNullException.ThrowIfNull(type);
+        ArgumentNullException.ThrowIfNull(header);
+        if (type.Fields.Count == 0 || type.Fields[0].Type != TirType.Ptr)
+        {
+            throw new TirException($"Module '{Name}': object @{name} is {type}, whose first field is not a ptr for its " +
+                "header.");
+        }
+
+        if (header.Module != this)
+        {
+            throw new TirException($"Module '{Name}': object @{name} has the header {header} of module " +
+                $"'{header.Module.Name}'.");
+        }
+
+        var global = new TirGlobal(this, _globals.Count, name, type, null, null, null, isConstant: true, header);
+        _globals.Add(global);
+        return global;
+    }
+
     public TirGlobal AddArray(string name, TirArrayType type, IEnumerable<TirConst>? elements, bool isConstant)
     {
         CheckNewGlobal(name);

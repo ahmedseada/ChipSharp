@@ -19,10 +19,15 @@
 //   ChipSharp_Runtime_DataMisaligned     MemoryMarshal.Cast on a chip without unaligned access (DataMisalignedException)
 //   ChipSharp_Runtime_InvalidCast        a cast to a type the object is not of (InvalidCastException), with the names of
 //                                        both types as their descriptors hold them (.NET's, e.g. Program+Node)
+//   ChipSharp_Runtime_ArrayNull, ...     the arguments of the methods of System.Array (Array.Copy, Fill, IndexOf, ...):
+//                                        null, an index or a length outside the array, a destination too short
+//                                        (ArgumentNullException, ArgumentOutOfRangeException, ArgumentException); the
+//                                        ...BelowZero ones say the value too, as .NET does
 //
-// IndexOutOfRange, NullReference, OutOfMemory, Overflow and the span ones are the code generator's and the heap's
-// (chipsharp_heap.c), InvalidCast the program's casts' (ChipSharp.Object.CastClass and CastInterface); the others are
-// the methods of ChipSharp.Library.Runtime, which says when each happens.
+// IndexOutOfRange, NullReference, OutOfMemory, Overflow, the span ones and the array ones are the code generator's and
+// the heap's (chipsharp_heap.c), InvalidCast the program's casts' (ChipSharp.Object.CastClass and CastInterface); the
+// others are the methods of ChipSharp.Library.Runtime, which says when each happens (Array.Sort and Array.BinarySearch,
+// ChipSharp.Library's, call four of the array ones that way too).
 
 #define UNHANDLED "Unhandled exception. "
 #define TIMESPAN_TOO_LONG "TimeSpan overflowed because the duration is too long."
@@ -234,4 +239,142 @@ __declspec(noreturn) void ChipSharp_Runtime_InvalidCast(const char *from, const 
     write_error(middle, (DWORD)(sizeof middle - 1));
     write_error(to, length(to));
     fail(end, (DWORD)(sizeof end - 1));
+}
+
+typedef DWORD COUNT;
+
+// ---- The methods of System.Array ----------------------------------------------------------------------------------
+
+#define ARGUMENT_NULL(name) UNHANDLED "System.ArgumentNullException: Value cannot be null. (Parameter '" name "')\r\n"
+#define OUT_OF_RANGE(text) UNHANDLED "System.ArgumentOutOfRangeException: " text "\r\n"
+#define HUGE_ARRAY(name) OUT_OF_RANGE("Arrays larger than 2GB are not supported. (Parameter '" name "')")
+#define NEGATIVE(name) OUT_OF_RANGE("Non-negative number required. (Parameter '" name "')")
+#define FAIL_WITH(text)                                                                                                \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        static const char message[] = text;                                                                            \
+        fail(message, (COUNT)(sizeof message - 1));                                                                    \
+    } while (0)
+
+__declspec(noreturn) void ChipSharp_Runtime_ArrayNull(void) { FAIL_WITH(ARGUMENT_NULL("array")); }
+__declspec(noreturn) void ChipSharp_Runtime_SourceArrayNull(void) { FAIL_WITH(ARGUMENT_NULL("sourceArray")); }
+__declspec(noreturn) void ChipSharp_Runtime_DestinationArrayNull(void) { FAIL_WITH(ARGUMENT_NULL("destinationArray")); }
+
+__declspec(noreturn) void ChipSharp_Runtime_SourceArrayTooShort(void)
+{
+    FAIL_WITH(UNHANDLED "System.ArgumentException: Source array was not long enough. Check the source index, length, "
+        "and the array's lower bounds. (Parameter 'sourceArray')\r\n");
+}
+
+__declspec(noreturn) void ChipSharp_Runtime_DestinationArrayTooShort(void)
+{
+    FAIL_WITH(UNHANDLED "System.ArgumentException: Destination array was not long enough. Check the destination index, "
+        "length, and the array's lower bounds. (Parameter 'destinationArray')\r\n");
+}
+
+__declspec(noreturn) void ChipSharp_Runtime_HugeSourceIndex(void) { FAIL_WITH(HUGE_ARRAY("sourceIndex")); }
+__declspec(noreturn) void ChipSharp_Runtime_HugeDestinationIndex(void) { FAIL_WITH(HUGE_ARRAY("destinationIndex")); }
+__declspec(noreturn) void ChipSharp_Runtime_HugeLength(void) { FAIL_WITH(HUGE_ARRAY("length")); }
+__declspec(noreturn) void ChipSharp_Runtime_HugeIndex(void) { FAIL_WITH(HUGE_ARRAY("index")); }
+
+__declspec(noreturn) void ChipSharp_Runtime_StartIndexPastEnd(void)
+{
+    FAIL_WITH(OUT_OF_RANGE("Index was out of range. Must be non-negative and less than or equal to the size of the "
+        "collection. (Parameter 'startIndex')"));
+}
+
+__declspec(noreturn) void ChipSharp_Runtime_StartIndexAtEnd(void)
+{
+    FAIL_WITH(OUT_OF_RANGE("Index was out of range. Must be non-negative and less than the size of the collection. "
+        "(Parameter 'startIndex')"));
+}
+
+__declspec(noreturn) void ChipSharp_Runtime_CountOutOfRange(void)
+{
+    FAIL_WITH(OUT_OF_RANGE("Count must be positive and count must refer to a location within the string/array/"
+        "collection. (Parameter 'count')"));
+}
+
+__declspec(noreturn) void ChipSharp_Runtime_NegativeIndex(void) { FAIL_WITH(NEGATIVE("index")); }
+__declspec(noreturn) void ChipSharp_Runtime_NegativeLength(void) { FAIL_WITH(NEGATIVE("length")); }
+__declspec(noreturn) void ChipSharp_Runtime_NegativeNewSize(void) { FAIL_WITH(NEGATIVE("newSize")); }
+
+__declspec(noreturn) void ChipSharp_Runtime_InvalidOffsetLength(void)
+{
+    FAIL_WITH(UNHANDLED "System.ArgumentException: Offset and length were out of bounds for the array or count is "
+        "greater than the number of elements from index to the end of the source collection.\r\n");
+}
+
+// A message put together in a buffer of MESSAGE_SIZE bytes: appends text to it.
+#define MESSAGE_SIZE 256
+static void append(char *message, COUNT *count, const char *text)
+{
+    while (*text != 0 && *count < MESSAGE_SIZE)
+    {
+        message[(*count)++] = *text++;
+    }
+}
+
+// Appends an int as .NET writes it (digits, a '-' first when negative), with no division.
+static void append_int(char *message, COUNT *count, int value)
+{
+    static const unsigned int powers[] = {1000000000u, 100000000u, 10000000u, 1000000u, 100000u, 10000u, 1000u, 100u,
+                                          10u, 1u};
+    unsigned int magnitude = value < 0 ? 0u - (unsigned int)value : (unsigned int)value;
+    int started = 0;
+    if (value < 0)
+    {
+        append(message, count, "-");
+    }
+
+    for (int i = 0; i < 10; i++)
+    {
+        char digit[2] = {'0', 0};
+        while (magnitude >= powers[i])
+        {
+            magnitude -= powers[i];
+            digit[0]++;
+        }
+
+        if (digit[0] != '0' || started || i == 9)
+        {
+            append(message, count, digit);
+            started = 1;
+        }
+    }
+}
+
+// The message of ArgumentOutOfRangeException.ThrowIfNegative and ThrowIfLessThan: "<name> ('<value>') <rule> (Parameter
+// '<name>')", then on a line of its own "Actual value was <value>."
+__declspec(noreturn) static void fail_below_zero(const char *name, const char *rule, int value)
+{
+    char message[MESSAGE_SIZE];
+    COUNT count = 0;
+    append(message, &count, UNHANDLED "System.ArgumentOutOfRangeException: ");
+    append(message, &count, name);
+    append(message, &count, " ('");
+    append_int(message, &count, value);
+    append(message, &count, "') ");
+    append(message, &count, rule);
+    append(message, &count, " (Parameter '");
+    append(message, &count, name);
+    append(message, &count, "')\r\nActual value was ");
+    append_int(message, &count, value);
+    append(message, &count, ".\r\n");
+    fail(message, count);
+}
+
+__declspec(noreturn) void ChipSharp_Runtime_LengthBelowZero(int value)
+{
+    fail_below_zero("length", "must be a non-negative value.", value);
+}
+
+__declspec(noreturn) void ChipSharp_Runtime_SourceIndexBelowZero(int value)
+{
+    fail_below_zero("sourceIndex", "must be greater than or equal to '0'.", value);
+}
+
+__declspec(noreturn) void ChipSharp_Runtime_DestinationIndexBelowZero(int value)
+{
+    fail_below_zero("destinationIndex", "must be greater than or equal to '0'.", value);
 }

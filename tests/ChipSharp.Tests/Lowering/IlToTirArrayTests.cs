@@ -219,7 +219,7 @@ public sealed class IlToTirArrayTests
     [Fact]
     public void An_empty_array_has_no_elements_and_a_data_that_is_not_null()
     {
-        // null is the view of zeros (see HeapArrays): [] is the program's one empty array, new int[0] a byte of its own
+        // null is the view of zeros (see HeapArrays): [] is the program's empty int[], new int[0] a byte of its own
         var function = Function("Program.Empty");
 
         Assert.StartsWith("""
@@ -227,7 +227,7 @@ public sealed class IlToTirArrayTests
               $V_0: ChipSharp.Array
               $array_IL_0006: [1 x i8]
             IL_0000:
-              %0 = call ChipSharp.Array ChipSharp.Array.Empty()
+              %0 = call ChipSharp.Array ChipSharp.Array.Empty<int[]>()
               %1 = addr $array_IL_0006
               %2 = const i32 0
               %3 = call ChipSharp.Array ChipSharp.Array.Make(%1, %2)
@@ -249,7 +249,7 @@ public sealed class IlToTirArrayTests
             "Defined ChipSharp.Array.CheckIndex(ChipSharp.Array, i32)",
             "Defined ChipSharp.Array.CheckIndex(ChipSharp.Array, i64)",
             "Defined ChipSharp.Array.Data(ChipSharp.Array)",
-            "Defined ChipSharp.Array.Empty()",
+            "Defined ChipSharp.Array.Empty<int[]>()",
             "Defined ChipSharp.Array.Length(ChipSharp.Array)",
             "Defined ChipSharp.Array.Make(ptr, i32)",
             "External ChipSharp.Runtime.IndexOutOfRange()",

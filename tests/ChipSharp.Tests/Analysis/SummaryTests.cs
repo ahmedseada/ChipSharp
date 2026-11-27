@@ -314,8 +314,8 @@ public sealed class SummaryTests
               ChipSharp.Hardware.Timing: Delay(System.TimeSpan)
             """.ReplaceLineEndings("\n"), Calls.List(methods));
         Assert.Equal(
-            Calls.Summarize(KnownExternals.All.Select(function => function.LibraryMethod).Concat(LibrarySubstitutes.Members)
-                .Concat(Spans.Members).Concat(StringMethods.Members)
+            Calls.Summarize(KnownExternals.All.Select(function => function.LibraryMethod).Concat(ArrayMethods.Members)
+                .Concat(LibrarySubstitutes.Members).Concat(Spans.Members).Concat(StringMethods.Members)
                 .OrderBy(method => method.StartsWith("ChipSharp.", StringComparison.Ordinal))),
             Calls.Summary);
     }
