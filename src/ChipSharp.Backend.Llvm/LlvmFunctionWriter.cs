@@ -164,13 +164,14 @@ internal sealed class LlvmFunctionWriter
                 break;
 
             case TirPointerLoad load:
+                // unaligned: align 1, which LLVM reads so that no chip faults (byte by byte on a Cortex-M0+)
                 Define(load, $"load {Volatile(load.IsVolatile)}{_types.Of(load.Type)}, " +
-                    $"{Typed(load.Address)}, align {_types.Alignment(load.Type)}");
+                    $"{Typed(load.Address)}, align {(load.IsUnaligned ? 1 : _types.Alignment(load.Type))}");
                 break;
 
             case TirPointerStore store:
                 Line($"store {Volatile(store.IsVolatile)}{Typed(store.Value)}, {Typed(store.Address)}, " +
-                    $"align {_types.Alignment(store.Value.Type)}");
+                    $"align {(store.IsUnaligned ? 1 : _types.Alignment(store.Value.Type))}");
                 break;
 
             case TirFieldAddress field:

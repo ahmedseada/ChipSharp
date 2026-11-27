@@ -26,7 +26,11 @@ public sealed class LibrarySubstituteTests
     public void The_library_next_to_the_frontend_has_substitutes_for_TimeSpan_and_Timing()
     {
         Assert.Equal(
-            ["ChipSharp.Library.TimeSpan for System.TimeSpan", "ChipSharp.Library.Timing for ChipSharp.Hardware.Timing"],
+            [
+                "ChipSharp.Library.BinaryPrimitives for System.Buffers.Binary.BinaryPrimitives",
+                "ChipSharp.Library.MemoryExtensions for System.MemoryExtensions",
+                "ChipSharp.Library.TimeSpan for System.TimeSpan", "ChipSharp.Library.Timing for ChipSharp.Hardware.Timing",
+            ],
             LibrarySubstitutes.Substituted.Select(pair => $"{pair.Key.FullName} for {pair.Value}").Order(StringComparer.Ordinal));
         Assert.Equal(
             Path.Combine(Path.GetDirectoryName(typeof(LibrarySubstitutes).Assembly.Location)!, LibrarySubstitutes.FileName),

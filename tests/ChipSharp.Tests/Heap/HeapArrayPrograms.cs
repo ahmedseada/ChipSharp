@@ -394,6 +394,80 @@ internal static class HeapArrayPrograms
         """;
 
     /// <summary>
+    /// Spans of arrays on the heap: of an array in a static field, of arrays made in a method and returned as spans
+    /// (also of a constant size: the span leaving puts the array on the heap), held only by a span on the stack while
+    /// <paramref name="rounds"/> rounds make garbage, and of null.
+    /// </summary>
+    public static string Spans(int rounds) => $$"""
+        using System;
+
+        class Program
+        {
+            static int[] kept;
+
+            static Span<int> Make(int n)
+            {
+                int[] values = new int[n];
+                for (int i = 0; i < n; i++)
+                {
+                    values[i] = i + 1;
+                }
+
+                return values;
+            }
+
+            static Span<int> Fixed()
+            {
+                Span<int> span = new int[4];
+                span[3] = 40;
+                return span;
+            }
+
+            static int Sum(ReadOnlySpan<int> span)
+            {
+                int total = 0;
+                foreach (int value in span)
+                {
+                    total += value;
+                }
+
+                return total;
+            }
+
+            static void Main()
+            {
+                kept = new int[5];
+                for (int i = 0; i < kept.Length; i++)
+                {
+                    kept[i] = i * 10;
+                }
+
+                Span<int> view = kept;
+                view[2] = 99;
+                Console.WriteLine(kept[2]);
+                Console.WriteLine(Sum(view.Slice(1, 3)));
+                Span<int> made = Make(6);
+                Console.WriteLine(Sum(made) + made.Length);
+                Console.WriteLine(Fixed()[3]);
+
+                long total = 0;
+                Span<int> survivor = Make(30);
+                for (int round = 0; round < {{rounds}}; round++)
+                {
+                    Span<int> span = Make(20);
+                    total += span[19] + Sum(span.Slice(10));
+                }
+
+                Console.WriteLine(total);
+                Console.WriteLine(Sum(survivor));
+                int[] nothing = null;
+                Span<int> empty = nothing;
+                Console.WriteLine(empty.IsEmpty);
+            }
+        }
+        """;
+
+    /// <summary>
     /// Where .NET throws for arrays on the heap: <paramref name="what"/> is "length of null", "element of null",
     /// "store into null", "negative length" or "index out of range". Prints 1 first.
     /// </summary>

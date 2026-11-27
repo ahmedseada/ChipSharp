@@ -12,6 +12,8 @@
     "hwDivide": false,    // no divide instruction: a / b calls a software routine
     "fpu": false,         // no float hardware: float math calls __aeabi_fmul and friends
     "atomics": "none",    // no atomic instructions: briefly disable interrupts instead
+    "unalignedAccess": false,  // a word read at an address that is not a multiple of its size faults (HardFault):
+                               // MemoryMarshal.Read and Write read byte by byte, MemoryMarshal.Cast checks its span
     // what a program may use depends on these two; a chip's file says what it has (until then, neither):
     "heap": false,        // the most RAM the heap (objects, text built while running, collections: M3) may take,
                           // e.g. "224K"; false: no heap, the program uses structs, static fields and stack arrays

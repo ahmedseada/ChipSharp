@@ -566,6 +566,11 @@ internal static partial class ArrayEscapeAnalysis
                     InitializeArray(instruction, index, Pop(), token, callee);
                     break;
 
+                case IlOpCode.Call when instruction.Operand is IlMethodOperand { Method: var callee } && IsDataSpan(callee):
+                    DataSpan(Pop());
+                    stack.Add(Value.Other);
+                    break;
+
                 case IlOpCode.Call when instruction.Operand is IlMethodOperand { Method: var callee }
                     && StackArrays.IsEmptyArray(callee, _method.Assembly, out var emptyOf):
                     Verdict(instruction, null);

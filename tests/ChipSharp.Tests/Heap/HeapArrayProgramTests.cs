@@ -45,6 +45,10 @@ public sealed class HeapArrayProgramTests(ITestOutputHelper output) : IDisposabl
         PrintsWhatDotnetPrints(HeapArrayPrograms.Classes(3000), "host-16K");
 
     [HostFact]
+    public Task Spans_of_arrays_on_the_heap_go_wherever_a_span_may_and_keep_their_arrays_alive() =>
+        PrintsWhatDotnetPrints(HeapArrayPrograms.Spans(5000), "host-16K");
+
+    [HostFact]
     public async Task Null_a_negative_length_and_an_index_out_of_range_stop_the_program_with_dotnets_messages()
     {
         foreach (var what in HeapArrayPrograms.Failures)

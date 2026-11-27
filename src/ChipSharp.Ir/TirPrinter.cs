@@ -96,9 +96,9 @@ public static class TirPrinter
             TirSizeOf s => $"sizeof {s.OfType}",
             TirSlotAddress a => $"addr {a.Slot}",
             TirGlobalAddress a => $"addr {a.Global}",
-            TirPointerLoad l => $"load {Volatile(l.IsVolatile)}{l.Type} [{names.Of(l.Address)}]",
-            TirPointerStore s =>
-                $"store {Volatile(s.IsVolatile)}{s.Value.Type} [{names.Of(s.Address)}], {names.Of(s.Value)}",
+            TirPointerLoad l => $"load {Volatile(l.IsVolatile)}{Unaligned(l.IsUnaligned)}{l.Type} [{names.Of(l.Address)}]",
+            TirPointerStore s => $"store {Volatile(s.IsVolatile)}{Unaligned(s.IsUnaligned)}{s.Value.Type} " +
+                $"[{names.Of(s.Address)}], {names.Of(s.Value)}",
             TirFieldAddress f => $"fieldaddr {f.StructType} {names.Of(f.Address)}, {FieldText(f)}",
             TirElementAddress e => $"elementaddr {e.ElementType} {names.Of(e.Address)}, {names.Of(e.Index)}",
             TirPtrToInt p => $"ptrtoint {p.Address.Type} {names.Of(p.Address)} to {p.Type}",
@@ -182,6 +182,8 @@ public static class TirPrinter
     }
 
     private static string Volatile(bool isVolatile) => isVolatile ? "volatile " : "";
+
+    private static string Unaligned(bool isUnaligned) => isUnaligned ? "unaligned " : "";
 
     /// <summary>The field's name, or #index when the index is out of range (broken TIR still prints).</summary>
     private static string FieldText(TirFieldAddress f) =>

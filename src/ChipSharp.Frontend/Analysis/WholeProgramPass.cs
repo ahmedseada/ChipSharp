@@ -65,6 +65,7 @@ public static partial class WholeProgramPass
         {
             InterruptHandlers = handlers,
             DetailsTarget = forTarget ? target!.Name : null,
+            UnalignedAccess = target?.HasCapability("unalignedAccess") ?? true,
         };
     }
 
@@ -190,24 +191,39 @@ public static partial class WholeProgramPass
             problems.Add(Problem.AtTry(method, tryOffset, Unsupported.TryCatchFinally));
         }
 
-        // the verdict of printed text comes first for the instructions it is about, then the arrays' rule's, then
-        // generics', then classes'
+        // the verdict of printed text comes first for the instructions it is about, then the arrays' rule's (a problem;
+        // then spans' problem; then a heap use or a fine), then generics', then classes'
         var printed = PrintedText.Of(method);
         var analyzed = ArrayEscapeAnalysis.Analyze(method, statics, heap);
         var arrays = analyzed.Verdicts;
         heapArrays.UnionWith(body.Instructions.Where(i => i.OpCode == IlOpCode.Newarr && analyzed.HeapArrays.Contains(i.Offset)));
+        var spans = ForSpans(method);
         var generics = ForGenerics(method);
         var classes = ForClasses(method);
+        // after the arrays' and spans' verdicts: generics', classes', building text, the struct/reference rules, the rest
+        Unsupported? Others(IlInstruction instruction) =>
+            generics.TryGetValue(instruction, out var generic) ? generic
+            : classes.TryGetValue(instruction, out var forClasses) ? forClasses
+            : ForText(method, instruction) ?? ForStructOrReference(method, instruction)
+                ?? ForInstruction(instruction, argsArgument, interpolations);
+
         foreach (var instruction in body.Instructions)
         {
-            // what printed text, the array escape analysis, generics or classes found for this instruction, else
-            // building text, else the struct/reference rules, else the rest
+            // what printed text, the array escape analysis, spans, generics or classes found for this instruction, else
+            // building text, else the struct/reference rules, else the rest; a heap use (fine where there is a heap)
+            // does not hide a problem the rules after it find
             var unsupported = printed.Verdicts.TryGetValue(instruction, out var text) ? text
-                : arrays.TryGetValue(instruction, out var array) ? array
-                : generics.TryGetValue(instruction, out var generic) ? generic
-                : classes.TryGetValue(instruction, out var forClasses) ? forClasses
-                : ForText(method, instruction) ?? ForStructOrReference(method, instruction)
-                    ?? ForInstruction(instruction, argsArgument, interpolations);
+                : arrays.TryGetValue(instruction, out var array)
+                    && (array is { IsHeapUse: false } || (spans.GetValueOrDefault(instruction) is not { IsHeapUse: false }
+                        && (array is not null || spans.GetValueOrDefault(instruction) is null)))
+                    ? array
+                : spans.TryGetValue(instruction, out var span) ? span
+                : Others(instruction);
+            if (unsupported is { IsHeapUse: true } && Others(instruction) is { IsHeapUse: false } other)
+            {
+                unsupported = other;
+            }
+
             if (unsupported is not null)
             {
                 problems.Add(Problem.At(method, instruction, unsupported));

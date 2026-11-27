@@ -46,7 +46,7 @@ that ChipSharp does not compile yet, where, when it is planned, and what to writ
 on a line of its own, and every library method ChipSharp can call). `tir` shows the program in TIR. `build` compiles
 it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` also keeps the `.tir` and `.ll` files.
 
-`dotnet test` runs 1166 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
+`dotnet test` runs 1206 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
 `CHIPSHARP_LLVM_BIN`); the Pico tests also need the simulator (see below), and are skipped, saying why, without it.
 
 ## What C# compiles today
@@ -61,15 +61,16 @@ it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` 
 | Generics | Generic methods, structs and static classes over values (numbers, bools, enums, structs, generic structs, fixed text), nested in each other: `static T Max<T>(T a, T b) where T : IComparable<T>`, `static void Swap<T>(ref T a, ref T b)`, `struct Pair<T>`, made once for each type argument, with no heap. Interfaces implemented by structs, through a constraint (`static void Run<T>(ref T device) where T : struct, IDevice`, explicit implementations and static abstract members too) or called on the struct itself; `CompareTo`, `Equals`, `GetHashCode` and `ToString` of a number `T`; generic math (`INumber<T>`): the operators, comparisons, `T.Zero`, `T.One`, `MinValue`, `MaxValue`; `default(T)`, `typeof(T) == typeof(int)`, `sizeof(T)`; a `T` printed and in printed text |
 | Static fields | Of the types above, `volatile` too, with field initializers and static constructors |
 | Arrays | Of numbers, bools, structs and enums, on the stack: a constant size, kept in the method that makes them and passed down to the methods it calls. On a target with a heap also on the heap: returned, kept in static fields, in the fields of objects and in other arrays, of a size known only when the program runs (`new int[n]`), `null` (`a == null`, `a?.Length ?? 0`), arrays of arrays (`int[][]`), of objects and of the program's classes; `[]` and `Array.Empty<T>()`, `foreach`, `.Length`, bounds checks and .NET's messages for null and a negative length. An array that stays in its method with a constant size is still on the stack |
+| Spans | `Span<T>` and `ReadOnlySpan<T>` with no heap, of arrays, of `stackalloc` (a constant size, initializers too), of constant data (`static ReadOnlySpan<byte> Digits => new byte[] { 0x3F, ... };`, in flash on a chip) and of variables (`MemoryMarshal.CreateSpan(ref x, 1)`): the indexer (`ref` too), `Length`, `IsEmpty`, `Slice`, ranges and indices (`s[2..5]`, `s[^1]`), `foreach`, `CopyTo`, `TryCopyTo`, `Fill`, `Clear`, `==`; as parameters, locals, return values and fields of a ref struct, of a generic `T` too |
 | Static arrays | Arrays in static fields that the field's initializer gives once, with a constant size and constant elements: `static readonly byte[] Digits = { 0x3F, 0x06, ... };` is a constant table when nothing writes an element (in flash on a chip), `static int[] buffer = new int[16];` a fixed array in RAM; read, indexed and passed to methods like any array, with no heap |
 | Fixed text | String literals (`"road : 1"`, `string.Empty`) in locals, parameters, return values, static fields (`static readonly` too) and `const`, compared with `null`; printed part by part with `Console.Write` and `Console.WriteLine` (`null` as nothing, like .NET), as UTF-8. Each literal is in flash once on a chip |
 | Printed text | Text built and printed straight away, with no string ever made and no heap: `Console.WriteLine($"road : {lane}")`, `Console.Write("road : " + lane)`, `lane.ToString()`; holes of text and of every type `Console.Write` prints, worked out first, in order, like .NET; alignments (`{x,5}`, `{x,-5}`, not of floats) and the formats `D`, `D<n>`, `X<n>`, `x<n>` and `G` of whole numbers |
-| Library | `Console.Write` and `Console.WriteLine` of text, a number or a bool; `Math` and `MathF`: `Abs`, `Min`, `Max`, `Sqrt`; `TimeSpan`: its factories in any unit (`FromMilliseconds(500)`, `FromSeconds(1.5)`), parts, totals, arithmetic and comparisons; on a chip, `ChipSharp.Hardware`: pins, timing (`Timing.Delay(TimeSpan)` too), registers and interrupts |
+| Library | `Console.Write` and `Console.WriteLine` of text, a number or a bool; `Math` and `MathF`: `Abs`, `Min`, `Max`, `Sqrt`; `TimeSpan`: its factories in any unit (`FromMilliseconds(500)`, `FromSeconds(1.5)`), parts, totals, arithmetic and comparisons; on a chip, `ChipSharp.Hardware`: pins, timing (`Timing.Delay(TimeSpan)` too), registers and interrupts; for spans, `MemoryExtensions` (`IndexOf`, `LastIndexOf`, `Contains`, `SequenceEqual`, `StartsWith`, `EndsWith`, `Reverse`, `AsSpan`), `BinaryPrimitives` (`Read`, `Write`, `TryRead` and `TryWrite` of the whole numbers, `float` and `double`, big- and little-endian; `ReverseEndianness`) and `MemoryMarshal` (`Read`, `Write`, `TryRead`, `TryWrite`, `AsBytes`, `Cast`, `CreateSpan`), at any offset |
 
 | Not yet | When |
 |---|---|
-| Virtual methods (`virtual`, `override`, `abstract`), object's `ToString`, `Equals` and `GetHashCode`, records, casts and type tests (`is`, `as`, `(T)x`), variables of an interface type and a struct turned into one (boxing), generics over classes (`List<T>`, `Span<T>`, generic classes, a class, `object` or an array as a type argument), `ref` and `out` of an object, `?.` that gives a number (an `int?`); keeping built text (in a variable, a field, a return value), `string.Format` and the other methods of string, `==` on text, enum names in text, text in the fields of structs, `char`; arrays of strings, an array in the field of a struct | With M3 (the heap) |
-| Exceptions (`try`, `catch`, `finally`, `throw`, `using`), `checked` arithmetic, multi-dimensional arrays, array covariance (`object[] items = new int[2][]`), `ref` and `out` of an array, a static array kept outside its field, unsafe code and `stackalloc`, delegates and lambdas, `typeof`, finalizers, classes derived from library classes | Later |
+| Virtual methods (`virtual`, `override`, `abstract`), object's `ToString`, `Equals` and `GetHashCode`, records, casts and type tests (`is`, `as`, `(T)x`), variables of an interface type and a struct turned into one (boxing), generics over classes (`List<T>`, generic classes, a class, `object` or an array as a type argument), `ref` and `out` of an object, `?.` that gives a number (an `int?`); keeping built text (in a variable, a field, a return value), `string.Format` and the other methods of string, `==` on text, enum names in text, text in the fields of structs, `char`; arrays of strings, an array in the field of a struct, `ToArray` of a span | With M3 (the heap) |
+| Exceptions (`try`, `catch`, `finally`, `throw`, `using`), `checked` arithmetic, multi-dimensional arrays, array covariance (`object[] items = new int[2][]`), `ref` and `out` of an array, a static array kept outside its field, unsafe code (pointers, `stackalloc` into a pointer, `stackalloc` of a size known only when the program runs), collection expressions as spans (`Span<int> s = [1, 2];`), delegates and lambdas, `typeof`, finalizers, classes derived from library classes | Later |
 | The methods of `System.Array` (`Array.Copy`, `Array.Fill`, `Array.Clear`, `Array.IndexOf`, `Array.Reverse`, `array.Clone()`, ...) | Not yet: `chipsharp check` says where, and to write the loop |
 | Other library types and methods (`decimal`, `Random`, `Math.Sin`, ...) | Not yet: `chipsharp check` lists the methods there are |
 
@@ -91,7 +92,12 @@ A call to a library method ChipSharp does not have lists the ones it has:
 ChipSharp can call these library methods (--details lists each one with its parameters):
   Console.Write and Console.WriteLine of (nothing), text, int, uint, long, ulong, bool, float, double
   Math and MathF: Abs, Min, Max, Sqrt
+  MemoryExtensions: IndexOf, LastIndexOf, Contains, SequenceEqual, StartsWith, EndsWith, Reverse, AsSpan
   TimeSpan: FromTicks, FromDays, FromHours, FromMinutes, FromSeconds, FromMilliseconds, FromMicroseconds, Add, Subtract, Negate, Multiply, Divide, Duration, Compare, CompareTo, Equals, its constructors, properties and operators
+  Span<T>: Slice, CopyTo, TryCopyTo, Fill, Clear, its constructors, properties and operators
+  ReadOnlySpan<T>: Slice, CopyTo, TryCopyTo, its constructors, properties and operators
+  BinaryPrimitives: ReverseEndianness, ReadInt16BigEndian, ReadInt16LittleEndian, ReadUInt16BigEndian, ReadUInt16LittleEndian, ReadInt32BigEndian, ReadInt32LittleEndian, ReadUInt32BigEndian, ReadUInt32LittleEndian, ReadInt64BigEndian, ReadInt64LittleEndian, ReadUInt64BigEndian, ReadUInt64LittleEndian, ReadIntPtrBigEndian, ReadIntPtrLittleEndian, ReadUIntPtrBigEndian, ReadUIntPtrLittleEndian, ReadSingleBigEndian, ReadSingleLittleEndian, ReadDoubleBigEndian, ... (73 in all)
+  MemoryMarshal: Read, Write, TryRead, TryWrite, AsBytes, Cast, CreateSpan, CreateReadOnlySpan
   ChipSharp.Hardware: Pin, Timing, Registers (see the README)
 ```
 
@@ -99,7 +105,9 @@ The other samples show the rest of the table, e.g. `VendingMachine.cs` (structs,
 fields as a state machine), `Projectile.cs` (floats in structs, with operators), `TimeSpans.cs` (TimeSpan arithmetic),
 `TrafficLights.cs` (fixed text between numbers), `PrintedText.cs` (text built and printed straight away),
 `LookupTables.cs` (a 7-segment display's tables in flash and a buffer of readings in RAM), `Generics.cs` (generic
-methods and structs, devices used through a constraint, generic math), `Classes.cs` (a linked list and a tree of
+methods and structs, devices used through a constraint, generic math), `Spans.cs` (one `Sum` over an array, a slice,
+`stackalloc` and a table in flash; a sensor's packet read with `BinaryPrimitives` and `MemoryMarshal`, a struct from an odd
+offset, a checksum over its bytes), `Classes.cs` (a linked list and a tree of
 objects, constructors calling each other, a derived class, objects in static fields, and enough short-lived objects to
 make the Pico's garbage collector run again and again) and `HeapArrays.cs` (arrays returned, of sizes known when the
 program runs, an array of arrays, an array kept in a static field and replaced, null, and many arrays used once).
@@ -196,6 +204,47 @@ around it, is not (keeping one outside its field is rejected). An array that may
 by a caller) is measured with a null test, and its bounds check tells null from an index outside the array only when the
 index is not in range. On a chip without a heap, each of these needs a heap, and `chipsharp check` says so, with the
 same hints as before.
+
+### Spans
+
+A `Span<T>` or `ReadOnlySpan<T>` is a view of elements that live somewhere else, so it needs no heap
+(`src/ChipSharp.Frontend/Spans.cs`). It is the same value as an array, the address of its first element and how many
+there are, so an array becomes a span as it is, and a slice is a new address and length. What a span can view: an
+array (on the stack or in a static field), a `stackalloc` (a constant size: memory of the method, like an array on the
+stack, zeroed where it runs), C#'s constant data and a variable:
+
+```csharp
+static ReadOnlySpan<byte> Digits => new byte[] { 0x3F, 0x06, 0x5B, 0x4F };   // a constant table, in flash on a chip
+
+static int Sum(ReadOnlySpan<int> values) { ... }
+
+Sum(samples);                       // an array
+Sum(samples.AsSpan(1, 3));          // a slice of it, or samples.AsSpan()[1..4]
+Span<int> buffer = stackalloc int[4];
+Sum(buffer);
+```
+
+Span's own members, the `AsSpan` of arrays and the safe part of `MemoryMarshal` are compiled by ChipSharp itself, with
+.NET's checks: an index outside a span stops the program with IndexOutOfRangeException's message, a slice outside it with
+ArgumentOutOfRangeException's, a `CopyTo` a shorter span with ArgumentException's ("Destination is too short."), as
+.NET says them. `MemoryExtensions` and `BinaryPrimitives` are library substitutes, plain C# over spans
+(`src/ChipSharp.Library`). `MemoryMarshal.Read` and `Write` (and `BinaryPrimitives` with them) read and write a value
+at any offset, unaligned, so a Cortex-M0+, which faults on a word that is not at a multiple of its size, reads a struct
+from the middle of a packet as a PC does. `MemoryMarshal.Cast` gives a span of other elements of the same memory; on a
+chip without unaligned access (the target's `"unalignedAccess": false`, as `armv6m` says) it checks that the span starts
+where those elements may be, and stops the program with DataMisalignedException's message when it does not (read them
+with `MemoryMarshal.Read` instead); a PC reads them anywhere. Only values without references, laid out as C# lays them
+out by default, are read and written as bytes.
+
+C# keeps a span of `stackalloc` or of a variable from outliving it, but takes an array to be on the heap: `Span<int> s =
+new int[4]; return s;` is fine C#. Here an array that stays in its method is on the stack, so a span of it keeps to the
+array's rule (`src/ChipSharp.Frontend/Analysis/SpanEscapeAnalysis.cs`): it may be kept in locals, sliced and passed to
+methods, which may hand it back (`static Span<int> Tail(Span<int> s) => s.Slice(1);`); on a target with a heap, an
+array whose span leaves the method that made it (returned, or stored where its caller sees it), or is still in use when
+a loop makes the array again, is on the heap instead (see "Arrays on the heap"), and a span of an array on the heap
+goes wherever a span may. A `stackalloc` stays in its method, and must not be in use through a span from the time
+before when a loop makes it again. `ToArray` makes an array, which needs the heap; a collection expression as a span
+(`Span<int> s = [1, 2];`) and `stackalloc` into a pointer arrive later. `samples/Spans.cs` reads a sensor's packet.
 
 ### Generics
 
@@ -355,7 +404,7 @@ input pin at a set time with `--input 15=high@100ms`.
 
 A target file's `"capabilities"` say what a program may use on it: `"heap"`, the most RAM the heap may take (objects,
 text kept while the program runs, collections: M3), or `false` for none (printed text needs none); and `"console"`, whether `Console.Write` has
-somewhere to go. The PC has a 256 MB heap and its console; the Pico a 224 KB heap (264 KB of RAM less 8 KB of stack and
+somewhere to go (and `"unalignedAccess"`, whether a word may be read at any address: see Spans). The PC has a 256 MB heap and its console; the Pico a 224 KB heap (264 KB of RAM less 8 KB of stack and
 32 KB for static fields) and UART0; a new chip inherits `armv6m`'s: neither, until its file says so.
 `chipsharp check -t <target>` and `build` judge the program for that chip, so on one without a heap an object is out
 of reach (a class whose objects are never made still compiles):
@@ -387,7 +436,7 @@ target's 512 bytes.` For `host`, `build` gives the size of the `.exe`.
 | M0 (done) | Compile simple C# to a PC program through LLVM; every sample matches real .NET |
 | M1 (done in the simulator) | Blink the Raspberry Pi Pico's LED; every sample also runs on the simulated RP2040 and matches .NET over UART0 |
 | M2 (done) | The Restricted tier: static fields and constructors; float and double, bit for bit like .NET; structs, enums, `ref`/`out`/`in`; arrays on the stack; interrupts (timer and pin); `TimeSpan` and `Timing.Delay(TimeSpan)`, from library substitutes (ChipSharp's own C# for library types) |
-| M3 | Classes, heap, garbage collector, strings, interfaces, generics (and with them `Span<T>`): the Full tier |
+| M3 | Classes, heap, garbage collector, strings, interfaces, generics, `Span<T>` (done, with no heap): the Full tier |
 | M4 | ESP32-C5 (RISC-V) |
 | M5 | CH32V003: C# on a 10-cent chip |
 | M6 | C code generator for 8-bit chips |

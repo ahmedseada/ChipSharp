@@ -65,8 +65,12 @@ internal static partial class ArrayEscapeAnalysis
                 new Dictionary<int, IReadOnlySet<int>>());
         }
 
+        // an array a span keeps beyond what the stack allows is on the heap too (see SpanEscapeAnalysis)
         var flow = new Flow(method, body, statics, heap);
-        return new MethodArrays(flow.Run(), flow.HeapNewarrs(), flow.MaybeNullAt, flow.ArraysOnEntry);
+        var verdicts = flow.Run();
+        var onHeap = flow.HeapNewarrs();
+        onHeap.UnionWith(SpanEscapeAnalysis.KeptArrays(method));
+        return new MethodArrays(verdicts, onHeap, flow.MaybeNullAt, flow.ArraysOnEntry);
     }
 
     /// <summary>What <paramref name="method"/> keeps of what it is given, and passes on (see <see cref="HeapSummary"/>).</summary>

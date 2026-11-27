@@ -8,6 +8,7 @@
     "hwMultiply": true,   // integer multiply instruction (imul)
     "hwDivide": true,     // integer divide instruction (idiv / div)
     "fpu": true,          // float hardware (SSE2)
-    "atomics": "full"     // atomic read-modify-write instructions (lock prefix, cmpxchg)
+    "atomics": "full",    // atomic read-modify-write instructions (lock prefix, cmpxchg)
+    "unalignedAccess": true   // reads and writes values at any address
   }
 }

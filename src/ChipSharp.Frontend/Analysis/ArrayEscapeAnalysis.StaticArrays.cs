@@ -165,7 +165,7 @@ internal static partial class ArrayEscapeAnalysis
         /// </summary>
         private void Passed(IlInstruction call, IlMethodReference callee, int position, Value value)
         {
-            if (_record && value.Kind is Kind.Array or Kind.ElementAddress && !value.Set.IsEmpty)
+            if (_record && value.Kind is Kind.Array or Kind.ElementAddress && !value.Set.IsEmpty && !IsReadOnlyView(callee))
             {
                 var argument = position + (call.OpCode == IlOpCode.Newobj && callee.HasThis ? 1 : 0);
                 _passes.Add((callee, argument, value.Set));
