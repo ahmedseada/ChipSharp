@@ -31,7 +31,8 @@ Pico, and the tests compare programs, and thousands of library calls, with .NET'
 | [LLVM](https://github.com/llvm/llvm-project/releases) (clang and ld.lld; `winget install LLVM.LLVM`) | Turning the program into native code. ChipSharp finds it in `C:\Program Files\LLVM\bin` or on the PATH, or set `CHIPSHARP_LLVM_BIN` to its `bin` folder |
 | [Node.js](https://nodejs.org) 18 or later | Only for the Pico simulator (`tools/rp2040-sim`), once: `cd tools\rp2040-sim; npm ci` |
 | [Zig](https://ziglang.org/download/) 0.17 or later | Only for the Arduino Uno ([in progress](#arduino-uno-in-progress)) |
-| A Raspberry Pi Pico | Optional: the simulator and [Wokwi](https://wokwi.com) run the same `.uf2` |
+| avrdude (it comes with the [Arduino IDE](https://www.arduino.cc/en/software)) | Only for flashing a real Uno (`chipsharp flash -t uno`, [below](#on-an-arduino-uno)) |
+| A Raspberry Pi Pico or an Arduino Uno | Optional: the simulators and [Wokwi](https://wokwi.com) run the same `.uf2` and `.hex` |
 
 ChipSharp is developed and tested on Windows; the PC target (`host`) makes Windows x64 programs.
 
@@ -109,8 +110,50 @@ chipsharp build bin\Release\net10.0\PicoBlink.dll -t pico      # chipsharp-outpu
   `diagram.json` with the example's (the traffic lights have one: the Pico, LEDs, displays, the button, and UART0 on the
   serial monitor), press F1 and pick "Upload Firmware and Start Simulation...", then choose the `.uf2`.
 - **On a real Pico**: hold the BOOTSEL button while plugging it into USB, and copy the `.uf2` onto the `RPI-RP2` drive
-  that appears; the Pico restarts and runs it. To see `Console` output, connect a 3.3 V USB-to-serial adapter (its RX to
-  GPIO 0, GND to GND) at 115200 baud: the Pico's own USB port does not carry it.
+  that appears; the Pico restarts and runs it. `chipsharp flash bin\Release\net10.0\PicoBlink.dll -t pico` does both
+  steps: it builds the program, then copies the `.uf2` to the drive named `RPI-RP2` (or the one `--port E:\` gives). To
+  see `Console` output, connect a 3.3 V USB-to-serial adapter (its RX to GPIO 0, GND to GND) at 115200 baud: the Pico's
+  own USB port does not carry it.
+
+### On an Arduino Uno
+
+The Uno ([in progress](#arduino-uno-in-progress)) needs Zig, and its programs are `.hex` files. The examples
+`examples\uno-blink`, `uno-timer-blink` and `uno-button` are built as the Pico's are:
+
+```powershell
+cd examples\uno-blink
+dotnet build -c Release
+chipsharp build bin\Release\net10.0\UnoBlink.dll -t uno
+```
+
+```
+...\chipsharp-output\uno\UnoBlink.hex
+flash 1.2 KB of 31.5 KB (3.7%), RAM 15 bytes of 2 KB (stack 512 bytes reserved)
+```
+
+- **In the simulator** (avr8js, what Wokwi runs; once: `cd tools\avr-sim; npm ci`):
+  `node tools\avr-sim\run.mjs chipsharp-output\uno\UnoBlink.hex --ms 3000` prints each pin change by its Uno name
+  (`D13 high`); `--input D2=low@500ms` presses a button between D2 and GND at 0.5 s.
+- **In Wokwi** ([wokwi.com](https://wokwi.com)): start a new Arduino Uno project, replace its `diagram.json` with the
+  example's (the Uno with an LED on D13 and GND, or a button between D2 and GND, wired directly), press F1 in the code
+  editor, pick "Upload Firmware and Start Simulation...", and choose the `.hex`.
+- **On a real Uno**: plug it in by USB and run `chipsharp flash`, with the `.dll` (it builds the program first) or the
+  `.hex`. It uploads the program through the Uno's USB port to its bootloader with avrdude, as the Arduino IDE does:
+
+  ```
+  > chipsharp flash bin\Release\net10.0\UnoBlink.dll -t uno --port COM5
+  ...\chipsharp-output\uno\UnoBlink.hex
+  flash 1.2 KB of 31.5 KB (3.7%), RAM 15 bytes of 2 KB (stack 512 bytes reserved)
+  COM5: avrdude -c arduino -p atmega328p -P COM5 -b 115200 -D -U flash:w:...\chipsharp-output\uno\UnoBlink.hex:i
+  COM5: written and verified; the uno runs it
+  ```
+
+  Without `--port` it takes the one serial port that looks like an Arduino's (Arduino's USB ids, or a clone's CH340,
+  FT232R or CP210x chip), and otherwise lists the ports there are; Windows' Device Manager shows the Uno's under "Ports
+  (COM & LPT)". avrdude comes with the [Arduino IDE](https://www.arduino.cc/en/software), whose copy ChipSharp finds
+  (`%LOCALAPPDATA%\Arduino15\packages\arduino\tools\avrdude`), or [on its own](https://github.com/avrdudes/avrdude/releases):
+  put its folder on the PATH, or set `CHIPSHARP_AVRDUDE` to `avrdude.exe`. Close the serial monitor first: avrdude needs
+  the port.
 
 ## Targets: what a chip has
 
@@ -213,13 +256,20 @@ serial port work).
   variables included. The memory report reads like `flash 417 bytes of 32 KB (1.3%), RAM 12 bytes of 2 KB (stack 512
   bytes reserved)`. Uploading through the Uno's USB port (avrdude, the Arduino IDE) goes through its bootloader, which
   keeps the last 512 bytes of the flash.
+- **Flashing**: `chipsharp flash -t uno` uses the target's flasher, `avrdude` (`uno.json`: `"flasher"`, and
+  `"avrdude"`: the programmer `arduino`, optiboot's STK500 protocol, at 115200 baud; the chip is the `"mmcu"`), with
+  `-D -U flash:w:<file>.hex:i`; a board with another bootloader sets its own `"avrdude"` (an old Nano's: `"baud":
+  57600`). When avrdude fails, the error says what is likely wrong (the port would not open, the bootloader did not
+  answer, the chip is another) and shows avrdude's last lines. See [On an Arduino Uno](#on-an-arduino-uno).
 - **In the simulator** (avr8js, what Wokwi runs; once: `cd tools\avr-sim; npm ci`):
   `node tools\avr-sim\run.mjs Blink.hex --ms 1000` prints every pin change by its Uno name (`[   20.822 ms] D13 high`)
   and every line written to USART0 (`USART0: Hello`); `--input D2=high@100ms` drives a pin from outside, `--send
   "text\n@50ms"` types into USART0, `--usart0 file.bin` saves what it sent. A run stops when the program sleeps with
   interrupts off (it has finished) or reaches a `break` (a fatal error, exit code 3).
 - **In Wokwi** ([wokwi.com](https://wokwi.com)): start a new Arduino Uno project, press F1 in the code editor, pick
-  "Upload Firmware and Start Simulation...", and choose the `.hex`.
+  "Upload Firmware and Start Simulation...", and choose the `.hex`. The examples' `diagram.json` name the Uno's pins as
+  Wokwi's `wokwi-arduino-uno` does: `uno:13`, `uno:2`, `uno:GND.1` (the GND beside 13; `GND.2` and `GND.3` are by
+  `5V`), `uno:A0`.
 
 ## What C# compiles today
 
@@ -808,6 +858,7 @@ period differs from the one before, rather than edge by edge:
 | Command | What it does |
 |---|---|
 | `chipsharp build <program.dll> [-t <target>] [-o <folder>] [--keep] [--verify-heap] [--no-cache] [--quiet-notes]` | Compiles the program for a target (default `host`) into `chipsharp-output\<target>\` (or `-o`): prints the file (`.exe`, `.uf2`) and what it takes of the chip. `--keep` also writes the TIR (`.tir`) and LLVM IR (`.ll`) there, and for a chip the `.elf` |
+| `chipsharp flash <program.dll \| image> -t <board> [--port <port>]` | Puts the program onto a board with its target's flasher: a `.dll` is built first (as `build` does, with its options), an image (`.hex`, `.uf2`) is flashed as it is. The Uno: avrdude through its USB port (`--port COM5`, or the one serial port that looks like an Arduino's); the Pico: a copy to its `RPI-RP2` drive (or `--port E:\`) |
 | `chipsharp check <program.dll> [-t <target>] [--details] [--quiet-notes]` | Whether ChipSharp compiles the program (for that target), and the methods it uses; if not, each feature it does not compile yet, where, and what to write instead. `--details`: every place on a line of its own, and every library method it can call |
 | `chipsharp tir <program.dll> [--method Type.Method] [-t <target>]` | The program in TIR, after the whole-program pass |
 | `chipsharp il <program.dll> [--method Type.Method]` | The IL of each method, ildasm style |
@@ -819,6 +870,8 @@ period differs from the one before, rather than edge by edge:
 | `CHIPSHARP_CLANG` | clang itself |
 | `CHIPSHARP_TARGETS` | Another folder of target files (or `--targets <folder>`) |
 | `CHIPSHARP_CACHE` | Where the build cache lives (default: `%LOCALAPPDATA%\ChipSharp\cache`) |
+| `CHIPSHARP_ZIG` | Zig (`zig.exe` or its folder), for the Uno (default: `D:\Tools\zig\zig.exe`, then the PATH) |
+| `CHIPSHARP_AVRDUDE` | avrdude (`avrdude.exe` or its folder), for `flash -t uno` (default: the PATH, then the Arduino IDE's copy) |
 
 **Notes.** `build` and `check` write a note on standard error (`note: ...`) where a program uses one of .NET's
 culture-sensitive text methods (`CompareTo`, `string.Compare(a, b)`, `StartsWith(string)`, `ToUpper()`, `Parse`,
@@ -869,10 +922,23 @@ the Pico:
 | `pico-adc-pwm` | A potentiometer on GPIO 26 sets the brightness of an LED on GPIO 15 through 1 kHz PWM, and each change of 0.1 V goes to the console. No heap | 10.5 KB, 128 bytes of RAM |
 | `pico-servo` | A servo on GPIO 22 sweeps from 0 to 180 degrees and back with 50 Hz pulses of 1 to 2 ms. No heap | 6.1 KB, 116 bytes of RAM |
 
+And for the Arduino Uno, built with `chipsharp build bin\Release\net10.0\<Name>.dll -t uno` (or flashed with
+`chipsharp flash ... -t uno`, see [On an Arduino Uno](#on-an-arduino-uno)):
+
+| Example | What it does | Uno |
+|---|---|---|
+| `uno-blink` | Blinks the LED "L" (D13) with a delay loop; in Wokwi, an LED on D13 and the GND beside it blinks with it | 1.2 KB, 15 bytes of RAM |
+| `uno-timer-blink` | Blinks the LED "L" from the timer event (Timer1), while `Main` does nothing; the same circuit | 1.6 KB, 24 bytes of RAM |
+| `uno-button` | A button between D2 and GND toggles the LED "L" through the pin event (INT0, falling edges); the program turns D2's pull-up on with `Registers.Write` of PORTD, so the button needs no resistor | 1.4 KB, 24 bytes of RAM |
+
+A serial example for the Uno (a counter and an echo on the console) waits for `Console.Write` of text and numbers,
+which needs the shared runtime's C made safe for the AVR (see [Arduino Uno](#arduino-uno-in-progress)).
+
 The traffic lights, the bus examples, the 7-segment counter, the clock, the command prompt, the knob and the servo have a
 `diagram.json` for Wokwi with the whole circuit, wired directly (Wokwi needs no resistors): common-cathode displays,
 the button between GPIO 22 and 3V3, the potentiometer between 3V3 and GND, the servo on VBUS, the LCD in I2C mode and the DS1307 on
-3V3, UART0 on the serial monitor (where the prompt's commands are typed). With the button pressed at 2.5 s, both
+3V3, UART0 on the serial monitor (where the prompt's commands are typed); so do the Uno's, with a few parts placed so
+that no wire crosses one. With the button pressed at 2.5 s, both
 traffic lights print:
 
 ```
@@ -904,6 +970,8 @@ computed both with the PC's float hardware and in software as the Pico computes 
 and `npm ci` in `tools\rp2040-sim` (the Uno's, Zig and `npm ci` in `tools\avr-sim`), and are skipped, saying why,
 without them. The example projects are built with
 `dotnet build` and `chipsharp build` and run in the simulator, the traffic lights with the button pressed.
+`chipsharp flash` runs no real tool in the tests: avrdude is a batch file that keeps the command line it was given, and
+the Pico's drive a folder.
 
 The simulator, rp2040js 1.4.1, has one known fault: it sets the overflow flag of `SBCS` wrong when the borrow takes the
 subtrahend to 0x80000000, so a comparison of extreme `long` values, such as `long.MaxValue` with `long.MinValue`, gives

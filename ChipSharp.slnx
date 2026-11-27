@@ -5,6 +5,9 @@
     <Project Path="examples/pico-timer-blink/PicoTimerBlink.csproj" />
     <Project Path="examples/pico-traffic-light/PicoTrafficLight.csproj" />
     <Project Path="examples/pico-traffic-light-m3/PicoTrafficLightM3.csproj" />
+    <Project Path="examples/uno-blink/UnoBlink.csproj" />
+    <Project Path="examples/uno-button/UnoButton.csproj" />
+    <Project Path="examples/uno-timer-blink/UnoTimerBlink.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/ChipSharp.Abstractions/ChipSharp.Abstractions.csproj" />
