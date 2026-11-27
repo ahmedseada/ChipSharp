@@ -12,7 +12,11 @@ public sealed record LinkedBinary(string Path);
 /// <summary>Source files an architecture runtime contributes to the build.</summary>
 public sealed record RuntimeSources(IReadOnlyList<GeneratedFile> Files);
 
-/// <summary>Where and how to flash, e.g. a serial port.</summary>
+/// <summary>Where and how to flash.</summary>
+/// <param name="Port">
+/// Where the board is, as its flasher names it: a serial port for avrdude (COM5), the drive (or folder) of a UF2 boot
+/// loader for uf2-copy (E:\). Null: the flasher finds it, and says which it found, or why it cannot.
+/// </param>
 public sealed record FlashOptions(string? Port = null);
 
 /// <summary>Progress of a flash: what it is doing and how far (0 to 1).</summary>
