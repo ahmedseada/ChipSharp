@@ -1,0 +1,48 @@
+namespace ChipSharp.Library;
+
+/// <summary>
+/// The functions of a chip's runtime that the substitutes of ChipSharp.Hardware's buses call (I2c.cs, Spi.cs). As for
+/// <see cref="Runtime"/>'s, in a program ChipSharp compiles a call to one of these methods is a call to the runtime
+/// function of the same name, e.g. <c>ChipSharp.Runtime.I2cWrite</c>, and the method's own body is left out. Unlike
+/// those, only a chip whose target has the bus has them (the RP2040's rp2040_i2c.c and rp2040_spi.c), and
+/// <c>chipsharp check</c> refuses the buses on any other target; on .NET they throw, as ChipSharp.Hardware does.
+/// </summary>
+/// <remarks>
+/// A span arrives as a reference to its first byte and its number of bytes (an empty one as a reference to a local
+/// and 0); a bool as an int. Each function checks its bus, pins and numbers itself, and stops the program with a
+/// message on a mistake.
+/// </remarks>
+internal static class ChipRuntime
+{
+    /// <summary>I2c.Open.</summary>
+    public static void I2cOpen(int bus, int sda, int scl, int frequency) => throw ChipOnly("I2c.Open");
+
+    /// <summary>
+    /// Sends <paramref name="count"/> bytes from <paramref name="data"/> on, with a repeated start when the transfer
+    /// before was a write without a stop, and with a stop after them when <paramref name="stop"/>.
+    /// </summary>
+    public static bool I2cWrite(int bus, int address, in byte data, int count, bool stop) => throw ChipOnly("I2c.Write");
+
+    /// <summary>Reads <paramref name="count"/> bytes into <paramref name="data"/> on (a repeated start as for I2cWrite), then stops.</summary>
+    public static bool I2cRead(int bus, int address, ref byte data, int count) => throw ChipOnly("I2c.Read");
+
+    /// <summary>Spi.Open.</summary>
+    public static void SpiOpen(int bus, int sck, int tx, int rx, int frequency, int mode) => throw ChipOnly("Spi.Open");
+
+    /// <summary>Sends <paramref name="count"/> bytes from <paramref name="data"/> on, and drops what comes back.</summary>
+    public static void SpiWrite(int bus, in byte data, int count) => throw ChipOnly("Spi.Write");
+
+    /// <summary>Receives <paramref name="count"/> bytes into <paramref name="data"/> on, sending zeros.</summary>
+    public static void SpiRead(int bus, ref byte data, int count) => throw ChipOnly("Spi.Read");
+
+    /// <summary>
+    /// Sends <paramref name="writeCount"/> bytes from <paramref name="write"/> on and receives as many into
+    /// <paramref name="read"/> on; the program stops when <paramref name="readCount"/> is not the same.
+    /// </summary>
+    public static void SpiTransfer(int bus, in byte write, int writeCount, ref byte read, int readCount) =>
+        throw ChipOnly("Spi.Transfer");
+
+    private static PlatformNotSupportedException ChipOnly(string method) => new(
+        $"ChipSharp.Hardware.{method} runs on a chip, not on .NET: build this program with ChipSharp for a target " +
+        "such as 'pico' and run it there (or in the rp2040js simulator).");
+}

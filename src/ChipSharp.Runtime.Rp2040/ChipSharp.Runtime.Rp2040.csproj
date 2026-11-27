@@ -12,6 +12,8 @@
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_text.c" LogicalName="chipsharp_float_text.c" />
     <EmbeddedResource Include="rp2040_failures.c" LogicalName="rp2040_failures.c" />
     <EmbeddedResource Include="rp2040_interrupts.c" LogicalName="rp2040_interrupts.c" />
+    <EmbeddedResource Include="rp2040_i2c.c" LogicalName="rp2040_i2c.c" />
+    <EmbeddedResource Include="rp2040_spi.c" LogicalName="rp2040_spi.c" />
     <!-- boot2 as pico-sdk's sources assemble it (Boot2/*.S, BSD-3-Clause, Boot2/LICENSE.TXT); padded at build time -->
     <EmbeddedResource Include="Boot2\boot2_w25q080.bin" LogicalName="boot2_w25q080.bin" />
     <EmbeddedResource Include="Boot2\boot2_generic_03h.bin" LogicalName="boot2_generic_03h.bin" />

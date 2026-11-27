@@ -5,7 +5,8 @@ namespace ChipSharp.Frontend.Analysis;
 
 /// <summary>
 /// What a program may use on one target, from the capabilities of its target file: "heap" (see
-/// <see cref="TargetDescription.HeapSize"/>) and "console" (<see cref="TargetDescription.HasConsole"/>). The
+/// <see cref="TargetDescription.HeapSize"/>), "console" (<see cref="TargetDescription.HasConsole"/>), and "i2c" and
+/// "spi" (<see cref="HardwareBuses"/>). The
 /// whole-program pass applies them when it checks a program for a target; checked without one, a program may use what
 /// any target has.
 /// </summary>
@@ -70,6 +71,8 @@ internal static class TargetRules
             }
         }
 
+        // ChipSharp.Hardware's I2c and Spi: the target's buses, their pins and clocks
+        found |= HardwareBuses.Apply(target, methods, problems);
         return found;
     }
 
