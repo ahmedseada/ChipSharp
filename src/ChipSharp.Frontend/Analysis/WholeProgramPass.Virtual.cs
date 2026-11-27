@@ -16,7 +16,8 @@ public static partial class WholeProgramPass
     /// <item>a <c>callvirt</c> through a slot of an interface (one an object may implement, see
     /// <see cref="VirtualMethods.IsInterface"/>) or of object's Equals or GetHashCode; of a generic virtual method,
     /// <see cref="Unsupported.GenericVirtualMethods"/>; of object's ToString on an object of the program's,
-    /// <see cref="Unsupported.ObjectMethods"/> (it makes a string); of its GetType, <see cref="Unsupported.TypeHandles"/>;</item>
+    /// <see cref="Unsupported.ObjectMethods"/> (it makes a string); its GetType is a type object's (see
+    /// <see cref="ForTypeObjects"/>);</item>
     /// <item>a <c>call</c> of object's Equals or GetHashCode (C#'s <c>base.Equals(other)</c>); of Console.Write or
     /// Console.WriteLine with an object of a class or an interface, which prints its ToString,
     /// <see cref="Unsupported.ObjectMethods"/>;</item>
@@ -43,11 +44,6 @@ public static partial class WholeProgramPass
                             && !ObjectTypes.TryMapType(slot.Owner, method.Assembly, out _)
                             ? ForAnyType(slot.Owner, method.Assembly, method) ?? Unsupported.Interfaces
                             : null;
-                    }
-                    else if (callee is { Definition: null, Name: "GetType", ParameterTypes.Count: 0 }
-                        && ObjectTypes.IsSystemObject(callee.DeclaringType))
-                    {
-                        verdicts[instruction] = Unsupported.TypeHandles;
                     }
                     else if (callee is { Definition: null, Name: "ToString", ParameterTypes.Count: 0 }
                         && ObjectTypes.IsSystemObject(callee.DeclaringType)

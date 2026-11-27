@@ -202,11 +202,22 @@ public static class TirPrinter
     /// <c>constant [2 x i8] @&lt;text 0&gt; = c"A\00"</c> for read-only data; an array with its elements,
     /// <c>constant [3 x i8] @Program.Digits = [63, 6, 91]</c>.
     /// </summary>
+    /// <summary>A field of a constant object: a constant, <c>globaladdr @name</c> or <c>typeaddr Name</c>.</summary>
+    private static string FieldValueText(TirValue value) => value switch
+    {
+        TirConst constant => $"{constant.Type} {ConstantText(constant)}",
+        TirGlobalAddress address => $"globaladdr {address.Global}",
+        TirTypeAddress address => $"typeaddr {address.TypeDescriptor.Name}",
+        _ => value.ToString() ?? "",
+    };
+
     private static string GlobalText(TirGlobal global) => global switch
     {
         { ObjectType: { } type, Data: { } bytes } =>
             $"constant object {type.Name} {global} = {global.ObjectLength}, {BytesText(bytes)}",
         { Data: { } data } => $"constant {global.Type} {global} = {BytesText(data)}",
+        { Header: { } header, FieldValues: { } fields } => $"constant {global.Type} {global} = object {header} " +
+            $"{{ {string.Join(", ", fields.Select(field => field is null ? "zero" : FieldValueText(field)))} }}",
         { Header: { } header } => $"constant {global.Type} {global} = object {header}",
         { Elements: { } elements } => $"{(global.IsConstant ? "constant" : "global")} {global.Type} {global} = " +
             $"[{string.Join(", ", elements.Select(ConstantText))}]",

@@ -341,9 +341,9 @@ public sealed class RejectionTests
     [Fact]
     public void Structs_used_as_objects()
     {
-        // a struct's own methods compile, and so do the ones it has as an object (GetHashCode: ValueType's) and boxing it
-        // (a heap use); its GetType does not
-        var problems = Problems("""
+        // a struct's own methods compile, and so do the ones it has as an object (GetHashCode: ValueType's), boxing it (a
+        // heap use) and its GetType (of its box: a type object)
+        var analysis = WholeProgram.Check("""
             using System;
 
             struct Counter
@@ -364,12 +364,7 @@ public sealed class RejectionTests
             }
             """);
 
-        Assert.Equal(
-        [
-            "Program.Main() at IL_0038 (call): the library method object.GetType() is not available yet.",
-            "Program.Main() at IL_003e (call): the library method System.Type.op_Equality(System.Type, System.Type) is "
-                + "not available yet.",
-        ], problems);
+        Assert.True(analysis.IsSupported, string.Join("\n", analysis.Problems.Select(problem => problem.Line)));
     }
 
     [Fact]

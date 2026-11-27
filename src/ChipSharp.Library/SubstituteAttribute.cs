@@ -14,8 +14,8 @@ namespace ChipSharp.Library;
 /// </remarks>
 /// <param name="type">The library type this type stands for.</param>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Enum, Inherited = false)]
-internal sealed class SubstituteAttribute(Type type) : Attribute
+internal sealed class SubstituteAttribute(System.Type type) : Attribute
 {
     /// <summary>The library type this type stands for, e.g. <c>typeof(System.TimeSpan)</c>.</summary>
-    public Type Type { get; } = type;
+    public System.Type Type { get; } = type;
 }

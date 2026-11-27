@@ -93,6 +93,9 @@ public sealed class SampleProgramTests : IDisposable
     public Task Projectile() => PrintsWhatDotnetPrints();
 
     [HostFact]
+    public Task Records() => PrintsWhatDotnetPrints();
+
+    [HostFact]
     public Task Shapes() => PrintsWhatDotnetPrints();
 
     [HostFact]

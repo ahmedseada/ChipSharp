@@ -1,0 +1,22 @@
+Thermometer { Name = outside, Pin = 4, Offset = -0.5 }
+Thermometer { Name = inside, Pin = 5, Offset = -0.5 }
+Hygrometer { Name = air, Pin = 6 }
+True
+False
+False
+True
+Range { Low = 18, High = 24 }
+Range { Low = 18, High = 26 }
+True
+30
+Reading { Source = Thermometer { Name = outside, Pin = 4, Offset = -0.5 }, Value = 12, Expected = Range { Low = 18, High = 24 }, InRange = False }
+True False
+sensor      pin  value  ok
+outside       4     12  no
+inside        5     21  yes
+air           6     72  no
+inside        5     25  no
+4 readings, 3 of them out of range
+175
+Thermometer on pin 4
+Hygrometer on pin 6

@@ -66,11 +66,15 @@ public sealed class LibrarySubstituteTests
                 "ChipSharp.Library.Exceptions.OverflowException for System.OverflowException",
                 "ChipSharp.Library.Exceptions.SystemException for System.SystemException",
                 "ChipSharp.Library.Exceptions.TimeoutException for System.TimeoutException",
+                "ChipSharp.Library.MemberInfo for System.Reflection.MemberInfo",
                 "ChipSharp.Library.MemoryExtensions for System.MemoryExtensions",
                 "ChipSharp.Library.Pairs.KeyValuePair for System.Collections.Generic.KeyValuePair",
                 "ChipSharp.Library.Pairs.KeyValuePair`2 for System.Collections.Generic.KeyValuePair`2",
+                "ChipSharp.Library.RuntimeHelpers for System.Runtime.CompilerServices.RuntimeHelpers",
+                "ChipSharp.Library.StringBuilder for System.Text.StringBuilder",
                 "ChipSharp.Library.TimeSpan for System.TimeSpan",
                 "ChipSharp.Library.Timing for ChipSharp.Hardware.Timing",
+                "ChipSharp.Library.Type for System.Type",
             ],
             LibrarySubstitutes.Substituted.Select(pair => $"{pair.Key.FullName} for {pair.Value}").Order(StringComparer.Ordinal));
         Assert.Equal(
@@ -295,8 +299,13 @@ public sealed class LibrarySubstituteTests
         var pico = new Rp2040Runtime().Startup(Targets.Load("pico")).Files
             .Single(file => file.FileName == Rp2040Runtime.FailuresFileName).Content;
 
-        Assert.Equal(20, functions.Count);
-        Assert.All(functions, method =>
+        // the ones given a parameter's name and a message (StringBuilder's) are the shared runtime's, with the heap's
+        var text = new WindowsX64Runtime().Startup(Targets.Load("host")).Files
+            .Single(file => file.FileName == WindowsX64Runtime.StringHeapFileName).Content;
+        static bool OfText(IlMethod method) => method.Parameters.Count > 0 && method.Name != "Unhandled";
+
+        Assert.Equal(27, functions.Count);
+        Assert.All(functions.Where(method => !OfText(method)), method =>
         {
             // Unhandled takes the text of an exception, a string object
             var symbol = LlvmCodeGenerator.SymbolName($"ChipSharp.Runtime.{method.Name}");
@@ -304,32 +313,45 @@ public sealed class LibrarySubstituteTests
             Assert.Contains($"__declspec(noreturn) void {symbol}({parameters})", windows);
             Assert.Contains($"__attribute__((noreturn)) void {symbol}({parameters})", pico);
         });
+        Assert.All(functions.Where(OfText), method =>
+            Assert.Contains($"__attribute__((noreturn)) void {LlvmCodeGenerator.SymbolName($"ChipSharp.Runtime.{method.Name}")}(",
+                text));
     }
 
     [Fact]
     public void On_dotnet_each_runtime_function_throws_the_exception_dotnet_throws_there()
     {
+        // (each given a parameter's name, a message and a value: "count", "a message", -1)
         var thrown = typeof(global::ChipSharp.Library.Runtime).GetMethods(BindingFlags.Public | BindingFlags.Static)
             .OrderBy(method => method.Name)
             .Select(method => Assert.Throws<TargetInvocationException>(() => method.Invoke(null,
-                [.. method.GetParameters().Select(_ => (object?)"text")])).InnerException!)
-            .Select(exception => $"{exception.GetType().Name}: {exception.Message}");
+                [.. method.GetParameters().Select(parameter => parameter.ParameterType == typeof(int) ? -1
+                    : (object)(parameter.Name is "message" or "text" ? "a message" : "count"))])).InnerException!)
+            .Select(exception => $"{exception.GetType().Name}: {exception.Message.ReplaceLineEndings("\n")}");
 
         Assert.Equal(
             [
                 "ArgumentNullException: Value cannot be null. (Parameter 'action')",
+                "ArgumentException: a message (Parameter 'count')",
+                "ArgumentOutOfRangeException: count ('-1') must be a non-negative value. (Parameter 'count')\nActual value was -1.",
+                "ArgumentOutOfRangeException: count ('-1') must be a non-negative and non-zero value. (Parameter 'count')\n" +
+                    "Actual value was -1.",
+                "ArgumentNullException: Value cannot be null. (Parameter 'count')",
+                "ArgumentOutOfRangeException: a message (Parameter 'count')",
                 "ArgumentNullException: Value cannot be null. (Parameter 'array')",
                 "ArgumentNullException: Value cannot be null. (Parameter 'comparison')",
                 "ArgumentNullException: Value cannot be null. (Parameter 'converter')",
                 "ArgumentOutOfRangeException: Count must be positive and count must refer to a location within the " +
                     "string/array/collection. (Parameter 'count')",
                 "ArgumentException: Delegates must be of the same type.",
+                "IndexOutOfRangeException: Index was outside the bounds of the array.",
                 "ArgumentException: Offset and length were out of bounds for the array or count is greater than the " +
                     "number of elements from index to the end of the source collection.",
                 "ArgumentNullException: Value cannot be null. (Parameter 'match')",
                 "OverflowException: Negating the minimum value of a twos complement number is invalid.",
                 "ArgumentOutOfRangeException: Non-negative number required. (Parameter 'index')",
                 "ArgumentOutOfRangeException: Non-negative number required. (Parameter 'length')",
+                "OutOfMemoryException: Insufficient memory to continue the execution of the program.",
                 "ArgumentOutOfRangeException: Index was out of range. Must be non-negative and less than the size of the " +
                     "collection. (Parameter 'startIndex')",
                 "ArgumentOutOfRangeException: Index was out of range. Must be non-negative and less than or equal to the " +
@@ -341,7 +363,7 @@ public sealed class LibrarySubstituteTests
                 "ArgumentException: TimeSpan does not accept floating point Not-a-Number values. (Parameter 'factor')",
                 "ArgumentOutOfRangeException: TimeSpan overflowed because the duration is too long.",
                 "OverflowException: TimeSpan overflowed because the duration is too long.",
-                "InvalidOperationException: Unhandled exception. text",
+                "InvalidOperationException: Unhandled exception. a message",
             ],
             thrown);
     }

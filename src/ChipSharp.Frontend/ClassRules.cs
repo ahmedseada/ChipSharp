@@ -18,22 +18,17 @@ namespace ChipSharp.Frontend;
 /// <item>A call of an instance method on an object is <c>callvirt</c>, as C# writes every one: for a method that is not
 /// virtual (<see cref="IsOverridable"/>) that is the object's null check, then the call. A virtual method, an override
 /// and an abstract one, object's Equals and GetHashCode and the methods of interfaces are called through the object's
-/// descriptor (see <see cref="VirtualMethods"/>); object's ToString and records arrive with stored strings.</item>
+/// descriptor (see <see cref="VirtualMethods"/>).</item>
 /// <item>Objects compare by reference (<c>==</c>, <c>!=</c>, <c>is null</c>, <c>object.ReferenceEquals</c>), and
 /// <c>?.</c> and <c>??</c> test them against null.</item>
 /// </list>
-/// Not yet: records (<see cref="IsRecord"/>), finalizers (<see cref="HasFinalizer"/>), classes derived from library
-/// classes.
+/// A record is a class like these: the members C# makes for it are methods like any other (its EqualityContract is a type
+/// object, see <see cref="TypeObjects"/>; its ToString builds with a StringBuilder, see <see cref="StringBuilders"/>; its
+/// Equals and GetHashCode call the default comparers, see <see cref="Generics.DefaultComparers"/>). Not yet: finalizers
+/// (<see cref="HasFinalizer"/>), classes derived from library classes ChipSharp has no C# for.
 /// </summary>
 internal static class ClassRules
 {
-    /// <summary>True for a record class: C# gives it a <c>&lt;Clone&gt;$</c> method, and virtual Equals, GetHashCode and ToString.</summary>
-    public static bool IsRecord(IlTypeDefinition type)
-    {
-        ArgumentNullException.ThrowIfNull(type);
-        return type.Methods.Any(method => method.Name == "<Clone>$");
-    }
-
     /// <summary>True for a class with a finalizer (<c>~Node()</c>): C# makes it an override of object's Finalize.</summary>
     public static bool HasFinalizer(IlTypeDefinition type)
     {

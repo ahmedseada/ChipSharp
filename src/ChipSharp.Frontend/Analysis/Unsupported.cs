@@ -74,7 +74,8 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
     // delegates and lambdas compile (see Delegates): what is left of this is function pointers
     public static readonly Unsupported Delegates = new("function pointers (delegate*, &Method)", true,
         "For now, use a delegate (Func<int, int>, Action), or call the method directly.");
-    public static readonly Unsupported TypeHandles = new("typeof and type handles", true, "For now, leave them out.");
+    public static readonly Unsupported TypeHandles = new("type handles (RuntimeTypeHandle, the tokens of methods and fields)",
+        true, "For now, use typeof(X), a System.Type, which compiles.");
     public static readonly Unsupported Arguments = new("using the command-line arguments (args)", false,
         "For now, leave args unused: Main may take string[] args only if it never uses them.");
     public static readonly Unsupported OtherInstruction = new("this IL instruction", false,
@@ -130,7 +131,7 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
     public static bool IsInterpolatedStringHandler(IlType type) => type is IlNamedType
     {
         Namespace: "System.Runtime.CompilerServices", Name: "DefaultInterpolatedStringHandler", IsDefinedInThisAssembly: false,
-    };
+    } || StringBuilders.IsHandler(type);
 
     /// <summary>A feature that needs objects on the heap, so it arrives <see cref="WithTheHeap"/>.</summary>
     private static Unsupported Heap(string what, bool isPlural, string hint) =>

@@ -182,7 +182,7 @@ public sealed class ClassCheckTests : IDisposable
     }
 
     [Fact]
-    public void Records_finalizers_and_classes_derived_from_library_classes_are_rejected_where_used_and_generic_classes_and_exceptions_compile()
+    public void Finalizers_and_classes_derived_from_library_classes_are_rejected_where_used_and_records_generic_classes_and_exceptions_compile()
     {
         var analysis = WholeProgram.Check("""
             using System;
@@ -229,11 +229,10 @@ public sealed class ClassCheckTests : IDisposable
             }
             """);
 
-        // Box<int> compiles (generics over classes), and so does a class derived from Exception (a library class with a
-        // substitute, see Exceptions); the rest is rejected where the code uses it
+        // Box<int> compiles (generics over classes), and so do the record and a class derived from Exception (a library
+        // class with a substitute, see Exceptions); the rest is rejected where the code uses it
         Assert.Equal(
         [
-            "record classes arrive with M3 (stored strings)",
             "finalizers (~ClassName()) arrive later",
             "classes derived from the library class System.Collections.ArrayList arrive later",
             "the type decimal in the field Letter.Code arrives later",

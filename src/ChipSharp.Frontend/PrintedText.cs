@@ -283,6 +283,12 @@ internal enum PrintedRole
 
     /// <summary><c>box</c> of a hole of a format (<c>Console.WriteLine(color)</c>, <c>string.Format("{0}", x)</c>): a part.</summary>
     Box,
+
+    /// <summary>
+    /// <c>sb.Append(ref handler)</c>, <c>sb.AppendLine(ref handler)</c> or <c>sb.AppendFormat(...)</c>: the text is
+    /// appended to the StringBuilder part by part (see <see cref="StringBuilders"/>).
+    /// </summary>
+    AppendTo,
 }
 
 /// <summary>How a whole number is written: as Console.Write writes it, in decimal with at least n digits, or in hex.</summary>

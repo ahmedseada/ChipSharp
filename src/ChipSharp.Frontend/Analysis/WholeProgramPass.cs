@@ -111,6 +111,12 @@ public static partial class WholeProgramPass
                     methods.Add(target);
                 }
 
+                // text appended to a StringBuilder part by part (see StringBuilders)
+                if (StringBuilders.AppendsBuiltText(instructions[j]))
+                {
+                    methods.AddRange(new[] { StringBuilders.AppendText, StringBuilders.AppendLine }.Where(found.Add));
+                }
+
                 methods.AddRange(dispatch.Follow(instructions, j, methods[i].Assembly).Where(found.Add));
                 methods.AddRange(dispatch.FollowArrays(methods[i], j).Where(found.Add)); // arrays as interfaces
 
@@ -225,10 +231,12 @@ public static partial class WholeProgramPass
         var strings = ForStrings(method);
         var boxing = ForBoxing(method);
         var delegates = ForDelegates(method);
-        // after the arrays' and spans' verdicts: boxing's, delegates', strings', generics', virtual calls', classes',
-        // building text, the struct/reference rules, the rest
+        var typeObjects = ForTypeObjects(method);
+        // after the arrays' and spans' verdicts: type objects', boxing's, delegates', strings', generics', virtual calls',
+        // classes', building text, the struct/reference rules, the rest
         Unsupported? Others(IlInstruction instruction) =>
-            boxing.TryGetValue(instruction, out var forBoxing) ? forBoxing
+            typeObjects.TryGetValue(instruction, out var forTypeObjects) ? forTypeObjects
+            : boxing.TryGetValue(instruction, out var forBoxing) ? forBoxing
             : delegates.TryGetValue(instruction, out var forDelegates) ? forDelegates
             : strings.TryGetValue(instruction, out var forStrings) ? forStrings
             : generics.TryGetValue(instruction, out var generic) ? generic
