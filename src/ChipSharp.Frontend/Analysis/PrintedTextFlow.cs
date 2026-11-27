@@ -23,7 +23,7 @@ namespace ChipSharp.Frontend.Analysis;
 /// loop) is <see cref="Mixed"/> with what it held before, which is rejected. An array of strings that goes anywhere else is a plain
 /// array, which <see cref="ArrayEscapeAnalysis"/> judges: the analysis then runs again without it.
 /// </remarks>
-internal sealed class PrintedTextFlow
+internal sealed partial class PrintedTextFlow
 {
     /// <summary>The most parts a <c>string.Concat(string[])</c> array may have; a bigger one is a plain array.</summary>
     private const int MostArrayParts = 1024;
@@ -556,7 +556,8 @@ internal sealed class PrintedTextFlow
                 ? HoleParts(boxed.Type, boxed, boxed.Box, 0, alignment, holeFormat)
                 : values[number] is Literal or Built || StringMethods.IsStringOperand(_method, index, values.Length - 1 - number)
                     ? TextParts(values[number], instruction, number + 1, alignment)
-                    : (null, Unsupported.ObjectMethods);
+                    : ObjectValueParts(values[number], instruction, index, values.Length - 1 - number, number + 1, alignment,
+                        holeFormat);
             if (problem is not null)
             {
                 return (null, problem);
@@ -594,7 +595,8 @@ internal sealed class PrintedTextFlow
 
     /// <summary>True for a type a boxed value of is a hole: a number, bool or char that Console.Write prints, or an enum.</summary>
     private bool IsBoxedHole(IlType type) => EnumOf(type) is not null
-        || (PrintedText.TryGetPrinted(StackArrays.Primitive(type), out var kind) && kind != IlPrimitiveKind.String);
+        || (PrintedText.TryGetPrinted(StackArrays.Primitive(type), out var kind) && kind != IlPrimitiveKind.String)
+        || IsValueHole(type);
 
     /// <summary>A call on the handler in local <paramref name="local"/>; false for a method of it that is not supported.</summary>
     private bool HandlerCall(IlInstruction instruction, int index, IlMethodReference callee, int local, State state)
@@ -913,6 +915,12 @@ internal sealed class PrintedTextFlow
         if (EnumOf(type) is var (enumType, underlying))
         {
             return EnumParts(enumType, underlying, instruction, operand, alignment, format);
+        }
+
+        // a nullable, a struct or an object (see PrintedTextFlow.Objects.cs)
+        if (ObjectHoleParts(type, value, instruction, operand, alignment, format) is { } objectParts)
+        {
+            return objectParts;
         }
 
         if (!PrintedText.TryGetPrinted(type, out var kind))

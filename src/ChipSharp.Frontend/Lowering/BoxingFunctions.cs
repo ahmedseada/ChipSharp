@@ -229,6 +229,24 @@ internal sealed partial class BoxingFunctions(TirModule module, ProgramFunctions
             ir.Return(ir.Const(false));
         });
 
+    /// <summary>
+    /// The text of an object as text with it writes it: what <paramref name="toString"/> (its ToString as a call of it
+    /// runs it, <c>ref (ref)</c>) gives, "" for null.
+    /// </summary>
+    public TirFunction TextOrEmpty(TirFunction toString) => Define($"ChipSharp.Object.TextOf<{toString.Name}>", TirType.Ref,
+        [("object", TirType.Ref)], (function, ir) =>
+        {
+            var value = function.Parameters[0];
+            var (none, some) = (function.AddBlock("none"), function.AddBlock("some"));
+            ir.Branch(ir.Compare(TirCompareOp.Eq, value, ir.Zero(TirType.Ref)), none, some);
+
+            ir.Block = none;
+            ir.Return(ir.AddressOf(program.Text("")));
+
+            ir.Block = some;
+            ir.Return(ir.Call(toString, value));
+        });
+
     /// <summary>The TIR struct of <c>T?</c> for the boxed type T.</summary>
     public static TirStructType NullableStruct(BoxedType boxed) => Nullables.StructOf(boxed.ValueType, boxed.Name);
 

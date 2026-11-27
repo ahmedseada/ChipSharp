@@ -303,6 +303,21 @@ internal sealed record PrintedPiece(
 {
     /// <summary>For an enum's value, written by its name (see <see cref="Lowering.EnumNameFunctions"/>): the enum; <see cref="Type"/> is its underlying type.</summary>
     public IlTypeDefinition? Enum { get; init; }
+
+    /// <summary>
+    /// For an object (<see cref="Type"/> is object): the type of the variable it came from, which says what its ToString
+    /// is (a call through its slot); written as its ToString gives it, null as nothing (see Lowering/MethodLowering.TextOfObjects.cs).
+    /// </summary>
+    public IlType? Object { get; init; }
+
+    /// <summary>For a struct's value (<see cref="Type"/> is object): its type, whose ToString writes it, with no box.</summary>
+    public BoxedType? Value { get; init; }
+
+    /// <summary>
+    /// For a nullable's value: the nullable's type (<c>int?</c>); the part is written as its value would be (the rest of
+    /// the piece says how), and as nothing (aligned, as spaces) when it has none.
+    /// </summary>
+    public IlType? Nullable { get; init; }
 }
 
 /// <summary>What a Console.Write or Console.WriteLine of built text writes: its parts, then the end of a line for WriteLine.</summary>
