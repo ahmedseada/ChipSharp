@@ -114,7 +114,8 @@ internal sealed partial class MethodLowering
 
             case IlOpCode.Call when StackArrays.IsEmptyArray(((IlMethodOperand)instruction.Operand!).Method, _method.Assembly,
                 out var emptyOf):
-                PushArray(EmptyArray(), new IlArrayType(StackArrays.Primitive(emptyOf)));
+                var emptyType = new IlArrayType(StackArrays.Primitive(emptyOf));
+                PushArray(EmptyArray(emptyType), emptyType);
                 break;
 
             default:

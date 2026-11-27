@@ -83,12 +83,13 @@ internal static partial class ArrayEscapeAnalysis
             var passes = new List<ArrayPass>();
             foreach (var (callee, argument, origins) in _passes)
             {
-                // a library method may write what it is given; it has no body to look into
+                // a library method may write what it is given; it has no body to look into (but the methods of
+                // System.Array ChipSharp compiles itself, which say which of their arrays they write)
                 if (callee.Definition is { } definition)
                 {
                     passes.Add(new ArrayPass(definition, argument, Arguments(origins), Fields(origins)));
                 }
-                else
+                else if (ArrayMethods.Call(callee) is not { } known || ArrayMethods.Writes(known.Operation, argument))
                 {
                     _written.UnionWith(origins);
                 }
@@ -116,8 +117,8 @@ internal static partial class ArrayEscapeAnalysis
             var problem = _statics.Problem(field) ?? Unsupported.ArrayEscapes;
             Verdict(instruction, isArray ? null
                 : instruction.OpCode != IlOpCode.Ldsflda ? HeapUse(problem)
-                : problem == Unsupported.StaticArrayReferences ? problem
-                : Unsupported.ArrayReferences);
+                : FieldReference(instruction, problem == Unsupported.StaticArrayReferences ? problem
+                    : Unsupported.ArrayReferences));
             switch (instruction.OpCode)
             {
                 case IlOpCode.Ldsfld:

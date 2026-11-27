@@ -153,7 +153,11 @@ internal sealed class StaticArrays
         IlOpCode OpCode((IlMethod Method, int Index) place) => place.Method.Body!.Instructions[place.Index].OpCode;
         if (places.Any(place => OpCode(place) == IlOpCode.Ldsflda))
         {
-            return Unsupported.StaticArrayReferences;
+            // Array.Resize(ref field, n) assigns the field a new array
+            return places.All(place => OpCode(place) != IlOpCode.Ldsflda
+                || ArrayMethods.IsResizeReference(place.Method, place.Index))
+                ? Unsupported.StaticArrayAssignments
+                : Unsupported.StaticArrayReferences;
         }
 
         var stores = places.Where(place => OpCode(place) == IlOpCode.Stsfld).ToList();
