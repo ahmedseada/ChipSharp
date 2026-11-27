@@ -9,7 +9,7 @@ small runtime written in C, and, when the program needs one, a heap with a garba
 C# --Roslyn--> IL --ChipSharp--> TIR --LLVM--> .exe (PC)   or   .elf --> .uf2 (Pico)
 ```
 
-Where it stands: milestones M0 to M3 are done. Numbers, structs, arrays, spans, generics, text, interrupts and
+Where it stands: milestones M0 to M3 are done. Numbers, structs, arrays, spans, generics, text, interrupts, `Math` and
 `TimeSpan` work on every chip, even one without a heap; on a chip with a heap (the Pico, the PC) so do classes,
 records, strings, interfaces, delegates and lambdas, boxing, exceptions you throw (not yet catch) and the collections
 (`List<T>`, `Dictionary<TKey, TValue>`, ...). Every sample prints exactly what .NET prints, on the PC and on a simulated
@@ -54,7 +54,7 @@ chipsharp build bin\Release\net10.0\Hello.dll
 .\chipsharp-output\host\Hello.exe
 ```
 
-It prints `Hello, World!`. `Hello.exe` is 29 KB and needs no .NET on the PC that runs it.
+It prints `Hello, World!`. `Hello.exe` is 4.5 KB and needs no .NET on the PC that runs it.
 
 ### The same program, on a Pico
 
@@ -169,7 +169,8 @@ gets no heap at all, even on the Pico. `chipsharp check` tells you for your prog
 | Fixed text | String literals anywhere a string may be: printed, compared, measured and searched (`Length`, `s[i]`, `==`, `IndexOf`, `StartsWith`, `switch`); each is a constant object in flash (8 bytes and 1 byte per char on the Pico) |
 | Printed text | Text built and printed straight away, with no string ever made (also in the body of a `foreach` over a collection or a `using`, where C# makes it otherwise): `Console.WriteLine($"road : {lane}")`, `Console.Write("lane " + lane + '!')`, `x.ToString()` printed, `Console.WriteLine("{0,4} {1:X2}", a, b)`. Holes of numbers, bools, chars, text, enums (by name, `[Flags]` combined), structs (their `ToString`) and nullables; alignments (`{x,5}`, `{x,-5}`); the formats `D`, `D<n>`, `X<n>`, `x<n>` and `G` of whole numbers, `G` and `R` of floats |
 | Type objects | `typeof(X)`, `typeof(T)`: `Name`, `FullName`, `Namespace`, `ToString()` as .NET 10 writes them, `==`, `IsValueType`, `IsArray`, `IsEnum`, `IsClass`, `IsInterface`, `IsPrimitive`, `IsGenericType` (constant objects in flash) |
-| Library | `Console.Write` and `WriteLine`; `Math` and `MathF`: `Abs`, `Min`, `Max`, `Sqrt`; `TimeSpan` (factories in any unit, parts, totals, arithmetic, comparisons); `System.Array`: `Copy`, `ConstrainedCopy`, `CopyTo`, `Clear`, `Fill`, `IndexOf`, `LastIndexOf`, `Reverse`, and `Sort` and `BinarySearch` of numbers, bools and structs that implement `IComparable<T>` |
+| Math | `Math` and `MathF`: trigonometry (`Sin`, `Cos`, `Tan`, `SinCos`, `Asin`, `Acos`, `Atan`, `Atan2`), hyperbolic functions and their inverses, `Exp`, `Log` (in any base), `Log2`, `Log10`, `Pow`, `Sqrt`, `Cbrt`; `Floor`, `Ceiling`, `Truncate`, `Round` (to digits, by every `MidpointRounding`), `Clamp`, `Sign`, `Abs`, `Min`, `Max`, `MinMagnitude`, `MaxMagnitude`, `CopySign`, `FusedMultiplyAdd`, `IEEERemainder`, `ScaleB`, `ILogB`, `BitIncrement`, `BitDecrement`, the reciprocal estimates, `E`, `PI`, `Tau`; for every whole-number type `Abs`, `Min`, `Max`, `Clamp`, `Sign`, `DivRem`, and `BigMul`; `double.Sin(x)` and the like, and generic math over float types (`T.Sqrt`, `T.Sin`, ...). The exact ones give .NET's bits; the transcendental ones the same bits on the PC and the Pico, and .NET's but for the last bit of a few results (see [differences](#where-a-program-behaves-differently)). A program links only the functions it calls (`Math.Sin`: 9 KB on the Pico) |
+| Library | `Console.Write` and `WriteLine`; `TimeSpan` (factories in any unit, parts, totals, arithmetic, comparisons); `System.Array`: `Copy`, `ConstrainedCopy`, `CopyTo`, `Clear`, `Fill`, `IndexOf`, `LastIndexOf`, `Reverse`, and `Sort` and `BinarySearch` of numbers, bools and structs that implement `IComparable<T>` |
 | Hardware | `ChipSharp.Hardware`: `Pin` (`Output`, `Input`, `Write`, `Read`, `Toggle`, `Watch`, `WatchRising`, `WatchFalling`, `Unwatch`), `Timing` (`Delay(TimeSpan)`, `DelayMilliseconds`, `DelayMicroseconds`, `EveryMilliseconds`, `EveryMicroseconds`, `AfterMilliseconds`, `AfterMicroseconds`, `Stop`), `Registers.Read` and `Write`, and `[Interrupt]` methods (see [Interrupts](#interrupts)) |
 | Failures | Where .NET throws (an index outside an array, a whole number divided by zero, `int.MinValue / -1`, a `TimeSpan` too long, a field of null, a cast that fails, ...), the program stops with the message .NET prints: on standard error with exit code 1 on the PC, over UART0 and then at a breakpoint on a chip |
 
@@ -226,6 +227,8 @@ available yet", followed by the list of the library methods it can call (`--deta
 | `StringBuilder.Capacity` | Grows by chunks, and drops or splits them on `Clear`, a shorter `Length` or an `Insert` | The same capacity for a builder that only appends; after those three it may differ. The text never does | Do not test `Capacity` |
 | Memory numbers | `GC.GetTotalMemory` counts .NET's heap | ChipSharp's heap: each object's block, its size rounded up to 8 | |
 | Console | Writes in the console's code page | Always UTF-8; a Windows console shows non-ASCII text right after `chcp 65001` | |
+| The last bit of `Sin`, `Exp`, `Pow`, ... | Calls the C runtime: on Windows the UCRT, whose x64 functions are AMD's math library (some in C, some in assembly that uses the fused multiply-add of processors with FMA3), on Linux glibc; not always correctly rounded, so the last bit depends on the PC | One implementation for every target, the same bits on the PC and the Pico: .NET's result for 88 to 100 % of values (above 97 % for most functions), 1 ulp away for the rest (see [Math](#math)); `Cbrt`: 70 %, up to 2 ulps | Compare transcendental results with a tolerance (as with .NET on two operating systems), or round them for display |
+| `MathF.ReciprocalEstimate`, `MathF.ReciprocalSqrtEstimate` | On x64, the processor's estimate instructions (`rcpss`, `rsqrtss`: about 12 bits, different on Intel and AMD) | `1f / x` and `1f / MathF.Sqrt(x)`, what .NET computes without them (and for doubles everywhere) | |
 
 ### What does not compile yet
 
@@ -242,7 +245,7 @@ available yet", followed by the list of the library methods it can call (`--deta
 | `string.Format` of a format known only when the program runs, or of an `object[]` | A literal format: `string.Format("{0} {1}", a, b)` |
 | `decimal` | `long` counting the smallest unit (cents, millivolts) |
 | `Random` | A small generator of your own, e.g. a xorshift struct |
-| `Math` beyond `Abs`, `Min`, `Max` and `Sqrt` (`Sin`, `Pow`, `Round`, `Floor`, `Clamp`, ...) | Write it: `Math.Min(Math.Max(x, low), high)`, a lookup table for `Sin` |
+| `Math.BigMul` into `Int128` and `UInt128`; the methods of `double` and `float` that `Math` has not (`double.Exp10`, `double.IsNaN`, `Lerp`, ...) | `Math.BigMul(a, b, out low)`; `x != x` for NaN, `Math.Pow(10, x)` |
 | `double.Parse`, `float.Parse`, `Enum.Parse` | `int.Parse` and a scale; a `switch` on the text |
 | `Enum.HasFlag` | `(access & Access.Read) != 0` |
 | `DateTime`, `Stopwatch`, `Environment.TickCount`, `Console.ReadLine` | Count time with `Timing` or a timer interrupt; read input from pins (or UART registers) |
@@ -380,6 +383,7 @@ the Pico:
 |---|---|---|
 | `Square`, `Arithmetic`, `BitOps`, `Comparisons`, `Unsigned`, `IfElse`, `ForLoops`, `WhileSum`, `ShortCircuit`, `Primes`, `Gcd`, `Fibonacci`, `FactorialLong` | The basics: arithmetic, loops, recursion | 1.6 to 3.6 KB, 16 bytes of RAM |
 | `FloatMath`, `Logit`, `Projectile` | `float` and `double` bit for bit like .NET; structs of floats with operators | 3.5 to 8.7 KB |
+| `MathFunctions` | `Math` and `MathF`: a projectile (trigonometry, `Pow`), a pendulum (`Sqrt`, `Exp`, `Log`), a thermistor (`Log`, `Pow`, `Clamp`), decibels (`Log10`) and a compass (`MathF.Atan2`), rounded for a display by every `MidpointRounding` | 43.6 KB, no heap |
 | `Structs`, `VendingMachine`, `StaticFields` | Structs, enums, `ref` and `out`; a state machine; static fields and constructors | 2.9 to 3.2 KB |
 | `Arrays`, `LookupTables`, `Spans` | Arrays on the stack; a 7-segment table in flash and a buffer in RAM; a sensor's packet read with spans, `BinaryPrimitives` and `MemoryMarshal` | 3.5 to 7.7 KB |
 | `TrafficLights`, `PrintedText`, `TimeSpans`, `Generics` | Fixed text; text built and printed with no string made; `TimeSpan`; generics over values and generic math | 4.6 to 8.5 KB, no heap |
@@ -426,7 +430,8 @@ dotnet test -c Release --no-build
 The 1,900 or so tests (about 2 minutes once the build cache is warm) check each stage on its own (reading IL, the whole-program pass, TIR, the LLVM code, linking, the `.uf2`),
 then compile C# programs and run them: on the PC, and on the simulated Pico, comparing what they print, byte for byte,
 with what .NET prints for the same program; the library code (collections, `StringBuilder`, sorting, `TimeSpan`)
-runs next to .NET's own on thousands of random operations. The PC tests need LLVM; the Pico tests also need Node.js
+runs next to .NET's own on thousands of random operations, and the math functions on hundreds of thousands of values,
+computed both with the PC's float hardware and in software as the Pico computes them. The PC tests need LLVM; the Pico tests also need Node.js
 and `npm ci` in `tools\rp2040-sim`, and are skipped, saying why, without them. The example projects are built with
 `dotnet build` and `chipsharp build` and run in the simulator, the traffic lights with the button pressed.
 
@@ -491,6 +496,54 @@ elsewhere, so it needs no heap; `SpanEscapeAnalysis` keeps a span of a `stackall
 outliving it. `Array.Copy` and the other `System.Array` methods are compiled for each element type
 (`ArrayMethods.cs`); `Sort` and `BinarySearch` are .NET's own introsort and binary search, so equal elements end up
 where .NET puts them.
+
+### Math
+
+`Math` and `MathF` are runtime functions in C (`src/ChipSharp.Runtime.Shared/chipsharp_float_math.c` and
+`chipsharp_math*.c`) and, for what is more than one function (`Round` to digits, `Clamp`, `Sign`, `DivRem`, ...),
+ChipSharp.Library's `Math` and `MathF`, .NET's own C# with its checks and messages. `double.Sin(x)` and generic math
+over float types (`T.Sqrt`, `T.Sin`) are the same calls (`src/ChipSharp.Frontend/Generics/FloatMath.cs`).
+
+**Exact functions give .NET's bits.** `Floor`, `Ceiling`, `Truncate`, `Round`, `CopySign`, `BitIncrement`,
+`MinMagnitude`, `ILogB`, ... work on the bits with integer operations; `ScaleB`, `IEEERemainder` and the estimates
+are .NET's arithmetic step for step; `FusedMultiplyAdd` is musl's exact one, in integers.
+
+**Transcendental functions: one implementation, as near .NET's as measured.** .NET does not compute `Sin` or `Pow`
+itself: it calls the C runtime, on Windows the UCRT, on Linux glibc, which are not correctly rounded, so their last bit
+differs from each other's. Measured on this project's PC (.NET 10, Windows x64, a processor with FMA3) against musl,
+CORE-MATH (correctly rounded) and AMD's library, the UCRT turns out to be AMD's: its reference C for `Asin` ...
+`Tanh` gives .NET's bits, `Asinh`, `Acosh` and `Atanh` are formulas over `Log1p` and `Log`, and the rest is assembly
+that uses the fused multiply-add, for which musl's functions are the nearest (CORE-MATH's correctly rounded ones are
+further: .NET is 1 to 2 ulps from the exact result for a fifth of `Asinh`, `Acosh` and `Cbrt`, and they need 128-bit
+integers and a fused multiply-add at every step, slow without an FPU). The share of values whose result has .NET's
+bits, over 40,000 to 80,000 values each (the others are 1 ulp away; `Cbrt` and `Math.Cosh`: 2):
+
+| Function | From | `Math` | `MathF` |
+|---|---|---|---|
+| `Sin`, `Cos`, `Tan` | musl (`MathF.Tan`: AMD) | 98.8, 98.8, 97.1 % | 99.9, 99.9, 99.999 % |
+| `Asin`, `Acos`, `Atan`, `Atan2` | AMD | 99.6, 99.8, 99.97, 99.995 % | 99.7, 99.9, 100, 100 % |
+| `Sinh`, `Cosh`, `Tanh` | AMD | 99.3, 97.9, 99.8 % | 100, 100, 99.9 % |
+| `Asinh`, `Acosh`, `Atanh` | the UCRT's formulas over musl's `Log1p` | 94.4, 88.8, 93.7 % | 93.1, 87.6, 92.3 % |
+| `Exp`, `Log`, `Log2`, `Log10`, `Pow` | musl | 99.6, 99.9, 99.7, 99.3, 99.9 % | 99.97, 99.6, 100, 96.9, 99.7 % |
+| `Cbrt` | musl | 69.4 % | 69.3 % |
+
+Every function computes with `+ - * /` and integers only, each step rounded as IEEE 754 says and none fused, so the PC
+(SSE2) and the Pico (compiler-rt's soft float) compute the same bits: the tests run every function both ways on every
+value they try, and the same program prints the same bytes on both. The `MathF` functions use float algorithms
+(musl's evaluate a short polynomial in doubles, so that a float result is rounded once). A program links only the
+functions it calls; on the Pico, beyond the soft-float routines, and the cycles of a call at 125 MHz:
+
+| Family | Flash | Cycles |
+|---|---|---|
+| `Floor`, `Round` to digits by a `MidpointRounding` | 0.2 KB, 0.4 KB | 107 (`Floor`) |
+| `Math.Sin` / `MathF.Sin` (with the reduction of huge arguments) | 8.6 KB / 8.0 KB | 11,500 / 7,000 |
+| `Math.Exp` / `MathF.Exp` | 3.0 KB / 1.4 KB | 7,100 / 4,500 |
+| `Math.Log`, `Math.Atan2`, `Math.Sinh`, `Math.Cbrt` | 5.5, 5.9, 3.1, 0.9 KB | 8,200 (`Log`), 11,600 (`Atan2`) |
+| `Math.Pow` / `MathF.Pow` | 8.7 KB / 2.3 KB | 23,200 / 10,000 |
+| `Math.Sqrt`, `Math.FusedMultiplyAdd` | in the float math, 2.0 KB | 1,700 (`Sqrt`) |
+
+Licenses: musl's functions are MIT (with the notices of Sun's fdlibm, Arm's optimized routines and, for `fmaf`,
+David Schultz's BSD license), AMD's are BSD-3-Clause; each file has its notices.
 
 ### Generics
 
