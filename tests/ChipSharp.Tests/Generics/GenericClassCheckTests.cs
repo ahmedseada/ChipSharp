@@ -171,7 +171,8 @@ public sealed class GenericClassCheckTests(ITestOutputHelper output) : IDisposab
                 {
                     Span<Point> points = stackalloc Point[2];
                     Console.WriteLine(points.IndexOf(new Point { X = 1 }));
-                    Console.WriteLine(EqualityComparer<Point>.Default.Equals(points[0], points[1]));
+                    var comparer = EqualityComparer<Point>.Default;
+                    Console.WriteLine(comparer.Equals(points[0], points[1]));
                 }
             }
             """);
@@ -216,8 +217,10 @@ public sealed class GenericClassCheckTests(ITestOutputHelper output) : IDisposab
     }
 
     [Fact]
-    public void The_default_comparers_are_objects_which_need_a_heap()
+    public void The_default_comparers_are_objects_which_need_a_heap_but_one_called_at_once_is_none()
     {
+        // EqualityComparer<T>.Default.Equals(a, b), as a record's Equals calls it, is the comparison itself (see
+        // DefaultComparers); a comparer kept in a variable is the object it is
         var analysis = WholeProgramPass.Check(IlAssembly.Load(CSharpCompiler.Compile("""
             using System.Collections.Generic;
 
@@ -227,7 +230,13 @@ public sealed class GenericClassCheckTests(ITestOutputHelper output) : IDisposab
 
                 static void Main()
                 {
-                    if (EqualityComparer<int>.Default.Equals(1, 2))
+                    if (EqualityComparer<int>.Default.Equals(1, 2) || EqualityComparer<int?>.Default.GetHashCode(5) == 5)
+                    {
+                        count++;
+                    }
+
+                    var comparer = EqualityComparer<int>.Default;
+                    if (comparer.Equals(1, 2))
                     {
                         count++;
                     }
@@ -237,7 +246,7 @@ public sealed class GenericClassCheckTests(ITestOutputHelper output) : IDisposab
 
         Assert.Equal(
         [
-            "Program.Main() at IL_0000 (call): the default comparers EqualityComparer<T>.Default and " +
+            "Program.Main() at IL_002e (call): the default comparers EqualityComparer<T>.Default and " +
                 "Comparer<T>.Default (objects) need a heap, and the target 'tiny' (2 KB RAM) has no heap. " +
                 "Compare with Equals and CompareTo, through a constraint where the type is a T: static bool Same<T>(T a, " +
                 "T b) where T : IEquatable<T> => a.Equals(b);",
