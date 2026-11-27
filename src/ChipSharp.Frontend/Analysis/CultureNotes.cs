@@ -128,8 +128,21 @@ internal static class CultureNotes
     private static Difference? ForCall(IlMethod method, int index)
     {
         var instruction = method.Body!.Instructions[index];
-        if (instruction is not { OpCode: IlOpCode.Call or IlOpCode.Callvirt, Operand: IlMethodOperand { Method: var callee } }
-            || callee.Definition is not null)
+        if (instruction is not { OpCode: IlOpCode.Call or IlOpCode.Callvirt, Operand: IlMethodOperand { Method: var callee } })
+        {
+            return null;
+        }
+
+        // a StringBuilder (a library substitute) appends a float as its ToString writes it, a hole of sb.Append($"...") too
+        if (callee.DeclaringType is IlNamedType { Name: "StringBuilder" or "AppendInterpolatedStringHandler" } builder
+            && builder.FullName.StartsWith("System.Text.StringBuilder", StringComparison.Ordinal)
+            && (callee.Name is "Append" or "Insert" && callee.ParameterTypes.Any(IsFloat)
+                || callee.Name == "AppendFormatted" && callee.GenericArguments.Any(IsFloat)))
+        {
+            return FloatText;
+        }
+
+        if (callee.Definition is not null)
         {
             return null;
         }
@@ -233,16 +246,14 @@ internal static class CultureNotes
     /// True when the method may write a float or double as text: it calls a method of float or double, a generic method
     /// of a float or double (<c>AppendFormatted&lt;float&gt;</c>), or boxes one. Only then is its printed text looked at.
     /// </summary>
-    private static bool MayWriteFloats(IReadOnlyList<IlInstruction> instructions)
-    {
-        static bool IsFloat(IlType type) => type is IlPrimitiveType { Kind: IlPrimitiveKind.Float32 or IlPrimitiveKind.Float64 }
-            || (type is IlNamedType { Namespace: "System", Name: "Single" or "Double" });
-
-        return instructions.Any(instruction => instruction.Operand switch
+    private static bool MayWriteFloats(IReadOnlyList<IlInstruction> instructions) =>
+        instructions.Any(instruction => instruction.Operand switch
         {
             IlMethodOperand { Method: var callee } => IsFloat(callee.DeclaringType) || callee.GenericArguments.Any(IsFloat),
             IlTypeOperand { Type: var type } => IsFloat(type),
             _ => false,
         });
-    }
+
+    private static bool IsFloat(IlType type) => type is IlPrimitiveType { Kind: IlPrimitiveKind.Float32 or IlPrimitiveKind.Float64 }
+        || type is IlNamedType { Namespace: "System", Name: "Single" or "Double" };
 }
