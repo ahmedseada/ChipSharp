@@ -127,17 +127,20 @@ public sealed class BusExampleTests : IDisposable
         Assert.True(Grounded(nets, "sr:OE") && Grounded(nets, "sr:GND"));
         Assert.True(nets.Joined("sr:MR", "pico:3V3") && nets.Joined("sr:VCC", "pico:3V3"));
 
-        // Q0..Q6 to the segments A..G and Q7 to the decimal point, each through its own resistor
+        // Q0..Q6 to the segments A..G and Q7 to the decimal point, by a wire (Wokwi needs no resistors) or through one
+        // resistor
         string[] segments = ["A", "B", "C", "D", "E", "F", "G", "DP"];
         for (var q = 0; q < 8; q++)
         {
-            var resistor = $"r-{segments[q].ToLowerInvariant()}";
-            Assert.Equal("wokwi-resistor", parts[resistor]);
-            Assert.True(nets.Joined($"sr:Q{q}", $"{resistor}:2") && nets.Joined($"{resistor}:1", $"digit:{segments[q]}"),
+            var (from, to) = ($"sr:Q{q}", $"digit:{segments[q]}");
+            Assert.True(nets.Joined(from, to) || parts.Keys.Any(id => parts[id] == "wokwi-resistor" &&
+                (nets.Joined(from, $"{id}:1") && nets.Joined(to, $"{id}:2") ||
+                    nets.Joined(from, $"{id}:2") && nets.Joined(to, $"{id}:1"))),
                 $"Q{q} is not wired to segment {segments[q]}");
         }
 
-        Assert.True(Grounded(nets, "digit:COM.1") && Grounded(nets, "digit:COM.2"));
+        // COM.1 and COM.2 are the same common pin: one of them to GND is enough
+        Assert.True(Grounded(nets, "digit:COM.1") || Grounded(nets, "digit:COM.2"));
         Assert.True(nets.Joined("pico:GP0", "$serialMonitor:RX") && nets.Joined("pico:GP1", "$serialMonitor:TX"));
     }
 

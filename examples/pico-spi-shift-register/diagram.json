@@ -3,46 +3,140 @@
   "author": "ChipSharp",
   "editor": "wokwi",
   "parts": [
-    { "type": "wokwi-pi-pico", "id": "pico", "top": 0, "left": 0, "attrs": {} },
-    { "type": "wokwi-74hc595", "id": "sr", "top": -120, "left": -200, "attrs": {} },
-    { "type": "wokwi-7segment", "id": "digit", "top": -140, "left": -420, "attrs": { "common": "cathode" } },
-    { "type": "wokwi-resistor", "id": "r-a", "top": -40, "left": -330, "attrs": { "value": "220" } },
-    { "type": "wokwi-resistor", "id": "r-b", "top": -24, "left": -330, "attrs": { "value": "220" } },
-    { "type": "wokwi-resistor", "id": "r-c", "top": -8, "left": -330, "attrs": { "value": "220" } },
-    { "type": "wokwi-resistor", "id": "r-d", "top": 8, "left": -330, "attrs": { "value": "220" } },
-    { "type": "wokwi-resistor", "id": "r-e", "top": 24, "left": -330, "attrs": { "value": "220" } },
-    { "type": "wokwi-resistor", "id": "r-f", "top": 40, "left": -330, "attrs": { "value": "220" } },
-    { "type": "wokwi-resistor", "id": "r-g", "top": 56, "left": -330, "attrs": { "value": "220" } },
-    { "type": "wokwi-resistor", "id": "r-dp", "top": 72, "left": -330, "attrs": { "value": "220" } }
+    {
+      "type": "wokwi-pi-pico",
+      "id": "pico",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-74hc595",
+      "id": "sr",
+      "top": -120,
+      "left": -200,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-7segment",
+      "id": "digit",
+      "top": -140,
+      "left": -420,
+      "attrs": {
+        "common": "cathode",
+        "color": "red"
+      }
+    }
   ],
   "connections": [
-    ["pico:GP19", "sr:DS", "green", []],
-    ["pico:GP18", "sr:SHCP", "blue", []],
-    ["pico:GP17", "sr:STCP", "orange", []],
-    ["sr:OE", "pico:GND.6", "black", []],
-    ["sr:GND", "pico:GND.6", "black", []],
-    ["sr:MR", "pico:3V3", "red", []],
-    ["sr:VCC", "pico:3V3", "red", []],
-    ["sr:Q0", "r-a:2", "green", []],
-    ["r-a:1", "digit:A", "green", []],
-    ["sr:Q1", "r-b:2", "green", []],
-    ["r-b:1", "digit:B", "green", []],
-    ["sr:Q2", "r-c:2", "green", []],
-    ["r-c:1", "digit:C", "green", []],
-    ["sr:Q3", "r-d:2", "green", []],
-    ["r-d:1", "digit:D", "green", []],
-    ["sr:Q4", "r-e:2", "green", []],
-    ["r-e:1", "digit:E", "green", []],
-    ["sr:Q5", "r-f:2", "green", []],
-    ["r-f:1", "digit:F", "green", []],
-    ["sr:Q6", "r-g:2", "green", []],
-    ["r-g:1", "digit:G", "green", []],
-    ["sr:Q7", "r-dp:2", "green", []],
-    ["r-dp:1", "digit:DP", "green", []],
-    ["digit:COM.1", "pico:GND.1", "black", []],
-    ["digit:COM.2", "pico:GND.1", "black", []],
-    ["pico:GP0", "$serialMonitor:RX", "", []],
-    ["pico:GP1", "$serialMonitor:TX", "", []]
+    [
+      "pico:GP19",
+      "sr:DS",
+      "green",
+      []
+    ],
+    [
+      "pico:GP18",
+      "sr:SHCP",
+      "blue",
+      []
+    ],
+    [
+      "pico:GP17",
+      "sr:STCP",
+      "orange",
+      []
+    ],
+    [
+      "sr:OE",
+      "pico:GND.6",
+      "black",
+      []
+    ],
+    [
+      "sr:GND",
+      "pico:GND.6",
+      "black",
+      []
+    ],
+    [
+      "sr:MR",
+      "pico:3V3",
+      "red",
+      []
+    ],
+    [
+      "sr:VCC",
+      "pico:3V3",
+      "red",
+      []
+    ],
+    [
+      "pico:GP0",
+      "$serialMonitor:RX",
+      "",
+      []
+    ],
+    [
+      "pico:GP1",
+      "$serialMonitor:TX",
+      "",
+      []
+    ],
+    [
+      "sr:Q0",
+      "digit:A",
+      "orange",
+      []
+    ],
+    [
+      "sr:Q1",
+      "digit:B",
+      "orange",
+      []
+    ],
+    [
+      "sr:Q2",
+      "digit:C",
+      "orange",
+      []
+    ],
+    [
+      "sr:Q3",
+      "digit:D",
+      "orange",
+      []
+    ],
+    [
+      "sr:Q4",
+      "digit:E",
+      "orange",
+      []
+    ],
+    [
+      "sr:Q5",
+      "digit:F",
+      "orange",
+      []
+    ],
+    [
+      "sr:Q6",
+      "digit:G",
+      "orange",
+      []
+    ],
+    [
+      "sr:Q7",
+      "digit:DP",
+      "orange",
+      []
+    ],
+    [
+      "digit:COM.1",
+      "pico:GND.1",
+      "black",
+      []
+    ]
   ],
   "dependencies": {}
 }
