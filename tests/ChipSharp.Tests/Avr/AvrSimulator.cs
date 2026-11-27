@@ -32,6 +32,13 @@ internal sealed partial record AvrSimulatorRun(int ExitCode, string Output, stri
             .Select(line => line[16..]),
     ];
 
+    /// <summary>The times, in simulated milliseconds, of the lines that start with <paramref name="prefix"/> after their time.</summary>
+    public IReadOnlyList<double> Times(string prefix) =>
+    [
+        .. Lines.Where(line => line.Length > 16 && line[0] == '[' && line[16..].StartsWith(prefix, StringComparison.Ordinal))
+            .Select(line => Number(line[1..11])),
+    ];
+
     /// <summary>The time, in simulated milliseconds, of the first line that starts with <paramref name="prefix"/> after its time.</summary>
     public double Time(string prefix) =>
         Number(Lines.First(line => line.Length > 16 && line[16..].StartsWith(prefix, StringComparison.Ordinal))[1..11]);

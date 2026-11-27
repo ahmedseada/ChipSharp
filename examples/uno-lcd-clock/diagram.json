@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "author": "ChipSharp",
+  "editor": "wokwi",
+  "parts": [
+    {"type": "wokwi-arduino-uno", "id": "uno", "top": 0, "left": 0, "attrs": {}},
+    {"type": "wokwi-ds1307", "id": "rtc", "top": 240, "left": 60, "attrs": {}},
+    {"type": "wokwi-lcd1602", "id": "lcd", "top": 360, "left": -65, "attrs": {"pins": "i2c"}}
+  ],
+  "connections": [
+    ["uno:5V", "lcd:VCC", "red", ["v15", "h-255", "v195", "*"]],
+    ["uno:GND.2", "lcd:GND", "black", ["v22.5", "h-254.5", "v178", "*"]],
+    ["uno:A4", "lcd:SDA", "magenta", ["v319.56", "h-351", "v-100.06", "*"]],
+    ["uno:A5", "lcd:SCL", "purple", ["v329.56", "h-370.5", "v-100.56", "*"]],
+    ["uno:GND.3", "rtc:GND", "black", ["v33.5", "h-129", "v30", "*"]],
+    ["uno:5V", "rtc:5V", "red", ["v28.5", "h-120", "v45", "*"]],
+    ["uno:A4", "rtc:SDA", "magenta", ["v143.5", "h-216", "v-60.5", "*"]],
+    ["uno:A5", "rtc:SCL", "purple", ["v151.5", "h-235.5", "v-59", "*"]]
+  ],
+  "dependencies": {}
+}

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A servo on D9 follows a potentiometer on A0, with no heap: build with ChipSharp for the target "uno" (see
+       Program.cs) -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Adc, Pwm and Timing: the Uno's hardware from C# -->
+    <ProjectReference Include="..\..\src\ChipSharp.Hardware\ChipSharp.Hardware.csproj" />
+  </ItemGroup>
+</Project>

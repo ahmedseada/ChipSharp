@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "author": "ChipSharp",
+  "editor": "wokwi",
+  "parts": [
+    {"type": "wokwi-arduino-uno", "id": "uno", "top": 0, "left": 0, "attrs": {}},
+    {"type": "wokwi-servo", "id": "servo", "top": 240, "left": -20, "attrs": {}},
+    {"type": "wokwi-potentiometer", "id": "knob", "top": 225, "left": 270, "attrs": {}}
+  ],
+  "connections": [
+    ["uno:9", "servo:PWM", "orange", ["v-21", "h-223", "v321", "*"]],
+    ["uno:5V", "servo:V+", "red", ["v15", "h-205", "v93", "*"]],
+    ["uno:GND.2", "servo:GND", "black", ["v22.5", "h-204.5", "v76", "*"]],
+    ["uno:A0", "knob:SIG", "green", ["v120.5", "h101", "*"]],
+    ["uno:GND.3", "knob:GND", "black", ["v128.5", "h120", "*"]],
+    ["uno:5V", "knob:VCC", "red", ["v136.5", "h159", "*"]]
+  ],
+  "dependencies": {}
+}

@@ -9,8 +9,10 @@ namespace ChipSharp.Tests.Avr;
 /// <summary>
 /// The example projects for the Arduino Uno (examples/uno-*), built the way the README says (dotnet build of the
 /// project, then <c>chipsharp build -t uno</c> of its .dll) and run in the avr8js simulator with what their Wokwi
-/// circuit would give them (a button pressed); and their circuits (diagram.json): the Uno's own pins wired directly to
-/// the parts, on the pins the program uses, with no wire across a part.
+/// circuit would give them (a button pressed, a knob turned, an LCD and a real-time clock on the I2C bus); and their
+/// circuits (diagram.json): the Uno's own pins wired directly to the parts, on the pins the program uses, with no wire
+/// across a part. The projects that show whole circuits (the traffic light, the clock, the servo) are in
+/// UnoExampleTests.Projects.cs.
 /// </summary>
 public sealed partial class UnoExampleTests : IDisposable
 {
@@ -104,7 +106,9 @@ public sealed partial class UnoExampleTests : IDisposable
     [Fact]
     public void There_are_examples_for_the_Uno_each_with_a_Wokwi_circuit()
     {
-        Assert.Equal(["uno-blink", "uno-button", "uno-serial", "uno-timer-blink"], Examples());
+        Assert.Equal(
+            ["uno-blink", "uno-button", "uno-lcd-clock", "uno-serial", "uno-servo", "uno-timer-blink", "uno-traffic-light"],
+            Examples());
         Assert.All(Examples(), example => Assert.True(File.Exists(Path.Combine(Repository.Examples, example, "diagram.json"))));
     }
 
@@ -122,7 +126,7 @@ public sealed partial class UnoExampleTests : IDisposable
             Assert.All(diagram.Parts, part => Assert.Equal(0, part.Rotate));
 
             // the Uno's pins the program uses are wired, and only those (its LED "L", D13, is on the board)
-            var used = PinsUsed(File.ReadAllText(Path.Combine(Repository.Examples, example, "Program.cs")));
+            var used = PinsUsed(example);
             var wired = diagram.Wires.SelectMany(wire => new[] { wire.From, wire.To })
                 .Where(end => end.StartsWith("uno:", StringComparison.Ordinal) && UnoSignal().IsMatch(end[4..]))
                 .Select(end => end[4..]).ToHashSet();
@@ -216,9 +220,38 @@ public sealed partial class UnoExampleTests : IDisposable
         Math.Min(a.X, b.X) < box.Right - 1 && Math.Max(a.X, b.X) > box.Left + 1
         && Math.Min(a.Y, b.Y) < box.Bottom - 1 && Math.Max(a.Y, b.Y) > box.Top + 1;
 
-    /// <summary>The Uno's pins the program uses: the constants it gives Pin's methods.</summary>
-    private static HashSet<string> PinsUsed(string program) =>
-        [.. PinCall().Matches(program).Select(match => match.Groups[1].Value)];
+    /// <summary>
+    /// The Uno's pins each example's program uses, by their header names (13, A0, ...), but D0 and D1, the serial port's,
+    /// which Wokwi joins to its serial monitor itself.
+    /// </summary>
+    private static readonly Dictionary<string, string[]> UsedPins = new()
+    {
+        ["uno-blink"] = ["13"],
+        ["uno-button"] = ["2", "13"],
+        ["uno-lcd-clock"] = ["A4", "A5"],
+        ["uno-serial"] = [],
+        ["uno-servo"] = ["9", "A0"],
+        ["uno-timer-blink"] = ["13"],
+        ["uno-traffic-light"] = ["2", "3", "4", "7", "8", "9", "10", "11", "13", "A0", "A1", "A2", "A4", "A5"],
+    };
+
+    /// <summary>
+    /// The pins <see cref="UsedPins"/> says the example uses, after checking that its program has each pin's number
+    /// (A0 to A5 are 14 to 19), and that each constant it gives Pin's methods is one of them.
+    /// </summary>
+    private static HashSet<string> PinsUsed(string example)
+    {
+        var program = File.ReadAllText(Path.Combine(Repository.Examples, example, "Program.cs"));
+        var used = UsedPins[example].ToHashSet();
+        foreach (var pin in used)
+        {
+            var number = pin.StartsWith('A') ? 14 + (pin[1] - '0') : int.Parse(pin, CultureInfo.InvariantCulture);
+            Assert.Matches($@"\b{number}\b", program);
+        }
+
+        Assert.Subset(used, PinCall().Matches(program).Select(match => match.Groups[1].Value).ToHashSet());
+        return used;
+    }
 
     private static string[] Examples() =>
     [
@@ -240,7 +273,7 @@ public sealed partial class UnoExampleTests : IDisposable
         var lines = printed.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
         Assert.Equal(2, lines.Length);
         Assert.Equal(Path.GetFileNameWithoutExtension(project) + ".hex", Path.GetFileName(lines[0]));
-        Assert.Matches(@"^flash [1-9]\.\d KB of 31\.5 KB \(\d+\.\d%\), RAM \d{2,3} bytes of 2 KB \(stack 512 bytes reserved\)$",
+        Assert.Matches(@"^flash [1-9]\d?\.\d KB of 31\.5 KB \(\d+\.\d%\), RAM \d{2,3} bytes of 2 KB \(stack 512 bytes reserved\)$",
             lines[1]);
         return lines[0];
     }
@@ -255,8 +288,10 @@ public sealed partial class UnoExampleTests : IDisposable
 
     /// <summary>
     /// Where the pins of the parts the examples use are, from the part's top left corner, and how big each part is, in
-    /// Wokwi's pixels (wokwi-elements: arduino-uno-element.ts, led-element.ts, pushbutton-element.ts); and the way
-    /// each pin points: a wire leaves it that way.
+    /// Wokwi's pixels (wokwi-elements: arduino-uno-element.ts, led-element.ts, pushbutton-element.ts,
+    /// 7segment-element.ts of one digit with its pins drawn from the top, lcd1602-element.ts with "pins": "i2c",
+    /// ds1307-element.ts, servo-element.ts, potentiometer-element.ts; 3.78 pixels a mm); and the way each pin points: a
+    /// wire leaves it that way.
     /// </summary>
     private static readonly Dictionary<string, (double Width, double Height, Dictionary<string, (double X, double Y, string Exit)> Pins)>
         Geometry = new()
@@ -267,7 +302,44 @@ public sealed partial class UnoExampleTests : IDisposable
             {
                 ["1.l"] = (0, 13, "left"), ["2.l"] = (0, 32, "left"), ["1.r"] = (67, 13, "right"), ["2.r"] = (67, 32, "right"),
             }),
+            ["wokwi-7segment"] = (47.43, 83.15, SevenSegmentPins()),
+            ["wokwi-lcd1602"] = (302.36, 136.06, new()
+            {
+                ["GND"] = (4, 32, "left"), ["VCC"] = (4, 41.5, "left"), ["SDA"] = (4, 51, "left"), ["SCL"] = (4, 60.5, "left"),
+            }),
+            ["wokwi-ds1307"] = (97.51, 83.95, new()
+            {
+                ["GND"] = (9.5, 15, "left"), ["5V"] = (9.5, 25, "left"), ["SDA"] = (9.5, 34.5, "left"),
+                ["SCL"] = (9.5, 44, "left"), ["SQW"] = (9.5, 54, "left"),
+            }),
+            ["wokwi-servo"] = (170.08, 119.55, new()
+            {
+                ["GND"] = (0, 50, "left"), ["V+"] = (0, 59.5, "left"), ["PWM"] = (0, 69, "left"),
+            }),
+            ["wokwi-potentiometer"] = (75.59, 75.59, new()
+            {
+                ["GND"] = (29, 68.5, "down"), ["SIG"] = (39, 68.5, "down"), ["VCC"] = (49, 68.5, "down"),
+            }),
         };
+
+    /// <summary>
+    /// A one-digit 7-segment display's pins, as a real one has them: G, F, COM, A and B along the top, pointing up; E,
+    /// D, COM, C and DP along the bottom, pointing down; 2.54 mm apart.
+    /// </summary>
+    private static Dictionary<string, (double X, double Y, string Exit)> SevenSegmentPins()
+    {
+        static double X(int column) => Math.Round((-0.075 + 1.27 + column * 2.54) * 3.78, 2);
+        string[] top = ["G", "F", "COM.2", "A", "B"];
+        string[] bottom = ["E", "D", "COM.1", "C", "DP"];
+        var pins = new Dictionary<string, (double X, double Y, string Exit)>();
+        for (var column = 0; column < 5; column++)
+        {
+            pins[top[column]] = (X(column), 3.78, "up");
+            pins[bottom[column]] = (X(column), 71.82, "down");
+        }
+
+        return pins;
+    }
 
     private static Dictionary<string, (double X, double Y, string Exit)> UnoPins()
     {
@@ -323,8 +395,37 @@ public sealed partial class UnoExampleTests : IDisposable
                 ]);
         }
 
-        /// <summary>True when a wire joins the two pins, either way round (one wire: no chains in these circuits).</summary>
+        /// <summary>True when a wire joins the two pins, either way round.</summary>
         public bool Joined(string a, string b) => Wires.Any(wire => (wire.From, wire.To) == (a, b) || (wire.From, wire.To) == (b, a));
+
+        /// <summary>
+        /// True when the two pins are on one net: joined by a wire, through other pins (a chain of wires), or as the Uno's
+        /// three GND pins are, inside the board.
+        /// </summary>
+        public bool Connected(string a, string b)
+        {
+            var parent = new Dictionary<string, string>();
+            string Find(string pin)
+            {
+                while (parent.TryGetValue(pin, out var up) && up != pin)
+                {
+                    pin = up;
+                }
+
+                return pin;
+            }
+
+            (string, string)[] board = [("uno:GND.1", "uno:GND.2"), ("uno:GND.2", "uno:GND.3")];
+            foreach (var (from, to) in Wires.Select(wire => (wire.From, wire.To)).Concat(board))
+            {
+                parent[Find(from)] = Find(to);
+            }
+
+            return Find(a) == Find(b);
+        }
+
+        /// <summary>True when the pin is on the net of the Uno's GND pins.</summary>
+        public bool Grounded(string pin) => Connected(pin, "uno:GND.1");
 
         public PinAt Pin(string end)
         {

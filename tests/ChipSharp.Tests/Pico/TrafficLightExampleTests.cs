@@ -24,8 +24,11 @@ public sealed class TrafficLightExampleTests(TrafficLightExampleTests.Builds bui
     /// <summary>The button pressed at 2.5 s, for 200 ms (the program reads it through a pin interrupt).</summary>
     private static readonly string[] Button = ["--input", "22=high@2500ms", "--input", "22=low@2700ms"];
 
-    /// <summary>What both print over UART0 in 16 s, with the press at 2.5 s.</summary>
-    private static readonly string Expected = string.Concat(new[]
+    /// <summary>
+    /// What both print over UART0 in 16 s, with the press at 2.5 s; and the Uno's traffic light over USART0
+    /// (Avr/UnoExampleTests).
+    /// </summary>
+    internal static readonly string Expected = string.Concat(new[]
     {
         "road : 1", "    green 4", "    green 3", "    green 2", "lane : 1 interrupted, move to lane 2",
         "    yellow 1", "    red 2", "    red 1",
