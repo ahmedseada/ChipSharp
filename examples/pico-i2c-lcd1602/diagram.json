@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "author": "ChipSharp",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-pi-pico", "id": "pico", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-lcd1602", "id": "lcd", "top": 9.77, "left": 150, "attrs": { "pins": "i2c" } }
+  ],
+  "connections": [
+    ["pico:GND.8", "lcd:GND", "black", ["h30", "v9.7", "*"]],
+    ["pico:3V3", "lcd:VCC", "red", []],
+    ["pico:GP26", "lcd:SDA", "blue", ["h20", "v-38.5", "*"]],
+    ["pico:GP27", "lcd:SCL", "gold", ["h40", "v-19.4", "*"]],
+    ["pico:GP0", "$serialMonitor:RX", "", []],
+    ["pico:GP1", "$serialMonitor:TX", "", []]
+  ],
+  "dependencies": {}
+}

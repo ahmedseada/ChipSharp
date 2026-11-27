@@ -67,7 +67,7 @@ internal static class WholeProgram
           Enumerable.ToList and Enumerable.ToArray of System.Collections.Generic.IEnumerable<TSource>
           KeyCollection: GetEnumerator, CopyTo, Contains, its constructors and properties
           ValueCollection: GetEnumerator, CopyTo, its constructors and properties
-          ChipSharp.Hardware: Pin, Timing, Registers, Adc, I2c, Pwm, Spi, Uart (see the README)
+          ChipSharp.Hardware: Pin, Timing, Registers, Adc, I2c, Lcd, Pwm, Spi, Uart (see the README)
         """.ReplaceLineEndings("\n");
 
     /// <summary>The lines the details end with when the program calls a library method ChipSharp does not have.</summary>
@@ -148,6 +148,7 @@ internal static class WholeProgram
           ChipSharp.Hardware.Registers: Read(uint), Write(uint, uint)
           ChipSharp.Hardware.Adc: Input(int), Read(int), Volts(int), Temperature()
           ChipSharp.Hardware.I2c: Open(int, int, int, int), Write(int, int, System.ReadOnlySpan<byte>), Read(int, int, System.Span<byte>), WriteRead(int, int, System.ReadOnlySpan<byte>, System.Span<byte>), Probe(int, int), Scan(int, System.Span<byte>)
+          ChipSharp.Hardware.Lcd: Open(int, int, int, int), Clear(), Write(int, int, string), Write(int, int, System.ReadOnlySpan<char>), Write(int, int, char), Write(int, int, int), Line(int, string), Line(int, System.ReadOnlySpan<char>), Backlight(bool)
           ChipSharp.Hardware.Pwm: Output(int, int), Duty(int, double), PulseMicroseconds(int, int), Stop(int)
           ChipSharp.Hardware.Spi: Open(int, int, int, int, int, int), Write(int, System.ReadOnlySpan<byte>), Read(int, System.Span<byte>), Transfer(int, System.ReadOnlySpan<byte>, System.Span<byte>)
           ChipSharp.Hardware.Uart: Open(int, int, int, int), Write(int, System.ReadOnlySpan<byte>), WriteByte(int, byte), Read(int, System.Span<byte>), ReadByte(int), Available(int), Watch(int), Unwatch(int)

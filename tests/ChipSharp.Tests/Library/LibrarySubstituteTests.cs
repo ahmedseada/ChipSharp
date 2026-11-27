@@ -71,6 +71,7 @@ public sealed class LibrarySubstituteTests
                 "ChipSharp.Library.Exceptions.SystemException for System.SystemException",
                 "ChipSharp.Library.Exceptions.TimeoutException for System.TimeoutException",
                 "ChipSharp.Library.I2c for ChipSharp.Hardware.I2c",
+                "ChipSharp.Library.Lcd for ChipSharp.Hardware.Lcd",
                 "ChipSharp.Library.Math for System.Math",
                 "ChipSharp.Library.MathF for System.MathF",
                 "ChipSharp.Library.MemberInfo for System.Reflection.MemberInfo",
