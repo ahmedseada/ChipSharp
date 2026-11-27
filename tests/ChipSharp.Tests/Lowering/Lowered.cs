@@ -56,12 +56,12 @@ internal static class Lowered
                 // a delegate type's own methods are the runtime's; a delegate of a virtual method reaches it through its slot
                 if (instructions[j].Operand is IlMethodOperand { Method.Definition: { } callee } && !methods.Contains(callee)
                     && VirtualMethods.CalledSlot(instructions, j) is null && Delegates.LoadedSlot(instructions, j) is null
-                    && !Delegates.IsDelegateMethod(callee))
+                    && !Delegates.IsDelegateMethod(callee) && !Frontend.Generics.Instantiations.IsGeneric(callee))
                 {
                     methods.Add(callee);
                 }
 
-                methods.AddRange(dispatch.Follow(instructions, j).Where(method => !methods.Contains(method)));
+                methods.AddRange(dispatch.Follow(instructions, j, methods[i].Assembly).Where(method => !methods.Contains(method)));
             }
         }
 

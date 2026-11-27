@@ -26,15 +26,16 @@ internal sealed partial class MethodLowering
             return Text(only);
         }
 
+        // (a part of a nullable ends the block it starts in: the slot's address is taken where it is used)
         var slot = AddSlot("parts", new TirArrayType(TirType.Ref, pieces.Count));
-        var parts = _ir.AddressOf(slot);
         for (var i = 0; i < pieces.Count; i++)
         {
-            _ir.Store(_ir.ElementAddress(parts, TirType.Ref, _ir.Const(TirType.I32, i)), PartText(pieces[i]));
+            var text = PartText(pieces[i]);
+            _ir.Store(_ir.ElementAddress(_ir.AddressOf(slot), TirType.Ref, _ir.Const(TirType.I32, i)), text);
         }
 
         var concat = _program.RuntimeFunction("StringConcat", TirType.Ref, TirType.Ptr, TirType.I32);
-        return _ir.Call(concat, parts, _ir.Const(TirType.I32, pieces.Count));
+        return _ir.Call(concat, _ir.AddressOf(slot), _ir.Const(TirType.I32, pieces.Count));
     }
 
     /// <summary>One part as a string: a literal, text (null as nothing), or the text of a value as .NET writes it.</summary>
@@ -43,6 +44,11 @@ internal sealed partial class MethodLowering
         if (piece.Literal is { } literal)
         {
             return Text(literal);
+        }
+
+        if (ObjectPartText(piece) is { } objectText) // a nullable, a struct, an object: MethodLowering.TextOfObjects.cs
+        {
+            return objectText;
         }
 
         var value = _ir.Load(PartSlot(piece));

@@ -31,7 +31,8 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
     public static readonly Unsupported TypeTests = Heap("type tests and casts on objects (is, as, (T)x)", true,
         ObjectsHint);
     public static readonly Unsupported Boxing = Heap("boxing (using a value as an object)", false,
-        "For now, keep values in their own types, such as int and bool.");
+        "For now, keep values in their own types, such as int and bool, and give a method that takes any of them a type " +
+        "parameter instead of object: static void Show<T>(T value) where T : struct.");
     public static readonly Unsupported InstanceCalls = Heap("instance or virtual method calls", true,
         "For now, call static methods, or the methods of your own structs.");
     public static readonly Unsupported GenericMethods = Heap("generic methods", true,

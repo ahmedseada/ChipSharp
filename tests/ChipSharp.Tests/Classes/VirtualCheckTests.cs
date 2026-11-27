@@ -269,17 +269,15 @@ public sealed class VirtualCheckTests : IDisposable
                 "not available yet.",
             "Program.Main() at IL_0045 (isinst): type tests and casts to System.Random (is, as, (T)x) arrive with M3 (the " +
                 "heap). For now, test objects against the program's own classes and interfaces.",
-            "Program.Main() at IL_0053 (unbox.any): boxing (using a value as an object) arrives with M3 (the heap). For " +
-                "now, keep values in their own types, such as int and bool.",
             "Program.Main() at IL_005d (isinst): type tests and casts to int[,] (is, as, (T)x) arrive with M3 (the heap). " +
                 "For now, test objects against the program's own classes and interfaces.",
         ], problems);
     }
 
     [Fact]
-    public void Printing_an_object_is_its_ToString_and_one_in_an_interpolated_hole_waits()
+    public void Printing_an_object_is_its_ToString_in_an_interpolated_hole_too()
     {
-        var problems = WholeProgram.Problems("""
+        var analysis = WholeProgram.Check("""
             using System;
 
             interface IShape
@@ -303,12 +301,7 @@ public sealed class VirtualCheckTests : IDisposable
             }
             """);
 
-        const string ToText = "ToString of objects (and printing an object) arrives with M3 (stored strings). For now, " +
-            "give the class a method that prints what it holds, such as Print(), and call that.";
-        Assert.Equal(
-        [
-            $"Program.Main() at IL_001e (call): {ToText}",
-        ], problems);
+        Assert.True(analysis.IsSupported, analysis.Details);
     }
 
     [Fact]

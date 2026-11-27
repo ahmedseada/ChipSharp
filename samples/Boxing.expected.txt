@@ -1,0 +1,16 @@
+count: 3
+many: 250
+level: 1.5
+alarm: High
+sample on channel 2
+note: door open
+(nothing)
+other: x
+thermometer: 20 after 2 reads, the struct itself 0
+True False False True True
+True False True
+1 High False True
+average 23, missing [], or -1, above 22: True
+True 23 23
+ch2=3.25V |    Low | 23 | 00FF | thermometer
+3, 1.5, door open, 
