@@ -24,8 +24,10 @@ namespace ChipSharp.Frontend;
 /// <c>foreach</c> over a struct enumerator, e.g. <c>List&lt;T&gt;.Enumerator</c>) is a call of S's own Dispose, as in
 /// generic code (see <see cref="Generics.ConstrainedCalls"/>).</item>
 /// </list>
-/// A method with a catch, a filter or a fault (C# never makes a fault) keeps its IL as it is: catching exceptions arrives
-/// later, and the whole-program pass says so.
+/// A fault handler (C#'s iterators have one around their body, which disposes the iterator when an exception leaves it)
+/// runs only when an exception leaves its try block, which stops the program in ChipSharp: no leave goes through it, and
+/// its end goes back to its start, where nothing leads. A method with a catch or a filter keeps its IL as it is: catching
+/// exceptions arrives later, and the whole-program pass says so.
 /// </summary>
 internal static class TryFinally
 {
@@ -37,7 +39,8 @@ internal static class TryFinally
     {
         ArgumentNullException.ThrowIfNull(body);
         var regions = body.ExceptionRegions;
-        if (regions.Count == 0 || regions.Any(region => region.Kind != IlExceptionRegionKind.Finally))
+        if (regions.Count == 0
+            || regions.Any(region => region.Kind is not (IlExceptionRegionKind.Finally or IlExceptionRegionKind.Fault)))
         {
             return body;
         }
@@ -139,12 +142,12 @@ internal static class TryFinally
 
         /// <summary>
         /// Where a leave at <paramref name="offset"/> to <paramref name="target"/> goes: through the finally of each try
-        /// region it is in and its target is not, the innermost first, then to the target.
+        /// region it is in and its target is not, the innermost first, then to the target (never through a fault).
         /// </summary>
         private Continuation ContinuationOf(int offset, int target)
         {
             var left = Enumerable.Range(0, _regions.Count)
-                .Where(r => InTry(r, offset) && !InTry(r, target))
+                .Where(r => _regions[r].Kind == IlExceptionRegionKind.Finally && InTry(r, offset) && !InTry(r, target))
                 .OrderBy(r => _regions[r].TryLength)
                 .ToList();
             Continuation continuation = new ToOffset(target);
@@ -183,7 +186,7 @@ internal static class TryFinally
                         new IlBranchOperand(OffsetOf(_leaves[index])), instruction.Size);
 
                 case IlOpCode.Endfinally:
-                    // the innermost finally it ends; one no leave reaches never runs, and goes back to its start
+                    // the innermost finally (or fault) it ends; one no leave reaches never runs, and goes back to its start
                     var region = Enumerable.Range(0, _regions.Count).Where(r => InHandler(r, instruction.Offset))
                         .OrderBy(r => _regions[r].HandlerLength).First();
                     var target = _exits[region].Count switch

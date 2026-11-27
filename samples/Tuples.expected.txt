@@ -1,0 +1,16 @@
+busiest lane: 2 with 31 cars
+min 7, max 31, total 69
+(7, 31, 69)
+Red 2s; Green 8s; Green 4s; Yellow 1s; Red 6s; Green 8s; 
+north 31, south 12
+True
+False
+True -1
+True
+21 False
+0 11 22 
+bus, north, south, east (4)
+(62, south)
+(24, north)
+(23, east)
+fullest: south at 62%

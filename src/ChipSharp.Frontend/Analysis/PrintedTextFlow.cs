@@ -216,6 +216,11 @@ internal sealed partial class PrintedTextFlow
             return;
         }
 
+        if (NewHandlerStep(instruction, index, state)) // a handler made with newobj: PrintedTextFlow.NewHandlers.cs
+        {
+            return;
+        }
+
         switch (instruction.OpCode)
         {
             case >= IlOpCode.Ldc_I4_M1 and <= IlOpCode.Ldc_I4_8:

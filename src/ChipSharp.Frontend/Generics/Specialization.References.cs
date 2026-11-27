@@ -253,6 +253,8 @@ internal static partial class Specialization
     {
         var own = StackArrays.Primitive(ValueTypes.WithoutModifiers(type));
         var plain = ValueTypes.Underlying(own, owner);
+        // (CompareInSort is Compare in a sort, whose own body fails as a sort does where neither object is IComparable)
+        name = name == "CompareInSort" ? "Compare" : name;
         var generic = name == "AreEqual" ? "System.IEquatable`1" : name == "Compare" ? "System.IComparable`1" : null;
         if (Substitution.IsOpen(plain) || (generic is null && (name != "HashOf" || plain == own)))
         {
@@ -304,7 +306,8 @@ internal static partial class Specialization
             if (definition.Assembly.Interfaces(definition)
                 .Select(listed => ValueTypes.WithoutModifiers(ofType.Apply(listed)))
                 .Any(listed => IlTypeNames.DisplayName(listed) == wanted
-                    && (listed is IlGenericInstanceType instance ? instance.Arguments : []).SequenceEqual(arguments)))
+                    && (listed is IlGenericInstanceType instance ? instance.Arguments : []).Select(VirtualMethods.Canonical)
+                        .SequenceEqual(arguments.Select(VirtualMethods.Canonical))))
             {
                 return true;
             }

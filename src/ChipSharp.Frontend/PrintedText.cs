@@ -239,8 +239,11 @@ internal enum PrintedRole
     /// <summary><c>ldloca</c> of a DefaultInterpolatedStringHandler: the text being built.</summary>
     Handler,
 
-    /// <summary>The handler's constructor: a new text.</summary>
+    /// <summary>The handler's constructor: a new text (also the <c>stloc</c> of a handler <see cref="NewHandler"/> made).</summary>
     Start,
+
+    /// <summary><c>newobj</c> of a handler, which a <c>stloc</c> into its local takes right after: a new text.</summary>
+    NewHandler,
 
     /// <summary><c>AppendLiteral</c> or <c>AppendFormatted</c>: a part.</summary>
     Append,
