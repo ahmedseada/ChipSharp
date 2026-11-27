@@ -5,7 +5,7 @@ using ChipSharp.Abstractions;
 namespace ChipSharp.Image.Uf2;
 
 /// <summary>
-/// A 32-bit little-endian ELF file (what lld writes for ARM and 32-bit RISC-V chips), read for what packaging
+/// A 32-bit little-endian ELF file (what lld writes for ARM, 32-bit RISC-V and AVR chips), read for what packaging
 /// needs: the bytes to load and where (<see cref="Segments"/>), and for inspection its sections and symbols.
 /// </summary>
 public sealed class ElfFile
@@ -20,7 +20,7 @@ public sealed class ElfFile
         Symbols = symbols;
     }
 
-    /// <summary>The ELF machine number: 40 for ARM, 243 for RISC-V.</summary>
+    /// <summary>The ELF machine number: 40 for ARM, 243 for RISC-V, 83 for AVR.</summary>
     public ushort Machine { get; }
 
     /// <summary>The address execution starts at (the linker script's ENTRY).</summary>
@@ -83,6 +83,7 @@ public sealed class ElfFile
         var (sectionHeaderSize, sectionHeaderCount, namesIndex) = (U16(header, 46), U16(header, 48), U16(header, 50));
 
         var segments = new List<ElfSegment>();
+        var segmentFiles = new List<(uint Offset, uint Size, uint PhysicalAddress)>();
         for (var i = 0; i < programHeaderCount; i++)
         {
             var ph = Slice(programHeaders + (uint)(i * programHeaderSize), 32, "program header table");
@@ -97,13 +98,29 @@ public sealed class ElfFile
                 PhysicalAddress: U32(ph, 12),
                 Data: Slice(offset, fileSize, $"segment {i}").ToArray(),
                 MemorySize: U32(ph, 20)));
+            segmentFiles.Add((offset, fileSize, U32(ph, 12)));
         }
 
-        var raw = new List<(uint Name, uint Type, uint Address, uint Offset, uint Size, uint Link)>();
+        var raw = new List<(uint Name, uint Type, uint Flags, uint Address, uint Offset, uint Size, uint Link)>();
         for (var i = 0; i < sectionHeaderCount; i++)
         {
             var sh = Slice(sectionHeaders + (uint)(i * sectionHeaderSize), 40, "section header table");
-            raw.Add((U32(sh, 0), U32(sh, 4), U32(sh, 12), U32(sh, 16), U32(sh, 20), U32(sh, 24)));
+            raw.Add((U32(sh, 0), U32(sh, 4), U32(sh, 8), U32(sh, 12), U32(sh, 16), U32(sh, 20), U32(sh, 24)));
+        }
+
+        // where a section's bytes are loaded: in the loadable segment whose bytes in the file hold them, at the
+        // segment's physical address plus their place in it (as llvm-objcopy works it out); else at its own address
+        uint LoadAddress(uint offset, uint size, uint address)
+        {
+            foreach (var segment in segmentFiles)
+            {
+                if (offset >= segment.Offset && (ulong)offset + size <= (ulong)segment.Offset + segment.Size)
+                {
+                    return segment.PhysicalAddress + (offset - segment.Offset);
+                }
+            }
+
+            return address;
         }
 
         string Text(int table, uint at)
@@ -124,7 +141,18 @@ public sealed class ElfFile
         }
 
         var sections = raw.Skip(1)
-            .Select(s => new ElfSection(Text(namesIndex, s.Name), s.Address, s.Size, s.Type == 8 /* SHT_NOBITS */))
+            .Select(s =>
+            {
+                var noBits = s.Type == 8; // SHT_NOBITS
+                return new ElfSection(Text(namesIndex, s.Name), s.Address, s.Size, noBits)
+                {
+                    Flags = s.Flags,
+                    LoadAddress = noBits ? s.Address : LoadAddress(s.Offset, s.Size, s.Address),
+                    Data = noBits || (s.Flags & ElfSection.AllocFlag) == 0
+                        ? []
+                        : Slice(s.Offset, s.Size, $"section {Text(namesIndex, s.Name)}").ToArray(),
+                };
+            })
             .ToList();
 
         var symbols = new Dictionary<string, uint>(StringComparer.Ordinal);
@@ -153,4 +181,24 @@ public sealed class ElfFile
 public sealed record ElfSegment(uint VirtualAddress, uint PhysicalAddress, byte[] Data, uint MemorySize);
 
 /// <summary>A section: its name, address and size. <see cref="NoBits"/> sections (.bss) take no room in the file.</summary>
-public sealed record ElfSection(string Name, uint Address, uint Size, bool NoBits);
+public sealed record ElfSection(string Name, uint Address, uint Size, bool NoBits)
+{
+    /// <summary>The SHF_ALLOC flag: the section is part of the program's memory (not, say, its symbols or a comment).</summary>
+    public const uint AllocFlag = 0x2;
+
+    /// <summary>The section's flags (sh_flags): <see cref="AllocFlag"/>, writable (0x1), code (0x4) and more.</summary>
+    public uint Flags { get; init; }
+
+    /// <summary>True when the section is part of the program's memory (<see cref="AllocFlag"/>).</summary>
+    public bool IsAllocated => (Flags & AllocFlag) != 0;
+
+    /// <summary>
+    /// Where the section's bytes are loaded (its physical address, e.g. the starting values of .data in flash): in a
+    /// loadable segment, that segment's physical address plus the section's place in it; else <see cref="Address"/>.
+    /// </summary>
+    public uint LoadAddress { get; init; }
+
+    /// <summary>The bytes of an allocated section (<see cref="IsAllocated"/>) in the file; none for the others and for a
+    /// <see cref="NoBits"/> section.</summary>
+    public byte[] Data { get; init; } = [];
+}
