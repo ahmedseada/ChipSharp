@@ -132,7 +132,7 @@ public sealed class SerialAnalogCheckTests : IDisposable
             .Select(f => f.Content));
         var windows = string.Concat(new WindowsX64Runtime().Startup(Targets.Load("host")).Files.Select(f => f.Content));
 
-        Assert.Equal(15, RuntimeFunctions.Count);
+        Assert.Equal(16, RuntimeFunctions.Count);
         Assert.All(RuntimeFunctions, method =>
         {
             var symbol = LlvmCodeGenerator.SymbolName($"ChipSharp.Runtime.{method.Name}");
@@ -150,16 +150,19 @@ public sealed class SerialAnalogCheckTests : IDisposable
 
         Assert.Equal(
             [
-                "ChipSharp.Runtime.AdcInput", "ChipSharp.Runtime.AdcRead", "ChipSharp.Runtime.AdcReference",
-                "ChipSharp.Runtime.AdcTemperature", "ChipSharp.Runtime.ConsoleRead", "ChipSharp.Runtime.PwmDuty",
-                "ChipSharp.Runtime.PwmOutput", "ChipSharp.Runtime.PwmPulse", "ChipSharp.Runtime.PwmStop",
-                "ChipSharp.Runtime.UartAvailable", "ChipSharp.Runtime.UartOpen", "ChipSharp.Runtime.UartReadByte",
-                "ChipSharp.Runtime.UartUnwatch", "ChipSharp.Runtime.UartWatch", "ChipSharp.Runtime.UartWriteByte",
+                "ChipSharp.Runtime.AdcFullScale", "ChipSharp.Runtime.AdcInput", "ChipSharp.Runtime.AdcRead",
+                "ChipSharp.Runtime.AdcReference", "ChipSharp.Runtime.AdcTemperature", "ChipSharp.Runtime.ConsoleRead",
+                "ChipSharp.Runtime.PwmDuty", "ChipSharp.Runtime.PwmOutput", "ChipSharp.Runtime.PwmPulse",
+                "ChipSharp.Runtime.PwmStop", "ChipSharp.Runtime.UartAvailable", "ChipSharp.Runtime.UartOpen",
+                "ChipSharp.Runtime.UartReadByte", "ChipSharp.Runtime.UartUnwatch", "ChipSharp.Runtime.UartWatch",
+                "ChipSharp.Runtime.UartWriteByte",
             ],
             module.Functions.Where(f => f.Kind == TirFunctionKind.External && IsSerialAnalog(f.Name))
                 .Select(f => f.Name).Order(StringComparer.Ordinal));
         var external = module.Functions.Where(f => f.Kind == TirFunctionKind.External).ToDictionary(f => f.Name);
         Assert.Equal(TirType.F64, external["ChipSharp.Runtime.AdcReference"].ReturnType);
+        Assert.Equal(TirType.F64, external["ChipSharp.Runtime.AdcTemperature"].ReturnType);
+        Assert.Equal(TirType.I32, external["ChipSharp.Runtime.AdcFullScale"].ReturnType);
         Assert.Equal([TirType.I32, TirType.F64], external["ChipSharp.Runtime.PwmDuty"].Parameters.Select(p => p.Type));
         Assert.Equal(TirType.I32, external["ChipSharp.Runtime.ConsoleRead"].ReturnType);
         Assert.Contains(module.Functions, f => f.Name == "ChipSharp.Library.Uart.Write" && f.Kind == TirFunctionKind.Defined);

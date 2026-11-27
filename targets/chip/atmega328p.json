@@ -3,7 +3,8 @@
   "name": "atmega328p",
   "inherits": "avr",
   // the AVR runtime and this chip's (src/ChipSharp.Runtime.Atmega328p), for a 16 MHz clock: pins by the Uno's numbers
-  // (0-13 are D0-D13, 14-19 are A0-A5), Timer1 for the clock, the delays and the timer event, USART0 for the console
+  // (0-13 are D0-D13, 14-19 are A0-A5), Timer1 for the clock, the delays and the timer event (and D9's PWM), USART0 for
+  // the console, Timer0 and Timer2 for the other PWM outputs
   "runtime": "atmega328p",
   "mmcu": "atmega328p",           // the microcontroller, as avr-gcc and clang name it (-mmcu; with Zig, -mcpu too)
   "vectors": 26,                  // the entries of the interrupt vector table, reset included, which the runtime writes
@@ -28,11 +29,30 @@
     "console": true,              // Console.Write and Console.WriteLine go to USART0 (D1, 115200 baud)
     "consoleInput": true,         // Console.Read reads USART0 (D0, 115200 baud); ReadLine makes a string, which needs a heap
     "uart": 1,                    // serial ports for Uart: USART0, the console's too
+    "adc": 6,                     // analog inputs for Adc: A0-A5, 0 to 1023 against AVcc (5 V), and the temperature sensor
+    "pwm": 5,                     // PWM outputs: D5 and D6 (Timer0), D3 and D11 (Timer2), D9 (Timer1's compare A)
+    "i2c": true,                  // ChipSharp.Hardware.I2c: the TWI, bus 0 on A4 and A5 ("i2c" below)
+    "spi": true,                  // ChipSharp.Hardware.Spi: bus 0 on D13, D11 and D12 ("spi" below)
     "clock": true                 // a clock for DateTime.Now and Stopwatch: Timer1's count of half microseconds
   },
   "pinFunctions": {
     // the pins each peripheral can use: chipsharp check holds the pins a program gives as constants to these, and the
-    // runtime every pin
-    "uart0.tx": [1], "uart0.rx": [0]
+    // runtime every pin. D10 is no PWM output: its timer output, OC1B, is Timer1's compare B, the timer event's
+    "uart0.tx": [1], "uart0.rx": [0],
+    "adc": [14, 15, 16, 17, 18, 19],
+    "pwm": [3, 5, 6, 9, 11]
+  },
+  // the pins' names on the Uno's headers, by number, for chipsharp check's messages ("pin 18 (A4)")
+  "pinNames": ["D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9", "D10", "D11", "D12", "D13",
+    "A0", "A1", "A2", "A3", "A4", "A5"],
+  // the buses, as rp2040.json gives them: the clocks they make, lowest and highest, in hertz, and the pins of bus 0.
+  // I2C: 16 MHz / (16 + 2 * TWBR * prescaler), the nearest at or below; SPI: 16 MHz / 2 to 128, the nearest at or below
+  "i2c": {
+    "frequency": [490, 400000],
+    "buses": [ { "sda": [18], "scl": [19] } ]
+  },
+  "spi": {
+    "frequency": [125000, 8000000],
+    "buses": [ { "sck": [13], "tx": [11], "rx": [12] } ]
   }
 }

@@ -7,9 +7,12 @@
 //   ChipSharp_Runtime_AdcInput         Adc.Input: a pin of GPIO 26-29 made an analog input (no digital input, no
 //                                      output, no pull-up or pull-down)
 //   ChipSharp_Runtime_AdcRead          Adc.Read and Volts: one conversion of the pin's input, 0 to 4095
-//   ChipSharp_Runtime_AdcTemperature   Adc.Temperature: one conversion of the temperature sensor's input
+//   ChipSharp_Runtime_AdcTemperature   Adc.Temperature: one conversion of the temperature sensor's input, in degrees
+//                                      Celsius by the datasheet's formula (4.9.5): the sensor gives 0.706 V at 27 C,
+//                                      1.721 mV less a degree
 //   ChipSharp_Runtime_AdcReference     the voltage that reads as 4096: the Pico's 3.3 V (ADC_VREF is its 3.3 V supply,
 //                                      through a filter)
+//   ChipSharp_Runtime_AdcFullScale     4096, for Adc.Volts: reading * 3.3 / 4096
 //
 // A pin that is not an analog input, or one read before Adc.Input, stops the program (chipsharp_hardware_failure,
 // rp2040_failures.c) with a message that says what to do.
@@ -157,14 +160,19 @@ int ChipSharp_Runtime_AdcRead(int pin)
     return convert((unsigned int)(pin - ADC_FIRST_PIN));
 }
 
-int ChipSharp_Runtime_AdcTemperature(void)
+double ChipSharp_Runtime_AdcTemperature(void)
 {
     start_adc();
     adc_flags |= ADC_CS_TS_EN;
-    return convert(ADC_TEMPERATURE);
+    return 27.0 - ((double)convert(ADC_TEMPERATURE) * 3.3 / 4096.0 - 0.706) / 0.001721;
 }
 
 double ChipSharp_Runtime_AdcReference(void)
 {
     return 3.3;
+}
+
+int ChipSharp_Runtime_AdcFullScale(void)
+{
+    return 4096;
 }

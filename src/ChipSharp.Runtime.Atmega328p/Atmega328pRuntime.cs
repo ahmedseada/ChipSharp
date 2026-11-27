@@ -19,8 +19,12 @@ namespace ChipSharp.Runtime.Atmega328p;
 /// (src/ChipSharp.Runtime.Shared).</item>
 /// <item><see cref="UartFileName"/>: USART0 as ChipSharp.Hardware.Uart's port 0 and the console's input (Console.Read):
 /// a receive buffer of 64 bytes, filled by its interrupt.</item>
+/// <item><see cref="I2cFileName"/>, <see cref="SpiFileName"/>, <see cref="AdcFileName"/> and <see cref="PwmFileName"/>:
+/// ChipSharp.Hardware's I2c (the TWI on A4 and A5), Spi (D13, D11, D12), Adc (A0-A5, 0 to 1023 against 5 V, and the
+/// temperature sensor) and Pwm (D3, D5, D6 and D11 on Timer0 and Timer2, D9 on Timer1's compare A), with
+/// <see cref="FailuresFileName"/>, the messages of their mistakes.</item>
 /// <item><see cref="InterruptsFileName"/>, with the vector table: the entries of the interrupts the runtime uses (INT0,
-/// INT1, PCINT0-2, TIMER1_COMPB, USART_RX), which go to the handler the runtime file that uses each put in, if any.</item>
+/// INT1, PCINT0-2, TIMER1_COMPB, USART_RX, TIMER1_COMPA), which go to the handler the runtime file that uses each put in, if any.</item>
 /// <item><see cref="EventsFileName"/>: the pin and timer events of the program's <c>[Interrupt]</c> methods
 /// (<c>ChipSharp_Runtime_Pin*Watch</c>, <c>ChipSharp_Runtime_Timer*</c>), which call the methods' entries by the numbers
 /// of the target's "interrupts" table.</item>
@@ -37,6 +41,21 @@ public sealed class Atmega328pRuntime : IArchRuntime
     /// <summary>The C file with USART0 as a serial port (Uart) and the console's input (Console.Read).</summary>
     public const string UartFileName = "atmega328p_uart.c";
 
+    /// <summary>The C file with the I2C bus (the TWI) as ChipSharp.Hardware.I2c's bus 0.</summary>
+    public const string I2cFileName = "atmega328p_i2c.c";
+
+    /// <summary>The C file with the SPI controller as ChipSharp.Hardware.Spi's bus 0.</summary>
+    public const string SpiFileName = "atmega328p_spi.c";
+
+    /// <summary>The C file with the analog inputs (Adc): A0-A5 and the temperature sensor.</summary>
+    public const string AdcFileName = "atmega328p_adc.c";
+
+    /// <summary>The C file with the PWM outputs (Pwm): D3, D5, D6, D9 and D11.</summary>
+    public const string PwmFileName = "atmega328p_pwm.c";
+
+    /// <summary>The C file with the messages the peripherals' functions stop a program with.</summary>
+    public const string FailuresFileName = "atmega328p_failures.c";
+
     /// <summary>The assembly file with the entries of the interrupts the runtime uses.</summary>
     public const string InterruptsFileName = "atmega328p_interrupts.S";
 
@@ -48,8 +67,9 @@ public sealed class Atmega328pRuntime : IArchRuntime
     public string Name => "atmega328p";
 
     /// <summary>
-    /// The AVR start-up and helpers, the chip's own start-up and runtime functions, the console output, and the serial
-    /// port and console input (which the linker leaves out of a program that does not use them).
+    /// The AVR start-up and helpers, the chip's own start-up and runtime functions, the console output, the serial port
+    /// and console input, the buses, analog inputs and PWM outputs (which the linker leaves out of a program that does
+    /// not use them).
     /// </summary>
     public RuntimeSources Startup(TargetDescription target)
     {
@@ -60,6 +80,11 @@ public sealed class Atmega328pRuntime : IArchRuntime
             Source(SourceFileName),
             Source(ConsoleFileName),
             Source(UartFileName),
+            Source(I2cFileName),
+            Source(SpiFileName),
+            Source(AdcFileName),
+            Source(PwmFileName),
+            Source(FailuresFileName),
         ]);
     }
 
