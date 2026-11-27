@@ -5,8 +5,9 @@ using ChipSharp.Tests.Support;
 namespace ChipSharp.Tests.Pico;
 
 /// <summary>
-/// The bus examples, examples/pico-i2c-mpu6050 (an MPU-6050 read over I2C) and examples/pico-spi-shift-register (a
-/// 74HC595 driving a 7-segment digit over SPI), built the way their Program.cs says (dotnet build of the project, then
+/// The bus examples, examples/pico-i2c-mpu6050 (an MPU-6050 read over I2C), examples/pico-spi-shift-register (a
+/// 74HC595 driving a 7-segment digit over SPI) and examples/pico-i2c-lcd1602 (a 16x2 character LCD on an I2C
+/// backpack), built the way their Program.cs says (dotnet build of the project, then
 /// <c>chipsharp build -t pico</c>) and run in the simulator with the simulated device on the bus; and their Wokwi
 /// diagrams, which wire what the programs use.
 /// </summary>
@@ -142,6 +143,73 @@ public sealed class BusExampleTests : IDisposable
         // COM.1 and COM.2 are the same common pin: one of them to GND is enough
         Assert.True(Grounded(nets, "digit:COM.1") || Grounded(nets, "digit:COM.2"));
         Assert.True(nets.Joined("pico:GP0", "$serialMonitor:RX") && nets.Joined("pico:GP1", "$serialMonitor:TX"));
+    }
+
+    [SimulatorFact]
+    [RunsLong]
+    public async Task The_LCD_example_shows_its_title_and_counts_once_a_second_with_no_heap()
+    {
+        var (report, run) = await BuildAndRunAsync("pico-i2c-lcd1602", 3500, "--i2c", "1:0x27=lcd1602");
+
+        Assert.Matches(@"^flash \d+(\.\d)? KB of 2048 KB \(\d+\.\d%\), RAM \d+ bytes of 264 KB \(stack 8 KB reserved\)$",
+            report);
+        Assert.True(run.ExitCode == 0, run.ToString());
+        Assert.Equal("LCD 16x2 at 0x27 on I2C1\r\n", Encoding.UTF8.GetString(run.Uart0));
+
+        // the screen once Open has waited for the display (50 ms) and the two lines are written, then once a second
+        var screens = run.Output.Split('\n').Select(line => line.TrimEnd('\r'))
+            .Where(line => line.Length > 16 && line[16..].StartsWith("LCD 0x27: |", StringComparison.Ordinal))
+            .Chunk(2).Select(rows => (Milliseconds: double.Parse(rows[0][1..11], System.Globalization.CultureInfo.InvariantCulture),
+                Rows: rows.Select(row => row[27..^1]).ToArray()))
+            .ToList();
+        Assert.Equal(Enumerable.Range(0, 4).Select(count => new[] { "Hello, ChipSharp", $"count {count,-10}" }),
+            screens.Select(screen => screen.Rows));
+        Assert.InRange(screens[0].Milliseconds, 50, 100);
+        Assert.All(Enumerable.Range(1, 3), i => Assert.InRange(screens[i].Milliseconds - screens[i - 1].Milliseconds, 1000, 1001));
+
+        // I2C1 at 100 kHz on GPIO 26 and 27, and the simulated HD44780 lost nothing
+        Assert.Contains("I2C1 100000 Hz", run.Output);
+        Assert.Contains(run.Pins, p => p.Pin == 26 && p.State == "input pull-up");
+        Assert.Contains(run.Pins, p => p.Pin == 27 && p.State == "input pull-up");
+        Assert.DoesNotContain("busy", run.Output);
+    }
+
+    [SimulatorFact]
+    [RunsLong]
+    public async Task The_LCD_example_says_so_when_nothing_answers()
+    {
+        var (_, run) = await BuildAndRunAsync("pico-i2c-lcd1602", 200);
+
+        Assert.True(run.ExitCode == 0, run.ToString());
+        Assert.Equal("No LCD answers at 0x27: check its wiring.\r\n", Encoding.UTF8.GetString(run.Uart0));
+        Assert.EndsWith("the program has finished: the core sleeps and nothing is scheduled to wake it", run.Stopped);
+    }
+
+    [Fact]
+    public void The_LCD_examples_Wokwi_diagram_wires_the_backpack_to_I2C1_on_GPIO_26_and_27_directly()
+    {
+        var (parts, nets) = Diagram("pico-i2c-lcd1602");
+
+        // the Pico and the display in I2C mode (its four pins: GND, VCC, SDA, SCL), and nothing between them
+        Assert.Equal(["wokwi-lcd1602", "wokwi-pi-pico"], parts.Values.Order(StringComparer.Ordinal));
+        using var json = JsonDocument.Parse(File.ReadAllText(Path.Combine(Repository.Examples, "pico-i2c-lcd1602", "diagram.json")));
+        var lcd = json.RootElement.GetProperty("parts").EnumerateArray().Single(part => part.GetProperty("id").GetString() == "lcd");
+        Assert.Equal("i2c", lcd.GetProperty("attrs").GetProperty("pins").GetString());
+        Assert.True(nets.Joined("pico:GP26", "lcd:SDA"));
+        Assert.True(nets.Joined("pico:GP27", "lcd:SCL"));
+        Assert.True(nets.Joined("pico:3V3", "lcd:VCC") || nets.Joined("pico:VBUS", "lcd:VCC"));
+        Assert.True(Grounded(nets, "lcd:GND"));
+        Assert.True(nets.Joined("pico:GP0", "$serialMonitor:RX") && nets.Joined("pico:GP1", "$serialMonitor:TX"));
+
+        // each of the display's pins by a wire of its own, from the Pico; the display to the Pico's right, where its
+        // pins (on its left edge) face the Pico's GP26, GP27, 3V3 and GND
+        var wires = json.RootElement.GetProperty("connections").EnumerateArray()
+            .Select(wire => (From: wire[0].GetString()!, To: wire[1].GetString()!)).ToList();
+        Assert.Equal(["lcd:GND", "lcd:SCL", "lcd:SDA", "lcd:VCC"],
+            wires.Where(wire => wire.To.StartsWith("lcd:", StringComparison.Ordinal)).Select(wire => wire.To).Order(StringComparer.Ordinal));
+        Assert.All(wires.Where(wire => wire.To.StartsWith("lcd:", StringComparison.Ordinal)),
+            wire => Assert.StartsWith("pico:", wire.From));
+        Assert.True(lcd.GetProperty("left").GetDouble() > 100);
     }
 
     private static bool Grounded(Nets nets, string pin) => Enumerable.Range(1, 8).Any(n => nets.Joined(pin, $"pico:GND.{n}"));

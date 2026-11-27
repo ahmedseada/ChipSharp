@@ -8,8 +8,10 @@ namespace ChipSharp.Frontend.Il;
 /// <summary>
 /// Turns the types in signatures and type tokens into <see cref="IlType"/>s. Generic parameters stay positional
 /// (<c>!0</c>, <c>!!0</c>), so no generic context is needed. Malformed metadata throws BadImageFormatException.
+/// A type of one of <paramref name="libraries"/> (the class libraries ChipSharp compiles with the assembly, see
+/// <see cref="IlAssembly.Libraries"/>) is one of the assembly's own, as if it were defined in it.
 /// </summary>
-internal sealed class IlTypeProvider(MetadataReader reader) : ISignatureTypeProvider<IlType, object?>
+internal sealed class IlTypeProvider(MetadataReader reader, IReadOnlySet<string> libraries) : ISignatureTypeProvider<IlType, object?>
 {
     // deeper than any real nesting of types: a chain this long is a cycle in malformed metadata
     private const int MaxNesting = 100;
@@ -139,8 +141,9 @@ internal sealed class IlTypeProvider(MetadataReader reader) : ISignatureTypeProv
 
             case HandleKind.AssemblyReference:
             {
-                var assembly = reader.GetAssemblyReference((AssemblyReferenceHandle)scope);
-                return new IlNamedType(ns, name, null, reader.GetString(assembly.Name));
+                // a type of a class library compiled with this assembly is one of its own
+                var assembly = reader.GetString(reader.GetAssemblyReference((AssemblyReferenceHandle)scope).Name);
+                return new IlNamedType(ns, name, null, libraries.Contains(assembly) ? null : assembly);
             }
 
             case HandleKind.ModuleReference:

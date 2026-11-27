@@ -28,7 +28,8 @@
 //
 // --i2c and --spi put simulated devices on the I2C and SPI buses (devices/buses.mjs): --i2c 0:0x68=mpu6050 an
 // MPU-6050 at address 0x68 on I2C0, --i2c 0:0x76=bmp280 a BMP280, --spi 0=74hc595@17 a 74HC595 shift register on
-// SPI0 with its latch on GPIO 17, --spi 0=loopback RX wired to TX. An I2C address without a device does not answer.
+// SPI0 with its latch on GPIO 17, --spi 0=loopback RX wired to TX, --i2c 1:0x27=lcd1602 a 16x2 character LCD on a
+// PCF8574 backpack at 0x27 on I2C1 (lcd2004: 20x4). An I2C address without a device does not answer.
 //
 // Booting: the RP2040's boot ROM checks the CRC-32 of the first 256 bytes of flash (the second-stage
 // bootloader, boot2), copies them to the top of RAM (0x20041f00) and runs them with lr = 0; boot2 sets up the
@@ -54,6 +55,8 @@
 //     [   15.000 ms] GPIO25 PWM steady low       a PWM output with no edge for 2.5 periods (duty 0, or 1: high)
 //     [    2.000 ms] I2C0 0x68 write 75, read 68 a transfer on an I2C bus (devices/buses.mjs lists them all)
 //     [    3.000 ms] SPI0 74HC595 Q3 high        an output of a device on an SPI bus changed
+//     [   58.230 ms] LCD 0x27: |count 12        |  a row of an LCD (each row a line), when what it shows changes and
+//                                                settles; also "LCD 0x27 backlight on" (devices/lcd1602.mjs)
 //     [ 1000.000 ms] stopped: <why>              the last line
 //
 // Exit code: 0 when the program ran (to its end or for the whole time), 1 when the image is not valid, 2 for
@@ -448,7 +451,7 @@ mcu.uart[0].onByte = (value) => {
 mcu.uart[0].onBaudRateChange = (baud) => console.log(`${milliseconds(clock.nanos)} UART0 baud ${baud}`);
 
 // the simulated devices on the I2C and SPI buses (--i2c, --spi), and what the buses do
-attachBuses(mcu, options.buses, (text) => console.log(`${milliseconds(clock.nanos)} ${text}`));
+const finishBuses = attachBuses(mcu, options.buses, (text) => console.log(`${milliseconds(clock.nanos)} ${text}`));
 
 // the levels from the start, then the changes at their times, as alarms of the simulated clock: a core asleep until
 // one of them wakes up for it, as the chip would
@@ -513,6 +516,9 @@ while (clock.nanos < end) {
     }
   }
 }
+
+// what the devices have not printed yet (an LCD that has not settled)
+finishBuses();
 
 if (uartLine.length > 0) {
   console.log(`${milliseconds(clock.nanos)} UART0: ${Buffer.from(uartLine).toString('latin1')} (no line ending)`);

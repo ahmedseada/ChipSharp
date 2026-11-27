@@ -12,6 +12,12 @@ public sealed partial class IlAssembly
     public int? ClassSize(IlTypeDefinition type)
     {
         ArgumentNullException.ThrowIfNull(type);
+        if (type.Assembly != this && IsLibrary(type.Assembly))
+        {
+            // a type of a library compiled with this assembly: that library's metadata
+            return type.Assembly.ClassSize(type);
+        }
+
         if (type.Assembly != this)
         {
             throw new ArgumentException($"{type} is a type of {type.Assembly}, not of {this}.", nameof(type));
@@ -29,6 +35,12 @@ public sealed partial class IlAssembly
     {
         ArgumentNullException.ThrowIfNull(type);
         var definition = type.GenericDefinition ?? type;
+        if (definition.Assembly != this && IsLibrary(definition.Assembly))
+        {
+            // a type of a library compiled with this assembly: that library's metadata
+            return definition.Assembly.HasCustomLayout(type);
+        }
+
         if (definition.Assembly != this && type.Assembly == this)
         {
             // an instance made here of another assembly's generic type (ChipSharp.Library's)
@@ -48,6 +60,12 @@ public sealed partial class IlAssembly
     public bool HasFieldData(IlField field)
     {
         ArgumentNullException.ThrowIfNull(field);
+        if (field.DeclaringType.Assembly != this && IsLibrary(field.DeclaringType.Assembly))
+        {
+            // a type of a library compiled with this assembly: that library's metadata
+            return field.DeclaringType.Assembly.HasFieldData(field);
+        }
+
         return field.DeclaringType.Assembly == this
             && _reader.GetFieldDefinition(MetadataTokens.FieldDefinitionHandle(field.Token & 0xFFFFFF))
                 .GetRelativeVirtualAddress() != 0;

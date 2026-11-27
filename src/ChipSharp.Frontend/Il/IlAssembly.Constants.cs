@@ -12,6 +12,12 @@ public sealed partial class IlAssembly
     public ulong? FieldConstant(IlField field)
     {
         ArgumentNullException.ThrowIfNull(field);
+        if (field.DeclaringType.Assembly != this && IsLibrary(field.DeclaringType.Assembly))
+        {
+            // a type of a library compiled with this assembly: that library's metadata
+            return field.DeclaringType.Assembly.FieldConstant(field);
+        }
+
         if (field.DeclaringType.Assembly != this)
         {
             throw new ArgumentException($"{field.Name} is a field of {field.DeclaringType.Assembly}, not of {this}.",

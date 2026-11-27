@@ -4,6 +4,8 @@
 //     --i2c <bus>:<address>=<device>     a device at an address (0x68 or 104) on I2C0 or I2C1:
 //                                          mpu6050   accelerometer and gyroscope (mpu6050.mjs)
 //                                          bmp280    pressure and temperature (bmp280.mjs)
+//                                          lcd1602   a 16x2 character LCD on a PCF8574 backpack (lcd1602.mjs)
+//                                          lcd2004   the same, 20x4
 //                                          stuck     a device that holds the clock low for ever once addressed
 //     --spi <bus>=<device>[@<pin>]       a device on SPI0 or SPI1:
 //                                          74hc595@<latch pin>   a shift register (shift-register.mjs)
@@ -20,13 +22,17 @@
 //     I2C0 0x68 write 6b 00 (refused)    the device refused a byte
 //     SPI0 mode 0, 992063 Hz             the mode and clock the program set, when a transfer first uses them
 //     SPI0 74HC595 Q3 high               a shift register's output changed (its latch went high)
+//     LCD 0x27: |count 12        |       a row of an LCD, each row on a line, when what it shows changes and settles
+//     LCD 0x27 backlight on              (lcd1602.mjs lists them all)
 
 import { GPIOPinState, I2CMode } from 'rp2040js';
 import { Bmp280 } from './bmp280.mjs';
+import { Lcd } from './lcd1602.mjs';
 import { Mpu6050 } from './mpu6050.mjs';
 import { Loopback, ShiftRegister } from './shift-register.mjs';
 
-export const USAGE = '[--i2c <bus>:<address>=<mpu6050|bmp280|stuck>]... [--spi <bus>=<74hc595@<pin>|loopback[@<pin>]>]...';
+export const USAGE = '[--i2c <bus>:<address>=<mpu6050|bmp280|lcd1602|lcd2004|stuck>]... ' +
+  '[--spi <bus>=<74hc595@<pin>|loopback[@<pin>]>]...';
 
 // A device that answers its address, then never lets the clock go: every transfer on its bus waits for it from then on.
 class Stuck {
@@ -36,7 +42,14 @@ class Stuck {
   }
 }
 
-const I2C_DEVICES = { mpu6050: () => new Mpu6050(), bmp280: () => new Bmp280(), stuck: () => new Stuck() };
+// Each device made for its address, with the simulation's clock and the log (the LCDs print what they show).
+const I2C_DEVICES = {
+  mpu6050: () => new Mpu6050(),
+  bmp280: () => new Bmp280(),
+  lcd1602: (address, clock, log) => new Lcd(address, 16, 2, clock, log),
+  lcd2004: (address, clock, log) => new Lcd(address, 20, 4, clock, log),
+  stuck: () => new Stuck(),
+};
 
 // The device an --i2c or --spi value names, e.g. "0:0x68=mpu6050" or "0=74hc595@17"; a message when it is not valid.
 export function parseBusOption(option, value) {
@@ -152,12 +165,16 @@ function attachSpi(mcu, bus, devices, log) {
   };
 }
 
-// Puts the devices the options name on their buses; log prints a line with the simulated time.
+// Puts the devices the options name on their buses; log prints a line with the simulated time. Returns what to call
+// when the run ends: the devices print what they have not printed yet (an LCD that has not settled).
 export function attachBuses(mcu, options, log) {
+  const all = [];
   for (const bus of [0, 1]) {
     const devices = new Map();
     for (const option of options.filter((o) => o.kind === 'i2c' && o.bus === bus)) {
-      devices.set(option.address, I2C_DEVICES[option.device]());
+      const device = I2C_DEVICES[option.device](option.address, mcu.clock, log);
+      devices.set(option.address, device);
+      all.push(device);
     }
 
     attachI2c(mcu, bus, devices, log);
@@ -180,4 +197,6 @@ export function attachBuses(mcu, options, log) {
 
     attachSpi(mcu, bus, spiDevices, log);
   }
+
+  return () => all.forEach((device) => device.finish?.());
 }

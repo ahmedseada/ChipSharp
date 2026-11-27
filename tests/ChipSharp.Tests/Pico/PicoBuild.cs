@@ -33,6 +33,9 @@ internal static class PicoBuild
     /// <summary>ChipSharp.Hardware.dll, as user programs reference it.</summary>
     public static string HardwareAssembly => typeof(Pin).Assembly.Location;
 
+    /// <summary>ChipSharp.Components.dll, the drivers of parts connected to a chip, as user programs reference it.</summary>
+    public static string ComponentsAssembly => typeof(ChipSharp.Components.Lcd).Assembly.Location;
+
     /// <summary>The blink example's C#, examples/pico-blink/Program.cs.</summary>
     public static string BlinkSource => File.ReadAllText(Path.Combine(Repository.Examples, "pico-blink", "Program.cs"));
 
@@ -40,10 +43,20 @@ internal static class PicoBuild
     public static PicoProgram Build(string source, string name, string folder) =>
         Build(source, name, folder, Pico);
 
-    public static PicoProgram Build(string source, string name, string folder, TargetDescription target)
+    public static PicoProgram Build(string source, string name, string folder, TargetDescription target) =>
+        Build(source, name, folder, target, []);
+
+    /// <summary>
+    /// Compiles <paramref name="source"/> with ChipSharp.Hardware and the class libraries at <paramref name="libraries"/>
+    /// (e.g. <see cref="ComponentsAssembly"/>) referenced, and builds it, those libraries' C# with it, into
+    /// <paramref name="folder"/>.
+    /// </summary>
+    public static PicoProgram Build(string source, string name, string folder, TargetDescription target,
+        IReadOnlyList<string> libraries)
     {
-        var bytes = CSharpCompiler.Compile([source], [HardwareAssembly], name);
-        var program = WholeProgramPass.Analyze(IlAssembly.Load(bytes, name + ".dll"), target);
+        var bytes = CSharpCompiler.Compile([source], [HardwareAssembly, .. libraries], name);
+        var program = WholeProgramPass.Analyze(
+            IlAssembly.Load(bytes, name + ".dll", [.. libraries.Select(IlAssembly.Load)]), target);
         return Build(IlToTir.Lower(program), folder, target);
     }
 

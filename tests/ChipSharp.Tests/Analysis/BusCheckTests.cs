@@ -201,6 +201,39 @@ public sealed class BusCheckTests : IDisposable
     }
 
     [Fact]
+    public void A_parts_driver_from_ChipSharp_Components_is_checked_like_the_program_its_I2C_too()
+    {
+        const string Display = """
+            using ChipSharp.Components;
+            using ChipSharp.Hardware;
+
+            I2c.Open(1, sda: 26, scl: 27, frequency: 100_000);
+            if (Lcd.Open(1, 0x27, 16, 2))
+            {
+                Lcd.Line(0, "ready");
+                Lcd.Write(0, 1, 42);
+            }
+            """;
+        var noHeap = new TargetLoader(TargetFiles.WithShipped(Path.Combine(_scratch, "targets"),
+            ("pico-no-heap", """{ "inherits": "pico", "capabilities": { "heap": false } }"""))).Load("pico-no-heap");
+        AnalysisResult CheckDisplay(TargetDescription target) => WholeProgramPass.Check(IlAssembly.Load(
+            CSharpCompiler.Compile([Display], [PicoBuild.HardwareAssembly, PicoBuild.ComponentsAssembly], "Display"),
+            "Display.dll", [IlAssembly.Load(PicoBuild.ComponentsAssembly)]), target);
+
+        Assert.True(CheckDisplay(Shipped.Load("pico")).IsSupported);
+        Assert.True(CheckDisplay(noHeap).IsSupported);
+
+        // on a chip without I2C, the program's I2c.Open and each I2c.Write of Lcd's that it reaches need a bus
+        var tiny = CheckDisplay(Tiny);
+        Assert.False(tiny.IsSupported);
+        Assert.All(tiny.Problems, problem => Assert.Equal("ChipSharp.Hardware.I2c needs an I2C bus, and the target " +
+            "'tiny' has none. Build the program for a chip that has one: its target file says \"i2c\": true among its " +
+            "capabilities, as the Pico's does.", Message(problem.Line)));
+        Assert.Equal(["ChipSharp.Components.Lcd.Half", "ChipSharp.Components.Lcd.Open", "ChipSharp.Components.Lcd.Send",
+            "Program.<Main>$"], tiny.Problems.Select(problem => problem.Method.DisplayName).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
     public async Task Chipsharp_check_names_the_bus_problems_for_the_target_it_is_given()
     {
         var dll = Path.Combine(_scratch, "Buses.dll");

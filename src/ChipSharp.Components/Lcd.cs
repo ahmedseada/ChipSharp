@@ -1,0 +1,322 @@
+using ChipSharp.Hardware;
+
+namespace ChipSharp.Components;
+
+/// <summary>
+/// A character LCD on an I2C bus: an HD44780 (or a chip that works like one: a 16×2 "1602", a 20×4 "2004") behind a
+/// PCF8574 "backpack", the 8-bit port expander that turns the bus into the display's pins, usually at address 0x27
+/// (0x3F for a PCF8574A). <see cref="I2c.Open"/> the bus, then <see cref="Open"/> the display before writing on it:
+/// <code>
+/// I2c.Open(1, sda: 26, scl: 27, frequency: 100_000);
+/// Lcd.Open(bus: 1, address: 0x27, columns: 16, rows: 2);
+/// Lcd.Write(0, 0, "Hello");
+/// Lcd.Write(6, 0, 42);
+/// Lcd.Line(1, "ready");
+/// </code>
+/// </summary>
+/// <remarks>
+/// <para>
+/// Columns and rows count from 0 at the top left. Text that does not fit is cut off at the end of its row (it never
+/// runs on into another row), and a row or column outside the display shows nothing of it. The display shows ASCII,
+/// from ' ' to '~', as its ROM (the HD44780's A00, the usual one) has it, except that it shows '\' as '¥' and '~' as
+/// '→'; any other char (é, ü, a line end) shows as '?'.
+/// </para>
+/// <para>
+/// Nothing allocates: text is a string (a string literal needs no heap), a span of chars (e.g. of <c>stackalloc</c>)
+/// or a number, which is written digit by digit. Nothing stops the program either: before <see cref="Open"/> (or after
+/// one that said false) the other methods do nothing. One display at a time: the last <see cref="Open"/> chooses it.
+/// </para>
+/// <para>
+/// How it drives it, as the HD44780's datasheet (Hitachi ADE-207-272, figure 24, "4-bit interface") has it: each byte
+/// the PCF8574 takes is at once the level of its eight outputs, P0 RS (0 for an instruction, 1 for a character), P1 RW
+/// (always 0: the program only writes), P2 E, P3 the backlight, P4 to P7 D4 to D7: the layout of the common modules
+/// and of Wokwi's <c>wokwi-lcd1602</c>. The HD44780 takes D4 to D7 when E falls. A byte for it goes as its upper four
+/// bits, then its lower four, in one I2C transfer of five bytes: the upper bits with E low (RS and the data set before
+/// E rises), with E high, with E low again (taken), then the lower bits with E high and with E low (taken). Then it
+/// waits the 37 us the HD44780 takes to carry the byte out (50 us, for a slower oscillator), so any clock of the bus
+/// works (the PCF8574 is made for 100 kHz; most take 400 kHz): at 100 kHz a whole row of 16 takes about 10 ms.
+/// Clearing takes 1.52 ms (2 ms). The busy flag is not read: the waits are the datasheet's. <see cref="Open"/> and
+/// <see cref="Clear"/> wait longer (about 60 ms and 2 ms), so an interrupt handler cannot call them.
+/// </para>
+/// <para>
+/// Where a row starts in the HD44780's memory (its DDRAM): row 0 at 0x00 and row 1 at 0x40; on a display of four rows,
+/// rows 2 and 3 go on after rows 0 and 1, at 0x00 + columns and 0x40 + columns (0x14 and 0x54 for 20 columns).
+/// </para>
+/// <para>
+/// Plain C# over <see cref="I2c.Write"/> and <see cref="Timing"/>: ChipSharp compiles what a program calls of it with
+/// the program, for a chip whose target has I2C. On .NET itself <see cref="Open"/> reaches ChipSharp.Hardware, which
+/// throws <see cref="PlatformNotSupportedException"/> there.
+/// </para>
+/// </remarks>
+public static class Lcd
+{
+    // the PCF8574's outputs
+    private const int RegisterSelect = 0x01;   // P0, RS: 0 for an instruction, 1 for a character
+    private const int Enable = 0x04;           // P2, E: the HD44780 takes D4 to D7 as it falls
+    private const int Light = 0x08;            // P3: the backlight on
+
+    // the HD44780's instructions
+    private const int ClearDisplay = 0x01;
+    private const int EntryMode = 0x06;        // the address goes up after each character; the display does not move
+    private const int DisplayOff = 0x08;
+    private const int DisplayOn = 0x0C;        // no cursor, no blinking
+    private const int FourBits = 0x20;         // function set: 4-bit data, one line, 5x8 dots
+    private const int TwoLines = 0x08;         // in a function set: two lines (also for a display of four rows)
+    private const int EightBits = 0x3;         // the upper four bits of a function set of 8-bit data
+    private const int SetAddress = 0x80;       // + the DDRAM address
+
+    // the waits: after each byte, and after clearing the display
+    private const int ByteMicroseconds = 50;
+    private const int ClearMilliseconds = 2;
+
+    private static int _bus;
+    private static int _address;
+    private static int _columns;               // 0 until Open
+    private static int _rows;
+    private static int _light;                 // Light, or 0 with the backlight off
+
+    /// <summary>
+    /// Sets up the display of <paramref name="columns"/> by <paramref name="rows"/> characters (16 and 2 for a 1602, 20
+    /// and 4 for a 2004; 1 to 4 rows, at most 40 columns, and 20 on more than two rows) whose backpack is at
+    /// <paramref name="address"/> on <paramref name="bus"/>, which <see cref="I2c.Open"/> has set up: it waits for the
+    /// display to power up (40 ms), puts it in 4-bit mode the HD44780's datasheet's way, clears it and turns it and the
+    /// backlight on, with no cursor. True when the backpack answered; false, at once, when nothing answers at the
+    /// address or the size is not one an HD44780 has, and then the other methods do nothing.
+    /// </summary>
+    public static bool Open(int bus, int address, int columns, int rows)
+    {
+        _columns = 0;
+        _rows = 0;
+        if (!Fits(columns, rows))
+        {
+            return false;
+        }
+
+        _bus = bus;
+        _address = address;
+        _light = Light;
+
+        // every output low but the backlight's: E low. Nothing answers: no display there
+        Span<byte> port = stackalloc byte[1];
+        port[0] = Light;
+        if (!I2c.Write(bus, address, port))
+        {
+            return false;
+        }
+
+        _columns = columns;
+        _rows = rows;
+
+        // more than 40 ms after the supply reaches 2.7 V; then a function set of 8-bit data three times (4.1 ms after
+        // the first, 100 us after the second), which puts it in 8-bit mode from any state, also from the middle of a
+        // byte in 4-bit mode; then one of 4-bit data
+        Timing.DelayMilliseconds(50);
+        var answered = Half(EightBits);
+        Timing.DelayMicroseconds(4500);
+        answered &= Half(EightBits);
+        Timing.DelayMicroseconds(100);
+        answered &= Half(EightBits);
+        answered &= Half(FourBits >> 4);
+
+        // in 4-bit mode: the lines and the font, the display off, cleared, the address moving right; then on
+        answered &= Send(FourBits | (rows > 1 ? TwoLines : 0), 0);
+        answered &= Send(DisplayOff, 0);
+        answered &= Send(ClearDisplay, 0);
+        Timing.DelayMilliseconds(ClearMilliseconds);
+        answered &= Send(EntryMode, 0);
+        answered &= Send(DisplayOn, 0);
+        return answered;
+    }
+
+    /// <summary>Clears the display (every character a space) and waits the 2 ms it takes.</summary>
+    public static void Clear()
+    {
+        if (_columns > 0)
+        {
+            Send(ClearDisplay, 0);
+            Timing.DelayMilliseconds(ClearMilliseconds);
+        }
+    }
+
+    /// <summary>
+    /// Writes <paramref name="text"/> from <paramref name="column"/> on, in <paramref name="row"/>; what is there after it
+    /// stays. Nothing for null.
+    /// </summary>
+    public static void Write(int column, int row, string text)
+    {
+        var length = text is null ? 0 : text.Length;
+        var end = End(column, row, length);
+        var first = column < 0 ? -column : 0;
+        if (first < end)
+        {
+            MoveTo(column + first, row);
+            for (var i = first; i < end; i++)
+            {
+                Send(Code(text![i]), RegisterSelect);
+            }
+        }
+    }
+
+    /// <summary>Writes the chars of <paramref name="text"/> from <paramref name="column"/> on, in <paramref name="row"/>.</summary>
+    public static void Write(int column, int row, ReadOnlySpan<char> text)
+    {
+        var end = End(column, row, text.Length);
+        var first = column < 0 ? -column : 0;
+        if (first < end)
+        {
+            MoveTo(column + first, row);
+            for (var i = first; i < end; i++)
+            {
+                Send(Code(text[i]), RegisterSelect);
+            }
+        }
+    }
+
+    /// <summary>Writes one char at <paramref name="column"/> in <paramref name="row"/>.</summary>
+    public static void Write(int column, int row, char character)
+    {
+        if (column >= 0 && End(column, row, 1) > 0)
+        {
+            MoveTo(column, row);
+            Send(Code(character), RegisterSelect);
+        }
+    }
+
+    /// <summary>
+    /// Writes <paramref name="number"/> in decimal, from <paramref name="column"/> on, in <paramref name="row"/>: '-' and
+    /// its digits, as many as it has ("7", "-120"), with no string made.
+    /// </summary>
+    public static void Write(int column, int row, int number)
+    {
+        // the digits from the last, then '-': int.MinValue's magnitude is a uint
+        Span<char> digits = stackalloc char[11];
+        var magnitude = number < 0 ? 0u - (uint)number : (uint)number;
+        var at = digits.Length;
+        do
+        {
+            digits[--at] = (char)('0' + (int)(magnitude % 10));
+            magnitude /= 10;
+        }
+        while (magnitude != 0);
+
+        if (number < 0)
+        {
+            digits[--at] = '-';
+        }
+
+        Write(column, row, (ReadOnlySpan<char>)digits[at..]);
+    }
+
+    /// <summary>
+    /// Writes <paramref name="text"/> as the whole of <paramref name="row"/>: from column 0, then spaces to the end, so
+    /// nothing of what was there before is left (the way to show a status line). Spaces only for null.
+    /// </summary>
+    public static void Line(int row, string text)
+    {
+        if (row >= 0 && row < _rows)
+        {
+            var length = text is null ? 0 : text.Length;
+            MoveTo(0, row);
+            for (var i = 0; i < _columns; i++)
+            {
+                Send(i < length ? Code(text![i]) : ' ', RegisterSelect);
+            }
+        }
+    }
+
+    /// <summary>Writes the chars of <paramref name="text"/> as the whole of <paramref name="row"/>, then spaces to its end.</summary>
+    public static void Line(int row, ReadOnlySpan<char> text)
+    {
+        if (row >= 0 && row < _rows)
+        {
+            MoveTo(0, row);
+            for (var i = 0; i < _columns; i++)
+            {
+                Send(i < text.Length ? Code(text[i]) : ' ', RegisterSelect);
+            }
+        }
+    }
+
+    /// <summary>Turns the backlight on (true, as <see cref="Open"/> leaves it) or off; the text stays.</summary>
+    public static void Backlight(bool on)
+    {
+        if (_columns > 0)
+        {
+            _light = on ? Light : 0;
+            Span<byte> port = stackalloc byte[1];
+            port[0] = (byte)_light;
+            I2c.Write(_bus, _address, port);
+        }
+    }
+
+    /// <summary>
+    /// True for a size an HD44780 shows: 1 to 4 rows, at most 80 characters in all (its DDRAM), 40 to a row (a line of
+    /// its DDRAM) and 20 when there are more than two rows (a row of four is half a line).
+    /// </summary>
+    private static bool Fits(int columns, int rows) =>
+        columns >= 1 && rows >= 1 && rows <= 4 && columns <= (rows > 2 ? 20 : 40);
+
+    /// <summary>
+    /// Where a text of <paramref name="length"/> chars at <paramref name="column"/> in <paramref name="row"/> stops being
+    /// on the display: the index of the first char past the row's end (or past the text); 0 when the row is not there.
+    /// </summary>
+    private static int End(int column, int row, int length)
+    {
+        if (row < 0 || row >= _rows || column >= _columns)
+        {
+            return 0;
+        }
+
+        return _columns - column < length ? _columns - column : length;
+    }
+
+    /// <summary>The HD44780's address of the column in the row (both on the display).</summary>
+    private static void MoveTo(int column, int row)
+    {
+        var start = (row & 1) == 0 ? 0x00 : 0x40;
+        if (row >= 2)
+        {
+            start += _columns;
+        }
+
+        Send(SetAddress | (start + column), 0);
+    }
+
+    /// <summary>The character the HD44780's ROM A00 has for <paramref name="character"/>: ' ' to '~' as they are, any other '?'.</summary>
+    private static int Code(char character) => character is >= ' ' and <= '~' ? character : '?';
+
+    /// <summary>
+    /// One byte for the HD44780, an instruction (<paramref name="select"/> 0) or a character
+    /// (<see cref="RegisterSelect"/>), in one transfer: its upper four bits, then its lower four; then the wait for it.
+    /// </summary>
+    private static bool Send(int value, int select)
+    {
+        var upper = (value & 0xF0) | _light | select;
+        var lower = ((value << 4) & 0xF0) | _light | select;
+        Span<byte> bytes = stackalloc byte[5];
+        bytes[0] = (byte)upper;
+        bytes[1] = (byte)(upper | Enable);
+        bytes[2] = (byte)upper;
+        bytes[3] = (byte)(lower | Enable);
+        bytes[4] = (byte)lower;
+        var answered = I2c.Write(_bus, _address, bytes);
+        Timing.DelayMicroseconds(ByteMicroseconds);
+        return answered;
+    }
+
+    /// <summary>
+    /// The upper four bits of an instruction alone, while the HD44780 may be in 8-bit mode: on D4 to D7, E high, then
+    /// low; then the wait for it.
+    /// </summary>
+    private static bool Half(int bits)
+    {
+        var port = (bits << 4) | _light;
+        Span<byte> bytes = stackalloc byte[3];
+        bytes[0] = (byte)port;
+        bytes[1] = (byte)(port | Enable);
+        bytes[2] = (byte)port;
+        var answered = I2c.Write(_bus, _address, bytes);
+        Timing.DelayMicroseconds(ByteMicroseconds);
+        return answered;
+    }
+}

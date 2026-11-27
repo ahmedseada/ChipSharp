@@ -25,12 +25,13 @@ public sealed partial class IlAssembly
     private readonly ConcurrentDictionary<EntityHandle, IlMethodReference> _methodReferences = new();
     private readonly ConcurrentDictionary<EntityHandle, IlFieldReference> _fieldReferences = new();
 
-    private IlAssembly(string filePath, PEReader pe)
+    private IlAssembly(string filePath, PEReader pe, IReadOnlyList<IlAssembly> libraries)
     {
         FilePath = filePath;
         _pe = pe;
         _reader = pe.GetMetadataReader();
-        _types = new IlTypeProvider(_reader);
+        Libraries = libraries;
+        _types = new IlTypeProvider(_reader, libraries.Select(library => library.Name).ToHashSet(StringComparer.Ordinal));
         Name = _reader.IsAssembly
             ? _reader.GetString(_reader.GetAssemblyDefinition().Name)
             : Path.GetFileNameWithoutExtension(filePath);
@@ -94,29 +95,29 @@ public sealed partial class IlAssembly
     /// <summary>The method the program starts with (C#'s <c>Main</c>), or null for a library.</summary>
     public IlMethod? EntryPoint { get; }
 
-    /// <summary>Reads the assembly at <paramref name="path"/>.</summary>
+    /// <summary>
+    /// Reads the assembly at <paramref name="path"/>, with the class libraries it references that are next to it (see
+    /// <see cref="Libraries"/>).
+    /// </summary>
     public static IlAssembly Load(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-
-        byte[] image;
-        try
-        {
-            image = File.ReadAllBytes(path);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or NotSupportedException)
-        {
-            throw new ChipSharpException($"Cannot read '{path}': {e.Message}", e);
-        }
-
-        return Load(image, path);
+        return LoadWithLibraries(path, new Dictionary<string, IlAssembly?>(StringComparer.OrdinalIgnoreCase));
     }
 
     /// <summary>Reads an assembly from its bytes; <paramref name="filePath"/> is the name messages use for it.</summary>
-    public static IlAssembly Load(byte[] image, string filePath)
+    public static IlAssembly Load(byte[] image, string filePath) => Load(image, filePath, []);
+
+    /// <summary>
+    /// Reads an assembly from its bytes, with <paramref name="libraries"/>, the class libraries it references whose code
+    /// ChipSharp compiles with it (read before it, each with its own); <paramref name="filePath"/> is the name messages
+    /// use for it.
+    /// </summary>
+    public static IlAssembly Load(byte[] image, string filePath, IReadOnlyList<IlAssembly> libraries)
     {
         ArgumentNullException.ThrowIfNull(image);
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        ArgumentNullException.ThrowIfNull(libraries);
 
         try
         {
@@ -126,7 +127,7 @@ public sealed partial class IlAssembly
                 throw new ChipSharpException($"'{filePath}' is not a .NET assembly: it has no metadata.");
             }
 
-            return new IlAssembly(filePath, pe);
+            return new IlAssembly(filePath, pe, WithTheirLibraries(libraries));
         }
         catch (BadImageFormatException e)
         {
@@ -139,11 +140,13 @@ public sealed partial class IlAssembly
         [.. Methods.Where(m => string.Equals(m.DisplayName, displayName, StringComparison.Ordinal))];
 
     /// <summary>
-    /// The type with this full name (e.g. "Demo.Outer+Inner"), or null; also an instance of a generic type made so far,
-    /// by its own name (e.g. "Demo.Pair&lt;int&gt;", see <see cref="Generics.Instantiations"/>).
+    /// The type with this full name (e.g. "Demo.Outer+Inner"), this assembly's or one of its <see cref="Libraries"/>', or
+    /// null; also an instance of a generic type made so far, by its own name (e.g. "Demo.Pair&lt;int&gt;", see
+    /// <see cref="Generics.Instantiations"/>).
     /// </summary>
     public IlTypeDefinition? FindType(string fullName) =>
-        _typesByFullName.GetValueOrDefault(fullName) ?? Generics.Instantiations.FindType(this, fullName);
+        _typesByFullName.GetValueOrDefault(fullName) ?? FindLibraryType(fullName)
+        ?? Generics.Instantiations.FindType(this, fullName);
 
     /// <summary>
     /// The first <paramref name="length"/> bytes of the data <paramref name="field"/> has in the image (at its RVA),
@@ -154,6 +157,12 @@ public sealed partial class IlAssembly
     {
         ArgumentNullException.ThrowIfNull(field);
         ArgumentOutOfRangeException.ThrowIfNegative(length);
+        if (field.DeclaringType.Assembly != this && IsLibrary(field.DeclaringType.Assembly))
+        {
+            // a type of a library compiled with this assembly: that library's metadata
+            return field.DeclaringType.Assembly.ReadFieldData(field, length);
+        }
+
         if (field.DeclaringType.Assembly != this)
         {
             throw new ArgumentException($"{field} is a field of {field.DeclaringType.Assembly}, not of {this}.", nameof(field));
@@ -341,9 +350,13 @@ public sealed partial class IlAssembly
 
                     default:
                     {
+                        // (a library's method by its .NET types' names: see SameByName)
                         var declaringType = _types.Decode(member.Parent);
-                        var definition = LocalType(declaringType)?.Methods
-                            .FirstOrDefault(m => m.Name == name && m.Signature == signature);
+                        var type = LocalType(declaringType);
+                        var definition = type?.Methods.FirstOrDefault(m => m.Name == name && m.Signature == signature)
+                            ?? (type is not null && type.Assembly != this
+                                ? type.Methods.FirstOrDefault(m => m.Name == name && SameByName(m.Signature, signature))
+                                : null);
                         return new IlMethodReference(declaringType, name, signature, [], definition);
                     }
                 }
@@ -383,7 +396,11 @@ public sealed partial class IlAssembly
                 var name = _reader.GetString(member.Name);
                 var fieldType = member.DecodeFieldSignature(_types, null);
                 var declaringType = _types.Decode(member.Parent);
-                var definition = LocalType(declaringType)?.Fields.FirstOrDefault(f => f.Name == name && f.Type == fieldType);
+                var type = LocalType(declaringType);
+                var definition = type?.Fields.FirstOrDefault(f => f.Name == name && f.Type == fieldType)
+                    ?? (type is not null && type.Assembly != this
+                        ? type.Fields.FirstOrDefault(f => f.Name == name && Unscoped(f.Type) == Unscoped(fieldType))
+                        : null);
                 return new IlFieldReference(declaringType, name, fieldType, definition);
             }
 

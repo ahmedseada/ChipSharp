@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A title and a count on a 16x2 character LCD over I2C, with no heap: build with ChipSharp for the target "pico"
+       (see Program.cs) -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- I2c and Timing: the Pico's hardware from C#; Lcd: a part connected to it, which ChipSharp compiles with the
+         program -->
+    <ProjectReference Include="..\..\src\ChipSharp.Hardware\ChipSharp.Hardware.csproj" />
+    <ProjectReference Include="..\..\src\ChipSharp.Components\ChipSharp.Components.csproj" />
+  </ItemGroup>
+</Project>
