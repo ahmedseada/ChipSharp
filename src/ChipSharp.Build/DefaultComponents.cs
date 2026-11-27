@@ -29,6 +29,7 @@ public static class DefaultComponents
             ClangPath = build.Options.ClangPath,
             LlvmBinFolder = build.Options.LlvmBinFolder,
             ExtraFlags = build.Options.VerifyHeap ? [ClangToolchainOptions.VerifyHeapFlag] : [],
+            UseCache = build.Options.UseCache,
         };
 
         // Register new plug-ins here, one line each, and reference their project from ChipSharp.Build.csproj.

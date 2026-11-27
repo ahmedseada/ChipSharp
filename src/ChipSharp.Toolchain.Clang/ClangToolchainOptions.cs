@@ -33,6 +33,19 @@ public sealed record ClangToolchainOptions
     public IReadOnlyList<string> ExtraFlags { get; init; } = [];
 
     /// <summary>
+    /// Keep what clang and llvm-dlltool make in the build cache and take it from there next time (the default): each
+    /// source file is compiled once for a target, its flags and its text, so a build compiles the runtime's C once and
+    /// later builds only link it. False compiles everything every time (<c>chipsharp build --no-cache</c>).
+    /// </summary>
+    public bool UseCache { get; init; } = true;
+
+    /// <summary>
+    /// The build cache's folder. When not set: the environment variable CHIPSHARP_CACHE, then
+    /// %LOCALAPPDATA%\ChipSharp\cache. Deleting it is always safe.
+    /// </summary>
+    public string? CacheFolder { get; init; }
+
+    /// <summary>
     /// The flag of <c>chipsharp build --verify-heap</c>, for <see cref="ExtraFlags"/>: the runtime's heap
     /// (chipsharp_heap.c) checks the whole heap after every collection, and stops the program saying what is wrong.
     /// </summary>
