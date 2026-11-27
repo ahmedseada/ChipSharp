@@ -29,10 +29,14 @@ public interface IImageFormat : INamedComponent
     void Package(LinkedBinary binary, TargetDescription target, Stream output);
 }
 
-/// <summary>Puts an image onto a real board, e.g. "uf2-copy", "esptool", "wch-link".</summary>
+/// <summary>
+/// Puts an image onto a real board, e.g. "uf2-copy", "avrdude", "esptool", "wch-link". The target is the board's,
+/// with the flasher's settings for it (avrdude's programmer and speed, the UF2 drive's name); the image is the kind
+/// its "image" names (a .hex, a .uf2).
+/// </summary>
 public interface IFlasher : INamedComponent
 {
-    Task FlashAsync(string imagePath, FlashOptions options, IProgress<FlashProgress>? progress,
+    Task FlashAsync(string imagePath, TargetDescription target, FlashOptions options, IProgress<FlashProgress>? progress,
         CancellationToken cancellationToken);
 }
 

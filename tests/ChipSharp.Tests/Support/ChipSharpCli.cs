@@ -13,8 +13,16 @@ public static class ChipSharpCli
         RunInAsync(Environment.CurrentDirectory, arguments);
 
     /// <summary>Runs chipsharp in the folder <paramref name="workingFolder"/>, like <see cref="RunAsync"/>.</summary>
-    public static async Task<(int ExitCode, string Output, string Error)> RunInAsync(string workingFolder,
-        params string[] arguments)
+    public static Task<(int ExitCode, string Output, string Error)> RunInAsync(string workingFolder,
+        params string[] arguments) =>
+        RunWithAsync(workingFolder, new Dictionary<string, string>(), arguments);
+
+    /// <summary>
+    /// Runs chipsharp in the folder <paramref name="workingFolder"/> with these environment variables set (e.g.
+    /// CHIPSHARP_AVRDUDE), like <see cref="RunAsync"/>.
+    /// </summary>
+    public static async Task<(int ExitCode, string Output, string Error)> RunWithAsync(string workingFolder,
+        IReadOnlyDictionary<string, string> environment, params string[] arguments)
     {
         var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet")
         {
@@ -27,6 +35,11 @@ public static class ChipSharpCli
         foreach (var argument in arguments)
         {
             start.ArgumentList.Add(argument);
+        }
+
+        foreach (var (name, value) in environment)
+        {
+            start.Environment[name] = value;
         }
 
         using var process = Process.Start(start)!;

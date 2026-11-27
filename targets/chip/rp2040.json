@@ -25,6 +25,7 @@
   "image": "uf2",
   "uf2FamilyId": "0xe48bff56",
   "flasher": "uf2-copy",
+  "uf2Drive": "RPI-RP2",                   // the drive the boot ROM shows when BOOTSEL is held at power-up
   "svd": "svd/RP2040.svd",
   "capabilities": {
     // fast float routines in the boot ROM; not used: they treat subnormal numbers as zero, so results would differ
