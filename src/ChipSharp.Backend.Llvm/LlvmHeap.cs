@@ -128,7 +128,7 @@ internal static class LlvmHeap
                 referencesValue = $"ptr @{symbol}.references";
             }
 
-            var name = Encoding.UTF8.GetBytes(type.Name + "\0");
+            var name = Encoding.UTF8.GetBytes((type.RuntimeName ?? type.Name) + "\0");
             text.Append($"@{symbol}.name = private unnamed_addr constant [{name.Length} x i8] {LlvmText.Bytes(name)}, align 1\n");
 
             var interfacesValue = "ptr null";

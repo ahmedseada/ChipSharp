@@ -41,7 +41,8 @@ public enum TirTypeDescriptorKind
 ///                        TirLayout.ReferenceOffsets; null when there are none
 /// ptr  base              the descriptor of the base class (Base), or of the element type of an array of refs
 ///                        (ElementDescriptor); null for none
-/// ptr  name              the name (Name) as UTF-8 ending with a 0 byte, e.g. for an InvalidCastException's message
+/// ptr  name              the name (RuntimeName, else Name) as UTF-8 ending with a 0 byte, e.g. for an
+///                        InvalidCastException's message
 /// ptr  interfaces        the interface map: interface_count pairs { ptr interface descriptor, ptr method table },
 ///                        each method table the addresses of the methods in the order the interface declares them
 /// u32  interface_count
@@ -65,6 +66,39 @@ public sealed class TirTypeDescriptor
     /// <summary>The name of the header field, the first field of every object type: the address of the descriptor.</summary>
     public const string HeaderField = "<type>";
 
+    /// <summary>The field of <see cref="Layout"/> that holds the flags (an i32): 1 for an array, 2 for an interface.</summary>
+    public const int FlagsField = 2;
+
+    /// <summary>The field of <see cref="Layout"/> that holds the base (a ptr).</summary>
+    public const int BaseField = 5;
+
+    /// <summary>The field of <see cref="Layout"/> that holds the name (a ptr to UTF-8 ending with a 0 byte).</summary>
+    public const int NameField = 6;
+
+    /// <summary>The field of <see cref="Layout"/> that holds the interface map (a ptr to <see cref="InterfaceEntry"/>s).</summary>
+    public const int InterfacesField = 7;
+
+    /// <summary>The field of <see cref="Layout"/> that holds how many entries the interface map has (an i32).</summary>
+    public const int InterfaceCountField = 8;
+
+    /// <summary>The field of <see cref="Layout"/> where the virtual method table starts: slot i is its element i.</summary>
+    public const int VirtualsField = 10;
+
+    /// <summary>
+    /// A descriptor in memory as a struct, for code that reads descriptors through their address (<see cref="TirTypeOf"/>,
+    /// <see cref="TirTypeAddress"/>): <c>fieldaddr &lt;type descriptor&gt; %type, 5</c> is the address of the base
+    /// (<see cref="BaseField"/>), and <c>elementaddr ptr</c> on the address of <see cref="VirtualsField"/> that of a slot
+    /// of the virtual method table (the struct gives the table one slot; it has as many as the class has).
+    /// </summary>
+    public static TirStructType Layout { get; } = new("<type descriptor>",
+        ("size", TirType.I32), ("element_size", TirType.I32), ("flags", TirType.I32), ("reference_count", TirType.I32),
+        ("references", TirType.Ptr), ("base", TirType.Ptr), ("name", TirType.Ptr), ("interfaces", TirType.Ptr),
+        ("interface_count", TirType.I32), ("virtual_count", TirType.I32), ("virtuals", new TirArrayType(TirType.Ptr, 1)));
+
+    /// <summary>An entry of an interface map in memory: the interface's descriptor (field 0), then its method table (field 1).</summary>
+    public static TirStructType InterfaceEntry { get; } = new("<interface entry>",
+        ("interface", TirType.Ptr), ("methods", TirType.Ptr));
+
     internal TirTypeDescriptor(TirModule module, int index, string name, TirTypeDescriptorKind kind,
         TirStructType? objectType, TirType? elementType, TirTypeDescriptor? baseType)
     {
@@ -84,6 +118,13 @@ public sealed class TirTypeDescriptor
 
     /// <summary>The C# name, e.g. "Program.Node", "int[]" or "Program.IShape"; unique among the module's descriptors.</summary>
     public string Name { get; }
+
+    /// <summary>
+    /// The name .NET gives the type (<c>Type.ToString()</c>), e.g. "Program+Node" for a class nested in Program, or
+    /// "IGen`1[System.Int32]": what the descriptor's name holds in memory, for an InvalidCastException's message and for
+    /// an object printed as .NET prints it. Null (the default) for <see cref="Name"/>.
+    /// </summary>
+    public string? RuntimeName { get; set; }
 
     public TirTypeDescriptorKind Kind { get; }
 

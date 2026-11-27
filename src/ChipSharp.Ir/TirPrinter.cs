@@ -21,7 +21,8 @@ namespace ChipSharp.Ir;
 /// heap come after the globals: <c>type Program.Node = class Program.Node : System.Object</c> (its object type, then
 /// its base, its virtual methods <c>virtual [Program.Node.Run]</c> and its interfaces <c>Program.IRun [Program.Node.Run]</c>),
 /// <c>type int[] = array of i32</c>, <c>type Program.IRun = interface</c>; instructions name them:
-/// <c>%0 = newobject Program.Node</c>, <c>%2 = newarray int[], %1</c>.
+/// <c>%0 = newobject Program.Node</c>, <c>%2 = newarray int[], %1</c>. A call through an address (a method table's) is
+/// <c>%3 = call indirect i32 %2(%0, %1)</c>.
 /// </summary>
 public static class TirPrinter
 {
@@ -112,6 +113,8 @@ public static class TirPrinter
             TirTypeOf t => $"typeof {names.Of(t.Reference)}",
             TirTypeAddress a => $"typeaddr {a.TypeDescriptor}",
             TirCall c => $"call {c.Type} {c.Callee.Name}({string.Join(", ", c.Arguments.Select(names.Of))})",
+            TirCallIndirect c =>
+                $"call indirect {c.Type} {names.Of(c.Callee)}({string.Join(", ", c.Arguments.Select(names.Of))})",
             TirReturn { Value: null } => "return",
             TirReturn r => $"return {names.Of(r.Value!)}",
             TirJump j => $"jump {j.Target.Name}",

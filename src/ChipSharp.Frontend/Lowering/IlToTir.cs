@@ -80,6 +80,9 @@ public static class IlToTir
             new MethodLowering(functions, functions.Get(method)).Lower();
         }
 
+        // the virtual method tables and interface maps hold the functions of the methods that virtual calls run
+        functions.FillVirtualTables();
+
         functions.AddInterruptEntries(program);
         module.EntryPoint = functions.Start(program);
         return module;

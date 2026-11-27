@@ -54,10 +54,11 @@ internal sealed partial class ProgramFunctions(TirModule module)
             throw new ArgumentException($"{method} appears twice among the program's methods.", nameof(method));
         }
 
-        if (!method.IsStatic && !ValueTypes.IsStructInstanceMethod(method) && !ObjectTypes.IsClass(method.DeclaringType))
+        if (!method.IsStatic && !ValueTypes.IsStructInstanceMethod(method) && !ObjectTypes.IsClass(method.DeclaringType)
+            && !(method.DeclaringType.IsInterface && method.HasBody))
         {
             throw LoweringErrors.In(method, "the methods of interfaces and delegates are not supported yet (ChipSharp " +
-                "compiles static methods and the methods of structs and classes)");
+                "compiles static methods, the methods of structs and classes and the default methods of interfaces)");
         }
 
         if (method.GenericParameters.Count > 0 || method.DeclaringType.GenericParameters.Count > 0)
