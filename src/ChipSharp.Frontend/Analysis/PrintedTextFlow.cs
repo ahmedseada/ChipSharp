@@ -894,7 +894,8 @@ internal sealed class PrintedTextFlow
                 OpCode: IlOpCode.Callvirt,
                 Operand: IlMethodOperand { Method: { Name: "ToString", ParameterTypes.Count: 0, HasThis: true } },
             } call
-            && !PrintedText.TryGetPrinted(StackArrays.Primitive(type), out _) && StringMethods.Find(_method, index + 1) is null)
+            && !PrintedText.TryGetPrinted(StackArrays.Primitive(type), out _) && StringMethods.Find(_method, index + 1) is null
+            && Boxing.ConstrainedAt(_body.Instructions, index + 1, _method.Assembly) is null) // a value's ToString (Boxing)
         {
             var problem = ForOtherValue(StackArrays.Primitive(type));
             Problem(instruction, problem);

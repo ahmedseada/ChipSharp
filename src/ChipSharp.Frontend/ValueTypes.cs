@@ -54,6 +54,10 @@ internal static class ValueTypes
                 tirType = TirType.Ptr;
                 return true;
 
+            // int?: a struct of its own (see Nullables)
+            case IlGenericInstanceType when Nullables.TryMapType(type, assembly, out tirType):
+                return true;
+
             case IlNamedType or IlGenericInstanceType when Definition(type, assembly) is { } definition:
                 if (IsEnum(definition))
                 {

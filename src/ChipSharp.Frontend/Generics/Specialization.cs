@@ -70,6 +70,12 @@ internal static partial class Specialization
                 continue;
             }
 
+            // a box of a value that the type argument says what it does (Specialization.Boxing.cs)
+            if (RewriteBox(owner, instructions, i, targets))
+            {
+                continue;
+            }
+
             var (count, replacement) = Replacement(owner, instructions, i);
             if (replacement is not null)
             {
@@ -153,8 +159,9 @@ internal static partial class Specialization
             return (1, []);
         }
 
+        // (a nullable is null without a value: its box is tested as it is)
         if (next?.OpCode is IlOpCode.Brtrue or IlOpCode.Brtrue_S or IlOpCode.Brfalse or IlOpCode.Brfalse_S
-            && ValueTypes.TryMapType(StackArrays.Primitive(boxed), owner, out _))
+            && ValueTypes.TryMapType(StackArrays.Primitive(boxed), owner, out _) && !Nullables.IsNullable(boxed))
         {
             return (1, [(IlOpCode.Pop, null), (IlOpCode.Ldc_I4_1, null)]);
         }

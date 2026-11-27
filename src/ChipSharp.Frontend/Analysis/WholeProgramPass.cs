@@ -103,7 +103,7 @@ public static partial class WholeProgramPass
                     methods.Add(callee);
                 }
 
-                methods.AddRange(dispatch.Follow(instructions, j).Where(found.Add));
+                methods.AddRange(dispatch.Follow(instructions, j, methods[i].Assembly).Where(found.Add));
             }
         }
 
@@ -207,10 +207,12 @@ public static partial class WholeProgramPass
         var virtuals = ForVirtualCalls(method);
         var classes = ForClasses(method);
         var strings = ForStrings(method);
-        // after the arrays' and spans' verdicts: strings', generics', virtual calls', classes', building text, the
-        // struct/reference rules, the rest
+        var boxing = ForBoxing(method);
+        // after the arrays' and spans' verdicts: boxing's, strings', generics', virtual calls', classes', building text,
+        // the struct/reference rules, the rest
         Unsupported? Others(IlInstruction instruction) =>
-            strings.TryGetValue(instruction, out var forStrings) ? forStrings
+            boxing.TryGetValue(instruction, out var forBoxing) ? forBoxing
+            : strings.TryGetValue(instruction, out var forStrings) ? forStrings
             : generics.TryGetValue(instruction, out var generic) ? generic
             : virtuals.TryGetValue(instruction, out var dispatched) ? dispatched
             : classes.TryGetValue(instruction, out var forClasses) ? forClasses

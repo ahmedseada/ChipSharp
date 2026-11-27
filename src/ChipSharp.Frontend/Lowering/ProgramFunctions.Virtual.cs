@@ -46,6 +46,12 @@ internal sealed partial class ProgramFunctions
     /// <summary>The function <paramref name="target"/> is: a method of the program's, or object's own Equals or GetHashCode.</summary>
     public TirFunction Function(DispatchTarget target)
     {
+        // what a slot runs on a box: a function that takes the box (see BoxingFunctions)
+        if (target.Boxed is not null)
+        {
+            return Boxes.OnBox(target);
+        }
+
         if (target.Method is { } method)
         {
             return _methods.TryGetValue(method, out var lowered)
@@ -111,5 +117,7 @@ internal sealed partial class ProgramFunctions
                 systemObject.VirtualMethods.Add(Function(new DispatchTarget(null, slot.Name)));
             }
         }
+
+        FillBoxedTables(); // see ProgramFunctions.Boxing.cs
     }
 }
