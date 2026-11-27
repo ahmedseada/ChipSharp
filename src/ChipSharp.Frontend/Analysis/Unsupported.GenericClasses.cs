@@ -7,7 +7,7 @@ namespace ChipSharp.Frontend.Analysis;
 internal sealed partial record Unsupported
 {
     /// <summary>The <see cref="Arrival"/> of the collections and what they need: try/finally around an enumerator.</summary>
-    private const string WithCollections = "with M3 (collections)";
+    private const string WithCollections = "with collections";
 
     /// <summary>
     /// <c>foreach</c> over a collection whose enumerator must be disposed: one that implements IDisposable (every

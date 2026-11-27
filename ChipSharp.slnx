@@ -3,6 +3,8 @@
     <Project Path="examples/pico-blink/PicoBlink.csproj" />
     <Project Path="examples/pico-button/PicoButton.csproj" />
     <Project Path="examples/pico-timer-blink/PicoTimerBlink.csproj" />
+    <Project Path="examples/pico-traffic-light/PicoTrafficLight.csproj" />
+    <Project Path="examples/pico-traffic-light-m3/PicoTrafficLightM3.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/ChipSharp.Abstractions/ChipSharp.Abstractions.csproj" />

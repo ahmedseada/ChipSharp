@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The traffic light of examples\pico-traffic-light written with classes, a list, an enum, a table of steps and an
+       event (it uses the heap): build with ChipSharp for the target "pico" (see Program.cs) -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Pin, Timing and [Interrupt]: the Pico's hardware from C# -->
+    <ProjectReference Include="..\..\src\ChipSharp.Hardware\ChipSharp.Hardware.csproj" />
+  </ItemGroup>
+</Project>

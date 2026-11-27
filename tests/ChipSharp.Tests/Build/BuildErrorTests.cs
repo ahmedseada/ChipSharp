@@ -138,7 +138,7 @@ public sealed class BuildErrorTests : IDisposable
 
         Assert.Equal(WholeProgramPass.Check(IlAssembly.Load(dll)).Summary, error.Message);
         Assert.StartsWith($"{dll} uses 1 C# feature that ChipSharp does not compile yet (1 place):\n  building text "
-            + "($\"...\", +, ToString, string.Format and the other methods of string) arrives with M3 (the heap): "
+            + "($\"...\", +, ToString, string.Format and the other methods of string) arrives later: "
             + "1 place in Program.Main() (IL_0010).", error.Message);
         Assert.EndsWith($"\nFor every place, run: chipsharp check {ChipSharpCli.Quoted(dll)} --details", error.Message);
         Assert.False(Directory.Exists(output));

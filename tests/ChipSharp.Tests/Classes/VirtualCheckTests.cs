@@ -265,9 +265,9 @@ public sealed class VirtualCheckTests : IDisposable
         // is a type object (TypeObjects)
         Assert.Equal(
         [
-            "Program.Main() at IL_0045 (isinst): type tests and casts to System.Random (is, as, (T)x) arrive with M3 (the " +
-                "heap). For now, test objects against the program's own classes and interfaces.",
-            "Program.Main() at IL_005d (isinst): type tests and casts to int[,] (is, as, (T)x) arrive with M3 (the heap). " +
+            "Program.Main() at IL_0045 (isinst): type tests and casts to System.Random (is, as, (T)x) arrive later. " +
+                "For now, test objects against the program's own classes and interfaces.",
+            "Program.Main() at IL_005d (isinst): type tests and casts to int[,] (is, as, (T)x) arrive later. " +
                 "For now, test objects against the program's own classes and interfaces.",
         ], problems);
     }

@@ -15,7 +15,7 @@ namespace ChipSharp.Tests.Analysis;
 public sealed class ArrayRejectionTests : IDisposable
 {
     private const string Escapes = "an array that leaves the method that creates it (returned, or stored in a field or "
-        + "in another array) arrives with M3 (the heap). For now, keep each array in the method that creates it; the "
+        + "in another array) arrives later. For now, keep each array in the method that creates it; the "
         + "methods it calls can take it as a parameter.";
 
     private readonly string _scratch = Path.Combine(Path.GetTempPath(), "chipsharp-tests", Guid.NewGuid().ToString("N"));
@@ -200,7 +200,7 @@ public sealed class ArrayRejectionTests : IDisposable
             """));
 
         Assert.Equal(WithoutHeap(["Program.Main() at IL_0012 (newarr): an array made in a loop while the one made there before is "
-            + "still in use arrives with M3 (the heap). For now, make the array once, before the loop, and reuse it."]),
+            + "still in use arrives later. For now, make the array once, before the loop, and reuse it."]),
             problems);
     }
 
@@ -225,7 +225,7 @@ public sealed class ArrayRejectionTests : IDisposable
             """));
 
         const string Children = "an array that leaves the method that creates it (returned, or stored in a field or in "
-            + "another array) in the field Program.Node.Children arrives with M3 (the heap). For now, keep each array in "
+            + "another array) in the field Program.Node.Children arrives later. For now, keep each array in "
             + "the method that creates it; the methods it calls can take it as a parameter.";
         Assert.Equal(
         [
@@ -261,7 +261,7 @@ public sealed class ArrayRejectionTests : IDisposable
 
         // a static field holds an array without a heap only when its initializer gives it one (see StaticArrays)
         const string Assigned = "an array in a static field that is assigned again, or anywhere but in its field "
-            + "initializer or static constructor arrives with M3 (the heap). For now, assign it once, where the field "
+            + "initializer or static constructor arrives later. For now, assign it once, where the field "
             + "is declared (static int[] buffer = new int[16];), and change its elements instead.";
         Assert.Equal(WithoutHeap(
         [
@@ -279,7 +279,7 @@ public sealed class ArrayRejectionTests : IDisposable
             Console.WriteLine(grid[0].Length);
             """));
 
-        const string References = "arrays of strings, objects or arrays arrive with M3 (the heap). For now, use arrays "
+        const string References = "arrays of strings, objects or arrays arrive later. For now, use arrays "
             + "of numbers, bools, structs or enums.";
         Assert.Equal(WithoutHeap(
         [
@@ -316,7 +316,7 @@ public sealed class ArrayRejectionTests : IDisposable
             """));
 
         Assert.Equal(WithoutHeap(["Program.Sized(int) at IL_0001 (newarr): an array whose size is known only when the program runs "
-            + "arrives with M3 (the heap). For now, give the array a fixed size: a constant, such as new int[16]."]),
+            + "arrives later. For now, give the array a fixed size: a constant, such as new int[16]."]),
             problems);
     }
 
@@ -337,7 +337,7 @@ public sealed class ArrayRejectionTests : IDisposable
             """));
 
         Assert.Equal(WithoutHeap(["Program.Main() at IL_000c (newarr): an array made in a loop while the one made there before is "
-            + "still in use arrives with M3 (the heap). For now, make the array once, before the loop, and reuse it."]),
+            + "still in use arrives later. For now, make the array once, before the loop, and reuse it."]),
             problems);
     }
 
@@ -356,7 +356,7 @@ public sealed class ArrayRejectionTests : IDisposable
             }
             """));
 
-        const string Comparisons = "comparing arrays (or an array with null) arrives with M3 (the heap). For now, leave the "
+        const string Comparisons = "comparing arrays (or an array with null) arrives later. For now, leave the "
             + "comparison out: an array on the stack is never null.";
         Assert.Equal(WithoutHeap(
         [
@@ -441,15 +441,15 @@ public sealed class ArrayRejectionTests : IDisposable
     }
 
     /// <summary>
-    /// A problem a check without a target gave before arrays on the heap ("... arrives with M3 (the heap). For now, ..."),
+    /// A problem a check without a target gave before arrays on the heap ("... arrives later. For now, ..."),
     /// as the chip "tiny", which has no heap, words it ("... needs a heap, and the target 'tiny' (2 KB RAM) has no heap.
     /// ...").
     /// </summary>
     private static string WithoutHeap(string problem)
     {
-        var (verb, at) = problem.Contains(" arrives with M3 (the heap). For now, ", StringComparison.Ordinal)
-            ? ("needs", problem.IndexOf(" arrives with M3 (the heap). For now, ", StringComparison.Ordinal))
-            : ("need", problem.IndexOf(" arrive with M3 (the heap). For now, ", StringComparison.Ordinal));
+        var (verb, at) = problem.Contains(" arrives later. For now, ", StringComparison.Ordinal)
+            ? ("needs", problem.IndexOf(" arrives later. For now, ", StringComparison.Ordinal))
+            : ("need", problem.IndexOf(" arrive later. For now, ", StringComparison.Ordinal));
         var hint = problem[(problem.IndexOf("For now, ", at, StringComparison.Ordinal) + "For now, ".Length)..];
         return $"{problem[..at]} {verb} a heap, and the target 'tiny' (2 KB RAM) has no heap. " +
             $"{char.ToUpperInvariant(hint[0])}{hint[1..]}";

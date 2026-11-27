@@ -1,769 +1,74 @@
 # ChipSharp
 
-C# for microcontrollers: C# compiled ahead of time, through LLVM, into native code that runs on the chip with
-no operating system and no interpreter.
+C# for microcontrollers. You write an ordinary C# program and build it with `dotnet build` as usual; ChipSharp then
+compiles it ahead of time, through LLVM, into native code: a small `.exe` for your PC, or a `.uf2` file for a
+Raspberry Pi Pico. On the chip there is no operating system, no .NET runtime and no interpreter: only your program, a
+small runtime written in C, and, when the program needs one, a heap with a garbage collector.
 
 ```
-C# --Roslyn--> IL --ChipSharp--> TIR --code generator--> LLVM IR / C --toolchain--> .elf --image--> .uf2 --> chip
+C# --Roslyn--> IL --ChipSharp--> TIR --LLVM--> .exe (PC)   or   .elf --> .uf2 (Pico)
 ```
 
-## Layout
+Where it stands: milestones M0 to M3 are done. Numbers, structs, arrays, spans, generics, text, interrupts and
+`TimeSpan` work on every chip, even one without a heap; on a chip with a heap (the Pico, the PC) so do classes,
+records, strings, interfaces, delegates and lambdas, boxing, exceptions you throw (not yet catch) and the collections
+(`List<T>`, `Dictionary<TKey, TValue>`, ...). Every sample prints exactly what .NET prints, on the PC and on a simulated
+Pico, and the tests compare programs, and thousands of library calls, with .NET's own results.
 
-| Folder | What it holds |
+**Contents:** [Quick start](#quick-start) · [Targets](#targets-what-a-chip-has) ·
+[What C# compiles today](#what-c-compiles-today) · [Known differences and gaps](#known-differences-from-net-and-gaps) ·
+[Memory](#memory) · [Interrupts](#interrupts) · [The chipsharp command](#the-chipsharp-command) ·
+[Samples and examples](#samples-and-examples) · [Tests](#tests) · [How it works](#how-it-works) · [Roadmap](#roadmap)
+
+## Quick start
+
+### What you need
+
+| Tool | What for |
 |---|---|
-| `src/ChipSharp.Ir` | TIR (Typed Intermediate Representation): every code generator reads it; with its verifier, printer and builder |
-| `src/ChipSharp.Abstractions` | The contracts (code generator, toolchain, image format, flasher, architecture runtime), the registry, the target model |
-| `src/ChipSharp.Targets` | Reads the target files and merges each inheritance chain |
-| `src/ChipSharp.Frontend` | Reads IL from a compiled C# .dll, finds every method the program uses and checks it against the supported subset, and translates it into TIR |
-| `src/ChipSharp.Library` | ChipSharp's own C# for library types (library substitutes, e.g. `System.TimeSpan`), compiled together with the programs that use them |
-| `src/ChipSharp.Backend.Llvm` | The `llvm` code generator: TIR in, LLVM IR text out |
-| `src/ChipSharp.Toolchain.Clang` | The `clang` toolchain: LLVM IR and runtime sources in, a linked program out |
-| `src/ChipSharp.Runtime.Windows` | The `windows-x64` runtime for PC programs: start-up and console output, no C runtime needed |
-| `src/ChipSharp.Cli` | The `chipsharp` command |
-| `targets/arch`, `chip`, `board` | Target files: board -> chip -> architecture, e.g. `pico` -> `rp2040` -> `armv6m`, `host` -> `x86_64` |
-| `samples` | Small C# programs (e.g. `Logit`, `VendingMachine`, `TrafficLights`) with their expected .NET output; `update-expected.ps1` regenerates the outputs |
-| `examples` | Projects for the Raspberry Pi Pico: `pico-blink`, `pico-timer-blink`, `pico-button` |
-| `tests/ChipSharp.Tests` | Tests |
+| [.NET 10 SDK](https://dot.net) | Building ChipSharp and your programs |
+| [LLVM](https://github.com/llvm/llvm-project/releases) (clang and ld.lld; `winget install LLVM.LLVM`) | Turning the program into native code. ChipSharp finds it in `C:\Program Files\LLVM\bin` or on the PATH, or set `CHIPSHARP_LLVM_BIN` to its `bin` folder |
+| [Node.js](https://nodejs.org) 18 or later | Only for the Pico simulator (`tools/rp2040-sim`), once: `cd tools\rp2040-sim; npm ci` |
+| A Raspberry Pi Pico | Optional: the simulator and [Wokwi](https://wokwi.com) run the same `.uf2` |
 
-A new board is one small JSON file; a new chip of a known architecture is a JSON file plus its SVD; only a CPU
-no compiler supports needs a new code generator.
+ChipSharp is developed and tested on Windows; the PC target (`host`) makes Windows x64 programs.
 
-## Build, test, try
+### Build ChipSharp
 
 ```powershell
+git clone https://github.com/ahmedseada/ChipSharp
+cd ChipSharp
 dotnet build -c Release
-dotnet test -c Release --no-build
-.\src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe targets list
-.\src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe targets show pico
-.\src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe il path\to\YourProgram.dll --method Program.Main
-.\src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe check path\to\YourProgram.dll
-.\src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe tir path\to\YourProgram.dll
-.\src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe build path\to\YourProgram.dll -t host --keep
 ```
 
-`check` says whether a program fits what ChipSharp compiles today; if not, it names each C# feature the program uses
-that ChipSharp does not compile yet, where, when it is planned, and what to write for now (`--details`: every place
-on a line of its own, and every library method ChipSharp can call). `tir` shows the program in TIR. `build` compiles
-it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` also keeps the `.tir` and `.ll` files.
+The command is then `src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe`; below it is written `chipsharp`
+(in PowerShell: `Set-Alias chipsharp "$PWD\src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe"`).
 
-`dotnet test` runs 1699 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
-`CHIPSHARP_LLVM_BIN`); the Pico tests also need the simulator (see below), and are skipped, saying why, without it.
+### Your first program, on the PC
 
-## What C# compiles today
-
-| C# | Today |
-|---|---|
-| Methods | Static methods, top-level statements, local functions (that capture variables too), recursion; the methods, constructors, properties and operators of structs and classes |
-| Values | `bool`, `char`, every whole number (`sbyte` to `ulong`, `nint`, `nuint`), `float` and `double` (computed and printed bit for bit like .NET) |
-| Code | `if`, `switch`, `for`, `while`, `do`, `foreach` over arrays and collections, `&&`, `\|\|`, `?:`, patterns on numbers; `try`/`finally` (nested, `return`, `break` and `continue` out of it), `using` statements and declarations, `throw`; arithmetic wraps around like unchecked C# |
-| Types | Structs, enums (`[Flags]` too), `ref`, `out` and `in` parameters (of values, objects and strings: `TryGetValue(key, out string name)`), `ref` locals |
-| Classes | On a target with a heap: the program's classes, `sealed` or not, nested, derived from each other (and from an `abstract` class): `new`, fields of the types above, of objects (the class itself too: lists, trees) and of structs holding objects, field initializers, constructors (overloads, `this(...)`, `base(...)`), instance and static methods and properties, `this`, a method hidden with `new`; objects in locals, parameters, return values, the fields of objects and of structs, and static fields; `null`, `==`, `!=`, `is null`, `ReferenceEquals`, `?.` and `??` (`??=` too), object initializers (`new Node { Value = 1 }`), `object`. The garbage collector frees what the program no longer reaches |
-| Records | On a target with a heap: `record` and `record class` (positional, with members of their own, `abstract`, `sealed`, derived from each other, generic), `record struct` and `readonly record struct`; what C# makes of them: `init` properties, `Deconstruct`, `Equals`, `==`, `!=`, `GetHashCode` (field by field, as .NET compares them), `ToString` as C# prints a record (`Point { X = 1, Y = 2 }`, nested records, null, a nullable, an array as its type's name), `PrintMembers` and `EqualityContract` through `base`, `with` (`<Clone>$` and the copy constructor; a copy for a struct); `required` members, object initializers, and `ToString`, `Equals`, `GetHashCode` and `PrintMembers` of their own. Primary constructors of classes and structs. A record struct compares, copies with `with` and deconstructs with no heap, on every target; its text needs one |
-| Virtual calls | On a target with a heap: `virtual`, `override` and `abstract` methods and properties over any number of levels, `sealed override`, `base.M()`, a `new virtual` method that opens a slot of its own; object's `Equals` and `GetHashCode` (overridden, `base.Equals`, and object's own: the same object, and a number that stays the same for it). A call that only one method can answer, on every object the program makes that the variable can hold, is a plain call (a sealed class, a sealed override, a single subclass made), and a method no object of the program can run is left out |
-| Interfaces of classes | Classes that implement interfaces implicitly and explicitly, through a base class, again in a derived class, interfaces that inherit interfaces, default methods, properties, generic interfaces (`IStore<int>`, `IRepository<Lane>`) with variance (`out T`, `in T`: an `IProducer<Dog>` is an `IProducer<Animal>` in calls, casts and `is`), the library's `IComparable`, `IComparable<T>`, `IEquatable<T>` and `IDisposable`, and the collections' `IEnumerable<T>`, `IEnumerator<T>`, `ICollection<T>`, `IList<T>`, `IReadOnlyCollection<T>`, `IReadOnlyList<T>`, `IComparer<T>` and `IEqualityComparer<T>` (and `IEnumerable`, `IEnumerator`); interfaces as the types of locals, parameters, return values, fields and static fields |
-| Type tests and casts | `is`, `as` and `(T)x` to classes, interfaces, `object` and arrays (`o is int[]`, covariant arrays of objects too), `x is Square s`, property patterns, `switch` on types, `is null`, `is not null`; a cast that fails stops the program with .NET's `InvalidCastException` message |
-| Type objects | `typeof(X)`, `typeof(T)` in generic code and `x.GetType()` of an object, a box, a string, an array or a delegate: one constant object per type (in flash on a chip, no heap), so `==`, `!=` and `Equals` compare them by reference; `Name`, `FullName`, `Namespace` and `ToString()` as .NET 10 writes them (``Box`1[Program+Node]``, `Int32[]`, a generic instance's assembly-qualified type arguments), `GetHashCode` (its name's, the same in every run), `IsValueType`, `IsArray`, `IsEnum`, `IsClass`, `IsInterface`, `IsPrimitive`, `IsGenericType` |
-| Boxing | On a target with a heap: every value as an object or an interface (`object o = 5;`, `object[] { 1, "a", 2.5, Color.Red, point }`, `IDevice d = counter;`, `IComparable c = 4;`), a box of its own type named as .NET names it (`System.Int32`, `Program+Point`), with the struct's `ToString`, `Equals`, `GetHashCode` and interface methods (a call through the interface changes the box), else .NET's (a number's text and hash, an enum's name, `ValueType.Equals` field by field: NaN equal to NaN, `-0.0` to `0.0`, text by its chars); `IComparable`, `IComparable<T>` and `IEquatable<T>` of numbers, bools, chars and enums; unboxing (`(int)o`, `o is int n`, `o as int?`, `switch` on values) with .NET's rules (an enum and its underlying type unbox to each other, two numbers do not) and messages; `object.Equals(a, b)`; objects, structs and nullables in printed and kept text (`$"{shape}"`, `string.Format("{0} {1}", o, p)`, `Console.WriteLine("{0} {1} {2} {3}", a, b, c, d)` with its `params` span, `"x" + o`); a delegate of a struct's method. With no heap: a struct's `ToString`, `Equals` and `GetHashCode` called on it (`point.ToString()`), a value printed straight away, and generic code's tests of its boxes (`value is IComparable`, `value is int n`), which fold away |
-| Nullables | `int?`, `bool?`, nullable enums and structs, with no heap, on every target: `HasValue`, `Value` (.NET's `InvalidOperationException` message with none), `GetValueOrDefault`, `??`, `default`, lifted arithmetic and comparisons, `is int n`; in locals, parameters, return values, fields, arrays and static fields; printed and in text (nothing with no value); boxed as .NET boxes them (null with no value, else the value's box) and unboxed back |
-| Generics | Generic methods, structs and static classes over values (numbers, bools, enums, structs, generic structs, text), nested in each other: `static T Max<T>(T a, T b) where T : IComparable<T>`, `static void Swap<T>(ref T a, ref T b)`, `struct Pair<T>`, made once for each type argument, with no heap. On a target with a heap also over classes, interfaces, `object` and arrays, and generic classes (`class Stack<T>` of `Node<T>`, `class Derived<T> : Base<T>`, `class IntBox : Box<int>`, a class nested in one), each instance a class of its own with its own static fields and .NET's name (``Box`1[Program+Lane]``); constraints (`where T : class`, `where T : Animal`, `where T : IShape`, `where T : new()`, `where T : unmanaged`), `default(T)` (null), `new T()`, `new T[n]`, casts, `is` and `as` to `T`; generic virtual methods and generic methods of interfaces and of generic classes; the library's generic code over the program's types (`span.IndexOf(point)`, `Array.Sort` of structs that implement `IComparable<T>`); `EqualityComparer<T>.Default` and `Comparer<T>.Default` with .NET's results, with no boxing; `foreach` over a collection of the program's whose `GetEnumerator()` gives a struct or a sealed class. Interfaces implemented by structs, through a constraint (`static void Run<T>(ref T device) where T : struct, IDevice`, explicit implementations and static abstract members too) or called on the struct itself; `CompareTo`, `Equals`, `GetHashCode` and `ToString` of a number `T`; generic math (`INumber<T>`): the operators, comparisons, `T.Zero`, `T.One`, `MinValue`, `MaxValue`; `default(T)`, `typeof(T) == typeof(int)`, `sizeof(T)`; a `T` printed and in printed text |
-| Delegates | On a target with a heap: `Action`, `Func<...>`, `Predicate<T>`, `Comparison<T>`, `Converter<TInput, TOutput>`, `EventHandler<T>` and the program's own delegate types (generic ones too), over values, text and objects; made of static and instance methods, virtual and interface methods (the override of the object they are made of), extension methods, library methods (`Action<int> print = Console.WriteLine;`), generic methods, and lambdas (`static` ones too) that capture nothing, variables, `this`, the variables of outer scopes and loop variables (`foreach` gives each its own, as .NET does), in generic methods too; `d(x)`, `d.Invoke(x)`, `d?.Invoke(x)` (null stops the program with .NET's `NullReferenceException` message); `+`, `-`, `+=` and `-=` with .NET's order and what is left (the last occurrence of a list taken out), every delegate of a multicast one called in order and the last one's result, `GetInvocationList`, `==`, `!=`, `Equals`, `GetHashCode`, `ToString` (the type's name), `is` and `as`; field-like events (`event Action Changed`, static ones too) and events with their own `add` and `remove`; delegates in locals, fields, static fields, arrays and as type arguments. A local function that is only called keeps what it captures in a struct, with no heap, on every target; an interrupt handler may invoke a delegate kept in a static field |
-| Exceptions | On a target with a heap: `throw` of .NET's exceptions (`InvalidOperationException`, `ArgumentException`, `ArgumentNullException` and `ArgumentOutOfRangeException` with the parameter's name, `KeyNotFoundException`, `NotSupportedException`, `NotImplementedException`, `IndexOutOfRangeException`, `FormatException`, `OverflowException`, `ObjectDisposedException`, ...; `ArgumentNullException.ThrowIfNull` and the like) and of the program's own (derived from `Exception` or one of those, `Message` and `ToString` overridden), in a method, a `?? throw` and a `switch` arm: the program stops with what .NET prints for an exception nothing catches; an exception as a value too (`Message`, `ToString()`, `InnerException`, `ParamName`, .NET's default messages) |
-| Collections | On a target with a heap: `List<T>`, `Dictionary<TKey, TValue>` (`Keys`, `Values`, a custom `IEqualityComparer<T>`, `GetValueOrDefault`), `HashSet<T>`, `Queue<T>`, `Stack<T>` and `KeyValuePair<TKey, TValue>` (deconstructed too), of values, text and objects, with .NET's growth, order (after removals too), checks, messages and enumerators that stop when the collection changes; collection initializers (`new List<int> { 1, 2 }`, `{ ["a"] = 1 }`, `{ { "a", 1 } }`) and collection expressions of values into a list (`List<int> l = [1, 2, 3];`, `[.. array, 0, .. list]`); arrays as `IEnumerable<T>`, `ICollection<T>`, `IList<T>`, `IReadOnlyList<T>`, `IReadOnlyCollection<T>` and `IEnumerable` (and in `is`, `as` and casts) |
-| Memory | The heap only for a program that uses it (none of its RAM or code otherwise); a garbage collector that runs with interrupts on; `GC.Collect()`, `GC.GetTotalMemory(bool)` and `GC.KeepAlive(object)`; a recursion with no end stops with .NET's `Stack overflow.`, on the PC and on a chip; `chipsharp build --verify-heap` checks the whole heap at every collection (see Memory, below) |
-| Static fields | Of the types above, `volatile` too, with field initializers and static constructors |
-| Arrays | Of numbers, bools, structs and enums, on the stack: a constant size, kept in the method that makes them and passed down to the methods it calls. On a target with a heap also on the heap: returned, kept in static fields, in the fields of objects and in other arrays, of a size known only when the program runs (`new int[n]`), `null` (`a == null`, `a?.Length ?? 0`), arrays of arrays (`int[][]`), of objects and of the program's classes; `[]` and `Array.Empty<T>()`, `foreach`, `.Length`, bounds checks and .NET's messages for null and a negative length. An array that stays in its method with a constant size is still on the stack |
-| Spans | `Span<T>` and `ReadOnlySpan<T>` with no heap, of arrays, of `stackalloc` (a constant size, initializers too), of constant data (`static ReadOnlySpan<byte> Digits => new byte[] { 0x3F, ... };`, in flash on a chip) and of variables (`MemoryMarshal.CreateSpan(ref x, 1)`): the indexer (`ref` too), `Length`, `IsEmpty`, `Slice`, ranges and indices (`s[2..5]`, `s[^1]`), `foreach`, `CopyTo`, `TryCopyTo`, `Fill`, `Clear`, `==`; as parameters, locals, return values and fields of a ref struct, of a generic `T` too |
-| Static arrays | Arrays in static fields that the field's initializer gives once, with a constant size and constant elements: `static readonly byte[] Digits = { 0x3F, 0x06, ... };` is a constant table when nothing writes an element (in flash on a chip), `static int[] buffer = new int[16];` a fixed array in RAM; read, indexed and passed to methods like any array, with no heap |
-| Fixed text | String literals (`"road : 1"`, `string.Empty`) anywhere a string may be, on every target: printed (`null` as nothing, like .NET, as UTF-8), compared, measured, searched (the methods of string that make no new text). Each literal is an object in flash once on a chip: 8 bytes and 1 byte per char on the Pico |
-| Printed text | Text built and printed straight away, with no string ever made and no heap: `Console.WriteLine($"road : {lane}")`, `Console.Write("road : " + lane + '!')`, `lane.ToString()`, `Console.WriteLine("{0,4} {1:X2}", a, b)`, `Console.WriteLine(color)`; holes of text, chars, enums (by name, `[Flags]` combined too, or with `D` and `X`), structs (by their `ToString`, run on the value), nullables (their value, or nothing) and of every type `Console.Write` prints, worked out first, in order, like .NET, the `params` span of `Console.WriteLine("{0} {1} {2} {3}", a, b, c, d)` too; alignments (`{x,5}`, `{x,-5}`, not of floats) and the formats `D`, `D<n>`, `X<n>`, `x<n>` and `G` of whole numbers |
-| Strings | On a target with a heap: text built and kept (`string s = $"..."`, `+`, `+=`, `ToString()` of numbers, bools, chars and enums with the formats printed text has, `string.Concat`, `string.Join` of an array, `string.Format` of a literal format) in locals, fields of classes and structs, static fields, arrays (`string[]`), returned and passed anywhere; `==`, `!=`, `Equals`, `CompareOrdinal`, `CompareTo`, `IsNullOrEmpty`, `IsNullOrWhiteSpace`, `Length`, `s[i]`, `foreach`, `Substring`, `IndexOf`, `LastIndexOf`, `Contains`, `StartsWith`, `EndsWith`, `Replace`, `Trim`, `TrimStart`, `TrimEnd`, `PadLeft`, `PadRight`, `ToUpper`, `ToLower`, `Insert`, `Remove`, `Split`, `ToCharArray`, `new string(...)`, `GetHashCode`, `switch` on strings; `int.Parse` and `TryParse` (and those of the other whole numbers); `char.IsDigit`, `IsLetter`, `IsWhiteSpace`, `IsUpper`, `IsLower`, `ToUpper`, `ToLower`; spans of chars (`s.AsSpan()`, `stackalloc char[8]`, `span.ToString()`); `ToString()` of the program's classes (overrides, and object's own: the type's name), `Console.WriteLine(shape)`, `is string`, `as string`, `(string)o`; `StringBuilder`: its constructors, `Append` of every kind (text, chars, numbers, bools, objects, spans, arrays and their ranges, builders), `Append($"...")` and `AppendLine($"...")` part by part, `AppendFormat` of a literal format, `AppendLine`, `AppendJoin` of an array, `Insert`, `Remove`, `Replace`, `Clear`, `Length` and `Capacity` (set too), the indexer, `EnsureCapacity`, `CopyTo`, `Equals`, `ToString`, with .NET's results and messages |
-| Library | `Console.Write` and `Console.WriteLine` of text, a number or a bool; `Math` and `MathF`: `Abs`, `Min`, `Max`, `Sqrt`; `TimeSpan`: its factories in any unit (`FromMilliseconds(500)`, `FromSeconds(1.5)`), parts, totals, arithmetic and comparisons; on a chip, `ChipSharp.Hardware`: pins, timing (`Timing.Delay(TimeSpan)` too), registers and interrupts; for spans, `MemoryExtensions` (`IndexOf`, `LastIndexOf`, `Contains`, `SequenceEqual`, `StartsWith`, `EndsWith`, `Reverse`, `AsSpan`), `BinaryPrimitives` (`Read`, `Write`, `TryRead` and `TryWrite` of the whole numbers, `float` and `double`, big- and little-endian; `ReverseEndianness`) and `MemoryMarshal` (`Read`, `Write`, `TryRead`, `TryWrite`, `AsBytes`, `Cast`, `CreateSpan`), at any offset; `System.Array`: `Copy` (every overload, the `long` ones too, overlapping copies within an array like .NET's), `ConstrainedCopy`, `CopyTo`, `Clear`, `Fill`, `IndexOf`, `LastIndexOf` and `Reverse` of arrays of every element type, `Sort` and `BinarySearch` of numbers, bools and structs that implement `IComparable<T>`, with no heap; on a target with a heap also `Resize` and `Clone`, and those that take a delegate, of arrays of every element type: `Exists`, `Find`, `FindAll`, `FindIndex`, `FindLast`, `FindLastIndex`, `ForEach`, `TrueForAll`, `ConvertAll` and `Sort` with a `Comparison` (.NET's introsort, so elements the comparison calls equal end up where .NET puts them); `EqualityComparer<T>.Default` and `Comparer<T>.Default` (`Equals`, `GetHashCode`, `Compare`); on a target with a heap, `GC.Collect`, `GC.GetTotalMemory` and `GC.KeepAlive` |
-
-| Not yet | When |
-|---|---|
-| A `params` span of text (`string.Join(", ", a, b, c)`, `sb.AppendJoin(", ", a, b)`: give an array), the other formats (`F2`, `N0`), a format of an object or a struct (`$"{o:X2}"`) and `string.Format` of a format known only when the program runs or of an `object[]`, culture-aware comparisons and the case of letters past U+00FF; boxing a library struct (`(object)TimeSpan.Zero`; but `KeyValuePair` and the collections' enumerators), `unbox` to the address in a box of a nullable, type tests against `System.ValueType` and `System.Enum`, `Enum.HasFlag`, type tests against library classes; an array in the field of a struct, `ToArray` of a span; `List<T>`'s non-generic `IList` and `ICollection`, `AsReadOnly`, a collection expression into a list of objects or text (it fills the list through a span, and spans of objects arrive later), `SortedDictionary`, `LinkedList` and the other collections, an array of a class as the interfaces of its base classes (`IList<Animal>` of a `Dog[]`) | With M3 (the heap) |
-| Catching exceptions (`try`/`catch`, filters), and the finally blocks .NET 10 runs after it prints an exception nothing catches (ChipSharp stops there; a `finally` runs when its try block is left normally), `checked` arithmetic, multi-dimensional arrays, array covariance (`object[] items = new int[2][]`), `ref` and `out` of an array (but `Array.Resize(ref a, n)`), a static array kept outside its field, unsafe code (pointers, `stackalloc` into a pointer, `stackalloc` of a size known only when the program runs), collection expressions as spans (`Span<int> s = [1, 2];`), function pointers (`delegate*`), delegates that take or return arrays or spans (`Action<int[]>`), `BeginInvoke` and `EndInvoke`, reflection beyond a type's names (members, attributes, `BaseType`, `Activator`), `typeof` of an open generic type (`typeof(List<>)`), finalizers, classes derived from library classes ChipSharp has no C# for | Later |
-| `Array.Copy` between arrays of different element types (`int[]` into `long[]`), `Array.Sort` and `BinarySearch` of enums, structs that do not implement `IComparable<T>` and objects, `Array.IndexOf` of structs, of `object` and of classes with an `Equals` of their own | Later |
-| Other library types and methods (`decimal`, `Random`, `Math.Sin`, `array.GetValue(i)`, the overloads of `System.Array` that take an `IComparer`, ...) | Not yet: `chipsharp check` lists the methods there are, and for `System.Array` says to write the loop |
-
-`chipsharp check` (and `build`) say so for each feature a program uses, with what to write for now. The first program
-ChipSharp was asked to run printed its result with `Console.WriteLine($"Logit result: {result}")`: printed text, which
-compiles and prints what .NET prints (`samples/Logit.cs` prints the parts one after another, as it had to before). Made
-in a method that returns it, `static string Report(float result) => $"Logit result: {result}";`, the text is kept: a
-string on the heap, which compiles for the PC and the Pico, and on a chip without a heap (here a Pico whose target file
-says "heap": false) says so:
-
-```
-error: Logit.dll uses 1 C# feature that ChipSharp does not compile yet (1 place):
-  keeping built text in a variable needs a heap, and the target 'pico-no-heap' (264 KB RAM) has no heap: 1 place in local function Report (IL_0020). Print it straight away: Console.WriteLine($"...").
-For every place, run: chipsharp check Logit.dll --details -t pico-no-heap
+```powershell
+dotnet new console -n Hello
+cd Hello
+dotnet build -c Release
+chipsharp build bin\Release\net10.0\Hello.dll
+.\chipsharp-output\host\Hello.exe
 ```
 
-A call to a library method ChipSharp does not have lists the ones it has:
+It prints `Hello, World!`. `Hello.exe` is 29 KB and needs no .NET on the PC that runs it.
 
-```
-ChipSharp can call these library methods (--details lists each one with its parameters):
-  Console.Write and Console.WriteLine of (nothing), text, int, uint, long, ulong, bool, float, double
-  Math and MathF: Abs, Min, Max, Sqrt
-  GC: Collect, GetTotalMemory, KeepAlive
-  Array: Copy, ConstrainedCopy, CopyTo, Clear, Fill, IndexOf, LastIndexOf, Reverse, Resize, Clone, Sort, BinarySearch, Exists, Find, FindAll, FindIndex, FindLast, FindLastIndex, ForEach, TrueForAll, ... (21 in all)
-  MemoryExtensions: IndexOf, LastIndexOf, Contains, SequenceEqual, StartsWith, EndsWith, Reverse, AsSpan
-  TimeSpan: FromTicks, FromDays, FromHours, FromMinutes, FromSeconds, FromMilliseconds, FromMicroseconds, Add, Subtract, Negate, Multiply, Divide, Duration, Compare, CompareTo, Equals, its constructors, properties and operators
-  Span<T>: Slice, CopyTo, TryCopyTo, Fill, Clear, its constructors, properties and operators
-  ReadOnlySpan<T>: Slice, CopyTo, TryCopyTo, its constructors, properties and operators
-  BinaryPrimitives: ReverseEndianness, ReadInt16BigEndian, ReadInt16LittleEndian, ReadUInt16BigEndian, ReadUInt16LittleEndian, ReadInt32BigEndian, ReadInt32LittleEndian, ReadUInt32BigEndian, ReadUInt32LittleEndian, ReadInt64BigEndian, ReadInt64LittleEndian, ReadUInt64BigEndian, ReadUInt64LittleEndian, ReadIntPtrBigEndian, ReadIntPtrLittleEndian, ReadUIntPtrBigEndian, ReadUIntPtrLittleEndian, ReadSingleBigEndian, ReadSingleLittleEndian, ReadDoubleBigEndian, ... (73 in all)
-  Comparer<T>: Compare, its properties
-  EqualityComparer<T>: Equals, GetHashCode, its properties
-  MemoryMarshal: Read, Write, TryRead, TryWrite, AsBytes, Cast, CreateSpan, CreateReadOnlySpan
-  ChipSharp.Hardware: Pin, Timing, Registers (see the README)
+### The same program, on a Pico
+
+```powershell
+chipsharp build bin\Release\net10.0\Hello.dll -t pico
 ```
 
-The other samples show the rest of the table, e.g. `VendingMachine.cs` (structs, enums, an array of structs and static
-fields as a state machine), `Projectile.cs` (floats in structs, with operators), `TimeSpans.cs` (TimeSpan arithmetic),
-`TrafficLights.cs` (fixed text between numbers), `PrintedText.cs` (text built and printed straight away),
-`LookupTables.cs` (a 7-segment display's tables in flash and a buffer of readings in RAM), `Generics.cs` (generic
-methods and structs, devices used through a constraint, generic math), `Spans.cs` (one `Sum` over an array, a slice,
-`stackalloc` and a table in flash; a sensor's packet read with `BinaryPrimitives` and `MemoryMarshal`, a struct from an odd
-offset, a checksum over its bytes), `Shapes.cs` (an abstract shape and its overrides, interfaces called through a list
-and a static field, `is`, `as`, casts and a switch on types, `Equals` and `GetHashCode`), `Classes.cs` (a linked list and a tree of
-objects, constructors calling each other, a derived class, objects in static fields, and enough short-lived objects to
-make the Pico's garbage collector run again and again), `HeapArrays.cs` (arrays returned, of sizes known when the
-program runs, an array of arrays, an array kept in a static field and replaced, null, and many arrays used once),
-`ArrayMethods.cs` (a ring buffer of readings moved along with `Array.Copy`, medians with `Array.Sort`, levels with
-`Array.Fill` and `IndexOf`, a table searched with `BinarySearch`, a log grown with `Array.Resize` and copied with `Clone`)
-`Delegates.cs` (callbacks, a closure counter, lambdas made in a loop that each keep their own variable, an event with two subscribers and an unsubscribe, readings sorted with a comparison and filtered with `Array.FindAll`, and enough short-lived closures to make the Pico's collector run) and `GenericClasses.cs` (a linked stack of readings and of numbers, a repository interface with two implementations,
-`new T()`, `EqualityComparer<T>.Default` over a class with its own `Equals` and over `int`, and tens of thousands of
-short-lived objects of generic classes), `Boxing.cs` (a log of readings of mixed kinds in an `object[]` sorted out with
-a switch on types, a struct read through an interface, `Equals` of boxes, nullable readings averaged, objects in formatted
-text) and `Records.cs` (sensors as records derived from each other, copies with `with`, equality by value, a record struct
-and a report table built with a StringBuilder).
-
-### Fixed text
-
-A string literal is fixed text: it never changes, so it needs no heap. Each distinct literal is one constant string
-object in read-only data (flash on a chip, once however often the program uses it), laid out as a string on the heap
-is (see Strings, below), so code never needs to know which one it has; the collector never marks it, as it is outside
-the heap (`src/ChipSharp.Frontend/FixedText.cs`). Text is written as UTF-8 on every target, the bytes .NET writes with
-a UTF-8 console; a Windows console shows non-ASCII text right when its code page is UTF-8 (`chcp 65001`), and there
-.NET itself writes in the console's code page. Text built from it and printed straight away is printed text (below).
-
-Where .NET would throw an exception (an index outside an array, a `TimeSpan` too long), the program stops with the
-message .NET prints for it: on standard error with exit code 1 on a PC, over UART0 and at a breakpoint on a chip.
-
-### Printed text
-
-Text built and printed straight away needs no heap either, because no string is made. C# turns `$"..."`, `+` and
-`ToString()` into a `DefaultInterpolatedStringHandler` with its `AppendLiteral` and `AppendFormatted` calls, or into
-`string.Concat` of two to four strings or of an array of them, with `x.ToString()` for each number; ChipSharp follows
-these on IL's evaluation stack (`src/ChipSharp.Frontend/PrintedText.cs`) to the `Console.Write` or `Console.WriteLine`
-that prints the text. Where the IL hands a hole's value to the text, the value waits in a slot; the print then writes
-the literals and those values one after another, with the functions of `Console.Write`. So, as in .NET, every hole is
-worked out first, in order, and a hole that prints something prints before its line:
-
-```csharp
-Console.WriteLine($"road : {lane}");
-Console.WriteLine($"{Name(road),-6}|{cars,5}|{busy,-6}| {cars * 100f / total} %");
-Console.WriteLine("lane " + lane + (cut ? " cut" : "") + ", next " + next.ToString("D2"));
+```
+...\chipsharp-output\pico\Hello.uf2
+flash 2.0 KB of 2048 KB (0.1%), RAM 16 bytes of 264 KB (stack 8 KB reserved)
 ```
 
-An alignment pads with spaces like .NET, to the length .NET counts (UTF-16 code units). The formats are those written
-exactly like .NET: `D`, `D<n>`, `X`, `X<n>`, `x<n>` and `G` for whole numbers (hex of the value's own width: an `sbyte`
--1 is `FF`), `G` and `R` for floats; a format of text, a char or a bool is ignored, as .NET ignores it. An enum is its
-name, written by a function of its own made from its members (`[Flags]` ones combined, `Read, Write`, as .NET combines
-them; a value without a name as its number), or its number with `D`, its hex digits with `X`. `string.Format`,
-`Console.WriteLine("{0} of {1,4}", a, b)` and `Console.WriteLine(x)` of a boxed value are holes too, when the format is
-a literal: ChipSharp reads it as .NET does. Text that is kept is a string, made on a target with a heap where the text
-is finished (see Strings): stored in a field or in a variable (but a variable written once and read once, which is
-what C#'s own temporaries are, and what Release makes of `string s = $"..."; Console.WriteLine(s);`), returned, passed
-to another method, measured (`.Length`) or chosen where ways join (`c ? $"a{x}" : "b"`). On a target without a heap it
-is "keeping built text in a variable", which needs a heap. The other formats (`F2`, `N0`) and an aligned float are
-rejected, saying what to write for now. `samples/PrintedText.cs` shows each form.
-
-### Strings
-
-A string is an object (`src/ChipSharp.Frontend/Strings.cs`): a literal in flash, or text the program builds on the
-heap, which the garbage collector frees once nothing uses it. Its `Length` and `s[i]` count UTF-16 code units, as .NET
-does. The object is laid out as an array: its header (one of the runtime's two string descriptors), its length, then
-its chars, 1 byte each when every char is below U+0100 (ASCII and Latin-1: `"café"` is 4 bytes) and 2 bytes each
-(UTF-16) for any other text, always so, so that two equal strings have the same form. On the Pico a literal takes 8
-bytes and its chars (`"road : 1"`, 16 bytes), as much flash as UTF-8 for ASCII; a string on the heap as much, rounded up
-to 8. A span of chars views 2-byte chars: `s.AsSpan()` of a UTF-16 string is the string's own chars, of a 1-byte one a
-UTF-16 copy on the heap.
-
-What reads strings (compare, search, measure, print) needs no heap and works on every target, for literals; what makes
-them (kept text, `Substring`, `Replace`, `ToUpper`, `Split`, number to text, ...) is the runtime's C
-(`src/ChipSharp.Runtime.Shared/chipsharp_string.c` and `chipsharp_string_heap.c`), and needs a heap. Each method gives
-.NET's results and stops the program with .NET's message where .NET throws (`"abc".Substring(4)`, `int.Parse("12x")`).
-Comparisons are ordinal, char by char: `==`, `Equals`, `IndexOf`, `StartsWith`, `CompareTo` and `string.Compare` too,
-as .NET compares them in its invariant mode (`CompareTo` gives the difference of the first chars that differ, as
-`CompareOrdinal` does); with a culture .NET compares the last four by it (the same results for text without the
-characters a culture ignores, such as a zero char, but for the order of upper and lower case letters: `"a".CompareTo("B")`
-is 31 here and in invariant mode, -1 with a culture). `ToUpper`, `ToLower` and the char methods change case and tell letters as the
-invariant culture does for the chars up to U+00FF (Latin-1, `ÿ` to `Ÿ` too); from U+0100 on a char is no letter and
-keeps its case (`IsWhiteSpace` knows all of .NET's spaces). `GetHashCode` of a string is the same in every run (FNV-1a
-of its UTF-16 code units), where .NET's differs from one process to the next. `int.Parse` and `TryParse` (and those of
-`sbyte` to `ulong`) read as .NET's invariant culture does: spaces, a sign, digits. A `switch` on strings compiles as C#
-makes it, in Release (by length and char, or by hash) and in Debug (`==` one after another).
-
-`ToString()` of the program's classes is a virtual call like any other: an override gives its string, object's own the
-type's .NET name (`Program+Node`); `Console.WriteLine(node)`, `"x" + node`, `$"{node}"` and `string.Format("{0}",
-node)` call it (and write nothing for null). A call of object's `Equals`, `GetHashCode` or `ToString` on an `object` that
-holds a string runs a string's, and `is string`, `as string` and `(string)o` test the object's header (a
-`StringBuilder` is in "Records, StringBuilder and type objects", below). A `params` span of text (`string.Join(", ", a,
-b, c)`, give an array) is not there yet; the `params` span of objects
-of `string.Format` and `Console.WriteLine` of four values or more is printed or kept text like the others. `samples/Text.cs` takes commands as text, the way they come over a
-serial line; on the Pico it takes 21.8 KB of flash, the runtime's text of floats and strings included.
-
-### Arrays in static fields
-
-An array that a static field gets once, when the program starts, and keeps for good needs no heap either: it is a
-global, like any static field (`src/ChipSharp.Frontend/StaticArrays.cs`). The field's initializer (or the static
-constructor, where it runs exactly once) makes it with a constant size and constant elements (`new int[16]`,
-`{ 1, 2, 3 }`, `[]`), nothing else assigns the field, and nothing takes its `ref`. When nothing in the program writes an
-element, also not the methods it is passed to nor those they pass it on to, it is a constant table: read-only data, in
-flash on a chip, never copied to RAM. Otherwise it is a fixed array in RAM, which starts with its elements. Either way
-the code that made it is not compiled (a type initializer that did nothing else is gone), and reading the field gives
-the usual array, so it is indexed, measured and passed down like an array on the stack:
-
-```csharp
-static readonly byte[] Digits = { 0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F };   // flash
-static int[] readings = new int[6];                                                              // RAM
-static int count;
-
-static void Record(int value) => readings[count++ % readings.Length] = value;
-```
-
-Any other array in a static field (assigned again, made of computed elements or of a size known only when the program
-runs, never given one) is assigned while the program runs, on the heap (below); on a chip without a heap,
-`chipsharp check` says which, where, and what to write instead.
-
-### Arrays on the heap
-
-On a target with a heap, an array that leaves the method that makes it, whose size is known only when the program runs,
-or that a loop makes again while the one from before is still in use, is an object on the heap
-(`src/ChipSharp.Frontend/HeapArrays.cs`), which the garbage collector frees once nothing uses it:
-
-```csharp
-static int[] latest;                                  // null until the first window
-
-static int[] Read(int count)                          // a size known when the program runs, returned
-{
-    int[] readings = new int[count];
-    ...
-    return readings;
-}
-
-static void Keep(int[] window) => latest = window;    // kept in a static field: its callers' arrays are on the heap
-```
-
-Every array, on the stack, in flash, in RAM or on the heap, is the same value where the program has one (a local, a
-parameter, a return value): the address of its elements and its length, so one method takes them all, and an array
-that stays in its method with a constant size is on the stack as before, on every target. Null is the value of zeros;
-every other array has an address of its elements, the empty ones too (`[]` is one empty array of the program's, outside
-the heap). Where the collector reads references exactly (a static field the program assigns, a field of an object, an
-element of an array of arrays or of objects) the array object itself is kept, which is the address of its elements less
-the length and header in front of them; on the stack the address of the elements keeps the object alive. The analysis
-(`ArrayEscapeAnalysis`) follows each array through the whole program, the parameters of every method it is passed to
-included, so that only an array on the heap is ever kept that way; a constant table in flash, which has no object
-around it, is not (keeping one outside its field is rejected). An array that may be null (read from a field, given null
-by a caller) is measured with a null test, and its bounds check tells null from an index outside the array only when the
-index is not in range. On a chip without a heap, each of these needs a heap, and `chipsharp check` says so, with the
-same hints as before.
-
-Every empty array is an object of its own type, outside the heap (in flash on a chip): `Array.Empty<T>()`, `[]` and an
-empty static array are one empty `int[]` for `int`, as .NET has one for each `T`, so a type test reads its header like
-any array's (`(object)Array.Empty<int>() is long[]` is false), and the collector, which marks only what is in the heap,
-never touches it.
-
-### The methods of System.Array
-
-`Array.Copy` and the rest are ChipSharp's own (`src/ChipSharp.Frontend/ArrayMethods.cs`): those that take an `Array`
-learn the element type from the array on IL's evaluation stack, and work on arrays of every element type arrays hold,
-the program's enums, structs and classes too, so they are compiled as TIR (`Lowering/ArrayMethodFunctions.cs`); `Sort`
-and `BinarySearch` are a library substitute (`src/ChipSharp.Library/Array.cs`), .NET's own introsort, NaN pre-pass and
-binary search, so equal elements that are not the same bits (`-0.0` and `0.0`, NaNs) end up where .NET puts them. Each
-checks its arguments in .NET's order and stops the program with .NET's message, the value included where .NET says it
-(`length ('-1') must be a non-negative value. (Parameter 'length')` and `Actual value was -1.` on a line of its own):
-
-```csharp
-Array.Copy(window, 1, window, 0, window.Length - 1);   // overlapping, as memmove does
-Array.Sort(scratch);                                     // numbers and bools
-int band = Array.BinarySearch(Thresholds, median);       // a table in flash: only read, so it stays there
-Array.Fill(levels, Level.Normal);
-int high = Array.IndexOf(levels, Level.High);            // an enum, by value; a NaN equals NaN, as Equals says
-Array.Resize(ref log, log.Length * 2);                   // a local, a parameter or a field: needs a heap
-int[] kept = (int[])log.Clone();                         // needs a heap
-```
-
-`IndexOf` and `LastIndexOf` compare as .NET's `EqualityComparer<T>.Default` does: numbers, bools and enums by value
-(a float NaN equals NaN, `-0.0` equals `0.0`), arrays and the program's classes by reference; a struct, `object` and a
-class with an `Equals` of its own would need that `Equals`, which they do not call yet. Only the elements a method
-writes count as written (a copy's destination; the array of `Clear`, `Fill`, `Reverse`, `Sort`), so a constant table that
-`IndexOf` or `BinarySearch` reads stays in flash. Nothing allocates but `Resize` and `Clone`, which make the new array
-before they copy into it, so the references of an array are never half copied when a collection comes: the collector
-runs only when an allocation needs one.
-
-### Spans
-
-A `Span<T>` or `ReadOnlySpan<T>` is a view of elements that live somewhere else, so it needs no heap
-(`src/ChipSharp.Frontend/Spans.cs`). It is the same value as an array, the address of its first element and how many
-there are, so an array becomes a span as it is, and a slice is a new address and length. What a span can view: an
-array (on the stack or in a static field), a `stackalloc` (a constant size: memory of the method, like an array on the
-stack, zeroed where it runs), C#'s constant data and a variable:
-
-```csharp
-static ReadOnlySpan<byte> Digits => new byte[] { 0x3F, 0x06, 0x5B, 0x4F };   // a constant table, in flash on a chip
-
-static int Sum(ReadOnlySpan<int> values) { ... }
-
-Sum(samples);                       // an array
-Sum(samples.AsSpan(1, 3));          // a slice of it, or samples.AsSpan()[1..4]
-Span<int> buffer = stackalloc int[4];
-Sum(buffer);
-```
-
-Span's own members, the `AsSpan` of arrays and the safe part of `MemoryMarshal` are compiled by ChipSharp itself, with
-.NET's checks: an index outside a span stops the program with IndexOutOfRangeException's message, a slice outside it with
-ArgumentOutOfRangeException's, a `CopyTo` a shorter span with ArgumentException's ("Destination is too short."), as
-.NET says them. `MemoryExtensions` and `BinaryPrimitives` are library substitutes, plain C# over spans
-(`src/ChipSharp.Library`). `MemoryMarshal.Read` and `Write` (and `BinaryPrimitives` with them) read and write a value
-at any offset, unaligned, so a Cortex-M0+, which faults on a word that is not at a multiple of its size, reads a struct
-from the middle of a packet as a PC does. `MemoryMarshal.Cast` gives a span of other elements of the same memory; on a
-chip without unaligned access (the target's `"unalignedAccess": false`, as `armv6m` says) it checks that the span starts
-where those elements may be, and stops the program with DataMisalignedException's message when it does not (read them
-with `MemoryMarshal.Read` instead); a PC reads them anywhere. Only values without references, laid out as C# lays them
-out by default, are read and written as bytes.
-
-C# keeps a span of `stackalloc` or of a variable from outliving it, but takes an array to be on the heap: `Span<int> s =
-new int[4]; return s;` is fine C#. Here an array that stays in its method is on the stack, so a span of it keeps to the
-array's rule (`src/ChipSharp.Frontend/Analysis/SpanEscapeAnalysis.cs`): it may be kept in locals, sliced and passed to
-methods, which may hand it back (`static Span<int> Tail(Span<int> s) => s.Slice(1);`); on a target with a heap, an
-array whose span leaves the method that made it (returned, or stored where its caller sees it), or is still in use when
-a loop makes the array again, is on the heap instead (see "Arrays on the heap"), and a span of an array on the heap
-goes wherever a span may. A `stackalloc` stays in its method, and must not be in use through a span from the time
-before when a loop makes it again. `ToArray` makes an array, which needs the heap; a collection expression as a span
-(`Span<int> s = [1, 2];`) and `stackalloc` into a pointer arrive later. `samples/Spans.cs` reads a sensor's packet.
-
-### Generics
-
-Generics over values need no heap: like C++ templates (and .NET itself for structs), ChipSharp makes a copy of a generic
-method or type for each list of type arguments the program uses it with (`src/ChipSharp.Frontend/Generics`). Where the
-IL calls `Max<int>`, or names a method or field of `Pair<int>`, the reference is linked to that instance, made the first
-time: a method of its own, whose signature, locals and IL have `int` in place of `T`, so everything after the IL reader
-takes it for code written for `int`. The program has exactly the instances it reaches, a generic method calling another
-with its own `T` included; the generic code itself is never compiled. Each is named as C# writes it:
-`Program.Max<int>`, `Pair<int>.Swap`, whose symbols are `Program_Max_int_` and `Pair_int__Swap`. An instance costs what
-the same code written for its type does: on the Pico a generic `Sum<T>` and `Pair<T>` used with `int` take exactly the
-flash of the hand-written `int` versions.
-
-In an instance, what the code does through `T` is what it does on that type, with no boxing: a constrained call
-`device.Tick()` on a struct `T` calls the struct's own method (an explicit implementation, `void IDevice.Tick()`, too);
-`a.CompareTo(b)`, `Equals` and `GetHashCode` of a number are ChipSharp.Library's `Numbers`, which give .NET's results
-(a `byte`'s CompareTo is a difference, NaN equals NaN); `a + b`, `a <= b`, `T.Zero` and the rest of generic math on a
-number are the operation itself, as .NET computes it (a `byte` sum wraps to a byte, a float comparison with NaN is
-false); `Console.WriteLine(t)` writes the number. A struct turned into an interface (`IDevice d = counter;` boxes it)
-needs the heap: on a chip without one `chipsharp check` says where, and to use a constraint instead (see Boxing, below,
-for the tests of a box of `T` that fold away). A generic method that calls itself with
-an ever bigger type argument (`F<T>` calling `F<Pair<T>>`) stops at 8 generic types deep.
-
-**Generics over classes.** On a target with a heap a class, an interface, `object` or an array is a type argument like
-a number (`src/ChipSharp.Frontend/Generics/ReferenceArguments.cs`): `Stack<Reading>` and `Stack<int>` are two instances
-of `Stack<T>`, each a class of its own, with its own static fields and descriptor, which names it as .NET does, so a
-cast that fails says ``Unable to cast object of type 'Box`1[Program+Lane]' to type 'Box`1[System.Int32]'``. A class
-nested in a generic class is nested in its instance (`Holder<Lane>.Cell`), and generic classes derive from each other
-(`Derived<T> : Base<T>`, `IntBox : Box<int>`) with their virtual methods. In an instance over a class, what the code
-does through `T` is what code written for that class does (`Generics/Specialization.References.cs`): a call through a
-constraint (`where T : Animal`, `where T : IShape`, `where T : class`) is a call on the object, virtual where it must
-be; `default(T)` is null; `new T()` (`where T : new()`) runs the class's constructor, or a struct's own, or is the
-default of any other value; `new T[n]` is an array of that class, which is an array of its base's too; `(T)o`, `o is T`
-and `o as T` test against the class. A value is never null, nor ever a class: `value == null` and `value is Node` fold
-to false in an instance over a value. On a target without a heap every use of an instance over a reference type needs
-one, and `chipsharp check` says so.
-
-One copy for each type argument, not one shared by every reference type, is the choice made here: the code of an
-instance over a class depends on the class wherever it makes a `Node<T>` or a `T[]`, casts, tests or makes a `new T()`
-(each needs the exact type's descriptor), and where it does not, LLVM inlines the instance's methods into their callers
-in the whole program, so a shared copy would not be smaller. Measured on the Pico (`GenericClassCheckTests` compares the
-same on every run): a `Box<T>` of six members used with three classes takes 7484 bytes of flash, 204 more than the same `Box<A>` used three times
-(the descriptors and names of `Box<B>` and `Box<C>`, about 100 bytes each); a `Chain<T>` of nodes with loops called from
-six places, over three classes, 316 bytes more than over one (four descriptors); and a single `Box` over `object`, which
-is what sharing would give, 8356 bytes, 872 more than the three instances, as each caller casts what it gets back. The
-linker's identical code folding (lld `--icf=all`) saves some 400 bytes on these programs, all of it in the runtime, none
-in the instances, which are inlined or differ by their descriptors.
-
-**Generic virtual methods** (`public abstract int Print<T>(T item)`, overridden, and an interface's generic method,
-implemented implicitly or explicitly) have a slot for each instance the program calls (`Print<int>`, `Print<Reading>`),
-which each class fills with its override for the same type arguments (`src/ChipSharp.Frontend/VirtualMethods.Generic.cs`):
-only those are compiled. **Variance** of the program's interfaces (`interface IProducer<out T>`, `IConsumer<in T>`) and
-the library's (`IEnumerable<out T>`, `IComparer<in T>`, ...) works in calls, casts and type tests: an object of a class
-that implements `IProducer<Dog>` has an entry for `IProducer<Animal>` in its interface map, with the methods of the one
-it implements (`VirtualMethods.Variance.cs`).
-
-**The library's generic code over the program's types**, such as `MemoryExtensions.IndexOf<Point>`, is made in the
-program, whose IL names the program's types (the library's own by their full names), so `span.IndexOf(point)` compiles,
-and so does `Array.Sort` of a struct that implements `IComparable<T>`. A library method's constraints are its own (they
-may say more than .NET's): an instance is made only for type arguments that meet them (`Generics/LibraryConstraints.cs`).
-
-**The groundwork of collections**: `EqualityComparer<T>.Default` and `Comparer<T>.Default` are generic library
-substitutes (`src/ChipSharp.Library/EqualityComparer.cs`, `Comparer.cs`, `Equality.cs`), objects that implement
-`IEqualityComparer<T>` and `IComparer<T>`, with .NET's default comparers' results and no boxing: a number, a bool, an
-enum and a type that implements `IEquatable<T>` (`IComparable<T>`) through it (NaN equals NaN), any other class through
-its `Equals(object)` (`IComparable`), text as string compares it, null equal to null and before everything else. The
-collections' interfaces (`IEnumerable<T>`, `IList<T>`, `IReadOnlyList<T>`, `IEqualityComparer<T>`, ...) are interfaces a
-class of the program implements and is called through, and `foreach` over a collection of the program's uses its
-`GetEnumerator()`, and one over an enumerator that is disposed (every `IEnumerator<T>`) runs its `try`/`finally`; an
-array is an interface of collections too (see Collections, below).
-
-### Exceptions and collections
-
-**try/finally.** ChipSharp has no exceptions to catch: where .NET throws, the program stops, so a `finally` runs only
-when its try block is left normally, by a `leave` (the end of the block, `return`, `break`, `continue`). Before anything
-reads a method's IL, its finally regions become plain branches (`src/ChipSharp.Frontend/TryFinally.cs`): a `leave` goes
-to the innermost finally it leaves, whose `endfinally` goes on to the next one and at last to the leave's target. A
-finally that can go on one way only (the end of a `using` block) ends with a branch there; one that can go on several
-ways (a `return` out of a `using` block, besides its end) is entered through a store of the way's number in a local of
-its own, and ends with a `switch` on it. The finally is kept once, where it is, and the stores and switches go after the
-method's IL, so every instruction keeps its offset (`chipsharp il` shows the IL as it is); LLVM folds the switch where
-the number is known. `using` of a struct and a `foreach` over a struct enumerator call the struct's own `Dispose`. A
-method that catches (`try`/`catch`, a filter) keeps its regions, and `chipsharp check` says catching arrives later.
-
-**throw.** The exceptions are library substitutes of .NET's (`src/ChipSharp.Library/Exceptions`), with .NET 10's default
-messages, parameter names (` (Parameter 'name')`), `Actual value was ...` and inner exceptions; a class of the program
-derives from them like from any class. A `throw` calls `Exceptions.Thrown.Unhandled`, which prints `Unhandled exception. `
-and the exception's `ToString()` (an override too), as .NET does for an exception nothing catches, on standard error with
-exit code 1 on a PC, over UART0 and at a breakpoint on a chip; .NET's stack trace after it is not there, and .NET 10 runs
-the finally blocks around the throw after it prints, which ChipSharp does not. `throw null` stops with
-NullReferenceException's message, as in .NET. An exception is an object, so a `throw` needs a heap.
-
-**Collections.** `List<T>`, `Dictionary<TKey, TValue>`, `HashSet<T>`, `Queue<T>`, `Stack<T>` and `KeyValuePair` are .NET
-10's own code ported to library substitutes (`src/ChipSharp.Library/Collections`): the same growth (a list's capacity 4,
-8, 16, ...; a dictionary's primes 3, 7, 17, 37, ...), the same checks in the same order with .NET's exceptions and
-messages ("The given key 'x' was not present in the dictionary.", "Collection was modified; enumeration operation may
-not execute."), the same version checks (a dictionary's `Remove` and the set of a key that is there do not stop an
-enumerator, as in .NET), struct enumerators for `foreach`, and the same order: a dictionary and a set keep their entries
-in the order they were added, a removed one on a list of free entries the next ones take (the last freed first), so
-they enumerate as .NET's whatever the hash codes are (a string's is FNV-1a here). Keys and items compare with
-`EqualityComparer<T>.Default` (or the comparer given), a list sorts with .NET's introsort through `Comparer<T>.Default`
-(floats and doubles as `Array.Sort` of numbers does, NaNs first). `CollectionLibraryTests` run them next to .NET's own on
-thousands of random operations. A `ref`, `out` or `in` of an object or a string (`TryGetValue(key, out string name)`)
-is the address of the variable that holds it (`src/ChipSharp.Frontend/ObjectReferences.cs`).
-
-**Arrays as interfaces.** A `T[]` is an `IList<T>`, `ICollection<T>`, `IEnumerable<T>`, `IReadOnlyList<T>` and
-`IReadOnlyCollection<T>` (`src/ChipSharp.Frontend/ArrayInterfaces.cs`): the library's `SzArray<T>` (.NET's
-SZArrayHelper) has their methods, with the array as `this`. No object of it is made: where the program uses an array of
-T as an object or an interface, rapid type analysis takes it as made, so calls through those interfaces reach its
-methods (one only an array can answer is a plain call), and the descriptor of `T[]` gets its interface map, so a call, a
-cast and `o is IList<int>` find it in the array's header as in an object's. An array used so is on the heap.
-
-`samples/Collections.cs` counts the commands of a serial line in a dictionary, queues them, undoes them from a stack,
-sorts sensors and frees thousands of short-lived collections; on the Pico it takes 29.9 KB of flash.
-
-### Library substitutes
-
-Some library types are compiled from ChipSharp's own C#, in `src/ChipSharp.Library`: a type there marked
-`[Substitute(typeof(System.TimeSpan))]` stands for `System.TimeSpan`. Where a program uses a member of the library type,
-ChipSharp compiles the substitute's public member with the same name and signature, together with the program, and only
-the members the program reaches; a struct substitute has the library struct's fields (`TimeSpan` is one `long` of
-ticks). A member the substitute does not have stays "not available yet". A substitute is written in the C# ChipSharp
-compiles, may use other substitutes, and stops the program where .NET throws: with a `throw` of .NET's exception (the
-collections do, see Exceptions and collections), or by calling a method of `ChipSharp.Library.Runtime`, which becomes a
-call to the runtime function of that name (each runtime's `..._failures.c` has one per method). A class of the program
-may derive from a substitute's class (`Exception`, `List<T>`). So a new library type is C# in `src/ChipSharp.Library`, not compiler code; its
-tests compare it with .NET's, value by value.
-
-### Classes
-
-The objects of the program's classes live on the heap (`src/ChipSharp.Frontend/ClassRules.cs`, `ObjectTypes.cs`).
-`new Node(1, list)` makes a zeroed object of the class, whose header is the address of the class's descriptor, and runs
-the constructor on it; an object has the fields of its base classes first, then its own, so a field is at the same place
-in the objects of every class derived from its own. A call of an instance method on an object is C#'s `callvirt`:
-ChipSharp checks the object for null, as .NET does, then calls the method like any other (`this` is never null, so its
-fields need no check). A field of null, or a method called on null, stops the program with .NET's
-NullReferenceException message.
-
-```csharp
-class Node
-{
-    public int Value;
-    public Node Next;
-
-    public Node(int value, Node next)
-    {
-        Value = value;
-        Next = next;
-    }
-}
-
-static Node list;                     // a static field: a root of the garbage collector
-
-for (int i = 0; i < 5; i++)
-{
-    list = new Node(i, list);
-}
-```
-
-On the Pico a `Node` takes 16 bytes of the heap (its header, an int and a reference, 12 bytes, rounded up to 8). Records
-are classes too, and generic classes (see "Records, StringBuilder and type objects" and Generics). On a target without a heap the classes themselves compile (their static members, their virtual
-calls and casts, a reference that stays null); each place that makes an object needs a heap. `samples/Classes.cs`
-shows the rest.
-
-### Virtual calls and interfaces
-
-The whole program is known, so ChipSharp compiles only what can run (`src/ChipSharp.Frontend/VirtualDispatch.cs`,
-rapid type analysis): a virtual call reaches the method its slot runs on each class whose objects the program makes
-(`new`), and a class made reaches the methods of the slots called so far, until nothing new is reached. An override of
-a class no one makes, or of a method no one calls, is not in the program. A call with one possible target, on every
-object made that its variable (a local, a parameter, a field, a call's result, a cast) can hold, is a plain call, after
-the object's null check, as .NET checks it; one with none is the null check alone. On the Shapes sample that makes the
-Pico's flash 11.2 KB instead of 11.8 KB.
-
-The other calls go through the object's descriptor, the address in its header (`src/ChipSharp.Frontend/Lowering`,
-`VirtualTables.cs` and `MethodLowering.Virtual.cs`):
-
-- **Virtual methods**: each class the program makes has a virtual method table in its descriptor (in flash on a chip):
-  object's `Equals` and `GetHashCode` first, then its base class's slots, then those its own methods open (`virtual`,
-  `abstract`, `new virtual`); an override fills in the slot of what it overrides. A slot is in the tables only when a
-  call through it can run two methods or more. A call loads the object's header, the slot's address from the table and
-  calls it: `call indirect`, two loads and a call, the same on every target.
-- **Interfaces**: each class made has an interface map, one entry for each interface it implements (through a base
-  class too) that a call or a type test needs: the interface's descriptor and a method table, the methods the class runs
-  for the interface's slots, in the order the program first calls them. A call finds the entry with
-  `ChipSharp.Object.FindInterface`, a scan of a map that holds a few entries, then calls through its table. Explicit
-  implementations, a method of a base class, an override of it in a derived class, re-implementation in a derived class
-  and default interface methods are resolved when compiling, as .NET resolves them.
-- **Type tests and casts**: `is` and `as` against a class walk the object's class and its bases to the one tested;
-  against an interface look it up in the interface map; against an array type compare the array's descriptor (an array
-  of a class's objects is an array of its base's too, as .NET's arrays are covariant). A test the variable passes by its
-  type is the object itself; one no object the program makes can pass is null. A cast that fails stops the program as
-  .NET does: `Unhandled exception. System.InvalidCastException: Unable to cast object of type 'Circle' to type 'IShape'.`
-  Each descriptor holds .NET's name of its type (`Program+Circle`); like .NET, the message names a nested type by its
-  own name and an instance of a generic type with its type arguments (``IStore`1[System.Int32]``).
-- **Object's `Equals` and `GetHashCode`**: an override where there is one; else object's own: the same object, and the
-  object's address divided by 8, which stays the same for as long as the object lives (the collector never moves an
-  object) and differs from every other live object's. .NET's own numbers are those of another heap, so the tests compare
-  only what they do. An array, which can be an object, has object's own.
-
-`samples/Shapes.cs` shows each of these.
-
-### Delegates
-
-A delegate is an object on the heap (`src/ChipSharp.Frontend/Delegates.cs`), of its delegate type, whose descriptor's
-base is System.MulticastDelegate's, then System.Delegate's, then object's; every delegate type lays its objects out the
-same way, 16 bytes on the Pico (32 on a PC):
-
-```
-header | target (ref) | method (ptr) | invocations (ref)
-```
-
-- Made of an instance method (a lambda, which C# makes a method of the object it keeps what the lambda captures in, or
-  of its one object of the lambdas that capture nothing; `counter.Next`), the target is the object and the method its
-  function's address (`funcaddr` in TIR), which takes it as `this`. A virtual method's (`ldvirtftn`) is what its slot
-  runs on that object: the one override there can be, or the address read from the object's tables.
-- Made of a static method, the target is null and the method that method's thunk (`<delegate> Program.Add(int32, int32)`),
-  which takes a target it leaves alone and calls the method, or the runtime function of a library method
-  (`Console.WriteLine`). An extension method made into a delegate of its object (`node.Twice`) is called itself, with
-  the object as its first argument.
-- A multicast delegate, what `+` and `+=` make of two or more, has as its target and its invocations one
-  `System.Delegate[]` of the single delegates it calls (never another multicast one), and as its method the invoker of
-  its type's signature (`ChipSharp.Delegate.InvokeAll`), which its type's descriptor holds after object's slots: it
-  calls each delegate of the list in order and returns what the last one returns.
-
-So every invocation, `d(x)`, `d.Invoke(x)` and `d?.Invoke(x)`, is the same four instructions: the null check (.NET's
-`NullReferenceException` message), the loads of the target and of the method, and one `call indirect method(target, x)`.
-The collector follows the target and the invocations; the method is an address in the code.
-
-`Combine`, `Remove`, `==`, `Equals`, `GetHashCode` and `GetInvocationList` are .NET's System.MulticastDelegate's
-(`Lowering/DelegateFunctions.cs`): two delegates are equal when they are of one type and have the same target and
-method, two multicast ones when their lists are equal one by one; `a + null` is `a` itself, `Remove` takes out the last
-run of the list it is given and gives what is left (null, the one delegate left itself, or a new delegate of the rest);
-two delegates of two types (`Action<object>` as an `Action<string>`) stop the program with .NET's `ArgumentException`.
-A list is never shared or changed once made, so a list is always exactly as long as it needs to be. A field-like event's
-`add` and `remove` (C#'s loop around `Interlocked.CompareExchange`) compare and store with interrupts off, so that an
-interrupt handler that sets the field in between makes the loop go round again.
-
-```csharp
-public event Action<int> TooHot;             // add and remove: Combine and Remove in a CompareExchange loop
-thermostat.TooHot += t => Console.WriteLine("too hot: " + t);
-thermostat.TooHot += fan.Faster;             // an instance method: the fan is the target
-TooHot?.Invoke(temperature);                 // both, in order
-Array.Sort(readings, (a, b) => b - a);       // .NET's introsort with a comparison: ChipSharp.Library's Array
-```
-
-An interrupt handler may invoke a delegate (it makes no object), and the whole-program pass follows what the delegates
-of that type may call into what the handler runs; making one there (a lambda C# caches in a static field too) and `+=`
-make objects, which `chipsharp check` says is not allowed where it happens. On a target without a heap a delegate, and
-the object C# makes for what lambdas capture, need a heap, which `chipsharp check` says in those words; a local function
-that C# only calls keeps what it captures in a struct of its method, passed by `ref`, and compiles on every target. Not
-yet: function pointers (`delegate*<int, int>`), delegates that take or return arrays or spans (the analysis of arrays
-cannot follow an array into the method a delegate calls), and `BeginInvoke`. A delegate of a struct's method is made of
-a box of the struct, as in .NET, whose value the method runs on (see Boxing, below). `samples/Delegates.cs` shows a
-thermostat's callbacks and events.
-
-### Boxing and nullables
-
-A value used as an object is boxed (`src/ChipSharp.Frontend/Boxing.cs`, `Lowering/BoxingFunctions.cs`): `box T` makes an
-object of the class `T (boxed)`, its header and then the value (on the Pico a boxed `int` takes 8 bytes of the heap, a
-boxed `long` or `double` 16), one class per boxed type, named as .NET names it (`System.Int32`, `Program+Point`,
-``Pair`1[System.Int32]``), whose base is `System.Object`. Like a class's, its descriptor has a virtual method table
-and an interface map, for the slots the program calls: a struct's own `ToString`, `Equals`, `GetHashCode` and interface
-methods, run on the value in the box (so `IDevice d = counter; d.Tick();` changes the box, not `counter`, as in
-.NET), and for the rest .NET's own:
-
-- a number's text as `Console.Write` writes it, a bool's `True`, an enum's name, a struct's type name;
-- `Equals(object)` true only for a box of exactly the same type with an equal value (`((object)5).Equals(5L)` is false):
-  numbers as their `Equals` compares them (NaN equals NaN, `-0.0` equals `0.0`), a struct as `ValueType.Equals` does,
-  field by field (objects with their own `Equals`, through its slot, text by its chars, a nested struct with its own
-  `Equals` given the other value boxed, as .NET does), which gives what .NET's bitwise or field-by-field comparison gives;
-- `GetHashCode` of a number, a bool, a char or an enum as .NET's (an `int` its value, a `double` from its bits, NaNs and
-  both zeros alike); of a struct, which .NET mixes with a number that changes from one run to the next, the fields' hash
-  codes combined: the same for equal values, and in every run;
-- `IComparable` of numbers, bools, chars and enums (`CompareTo(null)` is 1, another type stops the program with .NET's
-  `ArgumentException`), `IComparable<T>` and `IEquatable<T>` of numbers.
-
-Unboxing (`unbox.any`, `unbox`) gives the value of a box of the same type, an enum and its underlying type counting as
-one (`(int)(object)Color.Green`, `(Color)(object)1`), and stops the program as .NET does otherwise: null with
-NullReferenceException's message, any other object with `Unable to cast object of type 'System.UInt32' to type
-'System.Int32'.` A type test wants exactly the type (`(object)Color.Green is int` is false). The methods of a value take
-its address, as a struct's own do, so a constrained call (`point.ToString()`, `point.GetHashCode()` on a struct without
-its own, generic code over values) runs them with no box, on a target without a heap too; so does printed text, which
-writes a struct by its `ToString` and a nullable by its value. In generic code over values, a box whose test the type
-argument decides is folded away as .NET's JIT folds it: `box T` with `isinst X` and a null test (`value is IComparable`,
-the first half of `value is int n`) is true or false, `box T` with `unbox.any T` (the second half, after `isinst T` too) is
-the value. A box that is kept or called through (`if (value is IDevice d) d.Tick();`) is a real box, as in .NET. On a target
-without a heap each box is "boxing", or "converting a struct to an interface", which needs a heap: `chipsharp check` says
-where, and to give the method a type parameter (`where T : struct, IDevice`) instead.
-
-A `Nullable<T>` (`src/ChipSharp.Frontend/Nullables.cs`) is a struct of its own, `hasValue` and `value` as .NET lays them
-out, so it needs no heap; ChipSharp compiles its members where C# calls them (C# makes `x + y`, `x == 5`, `x ?? 0` and
-`x is int n` of `HasValue`, `GetValueOrDefault` and its constructor). Boxed it is null with no value and a box of its value
-otherwise, and unboxing to `T?` takes null or exactly a box of `T`. `samples/Boxing.cs` shows each of these.
-
-### Records, StringBuilder and type objects
-
-A record is a class (or a struct) like any other: what C# makes for it are methods, which ChipSharp compiles as it
-compiles the program's own, so its `ToString`, `Equals`, `GetHashCode`, `with` and deconstruction give what .NET gives,
-in Release and in Debug. Three pieces of the library make that work, and are there for any program:
-
-- **StringBuilder** (`src/ChipSharp.Library/StringBuilder.cs`), a library substitute, with which a record's `ToString`
-  and `PrintMembers` build its text. It is an object on the heap, its text one buffer of UTF-16 chars (.NET keeps a
-  builder that has grown as a list of chunks) that grows as .NET's capacity does when text is appended: by what does not
-  fit, at least as much as it holds, up to 8000 chars at a time, so `Capacity` is .NET's for a builder that appends
-  (and is given a capacity); where .NET drops or splits chunks (`Clear` or a shorter `Length` of a builder that has
-  grown, an `Insert` into one), its capacity may come out otherwise, never its text. `ToString()` makes a string of 1
-  byte per char when every char is below U+0100. Each member checks its arguments in .NET's order and stops the program
-  with .NET's message (`repeatCount ('-2') must be a non-negative value. (Parameter 'repeatCount')`, then `Actual value
-  was -2.`). `sb.Append($"...")` and `sb.AppendLine($"...")` are C#'s `AppendInterpolatedStringHandler`, which printed
-  text follows as it follows a `$"..."` (`src/ChipSharp.Frontend/StringBuilders.cs`), and `AppendFormat` of a literal
-  format is read as `string.Format`'s: the call appends the parts one after another (a literal as the constant it is, a
-  number as its text, with its alignment and format), so no string of the whole text is made, as in .NET.
-- **Type objects** (`src/ChipSharp.Frontend/TypeObjects.cs`, `src/ChipSharp.Library/Type.cs`): `typeof(X)` is the
-  address of X's type object, one constant object per type in read-only data (flash on a chip), never on the heap, so
-  the collector never marks it and none needs a heap. It is an object of ChipSharp.Library's `Type` (the substitute for
-  `System.Type`): its header, then the type's names as .NET 10 writes them (`Name`, `FullName`, `Namespace` and
-  `ToString()`, constant strings like literals, shared where two are the same text) and a word of flags (`IsValueType`,
-  `IsArray`, ...): 24 bytes on the Pico. `GetType()` reads the object's header, its descriptor, and `ChipSharp.Type.Of`
-  compares it with the descriptor of each type the program has objects of (its classes, boxes, arrays, delegates,
-  strings, and `System.RuntimeType`, a type object's own type), so two objects of one type give the same type object, as
-  in .NET. A record's `EqualityContract` is `typeof` of its class, and its `Equals` compares them by reference. The hash
-  code of a type object is its name's (a string's, the same in every run), where .NET's is the object's own; so a
-  record's hash code is the same in every run and on every target, made of the fields' hash codes as .NET makes it,
-  where .NET's differs from run to run. The rest of reflection is rejected naming the member (`reflection
-  (System.Type.GetMethods())`), with what there is.
-- **The default comparers called at once** (`src/ChipSharp.Frontend/Generics/DefaultComparers.cs`): a record's
-  `Equals` and `GetHashCode` are `EqualityComparer<T>.Default.Equals(a, b)` and `GetHashCode(a)` for each field, which
-  ChipSharp changes where it reads the IL into what that comparer's method calls for T (`Equality.OfEquatable<int>`,
-  `OfObject<Node>`, for a nullable `OfNullable<int>`, which compares as .NET's `NullableEqualityComparer` does), so no
-  comparer object is made. So a record struct compares, copies with `with` and deconstructs with no heap, on every
-  target; making its text needs a heap, as any text kept does. `RuntimeHelpers.EnsureSufficientExecutionStack`, which
-  `PrintMembers` calls first, does nothing (a stack that overflows stops the program where it does).
-
-A primary constructor (`class Counter(int start)`, `struct Span2(int from, int to)`) is a constructor that keeps its
-parameters in fields where the class uses them, which compiles like any other. On a target without a heap, making an
-object of a record class needs a heap where the program makes it, as for any class. `samples/Records.cs` prints the
-sensors of a weather station as records, derived from a base record, changed with `with`, compared by value, with a
-record struct for a range and a report table built with a StringBuilder; on the Pico it takes 23.4 KB of flash.
-
-### Memory
-
-The heap is where objects live: what classes, strings, boxes, delegates and collections need.
-
-- An object starts with its header, the address of its type's descriptor, then its fields, those of its base classes
-  first; an array has its length and then its elements. A descriptor (in flash on a chip) says the object's size,
-  where its references are, its base, its name, and has room for the virtual methods and interfaces of its class
-  (`src/ChipSharp.Ir/TirTypeDescriptor.cs`). In TIR an object is a `ref`, which the garbage collector follows, and an
-  address a `ptr`, which it never follows.
-- `new` takes zeroed memory from the heap; when there is none left, the garbage collector runs (mark and sweep, in
-  `src/ChipSharp.Runtime.Shared/chipsharp_heap.c`): every object the static fields, the stack (the registers too) and
-  other live objects reach stays, the rest is free again, each run of free blocks joined into one. Small objects are
-  carved one after another from a free block, filling the holes small objects left; one of 256 bytes or more takes the
-  smallest free block that holds it. When there is still not enough, the program stops with .NET's
-  OutOfMemoryException message; a field of `null` stops it with NullReferenceException's.
-- **Only a program that uses it has a heap.** A program that makes no object, no string and calls nothing of
-  `System.GC` (the whole program: its library substitutes and the runtime functions it calls too) is built as for the
-  target without a heap: on a chip no heap region (the stack may go down to the variables) and none of the collector's
-  code, on the PC no memory taken from Windows. Its report says so: `samples/TrafficLights.cs` takes `RAM 16 bytes of
-  264 KB` on the Pico, where it took `RAM 20 bytes + heap 224 KB of 264 KB`. A program that makes objects has the
-  target's `"heap"` bytes of RAM between the variables and the stack (the Pico's 224 KB), or, on the PC, its 256 MB,
-  taken from Windows at the start (its pages only when touched).
-- **Interrupts wait for no collection.** The collector runs with interrupts on, so a handler runs when its interrupt
-  comes, also in the middle of a collection: on the simulated Pico a timer interrupt every 200 µs, while a heap with
-  188 KB of its 224 KB alive is collected again and again, came at most 201 µs after the one before (19.9 ms before,
-  when the collector kept interrupts off). That is sound because a handler changes nothing the collector reads: the
-  marks are in a bitmap of their own, so every object a handler reads (its type, its virtual methods, a string's
-  chars) is as it was; only garbage, which no handler reaches, becomes free blocks; and two rules of `[Interrupt]`
-  methods, and of everything they run (the methods they call, virtual calls, the delegates they invoke, library
-  substitutes), which `chipsharp check` says where they are broken: a handler makes no object (`new`, a box, text; the
-  runtime would stop the program there, saying so), and it stores no object: no reference but `null` in a static
-  field, an object, an array or through a `ref`, as one moved from where the collector has not looked yet to where it
-  has looked already would be freed while in use (`src/ChipSharp.Frontend/HandlerStores.cs`). Reading objects,
-  storing numbers and bools in them and keeping references in its own locals are fine:
-
-  ```
-  Program.Tick() at IL_0009 (stsfld): an interrupt handler cannot store an object (a reference other than null) in a static field, an object or an array. The garbage collector may be in the middle of a collection when the interrupt comes, and runs on after it: an object moved from where it has not looked yet to where it has looked already would be freed while still in use. Read objects in the handler, store numbers and bools (in volatile static fields, or in the objects' fields), set references to null; let Main store the objects.
-  ```
-- **Stack overflow.** A recursion with no end stops the program as .NET does, with `Stack overflow.` on a line of its
-  own. On the PC, Windows' guard page ends the stack, and the runtime's vectored exception handler, which
-  `SetThreadStackGuarantee` leaves a stack for, writes it on standard error and exits with .NET's exit code
-  (0xC00000FD); .NET goes on to list the methods that were running, ChipSharp does not. A Cortex-M0+ cannot catch it
-  by itself: its MPU could put a guard region below the stack, but the HardFault that raises needs the very stack that
-  ran out to enter its handler, so the core locks up instead, saying nothing. So on a chip (`"stackCheck": true` in
-  `armv6m.json`) the functions through which the stack can grow without end check it when they start: every function
-  in a cycle of the program's calls (through other methods, virtual and interface calls and delegates), and every one
-  whose slots take 256 bytes or more, compares the stack pointer with `__chipsharp_stack_limit`, 1 KB above the
-  stack's bottom (the linker script's; room for what runs below the last check), in four instructions and a literal
-  (`src/ChipSharp.Backend.Llvm/LlvmStackChecks.cs`). Below it the program goes on a stack of its own, with interrupts
-  off, and says `Stack overflow.` over UART0 before it stops at a breakpoint, like the other failures. The stack's
-  bottom is the start of its region (`"link.stack"`, 8 KB on the Pico) above a heap, or, without one, the end of the
-  variables. The functions that cannot recurse check nothing: they go only as deep as the program's code does.
-- **Garbage the conservative scan could keep.** The stack and the registers are read conservatively, so a word that
-  still holds a reference the program no longer uses would keep its object, and what it reaches, alive. Before a
-  collection the collector zeroes the stack its own frames are about to take (what earlier, deeper calls left there),
-  the code generator starts every slot of a function at zero, and right before `GC.Collect()` and
-  `GC.GetTotalMemory(true)` it clears the callee-saved registers (`LlvmCollectCalls.cs`; LLVM first puts what it still
-  needs on the stack). A method that builds a list of 2000 objects and returns its sum, then `GC.Collect()`: before,
-  the whole list (172 KB on the Pico, 203 KB on the PC) was still in use after the collection, held by a register of
-  the inlined method; now nothing is.
-- **Fragmentation.** The collector never moves an object, so the free memory can be in pieces. A workload that keeps
-  slots of text (10 to 200 chars), arrays (4 to 256 ints), arrays grown by `Array.Resize` and chains of small objects,
-  each replaced in a pseudo-random order (`tests/ChipSharp.Tests/Memory/FragmentationTests.cs`), runs in a 32 KB heap
-  with half of it alive, on the PC and the Pico, printing what .NET prints. Measured on the PC with more and more
-  slots, it first runs out of memory with some 60% of the heap alive (56% measured, every 100 steps, at the last size
-  that ran; taking big objects first-fit too runs out at the same size).
-- **System.GC**: `GC.Collect()` collects now; `GC.GetTotalMemory(bool)` is the bytes of the objects not known to be
-  garbage, each object's block (its size rounded up to 8), after a collection when asked (every collection is a full
-  one, so one is enough); `GC.KeepAlive(object)` is a call the object is passed to, so the program holds it until
-  there. .NET's numbers are those of its own heap; on a target without a heap these need one, as `chipsharp check`
-  says.
-- **`chipsharp build --verify-heap`** checks the whole heap before and after every collection: that its blocks cover
-  it exactly, that every header is a type descriptor and every reference in an object null, outside the heap or the
-  start of an object, that no mark is left and the bytes in use add up, and that each free list holds free blocks of
-  its size. A corrupted heap stops the program with what is wrong and where, the way .NET says a fatal error (exit code
-  0x80131506 on the PC): `Fatal error. The heap is corrupted: a reference into the middle of a block at 0x20008a44
-  (found before collection 1).` The GC tests run with it on; a collection then takes some 2 to 3 times as long.
-
-## Raspberry Pi Pico
-
-A program for the Pico references `src/ChipSharp.Hardware` (pins, timing, registers):
+On the Pico, `Console.Write` and `Console.WriteLine` go to UART0: GPIO 0 (TX), 115200 baud. To use the pins, a
+project references `src/ChipSharp.Hardware`, as the projects in `examples` do:
 
 ```csharp
 using ChipSharp.Hardware;
@@ -776,31 +81,235 @@ while (true)
 }
 ```
 
-`Timing.Delay(TimeSpan.FromMilliseconds(500))` waits the same, in any unit (`TimeSpan.FromSeconds(2)`,
-`TimeSpan.FromMicroseconds(250)`), also longer than an `int` of microseconds.
-
 ```powershell
 cd examples\pico-blink
 dotnet build -c Release
-..\..\src\ChipSharp.Cli\bin\Release\net10.0\chipsharp.exe build bin\Release\net10.0\PicoBlink.dll -t pico
+chipsharp build bin\Release\net10.0\PicoBlink.dll -t pico      # chipsharp-output\pico\PicoBlink.uf2
 ```
 
-That makes `chipsharp-output\pico\PicoBlink.uf2`. To run it:
-- **Simulator**: `node tools\rp2040-sim\run.mjs <file.uf2> --ms 3000` prints every pin change and every line written
-  to UART0 (one-time setup: `cd tools\rp2040-sim; npm ci`). The Pico tests use it and skip when it isn't set up.
-- **Wokwi** (wokwi.com): start a Raspberry Pi Pico project, press F1, "Upload Firmware and Start Simulation".
-- **The real board**: hold BOOTSEL while plugging it in, then copy the `.uf2` onto the drive that appears.
-  `Console.Write` and `Console.WriteLine` go to UART0 (GPIO 0, 115200 baud).
+### Run it
 
-The three examples blink the LED in three ways: `examples/pico-blink` with a delay loop, `examples/pico-timer-blink`
-from a timer interrupt, and `examples/pico-button` from a pin interrupt, at each press of a button on GPIO 15. They are
-built the same way, and a test builds each project with `chipsharp build -t pico` and runs it in the simulator. Every
-sample in `samples` also runs on the simulated Pico, printing over UART0 exactly what .NET prints on the PC.
+- **In the simulator** (rp2040js, in Node.js): `node tools\rp2040-sim\run.mjs chipsharp-output\pico\PicoBlink.uf2 --ms 3000`
+  prints every pin change and every line written to UART0, with the simulated time. `--input 22=high@2500ms` drives
+  an input pin from outside (a button pressed at 2.5 s), `--uart0 file.bin` saves what UART0 sent.
+- **In Wokwi** ([wokwi.com](https://wokwi.com), in the browser): start a new Raspberry Pi Pico project, replace its
+  `diagram.json` with the example's (the traffic lights have one: the Pico, LEDs, displays, the button, and UART0 on the
+  serial monitor), press F1 and pick "Upload Firmware and Start Simulation...", then choose the `.uf2`.
+- **On a real Pico**: hold the BOOTSEL button while plugging it into USB, and copy the `.uf2` onto the `RPI-RP2` drive
+  that appears; the Pico restarts and runs it. To see `Console` output, connect a 3.3 V USB-to-serial adapter (its RX to
+  GPIO 0, GND to GND) at 115200 baud: the Pico's own USB port does not carry it.
 
-### Interrupts
+## Targets: what a chip has
 
-A `static void` method without parameters marked `[Interrupt(...)]` runs when its event happens, whatever `Main` is
-doing; nothing in the program calls it. Plain calls start the events (`examples/pico-timer-blink`, `examples/pico-button`):
+A target file says what a chip or board is and has. Files inherit from each other, board → chip → architecture, so a
+new board is a few lines of JSON:
+
+| Target | What it is |
+|---|---|
+| `host` | Your PC: a Windows x64 console program, with no C runtime (inherits `x86_64`) |
+| `pico` | Raspberry Pi Pico: RP2040, 2 MB flash, LED on GPIO 25 (inherits `rp2040`, which inherits `armv6m`) |
+| `pico-w` | Pico W: like the Pico, but its LED is wired to the Wi-Fi chip |
+| `rp2040`, `armv6m`, `x86_64` | A chip and two architectures, for target files to inherit; not built for directly |
+
+```
+> chipsharp targets show pico
+Target pico   (pico -> rp2040 -> armv6m)
+  backend      llvm
+  toolchain    clang
+  runtime      rp2040
+  triple       thumbv6m-none-eabi
+  cpu          cortex-m0plus
+  pointer size 4 bytes, little endian
+  image        uf2
+  flasher      uf2-copy
+  memory
+    flash      0x10000000  2 MB
+    ram        0x20000000  264 KB
+  capabilities hwMultiply=true, hwDivide=false, fpu=false, atomics=none, unalignedAccess=false, stackCheck=true, heap=224K, console=true, romFloat=true
+  pins         LED=25
+  interrupts   timer=IRQ 1, pin=IRQ 13
+```
+
+The `"capabilities"` decide what a program may use on the chip:
+
+| Capability | Meaning | `pico` | `host` | `armv6m` (a new chip, until its file says) |
+|---|---|---|---|---|
+| `heap` | The most RAM the heap may take, or `false` for none. Objects, kept strings, boxes, delegates and collections need one (see [Memory](#memory)) | 224 KB | 256 MB | none |
+| `console` | Whether `Console.Write` has somewhere to go | UART0 | standard output | none |
+| `unalignedAccess` | Whether a word may be read at any address; without it `MemoryMarshal.Read` reads byte by byte and `MemoryMarshal.Cast` checks alignment | no | yes | no |
+| `stackCheck` | The functions that can recurse check the stack, so a stack overflow says `Stack overflow.` instead of locking the core up | yes | (Windows' guard page) | yes |
+| `hwMultiply`, `hwDivide`, `fpu`, `atomics`, `romFloat` | Describe the chip; the code itself follows the file's `triple`, `cpu` and `clang` flags (soft float on `armv6m`) | | | |
+
+The file also gives the memory regions, the link layout (`"link.stack"`: 8 KB on the Pico) and the interrupts each
+event uses (`"interrupts"` in `rp2040.json`). `chipsharp check -t <target>` and `chipsharp build -t <target>` judge the
+program for that chip: on one without a heap or without a console, they name each place that needs it (see
+[below](#when-chipsharp-check-says-no)). A new chip of a known architecture is a JSON file plus its runtime; a CPU no
+code generator supports yet (the ESP32-C5's RISC-V, next) also needs a runtime for its architecture.
+
+## What C# compiles today
+
+The rule of thumb: what is a **value** (numbers, structs, enums, spans, fixed text, arrays that stay in their method)
+works on every chip, with no heap; what **makes objects while the program runs** (classes, strings that are kept,
+boxes, delegates, collections, exceptions) needs a heap, which the Pico and the PC have. A program that makes no object
+gets no heap at all, even on the Pico. `chipsharp check` tells you for your program, place by place.
+
+### On every chip, with no heap
+
+| C# | What works |
+|---|---|
+| Program structure | Static methods, top-level statements, local functions (also ones that capture variables: those are kept in a struct), recursion; static fields (`volatile` too) with field initializers and static constructors |
+| Values | `bool`, `char` (with `char.IsDigit`, `IsLetter`, `IsWhiteSpace`, `ToUpper`, ...), every whole number (`sbyte` to `ulong`, `nint`, `nuint`), `float` and `double`, computed and printed bit for bit like .NET (also on the Pico, which does float math in software); arithmetic wraps around like unchecked C# |
+| Code | `if`, `switch` (patterns, and on strings), `for`, `while`, `do`, `foreach` over arrays and spans, `&&`, `\|\|`, `?:`, `goto`; `try`/`finally` (with `return`, `break` and `continue` out of it), `using` of a struct |
+| Structs and enums | Fields, constructors, methods, properties and operators of structs; `readonly struct`; enums (`[Flags]` too); `ref`, `out` and `in` parameters and `ref` locals; primary constructors; `record struct` and `readonly record struct` (`==`, `with`, `Deconstruct`, `Equals`, `GetHashCode`; only their `ToString` needs a heap) |
+| Nullables | `int?`, `bool?`, nullable enums and structs: `HasValue`, `Value`, `GetValueOrDefault`, `??`, lifted arithmetic and comparisons, `is int n` |
+| Generics over values | Generic methods, structs and static classes over numbers, bools, enums and structs, with constraints; interfaces implemented by structs and called through a constraint (`static void Run<T>(ref T device) where T : struct, IDevice`, static abstract members too); generic math (`INumber<T>`: operators, `T.Zero`, `T.One`, `MinValue`, `MaxValue`). Each instance is compiled for its type, like a C++ template, so `Max<int>` costs what a hand-written `int` version costs |
+| Arrays | On the stack: a constant size, made in a method and passed down to the methods it calls. In static fields: `static readonly byte[] Digits = { 0x3F, ... };` is a constant table in flash when nothing writes it; `static int[] buffer = new int[16];` a fixed array in RAM. `foreach`, `Length`, bounds checks |
+| Spans | `Span<T>` and `ReadOnlySpan<T>` of arrays, of `stackalloc` (a constant size), of constant data (`static ReadOnlySpan<byte> Table => new byte[] { ... };`, in flash) and of variables; indexer, `Slice`, ranges and indices (`s[2..5]`, `s[^1]`), `CopyTo`, `Fill`, `Clear`; `MemoryExtensions` (`IndexOf`, `SequenceEqual`, `StartsWith`, ...), `BinaryPrimitives` and `MemoryMarshal` (`Read`, `Write`, `Cast`, `AsBytes`), at any offset, also on a chip that faults on unaligned words |
+| Fixed text | String literals anywhere a string may be: printed, compared, measured and searched (`Length`, `s[i]`, `==`, `IndexOf`, `StartsWith`, `switch`); each is a constant object in flash (8 bytes and 1 byte per char on the Pico) |
+| Printed text | Text built and printed straight away, with no string ever made: `Console.WriteLine($"road : {lane}")`, `Console.Write("lane " + lane + '!')`, `x.ToString()` printed, `Console.WriteLine("{0,4} {1:X2}", a, b)`. Holes of numbers, bools, chars, text, enums (by name, `[Flags]` combined), structs (their `ToString`) and nullables; alignments (`{x,5}`, `{x,-5}`); the formats `D`, `D<n>`, `X<n>`, `x<n>` and `G` of whole numbers, `G` and `R` of floats |
+| Type objects | `typeof(X)`, `typeof(T)`: `Name`, `FullName`, `Namespace`, `ToString()` as .NET 10 writes them, `==`, `IsValueType`, `IsArray`, `IsEnum`, `IsClass`, `IsInterface`, `IsPrimitive`, `IsGenericType` (constant objects in flash) |
+| Library | `Console.Write` and `WriteLine`; `Math` and `MathF`: `Abs`, `Min`, `Max`, `Sqrt`; `TimeSpan` (factories in any unit, parts, totals, arithmetic, comparisons); `System.Array`: `Copy`, `ConstrainedCopy`, `CopyTo`, `Clear`, `Fill`, `IndexOf`, `LastIndexOf`, `Reverse`, and `Sort` and `BinarySearch` of numbers, bools and structs that implement `IComparable<T>` |
+| Hardware | `ChipSharp.Hardware`: `Pin` (`Output`, `Input`, `Write`, `Read`, `Toggle`, `Watch`, `WatchRising`, `WatchFalling`, `Unwatch`), `Timing` (`Delay(TimeSpan)`, `DelayMilliseconds`, `DelayMicroseconds`, `EveryMilliseconds`, `EveryMicroseconds`, `AfterMilliseconds`, `AfterMicroseconds`, `Stop`), `Registers.Read` and `Write`, and `[Interrupt]` methods (see [Interrupts](#interrupts)) |
+| Failures | Where .NET throws (an index outside an array, a whole number divided by zero, `int.MinValue / -1`, a `TimeSpan` too long, a field of null, a cast that fails, ...), the program stops with the message .NET prints: on standard error with exit code 1 on the PC, over UART0 and then at a breakpoint on a chip |
+
+### On a chip with a heap (the Pico and the PC)
+
+| C# | What works |
+|---|---|
+| Classes | The program's classes, `sealed`, `abstract`, nested and derived from each other: `new`, fields (of objects too: lists, trees), field initializers, constructors (`this(...)`, `base(...)`), instance and static members, object initializers, `null`, `?.`, `??`, `??=`, `ReferenceEquals`; objects in locals, parameters, fields, arrays and static fields. The garbage collector frees what the program no longer reaches |
+| Records | `record` / `record class` (positional, with members of their own, derived, generic, `sealed`, `abstract`): `init` properties, `required` members, `with`, `Deconstruct`, `Equals`, `==`, `GetHashCode` and `ToString` as C# makes them (`Point { X = 1, Y = 2 }`) |
+| Virtual calls and interfaces | `virtual`, `override`, `abstract`, `sealed override`, `base.M()`, `new virtual`; interfaces (explicit implementations, default methods, properties, generic interfaces with `in`/`out` variance); `object`'s `Equals`, `GetHashCode` and `ToString`. A call only one method can answer is a plain call, and a method no object of the program can run is left out |
+| Type tests and casts | `is`, `as`, `(T)x`, `x is Square s`, property patterns, `switch` on types, against classes, interfaces, `object` and arrays; a failed cast stops with .NET's `InvalidCastException` message; `x.GetType()` |
+| Strings | Text built and kept (`string s = $"..."`, `+`, `+=`, `ToString()` with the formats printed text has, `string.Concat`, `string.Join` of an array, `string.Format` of a literal format), in fields, arrays and collections; `Substring`, `IndexOf`, `Replace`, `Trim`, `PadLeft`, `ToUpper`, `Split`, `Insert`, `Remove`, `ToCharArray`, `new string(...)`, `CompareOrdinal`, `CompareTo`, `IsNullOrEmpty`, `GetHashCode`, ...; `int.Parse` and `TryParse` (and those of the other whole numbers); spans of chars |
+| StringBuilder | Its constructors, `Append` of every kind (also `Append($"...")` part by part), `AppendLine`, `AppendFormat` of a literal format, `AppendJoin` of an array, `Insert`, `Remove`, `Replace`, `Clear`, `Length`, `Capacity`, the indexer, `ToString`, with .NET's results and messages |
+| Boxing | Any value as an object or an interface (`object o = 5;`, `object[] { 1, "a", 2.5, Color.Red, point }`, `IComparable c = 4;`), named and compared as .NET does; unboxing (`(int)o`, `o is int n`, `switch` on values) with .NET's rules; objects in formatted text (`$"{shape}"`, `string.Format("{0}", o)`) |
+| Generics over classes | Generic classes (`class Stack<T>`, `class Derived<T> : Base<T>`), classes, interfaces, `object` and arrays as type arguments, constraints (`class`, a base class, an interface, `new()`), `default(T)`, `new T()`, generic virtual methods; `EqualityComparer<T>.Default` and `Comparer<T>.Default` |
+| Delegates, lambdas, events | `Action`, `Func<...>`, `Predicate<T>`, `Comparison<T>`, `EventHandler<T>` and your own delegate types; lambdas that capture variables, `this` and loop variables; static, instance, virtual, extension and library methods as delegates; `+=`, `-=`, multicast with .NET's order; field-like events and events with `add`/`remove`; `d?.Invoke(x)` |
+| Exceptions | `throw` of .NET's exceptions (`InvalidOperationException`, `ArgumentException` with its parameter name, `KeyNotFoundException`, ...) and of your own derived ones; `ArgumentNullException.ThrowIfNull` and the like. The program stops with what .NET prints for an exception nothing catches (catching comes later, see [gaps](#known-differences-from-net-and-gaps)); an exception as a value (`Message`, `ToString()`, `InnerException`) |
+| Collections | `List<T>`, `Dictionary<TKey, TValue>`, `HashSet<T>`, `Queue<T>`, `Stack<T>`, `KeyValuePair<TKey, TValue>`: .NET 10's own code, so the same growth, order, checks and messages; `foreach`; collection initializers (`new List<int> { 1, 2 }`, `{ ["a"] = 1 }`) and collection expressions of values (`List<int> l = [1, 2, 3];`, `[.. array, 0]`); `List<T>`'s methods that take a delegate (`FindAll`, `ConvertAll`, `Exists`, `RemoveAll`, `Sort(Comparison)`, ...); arrays as `IEnumerable<T>`, `IList<T>`, `IReadOnlyList<T>`, ... |
+| Arrays on the heap | Arrays returned, kept in fields, of a size known only when the program runs (`new int[n]`), arrays of arrays, of strings and of objects, `null`; `Array.Resize`, `Clone` and the `Array` methods that take a delegate (`Find`, `FindAll`, `Exists`, `ForEach`, `ConvertAll`, `Sort` with a `Comparison`) |
+| Memory | `GC.Collect()`, `GC.GetTotalMemory(bool)`, `GC.KeepAlive(object)` |
+
+### When chipsharp check says no
+
+`chipsharp check` (and `build`) name each C# feature the program uses that ChipSharp does not compile, where, and what
+to write for now. On a chip without a heap, everything that needs one says so; here the M3 traffic light, checked for
+a Pico whose target file says `"heap": false` (first lines):
+
+```
+error: PicoTrafficLightM3.dll uses 10 C# features that ChipSharp does not compile yet (60 places):
+  generics over classes (a class, an interface, object or an array as a type argument) need a heap, and the target 'pico-no-heap' (264 KB RAM) has no heap: 31 places in the top-level statements (IL_0000, IL_0012 and IL_0024), ... Use numbers, bools, enums and structs as type arguments: ChipSharp makes the code once for each.
+  creating objects (new ...) needs a heap, and the target 'pico-no-heap' (264 KB RAM) has no heap: 5 places in the top-level statements (IL_000d, IL_001f, IL_002a and 2 more). Use structs and static methods.
+  ...
+For every place, run: chipsharp check PicoTrafficLightM3.dll -t pico-no-heap --details
+```
+
+A feature that is not there yet "arrives later" (`multi-dimensional arrays (int[,]) arrive later: ... For now, use a
+one-dimensional array and compute the index: row * width + column.`); a library method ChipSharp does not have "is not
+available yet", followed by the list of the library methods it can call (`--details` gives each with its parameters).
+
+## Known differences from .NET and gaps
+
+### Where a program behaves differently
+
+| What | .NET | ChipSharp | What to write |
+|---|---|---|---|
+| A failure | An exception, which a `catch` may handle | `try`/`catch` does not compile yet; a `throw`, or anything .NET would throw for, stops the program as an exception nothing catches does | Report failures through return values (`bool TryRead(out int value)`) |
+| `finally` after a failure | .NET 10 prints the unhandled exception, then runs the `finally` blocks around the throw (a `using`'s `Dispose` too) | Stops right after printing it; a `finally` runs only when its `try` block is left normally (its end, `return`, `break`, `continue`) | Do not count on clean-up after a failure |
+| What a failure prints | The exception and a stack trace. A stack overflow lists the methods that were running | The exception's first lines (`Unhandled exception. System...: message`) or `Stack overflow.`, with no stack trace; exit code 1 (stack overflow: .NET's 0xC00000FD). On a chip: over UART0, then the core stops at a breakpoint | |
+| Comparing text | `CompareTo`, `string.Compare`, `StartsWith(string)`, `EndsWith(string)` and `IndexOf(string)` follow the PC's culture: `"a".CompareTo("B")` is -1 | Ordinal, char by char, as .NET's invariant mode compares: 31 (`==`, `Equals` and `Contains` are ordinal in both) | `string.CompareOrdinal(a, b)`, which gives the same in both |
+| Upper and lower case | Every Unicode letter, and the culture's rules (Turkish `i`) | `ToUpper`, `ToLower`, `char.IsLetter`, `IsUpper`, ... know the letters up to U+00FF (ASCII and Latin-1, `ÿ` to `Ÿ` too); from U+0100 on a char is no letter and keeps its case (`IsWhiteSpace` knows all of .NET's spaces) | Keep text that changes case ASCII or Latin-1 |
+| Numbers as text | `ToString`, `$"{x}"` and `Parse` follow the PC's culture (`1,5` in German) | Always as the invariant culture: `1.5` | To compare with .NET, run it with `InvariantGlobalization` (the samples' expected files are made so) |
+| Hash codes | A string's, a struct's (boxed or through `ValueType`), a record's and a `Type`'s `GetHashCode` differ from run to run | The same in every run (a string's is FNV-1a of its chars); object's own is its address divided by 8 | Never store hash codes or count on their order (true for .NET too) |
+| `StringBuilder.Capacity` | Grows by chunks, and drops or splits them on `Clear`, a shorter `Length` or an `Insert` | The same capacity for a builder that only appends; after those three it may differ. The text never does | Do not test `Capacity` |
+| Sorting objects without `IComparable` | `Comparer<T>.Default` throws `ArgumentException` ("At least one object must implement IComparable."), `List<T>.Sort` an `InvalidOperationException` | Stops with `Unable to cast object of type 'X' to type 'System.IComparable'.` | Implement `IComparable<T>`, or sort with a `Comparison<T>` |
+| Memory numbers | `GC.GetTotalMemory` counts .NET's heap | ChipSharp's heap: each object's block, its size rounded up to 8 | |
+| Console | Writes in the console's code page | Always UTF-8; a Windows console shows non-ASCII text right after `chcp 65001` | |
+
+### What does not compile yet
+
+| C# | What to write for now |
+|---|---|
+| `try`/`catch`, exception filters | Return values: `bool TryParse(string text, out int value)` |
+| `checked` arithmetic | Leave out `checked` (arithmetic wraps around, as unchecked C# does), or compare with the limits yourself |
+| Multi-dimensional arrays (`int[,]`) | A one-dimensional array: `cells[row * width + column]` (or an array of arrays, `int[][]`, on a chip with a heap) |
+| Iterators (`yield return`) | Return a `List<T>` or an array, or write an enumerator struct with `MoveNext()` and `Current` |
+| `async`/`await`, `Task`, `Thread`, `lock` | One core runs `Main` and the interrupt handlers: a timer interrupt and `volatile` static fields, `Timing.Delay` |
+| LINQ (`Where`, `Select`, `OrderBy`, ...) | Loops, or `List<T>.FindAll`, `ConvertAll`, `Exists`, `Sort(Comparison<T>)` and their `Array` twins |
+| Tuples (`(int, int)`, `ValueTuple`) | A small struct or a `record struct` |
+| Collection expressions as spans (`Span<int> s = [1, 2];`), and of strings or objects into a list (`List<string> l = ["a", "b"];`) | `stackalloc int[] { 1, 2 }` or `new int[] { 1, 2 }`; a collection initializer, `new List<string> { "a", "b" }` |
+| A `params` span of text: `string.Join(", ", a, b, c)`, `sb.AppendJoin(", ", a, b)` | Pass an array: `string.Join(", ", new[] { a, b, c })` |
+| The formats `F2`, `N0`, `0.00` and the like; a format or alignment on an object or struct hole (`$"{obj:X}"`); an aligned float (`$"{x,8}"`) | Whole numbers with `D`, `D<n>`, `X<n>`, e.g. hundredths: `$"{cents / 100}.{cents % 100:D2}"`; print floats on their own |
+| `string.Format` of a format known only when the program runs, or of an `object[]` | A literal format: `string.Format("{0} {1}", a, b)` |
+| `decimal` | `long` counting the smallest unit (cents, millivolts) |
+| `Random` | A small generator of your own, e.g. a xorshift struct |
+| `Math` beyond `Abs`, `Min`, `Max` and `Sqrt` (`Sin`, `Pow`, `Round`, `Floor`, `Clamp`, ...) | Write it: `Math.Min(Math.Max(x, low), high)`, a lookup table for `Sin` |
+| `double.Parse`, `float.Parse`, `Enum.Parse` | `int.Parse` and a scale; a `switch` on the text |
+| `Enum.HasFlag` | `(access & Access.Read) != 0` |
+| `DateTime`, `Stopwatch`, `Environment.TickCount`, `Console.ReadLine` | Count time with `Timing` or a timer interrupt; read input from pins (or UART registers) |
+| Reflection beyond a type's names and `Is...` flags (`GetMethods`, attributes, `BaseType`, `Activator`) | A virtual method that says it, or a `switch` on the object's type |
+| `typeof(List<>)` (an open generic type) | `typeof(List<int>)` |
+| Boxing a library struct (`object o = TimeSpan.Zero;`, its `GetType()`), `TimeSpan.ToString()` and `Parse` | Keep it in its own type; print `span.TotalMilliseconds` |
+| Type tests against `System.ValueType`, `System.Enum` or library classes | Test against your own classes and interfaces |
+| Delegates that take or return arrays or spans (`Action<int[]>`), function pointers (`delegate*`), `BeginInvoke` | Keep the array in a field the method reads, or call the method directly |
+| Non-generic `IList` and `ICollection`, `List<T>.AsReadOnly`, `SortedDictionary`, `SortedSet`, `LinkedList` and the other collections | `List<T>` (sorted with `Sort`), `Dictionary<TKey, TValue>`, `IReadOnlyList<T>` |
+| `Array.Sort` and `BinarySearch` of enums, strings, objects and structs without `IComparable<T>`; `Array.IndexOf` of structs and of classes with their own `Equals`; `Array.Copy` between element types (`int[]` into `long[]`) | `Array.Sort(items, (a, b) => ...)` with a `Comparison`; a loop |
+| An array in a field of a struct; `ref` or `out` of an array (but `Array.Resize(ref a, n)`); a span of strings or objects; `span.ToArray()` | A class, or a static field; return the array; an array; `new T[span.Length]` and `CopyTo` |
+| `unsafe` code (pointers, `&x`, `fixed`), `stackalloc` into a pointer or of a size known only when the program runs, `[StructLayout(LayoutKind.Explicit)]`, `ref` fields | `Span<T>`, `ref` parameters, `MemoryMarshal` and `BinaryPrimitives`; `stackalloc` of a constant size |
+| Finalizers (`~Sensor()`); classes derived from library classes ChipSharp has no C# for | A `Dispose` or `Close` method you call; derive from your own classes |
+| `extern` and `[DllImport]` methods; using `Main`'s `args` | C#; leave `args` unused |
+| A `nint` or `nuint` in text | Convert it: `$"{(long)size}"` |
+| A generic method that calls itself with an ever bigger type argument (`F<T>` calling `F<Pair<T>>`) | Stops at 8 generic types deep |
+
+## Memory
+
+**A heap only when the program uses one.** A program that makes no object, keeps no string and calls nothing of
+`System.GC` (the whole program: the library code it calls too) is built as for a chip without a heap: on the Pico no
+heap region and none of the collector's code, on the PC no memory taken from Windows. `chipsharp build` says which:
+
+```
+flash 5.7 KB of 2048 KB (0.3%), RAM 20 bytes of 264 KB (stack 8 KB reserved)                    examples/pico-traffic-light
+flash 17.3 KB of 2048 KB (0.8%), RAM 1.1 KB + heap 224 KB of 264 KB (stack 8 KB reserved)        examples/pico-traffic-light-m3
+```
+
+Flash holds the code, the constants (string literals, constant tables, type descriptors and type objects) and the
+starting values of the variables; RAM the static fields, then the heap (the target's `"heap"`, when the program uses
+one), and the stack (`"link.stack"`) at its end. For the PC, `build` gives the size of the `.exe`. A program that does
+not fit says so with both sizes: `PicoBlink does not fit in target 'tiny-flash': its code, constants and the starting
+values of its variables need 1.1 KB of flash, 664 bytes more than the target's 512 bytes.`
+
+**What things take on the Pico:** a string literal 8 bytes and 1 byte per char (in flash); an object its header (4
+bytes) and its fields, rounded up to 8 (a list node with an `int` and a reference: 16 bytes); a boxed `int` 8 bytes, a
+boxed `double` 16; a delegate 16; a string on the heap 8 bytes and its chars (1 byte each when all are below U+0100,
+else 2), rounded up to 8; a type object 24 bytes in flash.
+
+**The garbage collector** is a mark and sweep collector (`src/ChipSharp.Runtime.Shared/chipsharp_heap.c`). `new` takes
+zeroed memory from the heap; when there is none left, the collector keeps every object the static fields, the stack,
+the registers and other kept objects reach, and frees the rest, joining neighbouring free blocks. It never moves an
+object. When there is still no room, the program stops with .NET's `OutOfMemoryException` message. A workload that
+keeps text, arrays and chains of objects of many sizes, half the heap alive, runs in a 32 KB heap; with more and more
+alive it runs out at around 60% of the heap.
+
+**Interrupts wait for no collection.** The collector runs with interrupts on: on the simulated Pico a timer interrupt
+every 200 µs came at most 201 µs after the one before while a heap 188 KB full was collected again and again. That is
+safe because of two rules for interrupt handlers (see [Interrupts](#interrupts)): they make no object and store none.
+
+**Stack overflow.** A recursion with no end stops with `Stack overflow.`, as .NET does, on the PC and on a chip. A
+Cortex-M0+ cannot catch it by itself, so on a chip (`"stackCheck": true`) the functions through which the stack can
+grow without end check the stack pointer when they start (four instructions); the others cost nothing.
+
+**`chipsharp build --verify-heap`** checks the whole heap before and after every collection (block sizes, headers,
+every reference, the marks, the free lists) and stops a program whose heap is corrupted, saying what is wrong and where:
+`Fatal error. The heap is corrupted: a reference into the middle of a block at 0x20008a44 (found before collection 1).`
+A collection then takes 2 to 3 times as long. The GC tests run with it on.
+
+**`System.GC`:** `GC.Collect()` collects now; `GC.GetTotalMemory(bool)` gives the bytes of the objects not known to be
+garbage (after a collection when asked); `GC.KeepAlive(object)` keeps an object until there.
+
+## Interrupts
+
+A `static void` method with no parameters marked `[Interrupt(...)]` runs when its event happens, whatever `Main` is
+doing; nothing in the program calls it. Plain calls start the events:
 
 ```csharp
 using ChipSharp.Hardware;
@@ -818,51 +327,215 @@ partial class Program
 }
 ```
 
-`Pin.Watch`, `Pin.WatchRising` and `Pin.WatchFalling` run the `[Interrupt(Event.Pin)]` method when a pin changes
-(`Pin.Unwatch` stops). A static field that a handler and the rest of the program share must be `volatile`, a handler
-cannot wait (`Timing.Delay...`), and it makes no object and stores none (see Memory): `chipsharp check` says where. The target file says which interrupt each event uses
-(`"interrupts"` in `rp2040.json`); a PC has none, so such a program does not build for `host`. The simulator changes an
-input pin at a set time with `--input 15=high@100ms`.
+`Pin.Watch`, `WatchRising` and `WatchFalling` run the `[Interrupt(Event.Pin)]` method when a pin changes (`Pin.Unwatch`
+stops it). The target file says which interrupt each event uses; a PC has none, so such a program builds for a chip
+only. `chipsharp check` enforces the rules, naming the place that breaks one:
 
-### What a target allows, and what a program takes
+| Rule | Why |
+|---|---|
+| One `static void` method without parameters per event, and one for every event the program starts | The chip calls it with nothing to pass, and an event without a handler would stop the chip |
+| A static field shared with `Main` is `volatile`, and an `int`, `uint`, `bool`, ... (not a `long`, a `double` or a struct) | Otherwise `Main` may keep a copy and never see the change, or see half of it |
+| A handler does not wait (`Timing.Delay...`) | The interrupt that ends the wait cannot come while a handler runs |
+| A handler makes no object (`new`, a box, text, a lambda, `+=` on an event) | The heap may be in the middle of an allocation or a collection |
+| A handler stores no object: no reference but `null` into a static field, an object, an array or through a `ref` | The collector may be half way through: an object moved to where it has already looked would be freed while in use. Read objects, store numbers and bools, keep references in locals |
 
-A target file's `"capabilities"` say what a program may use on it: `"heap"`, the most RAM the heap may take (objects,
-text kept while the program runs, collections: M3), or `false` for none (printed text needs none); and `"console"`, whether `Console.Write` has
-somewhere to go (and `"unalignedAccess"`, whether a word may be read at any address: see Spans). The PC has a 256 MB heap and its console; the Pico a 224 KB heap (for a program that uses one, see Memory; 264 KB of RAM less 8 KB of stack and
-32 KB for static fields) and UART0; a new chip inherits `armv6m`'s: neither, until its file says so.
-`chipsharp check -t <target>` and `build` judge the program for that chip, so on one without a heap an object is out
-of reach (a class whose objects are never made still compiles):
+The rules hold for everything a handler runs: the methods it calls, virtual calls and the delegates it invokes.
+`examples/pico-traffic-light-m3` shows the usual shape: the handler sets a `volatile bool`, and `Main` does the rest.
+
+## The chipsharp command
+
+| Command | What it does |
+|---|---|
+| `chipsharp build <program.dll> [-t <target>] [-o <folder>] [--keep] [--verify-heap]` | Compiles the program for a target (default `host`) into `chipsharp-output\<target>\` (or `-o`): prints the file (`.exe`, `.uf2`) and what it takes of the chip. `--keep` also writes the TIR (`.tir`) and LLVM IR (`.ll`) there, and for a chip the `.elf` |
+| `chipsharp check <program.dll> [-t <target>] [--details]` | Whether ChipSharp compiles the program (for that target), and the methods it uses; if not, each feature it does not compile yet, where, and what to write instead. `--details`: every place on a line of its own, and every library method it can call |
+| `chipsharp tir <program.dll> [--method Type.Method] [-t <target>]` | The program in TIR, after the whole-program pass |
+| `chipsharp il <program.dll> [--method Type.Method]` | The IL of each method, ildasm style |
+| `chipsharp targets list` / `chipsharp targets show <name>` | The targets, and one target with everything it inherits merged in |
+
+| Environment variable | Meaning |
+|---|---|
+| `CHIPSHARP_LLVM_BIN` | The folder with clang, ld.lld and llvm-dlltool (default: `C:\Program Files\LLVM\bin`, then the PATH) |
+| `CHIPSHARP_CLANG` | clang itself |
+| `CHIPSHARP_TARGETS` | Another folder of target files (or `--targets <folder>`) |
+
+## Samples and examples
+
+**`samples/`** holds small programs, one per feature, each with the output .NET gives (`<Name>.expected.txt`, made by
+`samples\update-expected.ps1`). The tests run each one on the PC and on the simulated Pico and compare. Flash and RAM on
+the Pico:
+
+| Sample | Shows | Pico |
+|---|---|---|
+| `Square`, `Arithmetic`, `BitOps`, `Comparisons`, `Unsigned`, `IfElse`, `ForLoops`, `WhileSum`, `ShortCircuit`, `Primes`, `Gcd`, `Fibonacci`, `FactorialLong` | The basics: arithmetic, loops, recursion | 1.6 to 3.6 KB, 16 bytes of RAM |
+| `FloatMath`, `Logit`, `Projectile` | `float` and `double` bit for bit like .NET; structs of floats with operators | 3.5 to 8.7 KB |
+| `Structs`, `VendingMachine`, `StaticFields` | Structs, enums, `ref` and `out`; a state machine; static fields and constructors | 2.9 to 3.2 KB |
+| `Arrays`, `LookupTables`, `Spans` | Arrays on the stack; a 7-segment table in flash and a buffer in RAM; a sensor's packet read with spans, `BinaryPrimitives` and `MemoryMarshal` | 3.5 to 7.7 KB |
+| `TrafficLights`, `PrintedText`, `TimeSpans`, `Generics` | Fixed text; text built and printed with no string made; `TimeSpan`; generics over values and generic math | 4.6 to 8.5 KB, no heap |
+| `Classes`, `HeapArrays`, `Shapes` | Objects, a list and a tree; arrays on the heap; virtual methods, interfaces and type tests | 11.6 to 13.4 KB + heap |
+| `Text`, `Records`, `Boxing` | Commands read as text from a serial line; records and a `StringBuilder` report; values as objects | 17.5 to 23.4 KB + heap |
+| `GenericClasses`, `Delegates`, `ArrayMethods`, `Collections` | Generic classes; callbacks, closures and events; `Array.Copy`, `Sort`, `Resize`; `List`, `Dictionary`, `Queue`, `Stack` | 13.8 to 36.6 KB + heap |
+
+**`examples/`** holds projects for the Pico, each a `.csproj` that references `ChipSharp.Hardware`, built with
+`dotnet build -c Release` and then `chipsharp build bin\Release\net10.0\<Name>.dll -t pico` in its folder:
+
+| Example | What it does | Pico |
+|---|---|---|
+| `pico-blink` | Blinks the LED with a delay loop | 1.1 KB, 8 bytes of RAM |
+| `pico-timer-blink` | Blinks the LED from a timer interrupt, while `Main` does nothing | |
+| `pico-button` | A button on GPIO 15 toggles the LED through a pin interrupt | |
+| `pico-traffic-light` | Two lanes of traffic lights (GPIO 16 to 21), a step countdown on a 7-segment display (GPIO 2 to 8), the lane's turn on another (GPIO 9 to 15), and a button on GPIO 22 that cuts a green short; the countdown over UART0. No heap: static methods, arrays passed down, a `ref` parameter, a `volatile` flag set by the interrupt | 5.7 KB, 20 bytes of RAM |
+| `pico-traffic-light-m3` | The same lights, displays, button and output, written with classes (`Lane`, `SevenSegment`, `Crossing`), a `List<Lane>`, an enum, a table of steps and an event | 17.3 KB, 1.1 KB of RAM + heap |
+
+The traffic lights have a `diagram.json` for Wokwi with the whole circuit (220 Ω resistors, common-cathode displays, the
+button between GPIO 22 and 3V3). With the button pressed at 2.5 s, both print:
 
 ```
-creating objects (new ...) needs a heap, and the target 'tiny' (2 KB RAM) has no heap: 1 place in Program.Main() (IL_0000). Use structs and static methods.
-Console.Write and Console.WriteLine need a console, and the target 'tiny' has none: 1 place in Program.Main() (IL_000a). Show what the program does another way, e.g. on a pin with ChipSharp.Hardware.Pin.
+road : 1
+    green 4
+    green 3
+    green 2
+lane : 1 interrupted, move to lane 2
+    yellow 1
+    red 2
+    red 1
+road : 2
+    green 4
+    ...
 ```
 
-`chipsharp build` ends with what the program takes of the chip, read from the linked `.elf`: flash for its code,
-constants and the starting values of its variables, RAM for its variables, with the heap (`"heap"`) after them when the
-program uses one and the stack (`"link.stack"`) kept at the end of the RAM. For `examples/pico-blink`, which makes no
-object (`samples/Classes.cs`, which makes objects, `RAM 188 bytes + heap 224 KB of 264 KB`):
+## Tests
 
-```
-flash 1.1 KB of 2048 KB (0.1%), RAM 8 bytes of 264 KB (stack 8 KB reserved)
+```powershell
+dotnet build -c Release
+dotnet test -c Release --no-build
 ```
 
-A program that does not fit stops with both sizes instead of the linker's words: `PicoBlink does not fit in target
-'tiny-flash': its code, constants and the starting values of its variables need 1.1 KB of flash, 664 bytes more than the
-target's 512 bytes.` For `host`, `build` gives the size of the `.exe`.
+The 1,700 or so tests check each stage on its own (reading IL, the whole-program pass, TIR, the LLVM code, linking, the `.uf2`),
+then compile C# programs and run them: on the PC, and on the simulated Pico, comparing what they print, byte for byte,
+with what .NET prints for the same program; the library code (collections, `StringBuilder`, sorting, `TimeSpan`)
+runs next to .NET's own on thousands of random operations. The PC tests need LLVM; the Pico tests also need Node.js
+and `npm ci` in `tools\rp2040-sim`, and are skipped, saying why, without them. The example projects are built with
+`dotnet build` and `chipsharp build` and run in the simulator, the traffic lights with the button pressed.
+
+The simulator, rp2040js 1.4.1, has one known fault: it sets the overflow flag of `SBCS` wrong when the borrow takes the
+subtrahend to 0x80000000, so a comparison of extreme `long` values, such as `long.MaxValue` with `long.MinValue`, gives
+the wrong answer on the simulated Pico only (a real RP2040 and the PC are right). The Pico tests leave those values to
+the PC tests.
+
+## How it works
+
+### Layout
+
+| Folder | What it holds |
+|---|---|
+| `src/ChipSharp.Frontend` | Reads the IL of a compiled C# `.dll`, finds every method the program uses (the whole-program pass), checks it against what ChipSharp compiles (`chipsharp check`), and translates it into TIR |
+| `src/ChipSharp.Ir` | TIR (Typed Intermediate Representation), which every code generator reads: its verifier, printer and builder |
+| `src/ChipSharp.Library` | ChipSharp's own C# for library types (`TimeSpan`, `List<T>`, `StringBuilder`, the exceptions, ...), compiled together with the programs that use them |
+| `src/ChipSharp.Backend.Llvm` | The `llvm` code generator: TIR in, LLVM IR text out |
+| `src/ChipSharp.Toolchain.Clang` | The `clang` toolchain: LLVM IR and runtime sources in, a linked program out |
+| `src/ChipSharp.Runtime.*` | The runtimes, in C: `Shared` (console, text, floats, heap and collector), `Windows` (the PC), `ArmV6M` and `Rp2040` (start-up, UART0, timers, pins, interrupts) |
+| `src/ChipSharp.Image.Uf2`, `src/ChipSharp.Build`, `src/ChipSharp.Cli` | The `.uf2` image, the build pipeline, and the `chipsharp` command |
+| `src/ChipSharp.Hardware` | The library programs reference for pins, timing, registers and interrupts |
+| `src/ChipSharp.Abstractions`, `src/ChipSharp.Targets` | The contracts (code generator, toolchain, image, runtime) and the target files' reader |
+| `targets/arch`, `chip`, `board` | Target files |
+| `samples`, `examples`, `tests`, `tools/rp2040-sim` | See above |
+
+### The whole program
+
+ChipSharp sees the whole program at once: `Main` and every method it reaches, through calls, virtual calls (rapid type
+analysis: only the classes the program makes count), delegates and interrupt handlers. Only those methods are
+compiled. A virtual call that one method can answer on every object the variable can hold becomes a plain call, and LLVM
+inlines across the whole program. The same pass decides, for each array, string and object, where it can live: an
+array that stays in its method is on the stack, one in a static field that never changes is a table in flash, one that
+escapes is on the heap; text printed straight away is never made into a string. That is why so much works without a
+heap.
+
+**Library substitutes.** Library types are compiled from C# in `src/ChipSharp.Library`: a type marked
+`[Substitute(typeof(System.TimeSpan))]` stands for `System.TimeSpan`, and only the members the program reaches are
+compiled. The collections, `StringBuilder`, `Array.Sort` and the exceptions are .NET 10's own code ported this way, so
+they grow, order, check and fail as .NET does. A new library type is C# there, not compiler code, and its tests compare
+it with .NET value by value.
+
+### Text
+
+A string literal is **fixed text**: one constant string object in flash (`src/ChipSharp.Frontend/FixedText.cs`), laid
+out as a string on the heap is, so code never needs to know which it has. **Printed text** (`PrintedText.cs`) follows
+what C# makes of `$"..."`, `+` and `ToString()` (a `DefaultInterpolatedStringHandler`, or `string.Concat`) on IL's
+evaluation stack to the `Console.Write` that prints it, and writes the parts one after another: every hole is worked out
+first, in order, like .NET, and no string is made. Text that is kept (stored, returned, measured, passed on) is a
+**string** (`Strings.cs`): its length, then its chars, 1 byte each when every char is below U+0100 and 2 bytes (UTF-16)
+otherwise, always so, so two equal strings have the same form. Reading strings (compare, search, measure, print) needs
+no heap; making them is the runtime's C (`chipsharp_string.c`, `chipsharp_string_heap.c`), with .NET's results and
+messages. Text is written as UTF-8 on every target.
+
+### Arrays and spans
+
+Every array is the same value wherever the program holds one: the address of its elements and its length, so one method
+takes arrays on the stack, in flash, in RAM and on the heap alike. `ArrayEscapeAnalysis` follows each array through
+the whole program to decide where it lives (an array on the heap has a header and its length in front of its
+elements); an empty array of each type is one constant object. A span is the same pair, a view of elements that live
+elsewhere, so it needs no heap; `SpanEscapeAnalysis` keeps a span of a `stackalloc` or of an array on the stack from
+outliving it. `Array.Copy` and the other `System.Array` methods are compiled for each element type
+(`ArrayMethods.cs`); `Sort` and `BinarySearch` are .NET's own introsort and binary search, so equal elements end up
+where .NET puts them.
+
+### Generics
+
+Like C++ templates (and like .NET itself for structs), ChipSharp makes a copy of a generic method or type for each list
+of type arguments the program uses (`src/ChipSharp.Frontend/Generics`): `Program.Max<int>` is a method of its own, and
+the generic code itself is never compiled. Through `T`, an instance does what code written for its type does, with no
+boxing: a constrained call on a struct calls the struct's own method, generic math is the operation itself. Over
+classes too each instance is a class of its own, with its own descriptor and .NET's name (``Box`1[Program+Lane]``):
+measured on the Pico, one shared copy over `object`, as .NET shares, would be larger (each caller casts what it gets
+back), and LLVM inlines the instances' methods into their callers anyway.
+
+### Objects, virtual calls and interfaces
+
+An object starts with its header, the address of its type's **descriptor** (in flash: size, where its references are,
+its base, its .NET name, its virtual method table and interface map), then its fields, its base classes' first
+(`src/ChipSharp.Ir/TirTypeDescriptor.cs`). A virtual call loads the header and calls through the table: two loads and
+an indirect call. An interface call finds the interface in the object's interface map (a short scan) and calls through
+its table. `is`, `as` and casts walk the class's bases or look in the interface map. Each class the program makes has
+tables only for the slots that can run two methods or more.
+
+A **delegate** is an object of 16 bytes on the Pico: header, target, method address, and the list of a multicast
+delegate. Every invocation is the same four instructions: a null check, two loads, one indirect call. A **box** is an
+object of the class `T (boxed)`, its header and the value, with .NET's `ToString`, `Equals` and `GetHashCode` for the
+value; in generic code over values, a box whose test the type argument decides is folded away, as .NET's JIT does. A
+`Nullable<T>` is a struct, so it needs no heap. A **record** is a class or struct like any other; what C# generates for
+it compiles as the program's own code, with ChipSharp's `StringBuilder` for its `ToString` and **type objects**
+(`typeof(X)`: one constant object per type in flash, 24 bytes on the Pico) for its `EqualityContract`.
+
+### try/finally, throw and collections
+
+ChipSharp has no exceptions to catch yet: before anything reads a method's IL, its `finally` regions become plain
+branches (`src/ChipSharp.Frontend/TryFinally.cs`), so a `finally` runs when its `try` block is left normally. A `throw`
+calls the library's `Exceptions.Thrown.Unhandled`, which prints `Unhandled exception. ` and the exception's
+`ToString()` and stops the program. The exceptions are library substitutes with .NET 10's messages, and so are `List<T>`,
+`Dictionary<TKey, TValue>`, `HashSet<T>`, `Queue<T>` and `Stack<T>` (`src/ChipSharp.Library/Collections`), which
+enumerate in .NET's order whatever the hash codes are. A `T[]` is an `IList<T>` and the rest through the library's
+`SzArray<T>`, .NET's SZArrayHelper, with the array as `this`.
+
+### The heap and the collector
+
+The collector (`chipsharp_heap.c`) marks in a bitmap of its own, so an interrupt handler that reads an object during a
+collection sees it as it was, and only garbage, which no handler reaches, becomes free. The stack and the registers are
+read conservatively; so that a stale word does not keep garbage alive, the collector zeroes the stack its own frames are
+about to use, the code generator starts every stack slot at zero, and `GC.Collect()` clears the callee-saved registers
+first. Small objects are carved one after another from a free block; one of 256 bytes or more takes the smallest free
+block that holds it. On the PC the heap is 256 MB taken from Windows at the start (its pages only when touched). On a
+chip, a function in a cycle of calls, or with 256 bytes of stack or more, compares the stack pointer with
+`__chipsharp_stack_limit` (1 KB above the stack's bottom) when it starts, and below it says `Stack overflow.` from a stack
+of its own (`src/ChipSharp.Backend.Llvm/LlvmStackChecks.cs`).
 
 ## Roadmap
 
 | Milestone | Goal |
 |---|---|
-| Skeleton (done) | Contracts, registry, target files with inheritance |
-| M0 wave 0–1 (done) | TIR; reading IL; the LLVM code generator; the PC target, clang toolchain, runtime and samples |
-| M0 wave 2 (done) | IL to TIR; the whole-program pass and `chipsharp check`; every sample runs end to end and matches .NET |
-| M0 (done) | Compile simple C# to a PC program through LLVM; every sample matches real .NET |
-| M1 (done in the simulator) | Blink the Raspberry Pi Pico's LED; every sample also runs on the simulated RP2040 and matches .NET over UART0 |
-| M2 (done) | The Restricted tier: static fields and constructors; float and double, bit for bit like .NET; structs, enums, `ref`/`out`/`in`; arrays on the stack; interrupts (timer and pin); `TimeSpan` and `Timing.Delay(TimeSpan)`, from library substitutes (ChipSharp's own C# for library types) |
-| M3 | Classes, heap, garbage collector, strings, interfaces, generics, `Span<T>` (done, with no heap): the Full tier |
+| M0 (done) | Simple C# compiled to a PC program through LLVM; every sample matches .NET |
+| M1 (done, in the simulator) | Blink the Raspberry Pi Pico's LED; every sample also runs on the simulated RP2040 and matches .NET over UART0 |
+| M2 (done) | Code for chips without a heap: static fields, `float` and `double` bit for bit, structs, enums, `ref`/`out`/`in`, arrays on the stack, interrupts (timer and pin), `TimeSpan` and the first library substitutes |
+| M3 (done) | The heap: classes, garbage collector, strings, interfaces, generics, `Span<T>`, delegates, boxing, records, exceptions you throw, collections |
 | M4 | ESP32-C5 (RISC-V) |
-| M5 | CH32V003: C# on a 10-cent chip |
-| M6 | C code generator for 8-bit chips |
-| M7 | Interpreter mode |
+| M5 | CH32V003, C# on a 10-cent chip with 2 KB of RAM: M2-style code and the M3 pieces that need no heap (generics over values, spans, fixed and printed text, record structs) |
+| Later | Catching exceptions (`try`/`catch`); more chips, including 8-bit ones through a C code generator, and an interpreter mode for the smallest |
