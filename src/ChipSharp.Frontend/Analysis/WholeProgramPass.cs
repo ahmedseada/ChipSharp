@@ -110,6 +110,12 @@ public static partial class WholeProgramPass
                     methods.Add(target);
                 }
 
+                // text appended to a StringBuilder part by part (see StringBuilders)
+                if (StringBuilders.AppendsBuiltText(instructions[j]))
+                {
+                    methods.AddRange(new[] { StringBuilders.AppendText, StringBuilders.AppendLine }.Where(found.Add));
+                }
+
                 methods.AddRange(dispatch.Follow(instructions, j, methods[i].Assembly).Where(found.Add));
             }
         }

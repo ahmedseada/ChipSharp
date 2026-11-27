@@ -100,6 +100,10 @@ internal sealed partial class MethodLowering
                 Print(Printed.Prints[instruction]);
                 break;
 
+            case PrintedRole.AppendTo:
+                AppendTo(Printed.Builds[instruction], operands[0]); // see MethodLowering.StringBuilders.cs
+                break;
+
             case PrintedRole.Finish or PrintedRole.ToString or PrintedRole.Concat
                 when Printed.Builds.TryGetValue(instruction, out var kept):
                 PushObject(Build(kept));

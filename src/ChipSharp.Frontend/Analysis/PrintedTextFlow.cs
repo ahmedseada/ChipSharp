@@ -211,6 +211,11 @@ internal sealed partial class PrintedTextFlow
             return;
         }
 
+        if (StringBuilderStep(instruction, index, state)) // text appended to a StringBuilder: PrintedTextFlow.StringBuilders.cs
+        {
+            return;
+        }
+
         switch (instruction.OpCode)
         {
             case >= IlOpCode.Ldc_I4_M1 and <= IlOpCode.Ldc_I4_8:
@@ -521,9 +526,12 @@ internal sealed partial class PrintedTextFlow
         stack.Add(Produce(instruction, parts!));
     }
 
-    /// <summary>The parts of a composite format with its values (see <see cref="Format"/>); a problem for a format .NET rejects.</summary>
+    /// <summary>
+    /// The parts of a composite format with its values (see <see cref="Format"/>), which are the call's operands from
+    /// <paramref name="firstValue"/> on; a problem for a format .NET rejects.
+    /// </summary>
     private (Parts? Parts, Unsupported? Problem) FormatParts(IlInstruction instruction, int index, string format,
-        Value[] values)
+        Value[] values, int firstValue = 1)
     {
         var parts = Parts.None;
         var literal = new System.Text.StringBuilder();
@@ -568,7 +576,7 @@ internal sealed partial class PrintedTextFlow
             // a value of a params span waits in its slot from the stind.ref that writes it (PrintedTextFlow.Params.cs)
             var (value, source, at, depth, operand) = values[number] is Element element
                 ? (element.Value, element.Store, element.At, 0, 1)
-                : (values[number], instruction, index, values.Length - 1 - number, number + 1);
+                : (values[number], instruction, index, values.Length - 1 - number, number + firstValue);
             var (more, problem) = value is Boxed boxed
                 ? HoleParts(boxed.Type, boxed, boxed.Box, 0, alignment, holeFormat)
                 : value is Literal or Built || StringMethods.IsStringOperand(_method, at, depth)
@@ -621,10 +629,14 @@ internal sealed partial class PrintedTextFlow
         var parameters = callee.ParameterTypes;
         switch (callee.Name)
         {
-            case ".ctor" when parameters.Count == 2 && parameters.All(parameter => parameter == IlType.Int32):
-                Pop(stack);
-                Pop(stack);
-                Pop(stack);
+            // (a StringBuilder's handler is given the builder too, which it appends to)
+            case ".ctor" when parameters.Count is 2 or 3 && parameters.Take(2).All(parameter => parameter == IlType.Int32)
+                && (parameters.Count == 2 || StringBuilders.IsBuilder(parameters[2])):
+                for (var i = 0; i <= parameters.Count; i++)
+                {
+                    Pop(stack);
+                }
+
                 state.Handlers = state.Handlers.SetItem(local, Parts.None);
                 Own(instruction, PrintedRole.Start);
                 return true;

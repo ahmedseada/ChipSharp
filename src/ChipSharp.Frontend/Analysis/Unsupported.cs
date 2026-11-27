@@ -131,7 +131,7 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
     public static bool IsInterpolatedStringHandler(IlType type) => type is IlNamedType
     {
         Namespace: "System.Runtime.CompilerServices", Name: "DefaultInterpolatedStringHandler", IsDefinedInThisAssembly: false,
-    };
+    } || StringBuilders.IsHandler(type);
 
     /// <summary>A feature that needs objects on the heap, so it arrives <see cref="WithTheHeap"/>.</summary>
     private static Unsupported Heap(string what, bool isPlural, string hint) =>
