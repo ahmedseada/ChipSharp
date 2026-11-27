@@ -207,7 +207,7 @@ public sealed class ArrayRejectionTests : IDisposable
     [Fact]
     public void An_array_of_a_struct_that_cannot_compile_says_what_keeps_the_struct_out()
     {
-        // a struct that holds an array of itself is no trouble either
+        // a struct that holds an array of itself is no trouble either, nor one that holds a string
         var problems = Problems(Program("""
             Person[] people = new Person[2];
             Node[] nodes = new Node[1];
@@ -224,15 +224,12 @@ public sealed class ArrayRejectionTests : IDisposable
             }
             """));
 
-        const string Name = "text strings in the field Program.Person.Name arrive with M3 (the heap). For now, keep text "
-            + "in locals, parameters, return values and static fields.";
         const string Children = "an array that leaves the method that creates it (returned, or stored in a field or in "
             + "another array) in the field Program.Node.Children arrives with M3 (the heap). For now, keep each array in "
             + "the method that creates it; the methods it calls can take it as a parameter.";
         Assert.Equal(
         [
             $"Program.Main(), local variable V_0 (Program.Node[]): {Children}",
-            $"Program.Main() at IL_0001 (newarr): {Name}",
             $"Program.Main() at IL_0007 (newarr): {Children}",
         ], problems);
     }
@@ -377,16 +374,21 @@ public sealed class ArrayRejectionTests : IDisposable
     [Fact]
     public void Arrays_of_unsupported_elements_say_what_the_element_needs()
     {
-        // an array of floats is fine now that floats are
+        // an array of floats is fine now that floats are, and one of chars now that chars are
         var problems = Problems(Program("""
             float[] weights = { 0.5f, 2f };
             char[] letters = new char[2];
-            Console.WriteLine(letters.Length + (int)weights[1]);
+            decimal[] amounts = new decimal[2];
+            Console.WriteLine(letters.Length + (int)weights[1] + amounts.Length);
             """));
 
+        const string Decimals = "the type decimal arrives later. For now, use bool, the whole-number types (sbyte to "
+            + "ulong, nint, nuint), float, double, string (for fixed text), and the program's own structs and enums.";
         Assert.Equal(
-            ["Program.Main() at IL_0018 (newarr): characters (char) arrive with M3 (the heap). For now, use whole numbers."],
-            problems);
+        [
+            $"Program.Main(), local variable V_1 (decimal[]): {Decimals}",
+            $"Program.Main() at IL_001e (newarr): {Decimals}",
+        ], problems);
     }
 
     [Fact]

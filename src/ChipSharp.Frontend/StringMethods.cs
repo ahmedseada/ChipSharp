@@ -180,7 +180,8 @@ internal static class StringMethods
     ];
 
     /// <summary>Every method here, as C# names it, for the list of library methods a program can call.</summary>
-    public static IReadOnlyList<string> Members { get; } = [.. Table.Select(method => method.LibraryName).Distinct()];
+    public static IReadOnlyList<string> Members { get; } =
+        [.. Table.Where(method => method.Name != "op_Implicit").Select(method => method.LibraryName).Distinct()];
 
     /// <summary>The library type of the table's type: "System.String" for String, "System.Int32" for Int32, ...</summary>
     public static string LibraryType(string key) => key switch

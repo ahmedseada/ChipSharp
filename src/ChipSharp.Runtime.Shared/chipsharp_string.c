@@ -16,8 +16,8 @@
 //   ChipSharp_Runtime_StringEqualsObject  Equals(object): another string with the same chars
 //   ChipSharp_Runtime_StringCompareOrdinal  string.CompareOrdinal: the difference of the first chars that differ, else
 //                                        of the lengths (null first)
-//   ChipSharp_Runtime_StringCompare       CompareTo and string.Compare: the same order, as -1, 0 or 1 (ordinal: .NET's
-//                                        own compare by the current culture, which puts "a" before "B")
+//   ChipSharp_Runtime_StringCompare       CompareTo and string.Compare: the same, ordinal, as .NET in its invariant mode
+//                                        (with a culture .NET puts "a" before "B" and gives -1, 0 or 1)
 //   ChipSharp_Runtime_StringHash          GetHashCode: FNV-1a of the UTF-16 code units, the same in every run (.NET's
 //                                        is different in each process)
 //   ChipSharp_Runtime_StringIsNullOrEmpty, StringIsNullOrWhiteSpace
@@ -164,8 +164,7 @@ int ChipSharp_Runtime_StringCompareOrdinal(const string *a, const string *b)
 
 int ChipSharp_Runtime_StringCompare(const string *a, const string *b)
 {
-    int order = ChipSharp_Runtime_StringCompareOrdinal(a, b);
-    return order < 0 ? -1 : order > 0 ? 1 : 0;
+    return ChipSharp_Runtime_StringCompareOrdinal(a, b);
 }
 
 int ChipSharp_Runtime_StringHash(const string *s)

@@ -18,11 +18,12 @@ public sealed class IlToTirErrorTests
         var error = Error("""
             class Program
             {
-                static void Main() => System.Console.WriteLine((object)1);
+                static object Box() => 1;
+                static void Main() => System.Console.WriteLine(Box() == null);
             }
             """);
 
-        Assert.Equal("Test.dll: Program.Main() at IL_0001: box is not supported yet.",
+        Assert.Equal("Test.dll: Program.Box() at IL_0001: box is not supported yet.",
             error.Message);
     }
 
@@ -32,14 +33,15 @@ public sealed class IlToTirErrorTests
         const string Source = """
             static class C
             {
-                static int Code(char c) => c;
-                static char Letter(int x) => (char)x;
+                static int Code(System.Random c) => 0;
+                static System.Random Letter(int x) => null;
             }
             """;
 
-        Assert.Equal("Test.dll: C.Code(char): parameter 'c' has type char, which is not supported yet " +
+        Assert.Equal("Test.dll: C.Code([System.Private.CoreLib]System.Random): parameter 'c' has type " +
+            "[System.Private.CoreLib]System.Random, which is not supported yet " +
             "(ChipSharp compiles bool, whole numbers, float, double and fixed text (string)).", Error(Source, "C.Code").Message);
-        Assert.Equal("Test.dll: C.Letter(int32): it returns char, which is not supported yet " +
+        Assert.Equal("Test.dll: C.Letter(int32): it returns [System.Private.CoreLib]System.Random, which is not supported yet " +
             "(ChipSharp compiles bool, whole numbers, float, double and fixed text (string)).", Error(Source, "C.Letter").Message);
     }
 
@@ -50,14 +52,15 @@ public sealed class IlToTirErrorTests
         emitted.Method("F", typeof(void), [], il =>
         {
             il.DeclareLocal(typeof(int));
-            il.DeclareLocal(typeof(char));
+            il.DeclareLocal(typeof(Random));
             il.Emit(OpCodes.Ret);
         });
 
         var error = Assert.Throws<ChipSharpException>(() => Lower(emitted.Read(), "Program.F"));
 
         // (an object is a ref now, for the heap, though the whole-program pass does not let a program have one yet)
-        Assert.Equal("Emitted.dll: Program.F(): local V_1 has type char, which is not supported yet " +
+        Assert.Equal("Emitted.dll: Program.F(): local V_1 has type [System.Private.CoreLib]System.Random, which is not " +
+            "supported yet " +
             "(ChipSharp compiles bool, whole numbers, float, double and fixed text (string)).", error.Message);
     }
 
@@ -72,10 +75,12 @@ public sealed class IlToTirErrorTests
             """);
 
         Assert.Equal("Test.dll: Program.Main() at IL_0002: the call to System.Math.Abs(int32) is not supported: " +
-            "of the library, ChipSharp can call System.Console.Write(string), System.Console.Write(int), " +
+            "of the library, ChipSharp can call System.Console.Write(string), System.Console.Write(char), " +
+            "System.Console.Write(int), " +
             "System.Console.Write(uint), System.Console.Write(long), System.Console.Write(ulong), " +
             "System.Console.Write(bool), System.Console.Write(float), System.Console.Write(double), " +
-            "System.Console.WriteLine(), System.Console.WriteLine(string), System.Console.WriteLine(int), " +
+            "System.Console.WriteLine(), System.Console.WriteLine(string), System.Console.WriteLine(char), " +
+            "System.Console.WriteLine(int), " +
             "System.Console.WriteLine(uint), System.Console.WriteLine(long), System.Console.WriteLine(ulong), " +
             "System.Console.WriteLine(bool), System.Console.WriteLine(float), System.Console.WriteLine(double), " +
             "System.Math.Abs(double), System.Math.Abs(float), System.Math.Min(double, double), " +
@@ -172,7 +177,7 @@ public sealed class IlToTirErrorTests
     }
 
     [Fact]
-    public void A_string_array_parameter_is_left_out_of_the_entry_point_only()
+    public void A_string_array_parameter_is_left_out_of_the_entry_point_only_and_compiles_anywhere_else()
     {
         var assembly = Lowered.Compile("""
             class Program
@@ -185,11 +190,10 @@ public sealed class IlToTirErrorTests
         var count = Assert.Single(assembly.FindMethods("Program.Count"));
 
         var module = Lowered.Lower(new IlProgram(assembly, [main]));
-        var error = Assert.Throws<ChipSharpException>(() => IlToTir.Lower(new IlProgram(assembly, [main, count])));
+        var both = Lowered.Lower(new IlProgram(assembly, [main, count]));
 
         Assert.Empty(module.EntryPoint!.Parameters);
-        Assert.Equal("Test.dll: Program.Count(string[]): parameter 'items' has type string[], which is not " +
-            "supported yet (ChipSharp compiles bool, whole numbers, float, double and fixed text (string)).", error.Message);
+        Assert.Single(both.Functions.Single(function => function.Name == "Program.Count").Parameters);
     }
 
     [Fact]

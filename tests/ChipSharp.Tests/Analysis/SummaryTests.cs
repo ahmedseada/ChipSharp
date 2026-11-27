@@ -10,7 +10,9 @@ namespace ChipSharp.Tests.Analysis;
 /// </summary>
 public sealed class SummaryTests
 {
-    private const string Characters = "characters (char) arrive with M3 (the heap)";
+    private const string Randoms = "the type System.Random arrives later";
+    private const string RandomsHint = "For now, use bool, the whole-number types (sbyte to ulong, nint, nuint), float, double, " +
+        "string (for fixed text), and the program's own structs and enums.";
     private const string Checked = "For now, leave out checked: ChipSharp's arithmetic wraps around on overflow, like unchecked C#.";
 
     [Fact]
@@ -21,24 +23,25 @@ public sealed class SummaryTests
 
             class Program
             {
-                static char counter;
+                static Random counter;
 
                 static void Main()
                 {
-                    counter = (char)(counter + 1);
-                    Console.WriteLine((int)counter);
+                    counter = null;
+                    Console.WriteLine(counter == null);
+                    Console.WriteLine(counter != null);
                 }
             }
             """);
 
         var group = Assert.Single(analysis.Groups);
-        Assert.Equal("characters (char)", group.Feature);
+        Assert.Equal("the type System.Random", group.Feature);
         Assert.Equal(3, group.Problems.Count);
         Assert.Equal(["Program.Main"], group.Methods.Select(method => method.DisplayName));
         Assert.False(group.IsLibraryCall);
         Assert.Equal($"""
             Test.dll uses 1 C# feature that ChipSharp does not compile yet (3 places):
-              {Characters}: 3 places in Program.Main() (IL_0000, IL_0008 and IL_000d). For now, use whole numbers.
+              {Randoms}: 3 places in Program.Main() (IL_0001, IL_0006 and IL_0013). {RandomsHint}
             For every place, run: chipsharp check Test.dll --details
             """.ReplaceLineEndings("\n"), analysis.Summary);
     }
@@ -53,7 +56,7 @@ public sealed class SummaryTests
             class Program
             {
                 static int Third(int x) => checked(x * 3);
-                static int Second() => "two".Length;
+                static int Second() => new Random().Next();
                 static int First(int x) => checked(x + 1);
 
                 static void Main()
@@ -63,12 +66,14 @@ public sealed class SummaryTests
             }
             """);
 
-        Assert.Equal(["checked arithmetic", BuildingFeature], analysis.Groups.Select(group => group.Feature));
+        Assert.Equal(["checked arithmetic", "the library type System.Random", "the library method System.Random.Next()"],
+            analysis.Groups.Select(group => group.Feature));
         Assert.Equal(["Program.First", "Program.Third"], analysis.Groups[0].Methods.Select(method => method.DisplayName));
         Assert.Equal(
         [
             $"checked arithmetic arrives later: 2 places in Program.First(int) (IL_0002) and Program.Third(int) (IL_0002). {Checked}",
-            $"{Building}: 1 place in Program.Second() (IL_0005). {BuildingHint}",
+            "the library type System.Random is not available yet: 1 place in Program.Second() (IL_0000).",
+            "the library method System.Random.Next() is not available yet: 1 place in Program.Second() (IL_0005).",
         ], analysis.Groups.Select(group => group.Line));
     }
 
@@ -80,21 +85,21 @@ public sealed class SummaryTests
 
             class Program
             {
-                static char a, b, c, d, e;
+                static Random a, b, c, d, e;
 
-                static int One() => a;
-                static int Two() => b;
-                static int Three() => c;
-                static int Four() => d;
-                static int Five() => e;
+                static int One() => a == null ? 1 : 0;
+                static int Two() => b == null ? 1 : 0;
+                static int Three() => c == null ? 1 : 0;
+                static int Four() => d == null ? 1 : 0;
+                static int Five() => e == null ? 1 : 0;
 
                 static void Main()
                 {
-                    a = (char)1;
-                    b = (char)2;
-                    c = (char)3;
-                    d = (char)4;
-                    e = (char)5;
+                    a = null;
+                    b = null;
+                    c = null;
+                    d = null;
+                    e = null;
                     Console.WriteLine(One() + Two() + Three() + Four() + Five());
                 }
             }
@@ -102,8 +107,8 @@ public sealed class SummaryTests
 
         var group = Assert.Single(analysis.Groups);
         Assert.Equal(10, group.Problems.Count);
-        Assert.Equal($"{Characters}: 10 places in Program.Main() (IL_0001, IL_0007, IL_000d and 2 more), Program.One() (IL_0000), "
-            + "Program.Two() (IL_0000) and 3 more methods. For now, use whole numbers.",
+        Assert.Equal($"{Randoms}: 10 places in Program.Main() (IL_0001, IL_0007, IL_000d and 2 more), Program.One() (IL_0000), "
+            + $"Program.Two() (IL_0000) and 3 more methods. {RandomsHint}",
             group.Line);
     }
 
@@ -115,23 +120,23 @@ public sealed class SummaryTests
 
             class Program
             {
-                static char a;
+                static Random a;
 
-                static int One() => a;
-                static int Two() => a;
-                static int Three() => a;
+                static int One() => a == null ? 1 : 0;
+                static int Two() => a == null ? 1 : 0;
+                static int Three() => a == null ? 1 : 0;
 
                 static void Main()
                 {
-                    a = (char)1;
-                    a = (char)(a + a);
+                    a = null;
+                    a = a ?? a;
                     Console.WriteLine(One() + Two() + Three());
                 }
             }
             """);
 
-        Assert.Equal($"{Characters}: 7 places in Program.Main() (IL_0001, IL_0006, IL_000b and IL_0012), Program.One() (IL_0000), "
-            + "Program.Two() (IL_0000) and Program.Three() (IL_0000). For now, use whole numbers.",
+        Assert.Equal($"{Randoms}: 7 places in Program.Main() (IL_0001, IL_0006, IL_000f and IL_0014), Program.One() (IL_0000), "
+            + $"Program.Two() (IL_0000) and Program.Three() (IL_0000). {RandomsHint}",
             Assert.Single(analysis.Groups).Line);
     }
 
@@ -174,15 +179,17 @@ public sealed class SummaryTests
             static int Twice(int x) => checked(x * 2);
 
             Console.WriteLine(Twice(21));
-            Console.WriteLine("done".ToUpper() + Twice(1));
+            Console.WriteLine(new Random().Next() + Twice(1));
             """);
 
         Assert.Equal(
         [
-            $"{Building}: 1 place in the top-level statements (IL_0011). {BuildingHint}",
+            "the library type System.Random is not available yet: 1 place in the top-level statements (IL_000c).",
+            "the library method System.Random.Next() is not available yet: 1 place in the top-level statements (IL_0011).",
             $"checked arithmetic arrives later: 1 place in local function Twice (IL_0002). {Checked}",
-        ], analysis.Groups.Select(group => group.Line));
-        Assert.Contains($"\n  Program.<Main>$(string[]) at IL_0011 (call): {Building}.", analysis.Details);
+        ], analysis.Groups.Select(group => group.Line).Take(3));
+        Assert.Contains("\n  Program.<Main>$(string[]) at IL_0011 (callvirt): the library method System.Random.Next() is not " +
+            "available yet.", analysis.Details);
         Assert.Contains("\n  Program.<<Main>$>g__Twice|0_0(int) at IL_0002 (mul.ovf): checked arithmetic arrives later.",
             analysis.Details);
     }
@@ -212,9 +219,9 @@ public sealed class SummaryTests
     [Fact]
     public void A_SquareDemo_like_program_gets_a_short_summary()
     {
-        // top-level statements, float arrays and local functions, and a $"..." that one of them returns: 1 place, 1
-        // feature (the floats, the arrays of them and the text, which Console.WriteLine($"Logit result: {result}")
-        // would print straight away, are fine)
+        // top-level statements, float arrays and local functions, and a $"..." that one of them returns: kept text, a
+        // string on the heap, fine for a target with one (and checked without a target); see StringCheckTests for one
+        // without a heap
         var analysis = Check("""
             using System;
 
@@ -232,14 +239,8 @@ public sealed class SummaryTests
             Console.WriteLine(Report(result));
             """);
 
-        Assert.Equal(["keeping built text in a variable"], analysis.Groups.Select(group => group.Feature));
-        Assert.Equal($"""
-            Test.dll uses 1 C# feature that ChipSharp does not compile yet (1 place):
-              keeping built text in a variable arrives with M3 (the heap): 1 place in local function Report (IL_0025). For now, print it straight away: Console.WriteLine($"...").
-            For every place, run: chipsharp check Test.dll --details
-            """.ReplaceLineEndings("\n"), analysis.Summary);
-        Assert.InRange(analysis.Summary.Split('\n').Length, 1, 11);
-        Assert.Equal(2, analysis.Details.Split('\n').Length);
+        Assert.True(analysis.IsSupported);
+        Assert.Equal("", analysis.Summary);
     }
 
     [Fact]
@@ -279,8 +280,8 @@ public sealed class SummaryTests
             ChipSharp can call these library methods (--details lists each one with its parameters):
               Console: Write, Beep
             """.ReplaceLineEndings("\n"), Calls.Summarize(apart));
-        Assert.Contains("\n  Console.Write and Console.WriteLine of (nothing), text, int, uint, long, ulong, bool, float, "
-            + "double\n", Calls.Summary);
+        Assert.Contains("\n  Console.Write and Console.WriteLine of (nothing), text, char, int, uint, long, ulong, bool, "
+            + "float, double\n", Calls.Summary);
     }
 
     [Fact]
@@ -314,7 +315,8 @@ public sealed class SummaryTests
             """.ReplaceLineEndings("\n"), Calls.List(methods));
         Assert.Equal(
             Calls.Summarize(KnownExternals.All.Select(function => function.LibraryMethod).Concat(LibrarySubstitutes.Members)
-                .Concat(Spans.Members).OrderBy(method => method.StartsWith("ChipSharp.", StringComparison.Ordinal))),
+                .Concat(Spans.Members).Concat(StringMethods.Members)
+                .OrderBy(method => method.StartsWith("ChipSharp.", StringComparison.Ordinal))),
             Calls.Summary);
     }
 }

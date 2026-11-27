@@ -36,12 +36,16 @@ namespace ChipSharp.Frontend;
 /// counts (UTF-16 code units, for text). The formats are those written exactly like .NET: D and D&lt;n&gt;, X and
 /// X&lt;n&gt; (x for lowercase hex digits, of the value's own width, so -1 is FF for an sbyte) and G for whole
 /// numbers, G and R for floats and doubles; a format of text or of a bool is ignored, as .NET ignores it. The rest is
-/// rejected, with what to write for now: other formats, an aligned float, an enum (.NET prints its name), a struct.
+/// rejected, with what to write for now: other formats, an aligned float, a struct. A char is written as itself, an
+/// enum by its name (see Lowering/EnumNameFunctions.cs; D and X give its number), and a value boxed for
+/// <c>Console.WriteLine(object)</c>, <c>string.Format</c> and <c>Console.WriteLine(format, ...)</c> of a literal format
+/// is a hole of its own type, the format read at compile time as .NET reads it.
 /// </para>
 /// <para>
-/// Keeping the text needs the heap (M3): built text that is stored in a variable or a field, returned, passed to
-/// anything but Console.Write and Console.WriteLine, measured (<c>.Length</c>), or one of two texts where ways join
-/// (<c>c ? $"a{x}" : "b"</c>) is rejected where that happens. A string local written once and read once is no keeping:
+/// Built text that is kept (stored in a variable or a field, returned, passed to anything but Console.Write and
+/// Console.WriteLine, measured (<c>.Length</c>), or one of two texts where ways join, <c>c ? $"a{x}" : "b"</c>) is a
+/// string that the instruction that finishes the text makes from its parts (<see cref="Builds"/>), on the heap: a heap
+/// use, which a target without a heap rejects there. A string local written once and read once is no keeping:
 /// it is what C#'s own temporaries are (Debug's, and those around a <c>switch</c> expression), and what Release makes
 /// of <c>string s = $"..."; Console.WriteLine(s);</c>, leaving the variable out.
 /// </para>

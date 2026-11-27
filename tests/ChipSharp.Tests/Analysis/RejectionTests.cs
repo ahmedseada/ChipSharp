@@ -8,9 +8,13 @@ namespace ChipSharp.Tests.Analysis;
 /// </summary>
 public sealed class RejectionTests
 {
-    /// <summary>The hint of an array of strings, which waits for strings on the heap.</summary>
-    private const string Strings =
-        "For now, keep each string in a variable or a static field of its own, or pick it with a switch.";
+    private const string MultiDimensional =
+        "For now, use a one-dimensional array and compute the index: row * width + column.";
+
+    private const string Checked =
+        "For now, leave out checked: ChipSharp's arithmetic wraps around on overflow, like unchecked C#.";
+
+    private const string Loop = "For now, write it as a loop over the elements: for (int i = 0; i < array.Length; i++) { ... }.";
 
     private const string Source = """
         using System;
@@ -19,9 +23,8 @@ public sealed class RejectionTests
         {
             static void Main()
             {
-                string[] words = new string[3];
-                words[0] = "done";
-                Console.WriteLine(Math.Abs(words[0].Length));
+                int[,] grid = new int[3, 3];
+                Console.WriteLine(Math.Abs(checked(grid.Length + 1)));
             }
         }
         """;
@@ -32,10 +35,11 @@ public sealed class RejectionTests
         var error = Error(Source);
 
         Assert.Equal($"""
-            Test.dll uses 3 C# features that ChipSharp does not compile yet (3 places):
-              arrays of strings arrive with M3 (the heap): 1 place in Program.Main() (IL_0001). {Strings}
-              {Building}: 1 place in Program.Main() (IL_0010). {BuildingHint}
-              the library method System.Math.Abs(int) is not available yet: 1 place in Program.Main() (IL_0015).
+            Test.dll uses 4 C# features that ChipSharp does not compile yet (4 places):
+              multi-dimensional arrays (int[,]) arrive later: 1 place in Program.Main() (IL_0002). {MultiDimensional}
+              the library method System.Array.get_Length() is not available yet: 1 place in Program.Main() (IL_0007). {Loop}
+              checked arithmetic arrives later: 1 place in Program.Main() (IL_000d). {Checked}
+              the library method System.Math.Abs(int) is not available yet: 1 place in Program.Main() (IL_000e).
             {LibraryCalls}
             For every place, run: chipsharp check Test.dll --details
             """.ReplaceLineEndings("\n"), error.Message);
@@ -48,13 +52,14 @@ public sealed class RejectionTests
         var analysis = Check(Source);
 
         Assert.Equal($"""
-            Test.dll uses 3 C# features that ChipSharp does not compile yet (3 places):
-              Program.Main() at IL_0001 (newarr): arrays of strings arrive with M3 (the heap). {Strings}
-              Program.Main() at IL_0010 (callvirt): {Building}. {BuildingHint}
-              Program.Main() at IL_0015 (call): the library method System.Math.Abs(int) is not available yet.
+            Test.dll uses 4 C# features that ChipSharp does not compile yet (4 places):
+              Program.Main() at IL_0002 (newobj): multi-dimensional arrays (int[,]) arrive later. {MultiDimensional}
+              Program.Main() at IL_0007 (callvirt): the library method System.Array.get_Length() is not available yet. {Loop}
+              Program.Main() at IL_000d (add.ovf): checked arithmetic arrives later. {Checked}
+              Program.Main() at IL_000e (call): the library method System.Math.Abs(int) is not available yet.
             {LibraryCallDetails}
             """.ReplaceLineEndings("\n"), analysis.Details);
-        Assert.Equal([1, 16, 21], analysis.Problems.Select(problem => problem.Offset));
+        Assert.Equal([2, 7, 13, 14], analysis.Problems.Select(problem => problem.Offset));
         Assert.All(analysis.Problems, problem => Assert.Equal("Program.Main", problem.Method.DisplayName));
     }
 
@@ -66,7 +71,7 @@ public sealed class RejectionTests
 
             class Program
             {
-                static int Second() => "two".Length;
+                static int Second() => new Random().Next();
                 static int First(int x) => checked(x + 1);
 
                 static void Main()
@@ -80,7 +85,8 @@ public sealed class RejectionTests
         [
             "Program.First(int) at IL_0002 (add.ovf): checked arithmetic arrives later. "
                 + "For now, leave out checked: ChipSharp's arithmetic wraps around on overflow, like unchecked C#.",
-            $"Program.Second() at IL_0005 (call): {Building}. {BuildingHint}",
+            "Program.Second() at IL_0000 (newobj): the library type System.Random is not available yet.",
+            "Program.Second() at IL_0005 (callvirt): the library method System.Random.Next() is not available yet.",
         ], problems);
     }
 
@@ -109,7 +115,7 @@ public sealed class RejectionTests
     [Fact]
     public void Arrays()
     {
-        var problems = Problems("""
+        var analysis = Check("""
             using System;
 
             class Program
@@ -124,10 +130,9 @@ public sealed class RejectionTests
             """);
 
         // an array returned, or of a size known only when the program runs, is on the heap (see HeapArrays): fine for a
-        // target with one, and on a target without one it needs a heap (see HeapArrayCheckTests); an array of strings
-        // waits for strings on the heap
-        Assert.Equal([$"Program.Main() at IL_0009 (newarr): arrays of strings arrive with M3 (the heap). {Strings}"],
-            problems);
+        // target with one, and on a target without one it needs a heap (see HeapArrayCheckTests); an array of strings is
+        // an array of objects
+        Assert.True(analysis.IsSupported, analysis.Details);
     }
 
     [Fact]
@@ -264,7 +269,7 @@ public sealed class RejectionTests
     [Fact]
     public void Boxing_and_objects()
     {
-        // an object compiles, and so does object's Equals; a value turned into one does not
+        // an object compiles, and so do object's Equals and printing one (its ToString); a value turned into one does not
         var problems = Problems("""
             using System;
 
@@ -282,7 +287,6 @@ public sealed class RejectionTests
 
         Assert.Equal(
         [
-            "Program.Main() at IL_0006 (call): the library method System.Console.WriteLine(object) is not available yet.",
             "Program.Wrap(int) at IL_0001 (box): boxing (using a value as an object) arrives with M3 (the heap). "
                 + "For now, keep values in their own types, such as int and bool.",
         ], problems);
@@ -357,7 +361,6 @@ public sealed class RejectionTests
             $"Program.Main() at IL_001d (callvirt): {InstanceCalls}",
             "Program.Main() at IL_0028 (box): boxing (using a value as an object) arrives with M3 (the heap). "
                 + "For now, keep values in their own types, such as int and bool.",
-            "Program.Main() at IL_002d (call): the library method System.Console.WriteLine(object) is not available yet.",
         ], problems);
     }
 
@@ -498,9 +501,11 @@ public sealed class RejectionTests
     }
 
     [Fact]
-    public void A_string_array_parameter_is_only_allowed_on_the_entry_point()
+    public void A_string_array_parameter_compiles_anywhere_but_args_used_by_the_entry_point()
     {
-        var problems = Problems("""
+        // a string[] is an array of objects; the entry point's args is left out, so it must stay unused (see
+        // Top_level_statements_that_use_args)
+        var analysis = Check("""
             class Program
             {
                 static int Count(string[] names) => 0;
@@ -512,17 +517,14 @@ public sealed class RejectionTests
             }
             """);
 
-        Assert.Equal(
-        [
-            $"Program.Count(string[]), parameter 'names' (string[]): arrays of strings arrive with M3 (the heap). {Strings}",
-        ], problems);
+        Assert.True(analysis.IsSupported, analysis.Details);
     }
 
     [Fact]
-    public void Chars_but_not_enums()
+    public void Chars_and_enums()
     {
-        // an enum is its whole number, so Hue compiles
-        var problems = Problems("""
+        // a char is its UTF-16 code unit and an enum its whole number, so both compile
+        var analysis = Check("""
             using System;
 
             enum Color { Red, Green }
@@ -540,9 +542,7 @@ public sealed class RejectionTests
             }
             """);
 
-        Assert.Equal(
-            ["Program.Code(char), parameter 'c' (char): characters (char) arrive with M3 (the heap). For now, use whole numbers."],
-            problems);
+        Assert.True(analysis.IsSupported, analysis.Details);
     }
 
     [Fact]

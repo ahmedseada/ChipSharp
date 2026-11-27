@@ -79,7 +79,7 @@ public sealed class BuildCliTests : IDisposable
                 static void Main()
                 {
                     int answer = 42;
-                    Console.WriteLine("Hello ".ToUpper() + answer);
+                    Console.WriteLine(Math.Round(2.5) + answer);
                     Console.WriteLine(answer);
                     Console.WriteLine(Math.Abs(answer).ToString());
                 }
@@ -95,10 +95,8 @@ public sealed class BuildCliTests : IDisposable
         Assert.Equal($"error: {dll} uses 2 C# features that ChipSharp does not compile yet (2 places):", lines[0]);
         Assert.Equal(
         [
-            "  building text ($\"...\", +, ToString, string.Format and the other methods of string) arrives with M3 "
-                + "(the heap): 1 place in Program.Main() (IL_0008). For now, print the parts one after another with "
-                + "Console.Write.",
-            "  the library method System.Math.Abs(int) is not available yet: 1 place in Program.Main() (IL_0025).",
+            "  the library method System.Math.Round(double) is not available yet: 1 place in Program.Main() (IL_000c).",
+            "  the library method System.Math.Abs(int) is not available yet: 1 place in Program.Main() (IL_0020).",
         ], lines[1..3]);
         var calls = WholeProgram.LibraryCalls.Split('\n');
         Assert.Equal(calls, lines[3..(3 + calls.Length)]);

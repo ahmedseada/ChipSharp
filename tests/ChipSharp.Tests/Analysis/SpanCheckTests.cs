@@ -226,7 +226,7 @@ public sealed class SpanCheckTests : IDisposable
     }
 
     [Fact]
-    public void A_span_of_characters_is_what_its_elements_need_and_MemoryMarshal_reads_only_plain_values()
+    public void A_span_of_characters_compiles_and_MemoryMarshal_reads_only_plain_values()
     {
         var problems = Problems("""
             using System;
@@ -258,8 +258,7 @@ public sealed class SpanCheckTests : IDisposable
             }
             """);
 
-        Assert.Contains("Program.Main(), local variable V_0 (System.Span<char>): characters (char) arrive with M3 (the "
-            + "heap). For now, use whole numbers.", problems);
+        Assert.DoesNotContain(problems, problem => problem.Contains("V_0", StringComparison.Ordinal));
         Assert.Contains("Program.Main() at IL_0017 (call): MemoryMarshal reads and writes as bytes only values with no "
             + "references in them, laid out as C# lays them out by default, and Person is not one (the field Person.Name has "
             + "type string). Read and write numbers, bools, enums and structs of them, without [StructLayout(Pack = ...)].",
@@ -333,7 +332,8 @@ public sealed class SpanCheckTests : IDisposable
             WholeProgram.LibraryCalls);
         Assert.Contains("System.MemoryExtensions: IndexOf(System.Span<T>, T), IndexOf(System.ReadOnlySpan<T>, T),",
             LibraryCallDetails);
-        Assert.Contains(", AsSpan(T[]), AsSpan(T[], int), AsSpan(T[], int, int)\n", LibraryCallDetails);
+        Assert.Contains(", AsSpan(T[]), AsSpan(T[], int), AsSpan(T[], int, int), AsSpan(string), AsSpan(string, int), "
+            + "AsSpan(string, int, int)\n", LibraryCallDetails);
         Assert.Contains("\n  System.Span<T>: new Span(T[]), new Span(T[], int, int), Length, IsEmpty, Empty, Slice(int), ",
             LibraryCallDetails);
         Assert.Equal(Spans.Members.Count, Spans.Members.Distinct().Count());

@@ -14,7 +14,8 @@ public sealed class IlToTirTextTests
     public void A_literal_is_the_address_of_its_record_one_constant_for_each_distinct_text()
     {
         // "road : " twice is one constant, as .NET interns literals; string.Empty is the literal "", the same one too;
-        // a static readonly field is a ptr global that its initializer, run at the start, fills
+        // a static readonly field is a ref global that its initializer, run at the start, fills; a literal is a constant
+        // object of the runtime's string type, its length and its chars (1 byte each: they are all below U+0100)
         var module = Lowered.Module("""
             using System;
 
@@ -38,10 +39,11 @@ public sealed class IlToTirTextTests
             module Test
             entrypoint <Start>
 
-            constant [15 x i8] @<text 0> = c"\07\00\00\00\07\00\00\00road : "
-            global ptr @Program.Name
-            constant [8 x i8] @<text 1> = c"\00\00\00\00\00\00\00\00"
-            constant [12 x i8] @<text 2> = c"\04\00\00\00\04\00\00\00road"
+            constant object string @<text 0> = 7, c"road : "
+            global ref @Program.Name
+            constant object string @<text 1> = 0, c""
+            constant object string @<text 2> = 4, c"road"
+            type string = array of i8 in the runtime as chipsharp_string_type
 
             function void Program.Main()
             IL_0000:
@@ -52,7 +54,7 @@ public sealed class IlToTirTextTests
               %2 = addr @<text 0>
               call void ChipSharp.Runtime.WriteString(%2)
               %3 = addr @Program.Name
-              %4 = load ptr [%3]
+              %4 = load ref [%3]
               call void ChipSharp.Runtime.WriteLineString(%4)
               %5 = addr @<text 1>
               call void ChipSharp.Runtime.WriteLineString(%5)
@@ -64,14 +66,14 @@ public sealed class IlToTirTextTests
             IL_0000:
               %0 = addr @<text 2>
               %1 = addr @Program.Name
-              store ptr [%1], %0
+              store ref [%1], %0
               return
 
-            external function void ChipSharp.Runtime.WriteString(ptr %value)
+            external function void ChipSharp.Runtime.WriteString(ref %value)
 
             external function void ChipSharp.Runtime.WriteLineInt32(i32 %value)
 
-            external function void ChipSharp.Runtime.WriteLineString(ptr %value)
+            external function void ChipSharp.Runtime.WriteLineString(ref %value)
 
             function void <Start>()
             entry:
@@ -83,7 +85,7 @@ public sealed class IlToTirTextTests
     }
 
     [Fact]
-    public void Null_is_a_null_ptr_and_text_compares_with_it_as_an_address()
+    public void Null_is_a_null_ref_and_text_compares_with_it_as_an_object()
     {
         const string Source = """
             static class C
@@ -95,11 +97,11 @@ public sealed class IlToTirTextTests
             """;
 
         Assert.Equal("""
-            function ptr C.Pick(bool %b)
+            function ref C.Pick(bool %b)
             IL_0000:
               branch %b, IL_0005, IL_0003
             IL_0003:
-              %0 = zero ptr
+              %0 = zero ref
               return %0
             IL_0005:
               %1 = addr @<text 0>
@@ -107,31 +109,31 @@ public sealed class IlToTirTextTests
 
             """.ReplaceLineEndings("\n"), Lowered.Function(Source, "C.Pick"));
 
-        // s != null is cgt.un: an address above null
+        // s != null is cgt.un: an object above null
         Assert.Equal("""
-            function bool C.IsSet(ptr %s)
+            function bool C.IsSet(ref %s)
             IL_0000:
-              %0 = zero ptr
-              %1 = ugt ptr %s, %0
+              %0 = zero ref
+              %1 = ugt ref %s, %0
               return %1
 
             """.ReplaceLineEndings("\n"), Lowered.Function(Source, "C.IsSet"));
 
         // ?? is dup and brtrue: the text waits in a stack slot while it is tested
         Assert.Equal("""
-            function ptr C.OrNone(ptr %s)
-              $stack0_ptr: ptr
+            function ref C.OrNone(ref %s)
+              $stack0_ref: ref
             IL_0000:
-              %0 = zero ptr
-              %1 = ne ptr %s, %0
-              store $stack0_ptr, %s
+              %0 = zero ref
+              %1 = ne ref %s, %0
+              store $stack0_ref, %s
               branch %1, IL_000a, IL_0004
             IL_0004:
               %2 = addr @<text 0>
-              store $stack0_ptr, %2
+              store $stack0_ref, %2
               jump IL_000a
             IL_000a:
-              %3 = load ptr $stack0_ptr
+              %3 = load ref $stack0_ref
               return %3
 
             """.ReplaceLineEndings("\n"), Lowered.Function(Source, "C.OrNone"));
@@ -166,9 +168,13 @@ public sealed class IlToTirTextTests
         var host = Assert.Single(new ChipSharp.Backend.Llvm.LlvmCodeGenerator().Generate(module, Llvm.LlvmTargets.Host).Files);
         var pico = Assert.Single(new ChipSharp.Backend.Llvm.LlvmCodeGenerator().Generate(module, Llvm.LlvmTargets.Pico).Files);
 
-        const string Constant = """@_text_0_ = private unnamed_addr constant [13 x i8] c"\04\00\00\00\05\00\00\00caf\C3\A9", align 1""";
-        Assert.Contains(Constant, host.Content);
-        Assert.Contains(Constant, pico.Content);
+        // a string object: the runtime's descriptor, the length, and 1 byte per char, from 16 bytes in on the PC (8-byte
+        // pointers) and 8 on the Pico (4-byte ones)
+        Assert.Contains("""@_text_0_ = private unnamed_addr constant <{ ptr, i32, [4 x i8], [4 x i8] }> """ +
+            """<{ ptr @chipsharp_string_type, i32 4, [4 x i8] zeroinitializer, [4 x i8] c"caf\E9" }>, align 8""", host.Content);
+        Assert.Contains("""@_text_0_ = private unnamed_addr constant <{ ptr, i32, [4 x i8] }> """ +
+            """<{ ptr @chipsharp_string_type, i32 4, [4 x i8] c"caf\E9" }>, align 4""", pico.Content);
+        Assert.Contains("@chipsharp_string_type = external constant i8, align 4", pico.Content);
         Assert.Contains("call void @ChipSharp_Runtime_WriteLineString(ptr @_text_0_)", host.Content);
         Assert.Contains("declare void @ChipSharp_Runtime_WriteLineString(ptr) nounwind", pico.Content);
     }

@@ -102,7 +102,8 @@ public sealed class IlToTirPrintedTextTests
     public void A_part_that_comes_in_on_several_ways_waits_in_a_stack_slot_with_the_text()
     {
         // "lane " + lane + (cut ? " cut" : ""): lane.ToString() is kept before the branch, the text stands on the
-        // stack (a null ptr in a stack slot) while the third part comes in on two ways
+        // stack (a null ptr in a stack slot, which nothing reads; as null it goes into the ref slot too, where an object
+        // could meet it) while the third part, a string, comes in on two ways
         var main = Lowered.Function("""
             using System;
 
@@ -122,10 +123,11 @@ public sealed class IlToTirPrintedTextTests
               $V_0: i32
               $V_1: bool
               $part_IL_000e: i32
-              $stack0_ptr: ptr
               $stack1_ptr: ptr
-              $stack2_ptr: ptr
-              $part_IL_0022_2: ptr
+              $stack0_ref: ref
+              $stack1_ref: ref
+              $stack2_ref: ref
+              $part_IL_0022_2: ref
             IL_0000:
               %0 = const i32 2
               store $V_0, %0
@@ -139,26 +141,36 @@ public sealed class IlToTirPrintedTextTests
               store $part_IL_000e, %6
               %7 = load bool $V_1
               %8 = zero ptr
-              store $stack0_ptr, %4
+              %9 = zero ref
+              store $stack0_ref, %4
               store $stack1_ptr, %8
+              store $stack1_ref, %9
               branch %7, IL_001d, IL_0016
             IL_0016:
-              %9 = addr @<text 1>
-              store $stack2_ptr, %9
+              %10 = addr @<text 1>
+              %11 = zero ptr
+              %12 = zero ref
+              store $stack1_ptr, %11
+              store $stack1_ref, %12
+              store $stack2_ref, %10
               jump IL_0022
             IL_001d:
-              %10 = addr @<text 2>
-              store $stack2_ptr, %10
+              %13 = addr @<text 2>
+              %14 = zero ptr
+              %15 = zero ref
+              store $stack1_ptr, %14
+              store $stack1_ref, %15
+              store $stack2_ref, %13
               jump IL_0022
             IL_0022:
-              %11 = load ptr $stack2_ptr
-              store $part_IL_0022_2, %11
-              %12 = addr @<text 0>
-              call void ChipSharp.Runtime.WriteString(%12)
-              %13 = load i32 $part_IL_000e
-              call void ChipSharp.Runtime.WriteInt32(%13)
-              %14 = load ptr $part_IL_0022_2
-              call void ChipSharp.Runtime.WriteLineString(%14)
+              %16 = load ref $stack2_ref
+              store $part_IL_0022_2, %16
+              %17 = addr @<text 0>
+              call void ChipSharp.Runtime.WriteString(%17)
+              %18 = load i32 $part_IL_000e
+              call void ChipSharp.Runtime.WriteInt32(%18)
+              %19 = load ref $part_IL_0022_2
+              call void ChipSharp.Runtime.WriteLineString(%19)
               return
             """.ReplaceLineEndings("\n"), main.TrimEnd().ReplaceLineEndings("\n"));
     }
@@ -167,7 +179,7 @@ public sealed class IlToTirPrintedTextTests
     public void Aligned_and_formatted_parts_are_written_by_the_text_functions()
     {
         // a hex number's bits of its own width (FF for an sbyte -1), a signed number made 64 bits, an unsigned one
-        // zero-extended; the hex digits are records of fixed text in one constant
+        // zero-extended; the runtime writes the hex digits
         var module = Lowered.Module("""
             using System;
 
@@ -200,16 +212,14 @@ public sealed class IlToTirPrintedTextTests
         Assert.Contains("call void ChipSharp.Text.WriteDecimal(", main);
         Assert.Contains("call void ChipSharp.Text.WriteAligned(", main);
         Assert.Contains("call void ChipSharp.Text.WriteBool(", main);
-        var digits = Assert.Single(module.Globals, global => global.Name == "<hex digits>");
-        Assert.Equal(16 * 9, digits.Data!.Count);
-        Assert.Contains(module.Globals, global => global.Name == "<lowercase hex digits>");
+        Assert.Contains(module.Functions, function => function.Name == "ChipSharp.Runtime.WriteHexDigits");
     }
 
     [Fact]
-    public void Built_text_that_is_kept_is_an_error_of_the_translation_too()
+    public void Built_text_that_is_kept_is_a_string_made_where_the_text_is_finished()
     {
-        // what the whole-program pass rejects, for the same reason
-        var error = Assert.Throws<ChipSharpException>(() => IlToTir.Lower(Lowered.Program(Lowered.Compile("""
+        // the parts of the text wait in their slots, then the runtime puts their strings together
+        var module = IlToTir.Lower(Lowered.Program(Lowered.Compile("""
             using System;
 
             class Program
@@ -218,10 +228,13 @@ public sealed class IlToTirPrintedTextTests
 
                 static void Main() => Console.WriteLine(Make(1));
             }
-            """))));
+            """)));
+        var make = TirPrinter.Print(module.Functions.Single(function => function.Name == "Program.Make"));
 
-        Assert.Equal("Test.dll: Program.Make(int32) at IL_0024: ret: keeping built text in a variable arrives with M3 "
-            + "(the heap).", error.Message);
+        Assert.Contains("$parts: [2 x ref]", make);
+        Assert.Contains("call ref ChipSharp.Runtime.StringOfInt64(", make);
+        Assert.Contains("call ref ChipSharp.Runtime.StringConcat(", make);
+        Assert.True(module.Functions.Single(function => function.Name == "ChipSharp.Runtime.StringConcat").MakesObjects);
     }
 
     /// <summary>The indexes of the lines that contain <paramref name="text"/>.</summary>
