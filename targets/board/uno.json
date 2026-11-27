@@ -6,6 +6,10 @@
   "name": "uno",
   "inherits": "atmega328p",
   "clockHz": 16000000,
+  "memory": {
+    // the program may use the flash up to the bootloader: 32 KB less optiboot's 512 bytes (the chip itself has 32K)
+    "flash": { "size": "32256" }
+  },
   "pins": {
     "LED": 13
   }
