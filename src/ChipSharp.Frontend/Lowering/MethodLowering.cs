@@ -178,6 +178,10 @@ internal sealed partial class MethodLowering
 
         switch (instruction.OpCode)
         {
+            case var _ when IsDelegateInstruction(instruction):
+                LowerDelegateInstruction(instruction); // see MethodLowering.Delegates.cs
+                break;
+
             case var _ when IsStringInstruction(instruction):
                 LowerStringInstruction(instruction);
                 break;

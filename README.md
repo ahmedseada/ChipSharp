@@ -46,14 +46,14 @@ that ChipSharp does not compile yet, where, when it is planned, and what to writ
 on a line of its own, and every library method ChipSharp can call). `tir` shows the program in TIR. `build` compiles
 it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` also keeps the `.tir` and `.ll` files.
 
-`dotnet test` runs 1411 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
+`dotnet test` runs 1468 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
 `CHIPSHARP_LLVM_BIN`); the Pico tests also need the simulator (see below), and are skipped, saying why, without it.
 
 ## What C# compiles today
 
 | C# | Today |
 |---|---|
-| Methods | Static methods, top-level statements, static local functions, recursion; the methods, constructors, properties and operators of structs and classes |
+| Methods | Static methods, top-level statements, local functions (that capture variables too), recursion; the methods, constructors, properties and operators of structs and classes |
 | Values | `bool`, `char`, every whole number (`sbyte` to `ulong`, `nint`, `nuint`), `float` and `double` (computed and printed bit for bit like .NET) |
 | Code | `if`, `switch`, `for`, `while`, `do`, `foreach` over arrays, `&&`, `\|\|`, `?:`, patterns on numbers; arithmetic wraps around like unchecked C# |
 | Types | Structs, enums (`[Flags]` too), `ref`, `out` and `in` parameters, `ref` locals |
@@ -62,6 +62,7 @@ it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` 
 | Interfaces of classes | Classes that implement interfaces implicitly and explicitly, through a base class, again in a derived class, interfaces that inherit interfaces, default methods, properties, generic interfaces (`IStore<int>`, `IRepository<Lane>`) with variance (`out T`, `in T`: an `IProducer<Dog>` is an `IProducer<Animal>` in calls, casts and `is`), the library's `IComparable`, `IComparable<T>`, `IEquatable<T>` and `IDisposable`, and the collections' `IEnumerable<T>`, `IEnumerator<T>`, `ICollection<T>`, `IList<T>`, `IReadOnlyCollection<T>`, `IReadOnlyList<T>`, `IComparer<T>` and `IEqualityComparer<T>` (and `IEnumerable`, `IEnumerator`); interfaces as the types of locals, parameters, return values, fields and static fields |
 | Type tests and casts | `is`, `as` and `(T)x` to classes, interfaces, `object` and arrays (`o is int[]`, covariant arrays of objects too), `x is Square s`, property patterns, `switch` on types, `is null`, `is not null`; a cast that fails stops the program with .NET's `InvalidCastException` message |
 | Generics | Generic methods, structs and static classes over values (numbers, bools, enums, structs, generic structs, text), nested in each other: `static T Max<T>(T a, T b) where T : IComparable<T>`, `static void Swap<T>(ref T a, ref T b)`, `struct Pair<T>`, made once for each type argument, with no heap. On a target with a heap also over classes, interfaces, `object` and arrays, and generic classes (`class Stack<T>` of `Node<T>`, `class Derived<T> : Base<T>`, `class IntBox : Box<int>`, a class nested in one), each instance a class of its own with its own static fields and .NET's name (``Box`1[Program+Lane]``); constraints (`where T : class`, `where T : Animal`, `where T : IShape`, `where T : new()`, `where T : unmanaged`), `default(T)` (null), `new T()`, `new T[n]`, casts, `is` and `as` to `T`; generic virtual methods and generic methods of interfaces and of generic classes; the library's generic code over the program's types (`span.IndexOf(point)`, `Array.Sort` of structs that implement `IComparable<T>`); `EqualityComparer<T>.Default` and `Comparer<T>.Default` with .NET's results, with no boxing; `foreach` over a collection of the program's whose `GetEnumerator()` gives a struct or a sealed class. Interfaces implemented by structs, through a constraint (`static void Run<T>(ref T device) where T : struct, IDevice`, explicit implementations and static abstract members too) or called on the struct itself; `CompareTo`, `Equals`, `GetHashCode` and `ToString` of a number `T`; generic math (`INumber<T>`): the operators, comparisons, `T.Zero`, `T.One`, `MinValue`, `MaxValue`; `default(T)`, `typeof(T) == typeof(int)`, `sizeof(T)`; a `T` printed and in printed text |
+| Delegates | On a target with a heap: `Action`, `Func<...>`, `Predicate<T>`, `Comparison<T>`, `Converter<TInput, TOutput>`, `EventHandler<T>` and the program's own delegate types (generic ones too), over values, text and objects; made of static and instance methods, virtual and interface methods (the override of the object they are made of), extension methods, library methods (`Action<int> print = Console.WriteLine;`), generic methods, and lambdas (`static` ones too) that capture nothing, variables, `this`, the variables of outer scopes and loop variables (`foreach` gives each its own, as .NET does), in generic methods too; `d(x)`, `d.Invoke(x)`, `d?.Invoke(x)` (null stops the program with .NET's `NullReferenceException` message); `+`, `-`, `+=` and `-=` with .NET's order and what is left (the last occurrence of a list taken out), every delegate of a multicast one called in order and the last one's result, `GetInvocationList`, `==`, `!=`, `Equals`, `GetHashCode`, `ToString` (the type's name), `is` and `as`; field-like events (`event Action Changed`, static ones too) and events with their own `add` and `remove`; delegates in locals, fields, static fields, arrays and as type arguments. A local function that is only called keeps what it captures in a struct, with no heap, on every target; an interrupt handler may invoke a delegate kept in a static field |
 | Static fields | Of the types above, `volatile` too, with field initializers and static constructors |
 | Arrays | Of numbers, bools, structs and enums, on the stack: a constant size, kept in the method that makes them and passed down to the methods it calls. On a target with a heap also on the heap: returned, kept in static fields, in the fields of objects and in other arrays, of a size known only when the program runs (`new int[n]`), `null` (`a == null`, `a?.Length ?? 0`), arrays of arrays (`int[][]`), of objects and of the program's classes; `[]` and `Array.Empty<T>()`, `foreach`, `.Length`, bounds checks and .NET's messages for null and a negative length. An array that stays in its method with a constant size is still on the stack |
 | Spans | `Span<T>` and `ReadOnlySpan<T>` with no heap, of arrays, of `stackalloc` (a constant size, initializers too), of constant data (`static ReadOnlySpan<byte> Digits => new byte[] { 0x3F, ... };`, in flash on a chip) and of variables (`MemoryMarshal.CreateSpan(ref x, 1)`): the indexer (`ref` too), `Length`, `IsEmpty`, `Slice`, ranges and indices (`s[2..5]`, `s[^1]`), `foreach`, `CopyTo`, `TryCopyTo`, `Fill`, `Clear`, `==`; as parameters, locals, return values and fields of a ref struct, of a generic `T` too |
@@ -69,13 +70,12 @@ it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` 
 | Fixed text | String literals (`"road : 1"`, `string.Empty`) anywhere a string may be, on every target: printed (`null` as nothing, like .NET, as UTF-8), compared, measured, searched (the methods of string that make no new text). Each literal is an object in flash once on a chip: 8 bytes and 1 byte per char on the Pico |
 | Printed text | Text built and printed straight away, with no string ever made and no heap: `Console.WriteLine($"road : {lane}")`, `Console.Write("road : " + lane + '!')`, `lane.ToString()`, `Console.WriteLine("{0,4} {1:X2}", a, b)`, `Console.WriteLine(color)`; holes of text, chars, enums (by name, `[Flags]` combined too, or with `D` and `X`) and of every type `Console.Write` prints, worked out first, in order, like .NET; alignments (`{x,5}`, `{x,-5}`, not of floats) and the formats `D`, `D<n>`, `X<n>`, `x<n>` and `G` of whole numbers |
 | Strings | On a target with a heap: text built and kept (`string s = $"..."`, `+`, `+=`, `ToString()` of numbers, bools, chars and enums with the formats printed text has, `string.Concat`, `string.Join` of an array, `string.Format` of a literal format) in locals, fields of classes and structs, static fields, arrays (`string[]`), returned and passed anywhere; `==`, `!=`, `Equals`, `CompareOrdinal`, `CompareTo`, `IsNullOrEmpty`, `IsNullOrWhiteSpace`, `Length`, `s[i]`, `foreach`, `Substring`, `IndexOf`, `LastIndexOf`, `Contains`, `StartsWith`, `EndsWith`, `Replace`, `Trim`, `TrimStart`, `TrimEnd`, `PadLeft`, `PadRight`, `ToUpper`, `ToLower`, `Insert`, `Remove`, `Split`, `ToCharArray`, `new string(...)`, `GetHashCode`, `switch` on strings; `int.Parse` and `TryParse` (and those of the other whole numbers); `char.IsDigit`, `IsLetter`, `IsWhiteSpace`, `IsUpper`, `IsLower`, `ToUpper`, `ToLower`; spans of chars (`s.AsSpan()`, `stackalloc char[8]`, `span.ToString()`); `ToString()` of the program's classes (overrides, and object's own: the type's name), `Console.WriteLine(shape)`, `is string`, `as string`, `(string)o` |
-| Library | `Console.Write` and `Console.WriteLine` of text, a number or a bool; `Math` and `MathF`: `Abs`, `Min`, `Max`, `Sqrt`; `TimeSpan`: its factories in any unit (`FromMilliseconds(500)`, `FromSeconds(1.5)`), parts, totals, arithmetic and comparisons; on a chip, `ChipSharp.Hardware`: pins, timing (`Timing.Delay(TimeSpan)` too), registers and interrupts; for spans, `MemoryExtensions` (`IndexOf`, `LastIndexOf`, `Contains`, `SequenceEqual`, `StartsWith`, `EndsWith`, `Reverse`, `AsSpan`), `BinaryPrimitives` (`Read`, `Write`, `TryRead` and `TryWrite` of the whole numbers, `float` and `double`, big- and little-endian; `ReverseEndianness`) and `MemoryMarshal` (`Read`, `Write`, `TryRead`, `TryWrite`, `AsBytes`, `Cast`, `CreateSpan`), at any offset; `System.Array`: `Copy` (every overload, the `long` ones too, overlapping copies within an array like .NET's), `ConstrainedCopy`, `CopyTo`, `Clear`, `Fill`, `IndexOf`, `LastIndexOf` and `Reverse` of arrays of every element type, `Sort` and `BinarySearch` of numbers, bools and structs that implement `IComparable<T>`, with no heap; on a target with a heap also `Resize` and `Clone`; `EqualityComparer<T>.Default` and `Comparer<T>.Default` (`Equals`, `GetHashCode`, `Compare`) |
+| Library | `Console.Write` and `Console.WriteLine` of text, a number or a bool; `Math` and `MathF`: `Abs`, `Min`, `Max`, `Sqrt`; `TimeSpan`: its factories in any unit (`FromMilliseconds(500)`, `FromSeconds(1.5)`), parts, totals, arithmetic and comparisons; on a chip, `ChipSharp.Hardware`: pins, timing (`Timing.Delay(TimeSpan)` too), registers and interrupts; for spans, `MemoryExtensions` (`IndexOf`, `LastIndexOf`, `Contains`, `SequenceEqual`, `StartsWith`, `EndsWith`, `Reverse`, `AsSpan`), `BinaryPrimitives` (`Read`, `Write`, `TryRead` and `TryWrite` of the whole numbers, `float` and `double`, big- and little-endian; `ReverseEndianness`) and `MemoryMarshal` (`Read`, `Write`, `TryRead`, `TryWrite`, `AsBytes`, `Cast`, `CreateSpan`), at any offset; `System.Array`: `Copy` (every overload, the `long` ones too, overlapping copies within an array like .NET's), `ConstrainedCopy`, `CopyTo`, `Clear`, `Fill`, `IndexOf`, `LastIndexOf` and `Reverse` of arrays of every element type, `Sort` and `BinarySearch` of numbers, bools and structs that implement `IComparable<T>`, with no heap; on a target with a heap also `Resize` and `Clone`, and those that take a delegate, of arrays of every element type: `Exists`, `Find`, `FindAll`, `FindIndex`, `FindLast`, `FindLastIndex`, `ForEach`, `TrueForAll`, `ConvertAll` and `Sort` with a `Comparison` (.NET's introsort, so elements the comparison calls equal end up where .NET puts them); `EqualityComparer<T>.Default` and `Comparer<T>.Default` (`Equals`, `GetHashCode`, `Compare`) |
 
 | Not yet | When |
 |---|---|
 | An object of a class in an interpolated hole (`$"{node}"`; `"x" + node` and `Console.WriteLine(node)` compile), records, `StringBuilder`, a `params` span (`string.Join(", ", a, b, c)`: give an array), the other formats (`F2`, `N0`) and `string.Format` of a format known only when the program runs, culture-aware comparisons and the case of letters past U+00FF, `ref` and `out` of a string; a struct turned into an interface or `object` (boxing) and back (unboxing: `(int)o`, `o is int`), `EqualityComparer<T>.Default` of a struct that does not implement `IEquatable<T>` (.NET boxes it), `ref` and `out` of an object, type tests against library classes, `?.` that gives a number (an `int?`); an array in the field of a struct, `ToArray` of a span | With M3 (the heap) |
-| Exceptions (`try`, `catch`, `finally`, `throw`, `using`), `checked` arithmetic, multi-dimensional arrays, array covariance (`object[] items = new int[2][]`), `ref` and `out` of an array (but `Array.Resize(ref a, n)`), a static array kept outside its field, unsafe code (pointers, `stackalloc` into a pointer, `stackalloc` of a size known only when the program runs), collection expressions as spans (`Span<int> s = [1, 2];`), delegates and lambdas, `typeof`, finalizers, classes derived from library classes | Later |
-| The methods of `System.Array` that take a delegate (`Array.Exists`, `Find`, `FindIndex`, `TrueForAll`, `ForEach`, `ConvertAll`, `Sort` with a `Comparison`) | With M3 (delegates) |
+| Exceptions (`try`, `catch`, `finally`, `throw`, `using`), `checked` arithmetic, multi-dimensional arrays, array covariance (`object[] items = new int[2][]`), `ref` and `out` of an array (but `Array.Resize(ref a, n)`), a static array kept outside its field, unsafe code (pointers, `stackalloc` into a pointer, `stackalloc` of a size known only when the program runs), collection expressions as spans (`Span<int> s = [1, 2];`), function pointers (`delegate*`), delegates that take or return arrays or spans (`Action<int[]>`), a delegate of a struct's method, `BeginInvoke` and `EndInvoke`, `typeof`, finalizers, classes derived from library classes | Later |
 | The library's collections (`List<T>`, `Dictionary<TKey, TValue>`, ...), `foreach` over an enumerator that is disposed (one that implements `IDisposable`, as every `IEnumerator<T>` does: a `foreach` over an `IEnumerable<T>`), which C# does in a `try`/`finally`; an array used as an interface (`IEnumerable<int> e = numbers;`) | With M3 (collections) |
 | `Array.Copy` between arrays of different element types (`int[]` into `long[]`), `Array.Sort` and `BinarySearch` of enums, structs that do not implement `IComparable<T>` and objects, `Array.IndexOf` of structs, of `object` and of classes with an `Equals` of their own | Later |
 | Other library types and methods (`decimal`, `Random`, `Math.Sin`, `array.GetValue(i)`, the overloads of `System.Array` that take an `IComparer`, ...) | Not yet: `chipsharp check` lists the methods there are, and for `System.Array` says to write the loop |
@@ -99,7 +99,7 @@ A call to a library method ChipSharp does not have lists the ones it has:
 ChipSharp can call these library methods (--details lists each one with its parameters):
   Console.Write and Console.WriteLine of (nothing), text, int, uint, long, ulong, bool, float, double
   Math and MathF: Abs, Min, Max, Sqrt
-  Array: Copy, ConstrainedCopy, CopyTo, Clear, Fill, IndexOf, LastIndexOf, Reverse, Resize, Clone, Sort, BinarySearch
+  Array: Copy, ConstrainedCopy, CopyTo, Clear, Fill, IndexOf, LastIndexOf, Reverse, Resize, Clone, Sort, BinarySearch, Exists, Find, FindAll, FindIndex, FindLast, FindLastIndex, ForEach, TrueForAll, ... (21 in all)
   MemoryExtensions: IndexOf, LastIndexOf, Contains, SequenceEqual, StartsWith, EndsWith, Reverse, AsSpan
   TimeSpan: FromTicks, FromDays, FromHours, FromMinutes, FromSeconds, FromMilliseconds, FromMicroseconds, Add, Subtract, Negate, Multiply, Divide, Duration, Compare, CompareTo, Equals, its constructors, properties and operators
   Span<T>: Slice, CopyTo, TryCopyTo, Fill, Clear, its constructors, properties and operators
@@ -124,7 +124,7 @@ make the Pico's garbage collector run again and again), `HeapArrays.cs` (arrays 
 program runs, an array of arrays, an array kept in a static field and replaced, null, and many arrays used once),
 `ArrayMethods.cs` (a ring buffer of readings moved along with `Array.Copy`, medians with `Array.Sort`, levels with
 `Array.Fill` and `IndexOf`, a table searched with `BinarySearch`, a log grown with `Array.Resize` and copied with `Clone`)
-and `GenericClasses.cs` (a linked stack of readings and of numbers, a repository interface with two implementations,
+`Delegates.cs` (callbacks, a closure counter, lambdas made in a loop that each keep their own variable, an event with two subscribers and an unsubscribe, readings sorted with a comparison and filtered with `Array.FindAll`, and enough short-lived closures to make the Pico's collector run) and `GenericClasses.cs` (a linked stack of readings and of numbers, a repository interface with two implementations,
 `new T()`, `EqualityComparer<T>.Default` over a class with its own `Equals` and over `int`, and tens of thousands of
 short-lived objects of generic classes).
 
@@ -489,6 +489,58 @@ The other calls go through the object's descriptor, the address in its header (`
 
 `samples/Shapes.cs` shows each of these.
 
+### Delegates
+
+A delegate is an object on the heap (`src/ChipSharp.Frontend/Delegates.cs`), of its delegate type, whose descriptor's
+base is System.MulticastDelegate's, then System.Delegate's, then object's; every delegate type lays its objects out the
+same way, 16 bytes on the Pico (32 on a PC):
+
+```
+header | target (ref) | method (ptr) | invocations (ref)
+```
+
+- Made of an instance method (a lambda, which C# makes a method of the object it keeps what the lambda captures in, or
+  of its one object of the lambdas that capture nothing; `counter.Next`), the target is the object and the method its
+  function's address (`funcaddr` in TIR), which takes it as `this`. A virtual method's (`ldvirtftn`) is what its slot
+  runs on that object: the one override there can be, or the address read from the object's tables.
+- Made of a static method, the target is null and the method that method's thunk (`<delegate> Program.Add(int32, int32)`),
+  which takes a target it leaves alone and calls the method, or the runtime function of a library method
+  (`Console.WriteLine`). An extension method made into a delegate of its object (`node.Twice`) is called itself, with
+  the object as its first argument.
+- A multicast delegate, what `+` and `+=` make of two or more, has as its target and its invocations one
+  `System.Delegate[]` of the single delegates it calls (never another multicast one), and as its method the invoker of
+  its type's signature (`ChipSharp.Delegate.InvokeAll`), which its type's descriptor holds after object's slots: it
+  calls each delegate of the list in order and returns what the last one returns.
+
+So every invocation, `d(x)`, `d.Invoke(x)` and `d?.Invoke(x)`, is the same four instructions: the null check (.NET's
+`NullReferenceException` message), the loads of the target and of the method, and one `call indirect method(target, x)`.
+The collector follows the target and the invocations; the method is an address in the code.
+
+`Combine`, `Remove`, `==`, `Equals`, `GetHashCode` and `GetInvocationList` are .NET's System.MulticastDelegate's
+(`Lowering/DelegateFunctions.cs`): two delegates are equal when they are of one type and have the same target and
+method, two multicast ones when their lists are equal one by one; `a + null` is `a` itself, `Remove` takes out the last
+run of the list it is given and gives what is left (null, the one delegate left itself, or a new delegate of the rest);
+two delegates of two types (`Action<object>` as an `Action<string>`) stop the program with .NET's `ArgumentException`.
+A list is never shared or changed once made, so a list is always exactly as long as it needs to be. A field-like event's
+`add` and `remove` (C#'s loop around `Interlocked.CompareExchange`) compare and store with interrupts off, so that an
+interrupt handler that sets the field in between makes the loop go round again.
+
+```csharp
+public event Action<int> TooHot;             // add and remove: Combine and Remove in a CompareExchange loop
+thermostat.TooHot += t => Console.WriteLine("too hot: " + t);
+thermostat.TooHot += fan.Faster;             // an instance method: the fan is the target
+TooHot?.Invoke(temperature);                 // both, in order
+Array.Sort(readings, (a, b) => b - a);       // .NET's introsort with a comparison: ChipSharp.Library's Array
+```
+
+An interrupt handler may invoke a delegate (it makes no object), and the whole-program pass follows what the delegates
+of that type may call into what the handler runs; making one there (a lambda C# caches in a static field too) and `+=`
+make objects, which `chipsharp check` says is not allowed where it happens. On a target without a heap a delegate, and
+the object C# makes for what lambdas capture, need a heap, which `chipsharp check` says in those words; a local function
+that C# only calls keeps what it captures in a struct of its method, passed by `ref`, and compiles on every target. Not
+yet: function pointers (`delegate*<int, int>`), delegates that take or return arrays or spans (the analysis of arrays
+cannot follow an array into the method a delegate calls), a delegate of a struct's method (which .NET calls on a box),
+and `BeginInvoke`. `samples/Delegates.cs` shows a thermostat's callbacks and events.
 ### The heap
 
 The heap is where objects live: what classes, strings, boxes and collections need (classes make them today; M3 brings

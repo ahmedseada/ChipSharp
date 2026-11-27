@@ -77,6 +77,9 @@ public static class SupportedSubset
         // reach their fields; isinst and castclass test them against classes and interfaces
         IlOpCode.Callvirt, IlOpCode.Isinst, IlOpCode.Castclass,
 
+        // delegates (Delegates): the address of the method a new delegate calls, a virtual one's from the object's tables
+        IlOpCode.Ldftn, IlOpCode.Ldvirtftn,
+
         // throw (Exceptions): stops the program, as an exception nothing catches does; try/finally is plain branches by
         // then (TryFinally)
         IlOpCode.Throw,

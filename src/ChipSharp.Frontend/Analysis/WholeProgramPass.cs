@@ -98,9 +98,16 @@ public static partial class WholeProgramPass
             for (var j = 0; j < instructions.Count; j++)
             {
                 if (ValueTypes.CalledMethod(instructions[j]) is { } callee && !Generics.Instantiations.IsGeneric(callee)
-                    && VirtualMethods.CalledSlot(instructions, j) is null && found.Add(callee))
+                    && VirtualMethods.CalledSlot(instructions, j) is null && !Delegates.IsDelegateMethod(callee)
+                    && found.Add(callee))
                 {
                     methods.Add(callee);
+                }
+
+                // a method a delegate calls (see Delegates): what the delegate's Invoke runs
+                if (Delegates.AddressTaken(instructions, j) is { } target && found.Add(target))
+                {
+                    methods.Add(target);
                 }
 
                 methods.AddRange(dispatch.Follow(instructions, j).Where(found.Add));
@@ -213,10 +220,12 @@ public static partial class WholeProgramPass
         var virtuals = ForVirtualCalls(method);
         var classes = ForClasses(method);
         var strings = ForStrings(method);
-        // after the arrays' and spans' verdicts: strings', generics', virtual calls', classes', building text, the
-        // struct/reference rules, the rest
+        var delegates = ForDelegates(method);
+        // after the arrays' and spans' verdicts: delegates', strings', generics', virtual calls', classes', building text,
+        // the struct/reference rules, the rest
         Unsupported? Others(IlInstruction instruction) =>
-            strings.TryGetValue(instruction, out var forStrings) ? forStrings
+            delegates.TryGetValue(instruction, out var forDelegates) ? forDelegates
+            : strings.TryGetValue(instruction, out var forStrings) ? forStrings
             : generics.TryGetValue(instruction, out var generic) ? generic
             : virtuals.TryGetValue(instruction, out var dispatched) ? dispatched
             : classes.TryGetValue(instruction, out var forClasses) ? forClasses

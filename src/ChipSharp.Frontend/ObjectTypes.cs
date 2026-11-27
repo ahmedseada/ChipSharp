@@ -55,7 +55,7 @@ internal static class ObjectTypes
         ArgumentNullException.ThrowIfNull(assembly);
         // a string is an object too (see Strings)
         tirType = IsSystemObject(type) || Class(type, assembly) is not null || VirtualMethods.IsInterface(type, assembly)
-            || FixedText.IsText(type)
+            || FixedText.IsText(type) || Delegates.IsDelegateType(type, assembly) // a delegate too (see Delegates)
             ? TirType.Ref
             : null;
         return tirType is not null;

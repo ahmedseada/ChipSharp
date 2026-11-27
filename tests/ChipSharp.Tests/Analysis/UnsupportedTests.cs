@@ -37,8 +37,8 @@ public sealed class UnsupportedTests
     [InlineData(IlOpCode.Isinst, "type tests and casts on objects (is, as, (T)x)")]
     [InlineData(IlOpCode.Initobj, "structs")]
     [InlineData(IlOpCode.Localloc, "stackalloc")]
-    [InlineData(IlOpCode.Ldftn, "delegates, lambdas and function pointers")]
-    [InlineData(IlOpCode.Calli, "delegates, lambdas and function pointers")]
+    [InlineData(IlOpCode.Ldftn, "function pointers (delegate*, &Method)")]
+    [InlineData(IlOpCode.Calli, "function pointers (delegate*, &Method)")]
     [InlineData(IlOpCode.Ldtoken, "typeof and type handles")]
     public void An_instruction_is_described_in_CSharp_words(IlOpCode opCode, string what)
     {

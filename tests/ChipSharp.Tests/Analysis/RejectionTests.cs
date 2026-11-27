@@ -567,24 +567,26 @@ public sealed class RejectionTests
     }
 
     [Fact]
-    public void Lambdas()
+    public void Function_pointers()
     {
+        // delegates and lambdas compile (see the tests in Delegates); a function pointer does not
         var problems = Problems("""
             using System;
 
-            class Program
+            unsafe class Program
             {
+                static int Three() => 3;
+
                 static void Main()
                 {
-                    Func<int> three = () => 3;
+                    delegate*<int> three = &Three;
                     Console.WriteLine(three());
                 }
             }
             """);
 
         Assert.Contains(problems, line => line.EndsWith(
-            "(ldftn): delegates, lambdas and function pointers arrive later. For now, call methods directly.",
-            StringComparison.Ordinal));
-        Assert.DoesNotContain(problems, line => line.StartsWith("Program.<>c", StringComparison.Ordinal));
+            "(ldftn): function pointers (delegate*, &Method) arrive later. For now, use a delegate (Func<int, int>, " +
+            "Action), or call the method directly.", StringComparison.Ordinal));
     }
 }

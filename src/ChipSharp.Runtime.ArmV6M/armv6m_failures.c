@@ -73,6 +73,11 @@ __attribute__((weak, noreturn)) void ChipSharp_Runtime_NegativeIndex(void) { fai
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_NegativeLength(void) { fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_NegativeNewSize(void) { fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_InvalidOffsetLength(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_MatchNull(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_ActionNull(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_ConverterNull(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_ComparisonNull(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_DelegateTypes(void) { fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_LengthBelowZero(int value) { (void)value; fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_SourceIndexBelowZero(int value) { (void)value; fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_DestinationIndexBelowZero(int value) { (void)value; fail(); }
