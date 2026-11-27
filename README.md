@@ -118,7 +118,7 @@ chipsharp build bin\Release\net10.0\PicoBlink.dll -t pico      # chipsharp-outpu
 ### On an Arduino Uno
 
 The Uno ([in progress](#arduino-uno-in-progress)) needs Zig, and its programs are `.hex` files. The examples
-`examples\uno-blink`, `uno-timer-blink` and `uno-button` are built as the Pico's are:
+`examples\uno-blink`, `uno-timer-blink`, `uno-button` and `uno-serial` are built as the Pico's are:
 
 ```powershell
 cd examples\uno-blink
@@ -255,7 +255,11 @@ go).
   are kept from it: a copy of LLVM's own from flash (a loop over a table made into `memcpy`, which would read RAM), so
   `memcpy` and `memmove` are no builtins in the program; and a call that passes arguments on the stack from a function
   without a frame pointer, which sets the stack up through r31:r30 while it may hold a value, so such a function gets
-  one (a byte of stack).
+  one (a byte of stack). And in a function of thousands of instructions with hundreds of bytes spilled, its register
+  allocation may spill a stale byte of a register pair (the machine verifier says "Using an undefined physical
+  register"): so a function with a loop and more than 100 instructions is never inlined on an AVR (LLVM would merge
+  every function called once into its caller), and the target turns LLVM's machine-sink pass off, where it showed in
+  one such function too. Each of these has a test on the Uno.
 - **What runs**: on the simulated Uno, every sample and every program of the test corpora that makes no object prints
   exactly what .NET prints (numbers, floats and their text, structs, enums, `ref`, arrays on the stack and in static
   fields, constant tables, spans, generics over values, tuples, record structs, nullables, fixed and printed text,
@@ -265,8 +269,8 @@ go).
   of every member of `DateTime` and `Math.Sin`, `Cos`, `Tan`, `Atan2`, `Asinh`, `Acosh`, `Log`, `Log2` and `Pow` with
   the text of doubles do not fit (each gives the PC's bits all the same, on an AVR core of 64 KB). The runtime's C
   takes C#'s `int`, `char` and `bool` as 32 bits (C's `int` has 16 on an AVR) and keeps its own text and tables in
-  flash, `Math`'s tables (22 KB) too. Flash and RAM: `Square` 1.3 KB and 6 bytes, `Structs` 2.0 KB and 18 bytes,
-  `Spans` 4.8 KB, `TrafficLights` 7.8 KB and 52 bytes, `PrintedText` 14.6 KB, `FloatMath` 16.7 KB, `TimeSpans` 21.6 KB.
+  flash, `Math`'s tables (22 KB) too. Flash and RAM: `Square` 1.7 KB and 18 bytes, `Structs` 2.4 KB and 30 bytes,
+  `Spans` 5.5 KB, `TrafficLights` 8.2 KB and 66 bytes, `PrintedText` 13.4 KB, `FloatMath` 17.1 KB, `TimeSpans` 22.1 KB.
 - **8-bit arithmetic**: an `int` takes four of the AVR's registers and four instructions for every addition, and C#
   makes nearly everything an `int`, loop counters and bytes on IL's stack included; so on the AVR ChipSharp does the
   arithmetic in 8 or 16 bits wherever it proves the values fit and the result is C#'s ([narrowing](#narrowing)). The
@@ -953,9 +957,7 @@ And for the Arduino Uno, built with `chipsharp build bin\Release\net10.0\<Name>.
 | `uno-blink` | Blinks the LED "L" (D13) with a delay loop; in Wokwi, an LED on D13 and the GND beside it blinks with it | 1.2 KB, 15 bytes of RAM |
 | `uno-timer-blink` | Blinks the LED "L" from the timer event (Timer1), while `Main` does nothing; the same circuit | 1.6 KB, 24 bytes of RAM |
 | `uno-button` | A button between D2 and GND toggles the LED "L" through the pin event (INT0, falling edges); the program turns D2's pull-up on with `Registers.Write` of PORTD, so the button needs no resistor | 1.4 KB, 24 bytes of RAM |
-
-A serial example for the Uno (a counter and an echo on the console) waits for `Console.Write` of text and numbers,
-which needs the shared runtime's C made safe for the AVR (see [Arduino Uno](#arduino-uno-in-progress)).
+| `uno-serial` | A count on the console (USART0, 115200 baud) every second, and what is typed into it sent straight back (`Uart.Available`, `ReadByte`, `WriteByte`); in Wokwi, the serial monitor under the Uno | 5.4 KB, 132 bytes of RAM |
 
 The traffic lights, the bus examples, the 7-segment counter, the clock, the command prompt, the knob and the servo have a
 `diagram.json` for Wokwi with the whole circuit, wired directly (Wokwi needs no resistors): common-cathode displays,
