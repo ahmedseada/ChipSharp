@@ -411,6 +411,23 @@ internal static class StringMethods
     public static Unsupported? Verdict(StringMethod method) =>
         method.MakesText ? Unsupported.HeapUse(Unsupported.MakingText) : null;
 
+    /// <summary>
+    /// The literal that the call at <paramref name="index"/> of <paramref name="method"/> makes a span of, when it is
+    /// <c>string.op_Implicit</c> or <c>AsSpan()</c> (with no start) of a <c>ldstr</c> right before it in its block
+    /// (<c>ReadOnlySpan&lt;char&gt; format = "HH:mm";</c>, a literal passed for a span parameter): its chars are a
+    /// constant in flash (UTF-16, as a span views them), so no copy is made and no heap needed. Null for any other call.
+    /// </summary>
+    public static string? LiteralSpan(IlMethod method, int index)
+    {
+        ArgumentNullException.ThrowIfNull(method);
+        var instructions = method.Body!.Instructions;
+        return index > 0 && instructions[index - 1] is { OpCode: IlOpCode.Ldstr, Operand: IlStringOperand { Value: var text } }
+            && Find(method, index) is { Kind: StringCallKind.Span, Parameters.Length: 1 }
+            && !Lowering.IlBlock.Split(method.Body).Any(block => block.First == index)
+                ? text
+                : null;
+    }
+
     /// <summary>Object's ToString, GetHashCode and Equals(object), as a string's (when called on one).</summary>
     private static StringMethod? ObjectMethod(IlMethodReference callee) =>
         callee is { HasThis: true, Definition: null } && ObjectTypes.IsSystemObject(callee.DeclaringType)

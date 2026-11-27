@@ -20,7 +20,8 @@
     // what a program may use depends on these two; a chip's file says what it has (until then, neither):
     "heap": false,        // the most RAM the heap (objects, text built while running, collections: M3) may take,
                           // e.g. "224K"; false: no heap, the program uses structs, static fields and stack arrays
-    "console": false      // true when Console.Write and Console.WriteLine have somewhere to go (the chip's runtime)
+    "console": false,     // true when Console.Write and Console.WriteLine have somewhere to go (the chip's runtime)
+    "clock": false        // true when a timer counts microseconds for DateTime.Now, Stopwatch and Environment.TickCount
   },
   "builtins": "compiler-rt:armv6m",
   "clang": {

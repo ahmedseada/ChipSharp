@@ -202,15 +202,15 @@ public sealed class SummaryTests
 
             class Program
             {
-                static int Next(Random random, DateTime when, Random other) => 0;
+                static int Next(Random random, Guid id, Random other) => 0;
 
                 static void Main() => Console.WriteLine(Next(null, default, null));
             }
             """);
 
         var types = analysis.Groups.Where(group => group.Feature.StartsWith("the type ", StringComparison.Ordinal)).ToList();
-        Assert.Equal(["the type System.DateTime", "the type System.Random"], types.Select(group => group.Feature));
-        Assert.Equal("the type System.Random arrives later: 2 places in Program.Next(System.Random, System.DateTime, "
+        Assert.Equal(["the type System.Guid", "the type System.Random"], types.Select(group => group.Feature));
+        Assert.Equal("the type System.Random arrives later: 2 places in Program.Next(System.Random, System.Guid, "
             + "System.Random) (parameter 'random' and parameter 'other'). For now, use bool, the whole-number types "
             + "(sbyte to ulong, nint, nuint), float, double, string (for fixed text), and the program's own structs and "
             + "enums.", types[1].Line);

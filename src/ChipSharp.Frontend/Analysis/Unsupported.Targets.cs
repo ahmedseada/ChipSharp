@@ -40,6 +40,12 @@ internal sealed partial record Unsupported
         $"Console.Write and Console.WriteLine need a console, and the target '{target}' has none",
         "Show what the program does another way, e.g. on a pin with ChipSharp.Hardware.Pin.");
 
+    /// <summary>DateTime.Now, Stopwatch, Environment.TickCount or Clock.Start on a target without a clock.</summary>
+    public static Unsupported NoClock(string member, string target) => Rule(
+        $"{member} needs a clock, and the target '{target}' has none",
+        "Count time with ChipSharp.Hardware.Timing or a timer interrupt, or build for a target with a timer that counts " +
+        "microseconds (\"clock\": true in its file), e.g. -t pico.");
+
     /// <summary>A hint for now as advice for good: "For now, use structs and static methods." is "Use structs and static methods."</summary>
     private static string ForGood(string hint) => hint.StartsWith(ForNow, StringComparison.Ordinal)
         ? char.ToUpperInvariant(hint[ForNow.Length]) + hint[(ForNow.Length + 1)..]

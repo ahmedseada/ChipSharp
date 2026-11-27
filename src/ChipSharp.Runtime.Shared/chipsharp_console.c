@@ -9,6 +9,7 @@
 //   ChipSharp_Runtime_WriteLine<Type>    Console.WriteLine(value): the same, then "\r\n"
 //   ChipSharp_Runtime_WriteLine          Console.WriteLine(): "\r\n"
 //   ChipSharp_Runtime_WriteHexDigits     the last count hex digits of a number, for printed text's X and x formats
+//   ChipSharp_Runtime_WriteChars         UTF-16 chars from a span, for text a substitute prints itself (a DateTime's)
 //
 // Text (C#'s string) is a string object (see chipsharp_string.c), or null, which writes nothing, as in .NET. Its chars
 // are UTF-16 code units, written as UTF-8, as .NET's UTF-8 console writes them: a lone surrogate, which UTF-8 cannot
@@ -268,6 +269,13 @@ void ChipSharp_Runtime_WriteChar(int value)
 {
     unsigned short unit = (unsigned short)value;
     write_units(0, &unit, 1);
+}
+
+// ChipSharp.Library's Runtime.WriteChars: count UTF-16 chars from chars on, e.g. a DateTime's text, written a few at a
+// time with no string made (DateTimeText).
+void ChipSharp_Runtime_WriteChars(const unsigned short *chars, int count)
+{
+    write_units(0, chars, count);
 }
 
 void ChipSharp_Runtime_WriteLineChar(int value)

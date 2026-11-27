@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "author": "ChipSharp",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-pi-pico", "id": "pico", "top": 0, "left": 0, "attrs": {} },
+    { "type": "wokwi-lcd1602", "id": "lcd", "top": 9.77, "left": 150, "attrs": { "pins": "i2c" } },
+    { "type": "wokwi-ds1307", "id": "rtc", "top": 140, "left": 150, "attrs": {} }
+  ],
+  "connections": [
+    ["pico:GND.8", "lcd:GND", "black", []],
+    ["pico:3V3", "lcd:VCC", "red", []],
+    ["pico:GP26", "lcd:SDA", "blue", []],
+    ["pico:GP27", "lcd:SCL", "gold", []],
+    ["pico:GND.7", "rtc:GND", "black", []],
+    ["pico:3V3", "rtc:5V", "red", []],
+    ["pico:GP26", "rtc:SDA", "blue", []],
+    ["pico:GP27", "rtc:SCL", "gold", []],
+    ["pico:GP0", "$serialMonitor:RX", "", []],
+    ["pico:GP1", "$serialMonitor:TX", "", []]
+  ],
+  "dependencies": {}
+}

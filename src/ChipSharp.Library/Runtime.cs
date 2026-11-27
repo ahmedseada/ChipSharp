@@ -58,6 +58,49 @@ internal static partial class Runtime
     private const string NonNegative = "Non-negative number required.";
 
     /// <summary>
+    /// An exception of a substitute that needs no heap to say (DateTime's, ...), given as fixed text: the exception's
+    /// type (<c>"System.ArgumentOutOfRangeException"</c>, <c>"System.ArgumentException"</c>,
+    /// <c>"System.FormatException"</c>), its message and the parameter it names, or null; printed as .NET prints it:
+    /// "Unhandled exception. System.ArgumentOutOfRangeException: message (Parameter 'ticks')". In
+    /// src/ChipSharp.Runtime.Shared/chipsharp_exceptions.c, on every target.
+    /// </summary>
+    [System.Diagnostics.CodeAnalysis.DoesNotReturn]
+    public static void Throw(string exception, string message, string? parameter) => throw exception switch
+    {
+        "System.ArgumentOutOfRangeException" => new ArgumentOutOfRangeException(parameter, message),
+        "System.ArgumentException" => new ArgumentException(message, parameter),
+        "System.FormatException" => new FormatException(message),
+        "System.OverflowException" => new OverflowException(message),
+        _ => new InvalidOperationException(message),
+    };
+
+    /// <summary>
+    /// <see cref="Throw"/> with text the program gave in the message: <paramref name="before"/>, the
+    /// <paramref name="length"/> chars from <paramref name="text"/> on, then <paramref name="after"/>.
+    /// </summary>
+    [System.Diagnostics.CodeAnalysis.DoesNotReturn]
+    public static void ThrowText(string exception, string before, in char text, int length, string after) => Throw(
+        exception,
+        before + System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in text, length).ToString() + after,
+        null);
+
+    /// <summary>
+    /// Writes <paramref name="count"/> chars from <paramref name="first"/> on to the console, as Console.Write writes
+    /// text (UTF-8): printed text that a substitute writes a few chars at a time (DateTimeText). In
+    /// src/ChipSharp.Runtime.Shared/chipsharp_console.c.
+    /// </summary>
+    public static void WriteChars(in char first, int count) =>
+        System.Console.Out.Write(System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in first, count));
+
+    /// <summary>
+    /// <see cref="Throw"/> of an ArgumentOutOfRangeException that says the value it was given too, as .NET's says it on
+    /// a line of its own: "... (Parameter 'month')", then "Actual value was 13.".
+    /// </summary>
+    [System.Diagnostics.CodeAnalysis.DoesNotReturn]
+    public static void ThrowValue(string message, string parameter, int value) =>
+        throw new ArgumentOutOfRangeException(parameter, value, message);
+
+    /// <summary>
     /// A thrown exception nothing catches (see Exceptions.Thrown): prints "Unhandled exception. " and
     /// <paramref name="text"/>, the exception's ToString(), and stops the program.
     /// </summary>

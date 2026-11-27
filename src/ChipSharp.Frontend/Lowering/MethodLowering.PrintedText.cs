@@ -122,6 +122,16 @@ internal sealed partial class MethodLowering
     /// <summary>Keeps a part's value in its slot until the text is printed.</summary>
     private void SavePart(PrintedPiece piece, StackValue value, bool throughAddress)
     {
+        if (throughAddress && piece.Formatted is not null)
+        {
+            // the DateTime a ToString is called on, copied from its address (FormattedValues)
+            Push(value);
+            var (address, _) = PopReference();
+            var formatted = PartSlot(piece);
+            _ir.Store(formatted, _ir.Load(formatted.Type, address));
+            return;
+        }
+
         if (throughAddress)
         {
             Push(value);

@@ -36,6 +36,26 @@ internal sealed partial class ProgramFunctions
         return global;
     }
 
+    private readonly Dictionary<string, TirGlobal> _charData = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The UTF-16 chars of <paramref name="text"/> as a constant array of i16, <c>&lt;chars n&gt;</c>, the same one
+    /// for equal text: what a <c>ReadOnlySpan&lt;char&gt;</c> of a literal views (see StringMethods.LiteralSpan).
+    /// </summary>
+    public TirGlobal CharData(string text)
+    {
+        if (!_charData.TryGetValue(text, out var global))
+        {
+            var name = GlobalName(string.Create(CultureInfo.InvariantCulture, $"<chars {_charData.Count}>"));
+            var elements = text.Length == 0 ? [new TirConst(TirType.I16, 0)]
+                : text.Select(c => new TirConst(TirType.I16, (short)c)).ToArray();
+            global = module.AddArray(name, new TirArrayType(TirType.I16, elements.Length), elements, isConstant: true);
+            _charData.Add(text, global);
+        }
+
+        return global;
+    }
+
     private TirTypeDescriptor StringDescriptor(string name, TirType element, string symbol)
     {
         var descriptor = module.AddArrayType(name, element);

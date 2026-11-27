@@ -1,0 +1,12 @@
+{
+  // Arduino Uno (R3): ATmega328P at 16 MHz (a crystal), the LED "L" on D13 (PB5), the USB serial port on USART0
+  // (D0 = RX, D1 = TX). In Wokwi: press F1 in the code editor, "Upload Firmware and Start Simulation", and pick the
+  // .hex. The Uno's own bootloader (optiboot) takes the last 512 bytes of the flash: a program uploaded through USB
+  // must leave them free
+  "name": "uno",
+  "inherits": "atmega328p",
+  "clockHz": 16000000,
+  "pins": {
+    "LED": 13
+  }
+}

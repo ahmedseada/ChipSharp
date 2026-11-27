@@ -3,8 +3,9 @@ using ChipSharp.Abstractions;
 namespace ChipSharp.Toolchain.Clang;
 
 /// <summary>
-/// Finds clang and llvm-dlltool. A place someone set (an option or an environment variable) must hold the tool;
-/// otherwise the tool is looked for next to clang, in LLVM's install folder and on the PATH.
+/// Finds clang, llvm-dlltool and Zig. A place someone set (an option or an environment variable) must hold the tool;
+/// otherwise the tool is looked for next to clang, in LLVM's install folder and on the PATH (Zig: in
+/// <see cref="ClangToolchain.DefaultZigPath"/>, then on the PATH).
 /// </summary>
 internal sealed class LlvmTools(ClangToolchainOptions options, Func<string, string?> environment)
 {
@@ -13,6 +14,49 @@ internal sealed class LlvmTools(ClangToolchainOptions options, Func<string, stri
     public string Clang() => Find("clang", clangFolder: null);
 
     public string Dlltool(string clang) => Find("llvm-dlltool", Path.GetDirectoryName(clang));
+
+    /// <summary>
+    /// Zig: the ZigPath option, else the environment variable CHIPSHARP_ZIG (either must hold it), else
+    /// <see cref="ClangToolchain.DefaultZigPath"/>, else zig on the PATH.
+    /// </summary>
+    public string Zig()
+    {
+        var file = "zig" + ExeSuffix;
+        var (path, setBy) = !string.IsNullOrWhiteSpace(options.ZigPath)
+            ? (options.ZigPath, "the ZigPath option")
+            : Variable(ClangToolchain.ZigVariable) is { } variable
+                ? (variable, $"the environment variable {ClangToolchain.ZigVariable}")
+                : (null, null);
+        if (path is not null)
+        {
+            // a folder is taken to mean the zig in it
+            var fullPath = Path.GetFullPath(Directory.Exists(path) ? Path.Combine(path, file) : path);
+            return File.Exists(fullPath)
+                ? fullPath
+                : throw new ChipSharpException($"Zig was not found at '{fullPath}' (set by {setBy}). {ZigAdvice}");
+        }
+
+        var searchPath = (environment("PATH") ?? "")
+            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(folder => Path.Combine(folder.Trim('"'), file));
+        foreach (var candidate in searchPath.Prepend(ClangToolchain.DefaultZigPath))
+        {
+            if (File.Exists(candidate))
+            {
+                return Path.GetFullPath(candidate);
+            }
+        }
+
+        throw new ChipSharpException(
+            $"Zig was not found (looked at '{ClangToolchain.DefaultZigPath}' and on the PATH). {ZigAdvice}");
+    }
+
+    /// <summary>What to do when Zig is missing.</summary>
+    private static string ZigAdvice =>
+        "The toolchain \"zig\" (for AVR chips such as the Arduino Uno's ATmega328P: the installed LLVM has no AVR) " +
+        "compiles and links with the clang and ld.lld inside Zig. Install Zig 0.17 or later " +
+        "(https://ziglang.org/download/, unpack it anywhere) and set " +
+        $"{ClangToolchain.ZigVariable} to its zig{ExeSuffix}, or put its folder on the PATH.";
 
     private string Find(string tool, string? clangFolder)
     {
