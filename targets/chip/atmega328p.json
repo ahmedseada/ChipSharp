@@ -2,6 +2,9 @@
   // Microchip ATmega328P: AVR (avr5), 32 KB flash, 2 KB RAM, 1 KB EEPROM; the Arduino Uno's and Nano's chip
   "name": "atmega328p",
   "inherits": "avr",
+  // the AVR runtime and this chip's (src/ChipSharp.Runtime.Atmega328p), for a 16 MHz clock: pins by the Uno's numbers
+  // (0-13 are D0-D13, 14-19 are A0-A5), Timer1 for the clock, the delays and the timer event, USART0 for the console
+  "runtime": "atmega328p",
   "mmcu": "atmega328p",           // the microcontroller, as avr-gcc and clang name it (-mmcu; with Zig, -mcpu too)
   "vectors": 26,                  // the entries of the interrupt vector table, reset included, which the runtime writes
   "memory": {
@@ -12,8 +15,24 @@
   "link": {
     "stack": "512"                // of the 2 KB of RAM, the stack's, at its end (SP starts at 0x8ff, RAMEND)
   },
+  "interrupts": {
+    // the events an [Interrupt] method can handle. Not the chip's vectors (1-25, avr-libc's __vector_<n>): the runtime's
+    // handlers of those (atmega328p_interrupts.S) find out whether the event happened, then call the method's entry, an
+    // ordinary function, chipsharp_isr_irq<n> by the numbers here, past the vector table (as the Pico's uart event)
+    "pin": { "irq": 26 },         // INT0 (D2), INT1 (D3), the pin changes of ports B, C and D (PCINT0-2: every other pin)
+    "timer": { "irq": 27 },       // Timer1's compare B, at the times Every and After give
+    "uart": { "irq": 28 }         // USART_RX, once the bytes received are in the buffer of a watched port
+  },
   "capabilities": {
     "heap": false,                // 2 KB of RAM: structs, static fields and stack arrays, no objects
-    "console": false              // Console.Write goes to USART0 once the runtime "avr" has it
+    "console": true,              // Console.Write and Console.WriteLine go to USART0 (D1, 115200 baud)
+    "consoleInput": true,         // Console.Read reads USART0 (D0, 115200 baud); ReadLine makes a string, which needs a heap
+    "uart": 1,                    // serial ports for Uart: USART0, the console's too
+    "clock": true                 // a clock for DateTime.Now and Stopwatch: Timer1's count of half microseconds
+  },
+  "pinFunctions": {
+    // the pins each peripheral can use: chipsharp check holds the pins a program gives as constants to these, and the
+    // runtime every pin
+    "uart0.tx": [1], "uart0.rx": [0]
   }
 }
