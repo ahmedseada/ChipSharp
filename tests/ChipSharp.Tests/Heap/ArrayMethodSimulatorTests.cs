@@ -82,6 +82,7 @@ public sealed class ArrayMethodSimulatorTests(ITestOutputHelper output) : IDispo
     }
 
     [SimulatorFact]
+    [RunsLong]
     public async Task Where_dotnet_throws_the_program_says_so_on_UART0_and_stops_at_a_breakpoint()
     {
         // a failure of each kind: the messages with the value in them, null, too short, a start, a count, a range
@@ -91,26 +92,27 @@ public sealed class ArrayMethodSimulatorTests(ITestOutputHelper output) : IDispo
             "Copy long huge length", "CopyTo of null", "Clear past the end", "Fill range count past the end",
             "LastIndexOf start at the end", "Reverse past the end", "Sort negative length", "Resize negative size",
         ];
-        foreach (var name in names)
+        // each failure a program of its own, Release and Debug: a few at a time, with the target files written once first
+        _ = Targets;
+        await Concurrently.ForEachAsync(names.SelectMany(_ => new[] { OptimizationLevel.Release, OptimizationLevel.Debug },
+            (name, optimization) => (name, optimization)), async item =>
         {
+            var (name, optimization) = item;
             var source = ArrayMethodPrograms.Failure(ArrayMethodPrograms.Failures.Single(failure => failure.Name == name).Statement);
             var dotnet = await ThrowingDotnet.RunAsync(CSharpCompiler.Compile(source, "Program"),
-                Path.Combine(_scratch, name.Replace(' ', '-'), "dotnet"));
+                Path.Combine(_scratch, name.Replace(' ', '-'), optimization.ToString(), "dotnet"));
             var expected = string.Concat(dotnet.Errors.Split('\n')
                 .TakeWhile(line => !line.StartsWith("   at ", StringComparison.Ordinal)).Select(line => line + "\n"));
-            foreach (var optimization in new[] { OptimizationLevel.Release, OptimizationLevel.Debug })
-            {
-                var assembly = CSharpCompiler.Compile(source, "Program", OutputKind.ConsoleApplication, optimization);
-                var module = Lowered.Lower(WholeProgramPass.Analyze(IlAssembly.Load(assembly, "Program.dll"), Targets.Load("pico")));
+            var assembly = CSharpCompiler.Compile(source, "Program", OutputKind.ConsoleApplication, optimization);
+            var module = Lowered.Lower(WholeProgramPass.Analyze(IlAssembly.Load(assembly, "Program.dll"), Targets.Load("pico")));
 
-                var (result, run, _) = await HeapRun.OnPicoAsync(module,
-                    Path.Combine(_scratch, name.Replace(' ', '-'), optimization.ToString()), Targets.Load("pico"), 1000);
+            var (result, run, _) = await HeapRun.OnPicoAsync(module,
+                Path.Combine(_scratch, name.Replace(' ', '-'), optimization.ToString()), Targets.Load("pico"), 1000);
 
-                Assert.True(run.ExitCode == 3, $"{name}: {run}");
-                Assert.Contains("stopped: the program hit a breakpoint (bkpt #0)", run.Stopped);
-                Assert.Equal("1\r\n" + expected, result.Raw);
-            }
-        }
+            Assert.True(run.ExitCode == 3, $"{name}: {run}");
+            Assert.Contains("stopped: the program hit a breakpoint (bkpt #0)", run.Stopped);
+            Assert.Equal("1\r\n" + expected, result.Raw);
+        });
     }
 
     private async Task PrintsWhatDotnetPrints(string source, string target)

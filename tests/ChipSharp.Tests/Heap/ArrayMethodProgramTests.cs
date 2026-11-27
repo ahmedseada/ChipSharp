@@ -68,27 +68,17 @@ public sealed class ArrayMethodProgramTests(ITestOutputHelper output) : IDisposa
         await PrintsWhatDotnetPrints(ArrayMethodPrograms.WithoutHeap, "pc-without-heap");
     }
 
-    [HostFact]
-    public async Task Where_dotnet_throws_the_program_stops_with_the_message_dotnet_writes_and_exit_code_1()
-    {
-        // each failure is a program of its own: built and run a few at a time, with the target files written once first
-        _ = Targets;
-        using var gate = new SemaphoreSlim(Math.Max(2, Environment.ProcessorCount / 2));
-        var results = await Task.WhenAll(ArrayMethodPrograms.Failures.Select(async failure =>
-        {
-            await gate.WaitAsync();
-            try
-            {
-                return await FailureAsync(failure.Name, failure.Statement);
-            }
-            finally
-            {
-                gate.Release();
-            }
-        }));
+    /// <summary>The name of each failure of <see cref="ArrayMethodPrograms.Failures"/>.</summary>
+    public static TheoryData<string> FailureNames => new(ArrayMethodPrograms.Failures.Select(failure => failure.Name));
 
-        var wrong = results.Where(result => result is not null).ToList();
-        Assert.True(wrong.Count == 0, string.Join("\n\n", wrong));
+    [HostTheory]
+    [MemberData(nameof(FailureNames))]
+    public async Task Where_dotnet_throws_the_program_stops_with_the_message_dotnet_writes_and_exit_code_1(string name)
+    {
+        // each failure is a program of its own, and a test case of its own
+        var wrong = await FailureAsync(name, ArrayMethodPrograms.Failures.Single(failure => failure.Name == name).Statement);
+
+        Assert.True(wrong is null, wrong);
     }
 
     /// <summary>
@@ -151,36 +141,11 @@ public sealed class ArrayMethodProgramTests(ITestOutputHelper output) : IDisposa
 }
 
 /// <summary>
-/// .NET running a program that throws (<see cref="HostRun.RunOnDotnetAsync"/> wants one that does not): its output and
-/// its standard error, with the exception's message and stack trace.
+/// .NET running a program that throws (<see cref="HostRun.RunOnDotnetAsync(byte[], string, string)"/> wants one that
+/// does not): its output and its standard error, with the exception's message and stack trace.
 /// </summary>
 internal static class ThrowingDotnet
 {
-    public static async Task<ProgramRun> RunAsync(byte[] assembly, string folder)
-    {
-        Directory.CreateDirectory(folder);
-        var dll = Path.Combine(folder, "Program.dll");
-        await File.WriteAllBytesAsync(dll, assembly);
-        var (major, minor) = (Environment.Version.Major, Environment.Version.Minor);
-        await File.WriteAllTextAsync(Path.Combine(folder, "Program.runtimeconfig.json"), $$"""
-            {
-              "runtimeOptions": {
-                "tfm": "net{{major}}.{{minor}}",
-                "framework": { "name": "Microsoft.NETCore.App", "version": "{{major}}.{{minor}}.0" },
-                "configProperties": { "System.Globalization.Invariant": true }
-              }
-            }
-            """);
-        return await HostRun.RunAsync(DotnetPath, [dll], folder);
-    }
-
-    private static string DotnetPath
-    {
-        get
-        {
-            var framework = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
-            var beside = Path.GetFullPath(Path.Combine(framework, "..", "..", "..", "dotnet.exe"));
-            return File.Exists(beside) ? beside : "dotnet";
-        }
-    }
+    public static Task<ProgramRun> RunAsync(byte[] assembly, string folder) =>
+        HostRun.RunOnDotnetAsync(assembly, "Program", folder, failing: true);
 }

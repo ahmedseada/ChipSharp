@@ -1,5 +1,6 @@
 using ChipSharp.Abstractions;
 using ChipSharp.Toolchain.Clang;
+using Xunit.Sdk;
 
 namespace ChipSharp.Tests.Host;
 
@@ -7,6 +8,7 @@ namespace ChipSharp.Tests.Host;
 /// A test that builds and runs a real PC program. It is skipped, with the reason, on a machine that cannot:
 /// one that is not Windows, or has no LLVM (clang, llvm-dlltool).
 /// </summary>
+[XunitTestCaseDiscoverer("ChipSharp.Tests.Support.OwnCollectionFactDiscoverer", "ChipSharp.Tests")]
 public sealed class HostFactAttribute : FactAttribute
 {
     private static readonly Lazy<string?> SkipReason = new(FindSkipReason);

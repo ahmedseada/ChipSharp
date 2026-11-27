@@ -346,8 +346,8 @@ The rules hold for everything a handler runs: the methods it calls, virtual call
 
 | Command | What it does |
 |---|---|
-| `chipsharp build <program.dll> [-t <target>] [-o <folder>] [--keep] [--verify-heap]` | Compiles the program for a target (default `host`) into `chipsharp-output\<target>\` (or `-o`): prints the file (`.exe`, `.uf2`) and what it takes of the chip. `--keep` also writes the TIR (`.tir`) and LLVM IR (`.ll`) there, and for a chip the `.elf` |
-| `chipsharp check <program.dll> [-t <target>] [--details]` | Whether ChipSharp compiles the program (for that target), and the methods it uses; if not, each feature it does not compile yet, where, and what to write instead. `--details`: every place on a line of its own, and every library method it can call |
+| `chipsharp build <program.dll> [-t <target>] [-o <folder>] [--keep] [--verify-heap] [--no-cache] [--quiet-notes]` | Compiles the program for a target (default `host`) into `chipsharp-output\<target>\` (or `-o`): prints the file (`.exe`, `.uf2`) and what it takes of the chip. `--keep` also writes the TIR (`.tir`) and LLVM IR (`.ll`) there, and for a chip the `.elf` |
+| `chipsharp check <program.dll> [-t <target>] [--details] [--quiet-notes]` | Whether ChipSharp compiles the program (for that target), and the methods it uses; if not, each feature it does not compile yet, where, and what to write instead. `--details`: every place on a line of its own, and every library method it can call |
 | `chipsharp tir <program.dll> [--method Type.Method] [-t <target>]` | The program in TIR, after the whole-program pass |
 | `chipsharp il <program.dll> [--method Type.Method]` | The IL of each method, ildasm style |
 | `chipsharp targets list` / `chipsharp targets show <name>` | The targets, and one target with everything it inherits merged in |
@@ -357,6 +357,18 @@ The rules hold for everything a handler runs: the methods it calls, virtual call
 | `CHIPSHARP_LLVM_BIN` | The folder with clang, ld.lld and llvm-dlltool (default: `C:\Program Files\LLVM\bin`, then the PATH) |
 | `CHIPSHARP_CLANG` | clang itself |
 | `CHIPSHARP_TARGETS` | Another folder of target files (or `--targets <folder>`) |
+| `CHIPSHARP_CACHE` | Where the build cache lives (default: `%LOCALAPPDATA%\ChipSharp\cache`) |
+
+**Notes.** `build` and `check` write a note on standard error (`note: ...`) where a program uses one of .NET's
+culture-sensitive text methods (`CompareTo`, `string.Compare(a, b)`, `StartsWith(string)`, `ToUpper()`, `Parse`,
+floats as text, ...), whose result in .NET depends on the PC's language settings while ChipSharp's does not (see
+Known differences); each note says what to write to get the same result everywhere. `--quiet-notes` leaves them out.
+
+**Build cache.** `build` compiles each source file (the runtime's C, the program's `.ll`) once for a given clang, its
+flags and its text, and keeps the object in `%LOCALAPPDATA%\ChipSharp\cache` (or `CHIPSHARP_CACHE`): the runtime is
+compiled once, and later builds only link it (a Pico blink: about 1.5 s before, 0.5 s with a warm cache). Parallel
+builds share it safely, and it trims itself past 512 MB. `--no-cache` compiles everything; deleting the folder is
+always safe.
 
 ## Samples and examples
 
@@ -410,7 +422,7 @@ dotnet build -c Release
 dotnet test -c Release --no-build
 ```
 
-The 1,700 or so tests check each stage on its own (reading IL, the whole-program pass, TIR, the LLVM code, linking, the `.uf2`),
+The 1,800 or so tests (about 2 minutes once the build cache is warm) check each stage on its own (reading IL, the whole-program pass, TIR, the LLVM code, linking, the `.uf2`),
 then compile C# programs and run them: on the PC, and on the simulated Pico, comparing what they print, byte for byte,
 with what .NET prints for the same program; the library code (collections, `StringBuilder`, sorting, `TimeSpan`)
 runs next to .NET's own on thousands of random operations. The PC tests need LLVM; the Pico tests also need Node.js

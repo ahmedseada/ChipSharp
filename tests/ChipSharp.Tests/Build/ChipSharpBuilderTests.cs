@@ -23,11 +23,11 @@ public sealed class ChipSharpBuilderTests : IDisposable
     }
 
     [HostFact]
+    [RunsLong]
     public async Task Every_sample_builds_for_the_host_and_prints_exactly_what_dotnet_prints()
     {
         var output = Path.Combine(_scratch, "out");
-        var wrong = new List<string>();
-        foreach (var name in Samples.Names)
+        var results = await Concurrently.SelectAsync(Samples.Names, async name =>
         {
             var dll = Samples.Compile(name, Path.Combine(_scratch, "dll"));
 
@@ -37,13 +37,10 @@ public sealed class ChipSharpBuilderTests : IDisposable
             Assert.Empty(result.IntermediatePaths);
             Assert.Equal("host", result.Target.Name);
             var run = await HostRun.RunAsync(result.OutputPath, [], _scratch);
-            if (run.ExitCode != 0 || !run.Output.SequenceEqual(Samples.ExpectedOutput(name)))
-            {
-                wrong.Add($"{name}: {run}");
-            }
-        }
+            return run.ExitCode != 0 || !run.Output.SequenceEqual(Samples.ExpectedOutput(name)) ? $"{name}: {run}" : null;
+        });
 
-        Assert.Empty(wrong);
+        Assert.Empty(results.OfType<string>());
         // only the programs: the generated code, the runtime and the import libraries stay in the work folder
         Assert.Equal(Samples.Names.Select(name => name + ".exe"), FileNames(output));
     }

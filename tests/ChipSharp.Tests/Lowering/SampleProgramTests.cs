@@ -147,23 +147,22 @@ public sealed class SampleProgramTests : IDisposable
     /// before each branch), and must still give the same output.
     /// </summary>
     [HostFact]
+    [Support.RunsLong]
     public async Task Every_sample_compiled_in_Debug_prints_the_same()
     {
-        var wrong = new List<string>();
-        foreach (var name in Names())
+        var wrong = await Support.Concurrently.SelectAsync([.. Names()], async name =>
         {
             var source = File.ReadAllText(Path.Combine(Samples, name + ".cs"));
             var module = Lowered.Lower(Lowered.Program(Lowered.CompileDebug(source, name)));
 
             var run = await HostRun.BuildAndRunAsync(module, Path.Combine(_scratch, name + "-debug"));
 
-            if (run.ExitCode != 0 || !run.Output.SequenceEqual(File.ReadAllBytes(Path.Combine(Samples, name + ".expected.txt"))))
-            {
-                wrong.Add($"{name}: {run}");
-            }
-        }
+            return run.ExitCode != 0 || !run.Output.SequenceEqual(File.ReadAllBytes(Path.Combine(Samples, name + ".expected.txt")))
+                ? $"{name}: {run}"
+                : null;
+        });
 
-        Assert.Empty(wrong);
+        Assert.Empty(wrong.OfType<string>());
     }
 
     [Theory]

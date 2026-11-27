@@ -21,8 +21,10 @@ namespace ChipSharp.Toolchain.Clang;
 /// </summary>
 /// <remarks>
 /// The caller passes everything to compile in one <see cref="GeneratedCode"/>: the code generator's files and
-/// the runtime's (<see cref="IArchRuntime.Startup"/> and friends). The .ll, .c and .S files are compiled;
-/// other files are only written.
+/// the runtime's (<see cref="IArchRuntime.Startup"/> and friends). The .ll, .c and .S files are compiled, each into an
+/// object file of its own, several at once, and the objects linked in the order of their files; other files are only
+/// written. What clang and llvm-dlltool make is kept in the build cache (<see cref="ClangToolchainOptions.UseCache"/>),
+/// so the runtime's C, the same in every build for a target, is compiled once.
 /// </remarks>
 public sealed class ClangToolchain : IToolchain
 {
@@ -32,12 +34,25 @@ public sealed class ClangToolchain : IToolchain
     /// <summary>The environment variable that points at the folder with LLVM's tools (clang, llvm-dlltool).</summary>
     public const string LlvmBinVariable = "CHIPSHARP_LLVM_BIN";
 
+    /// <summary>The environment variable that moves the build cache (see <see cref="ClangToolchainOptions.CacheFolder"/>).</summary>
+    public const string CacheVariable = ObjectCache.FolderVariable;
+
+    /// <summary>
+    /// Quiets clang about the target's flags a step does not use (the linker's when it compiles, the compiler's when it
+    /// links): the target gives one list for both.
+    /// </summary>
+    private const string NoUnusedArguments = "-Wno-unused-command-line-argument";
+
     private static readonly HashSet<string> SourceExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".ll", ".c", ".s",
     };
 
+    /// <summary>How many tools a process runs at once to compile: one per processor, however many builds there are.</summary>
+    private static readonly SemaphoreSlim Compiles = new(Environment.ProcessorCount);
+
     private readonly LlvmTools _tools;
+    private readonly ObjectCache? _cache;
 
     public ClangToolchain(ClangToolchainOptions? options = null)
         : this(options, Environment.GetEnvironmentVariable)
@@ -49,7 +64,11 @@ public sealed class ClangToolchain : IToolchain
     {
         Options = options ?? new ClangToolchainOptions();
         _tools = new LlvmTools(Options, environment);
+        _cache = ObjectCache.For(Options, environment);
     }
+
+    /// <summary>The build cache's folder, or null when <see cref="ClangToolchainOptions.UseCache"/> turns it off.</summary>
+    public string? CacheFolder => _cache?.Folder;
 
     public string Name => "clang";
 
@@ -84,16 +103,18 @@ public sealed class ClangToolchain : IToolchain
 
         var isWindows = settings.Triple.Contains("windows", StringComparison.OrdinalIgnoreCase);
         var program = isWindows ? ProgramName(code) + ".exe" : ProgramName(code);
+        List<string> flags = [$"--target={settings.Triple}", .. settings.ClangFlags, .. Options.ExtraFlags];
         List<string> arguments =
         [
-            $"--target={settings.Triple}",
-            .. settings.ClangFlags,
-            .. Options.ExtraFlags,
-            .. sources,
+            .. flags,
+            NoUnusedArguments,
+            .. Compile(clang, flags, code, sources, folder),
             .. libraries,
             "-o", program,
             $"-Wl,-entry:{settings.Entry}",
             $"-Wl,-subsystem:{settings.Subsystem}",
+            // the same files make the same program: its header's timestamp is a hash of it, not the time it was linked
+            "-Wl,-Brepro",
         ];
         return Link(clang, arguments, folder, program);
     }
@@ -120,13 +141,18 @@ public sealed class ClangToolchain : IToolchain
         WriteFiles([.. code.Files, script], folder);
 
         var program = name + ".elf";
-        List<string> arguments =
+        List<string> flags =
         [
             $"--target={settings.Triple}",
             .. settings.Cpu is null ? Array.Empty<string>() : [$"-mcpu={settings.Cpu}"],
             .. settings.ClangFlags,
             .. Options.ExtraFlags,
-            .. sources,
+        ];
+        List<string> arguments =
+        [
+            .. flags,
+            NoUnusedArguments,
+            .. Compile(clang, flags, code, sources, folder),
             "-o", program,
             "-Xlinker", $"--script={script.FileName}",
             "-Xlinker", $"-Map={name}.map",
@@ -215,7 +241,60 @@ public sealed class ClangToolchain : IToolchain
         }
     }
 
-    /// <summary>Makes kernel32.lib and the like from the target's "link.imports"; returns their file names.</summary>
+    /// <summary>
+    /// Compiles each of <paramref name="sources"/> into an object file of its own (&lt;file&gt;.o, next to it), several
+    /// at once; one the build cache has is linked from there instead. Returns the objects in the order of the sources:
+    /// linked in that order, they make the program clang makes from the sources themselves in one go.
+    /// </summary>
+    private List<string> Compile(string clang, IReadOnlyList<string> flags, GeneratedCode code,
+        IReadOnlyList<string> sources, string folder)
+    {
+        var texts = code.Files.ToDictionary(file => file.FileName, file => file.Content, StringComparer.OrdinalIgnoreCase);
+
+        // what a source may include: the files that are not compiled (compiler-rt's headers), with their text
+        List<string> headers =
+        [
+            .. code.Files.Where(file => !SourceExtensions.Contains(Path.GetExtension(file.FileName)))
+                .OrderBy(file => file.FileName, StringComparer.Ordinal)
+                .SelectMany(file => new[] { file.FileName, file.Content }),
+        ];
+        var objects = sources.Select(source => source + ".o").ToList();
+
+        async Task CompileOne(int i)
+        {
+            List<string> arguments = [.. flags, NoUnusedArguments, "-c", sources[i], "-o", objects[i]];
+            async Task Make()
+            {
+                await Compiles.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    await RunAsync(clang, arguments, folder).ConfigureAwait(false);
+                }
+                finally
+                {
+                    Compiles.Release();
+                }
+            }
+
+            if (_cache is null)
+            {
+                await Make().ConfigureAwait(false);
+                return;
+            }
+
+            var key = ObjectCache.Key(clang, ".o", [.. arguments, texts[sources[i]], .. headers]);
+            objects[i] = await _cache.GetAsync(key, Path.Combine(folder, objects[i]), Make).ConfigureAwait(false);
+        }
+
+        // the first source that fails (in their order, as when clang compiles them in one go) is the error
+        Task.WhenAll(Enumerable.Range(0, sources.Count).Select(i => Task.Run(() => CompileOne(i)))).GetAwaiter().GetResult();
+        return objects;
+    }
+
+    /// <summary>
+    /// Makes kernel32.lib and the like from the target's "link.imports" (or takes them from the build cache); returns
+    /// their file names.
+    /// </summary>
     private List<string> MakeImportLibraries(HostSettings settings, string clang, string folder)
     {
         var libraries = new List<string>();
@@ -237,7 +316,20 @@ public sealed class ClangToolchain : IToolchain
             }
 
             File.WriteAllText(Path.Combine(folder, stem + ".def"), definition.ToString());
-            Run(dlltool, ["-d", stem + ".def", "-l", stem + ".lib", "-m", settings.Machine!], folder);
+            string[] arguments = ["-d", stem + ".def", "-l", stem + ".lib", "-m", settings.Machine!];
+            Task Make() => RunAsync(dlltool, arguments, folder);
+            var library = Path.Combine(folder, stem + ".lib");
+            if (_cache is null)
+            {
+                Run(dlltool, arguments, folder);
+            }
+            else if (Task.Run(() => _cache.GetAsync(ObjectCache.Key(dlltool, ".lib", [.. arguments, definition.ToString()]),
+                library, Make)).GetAwaiter().GetResult() is var cached && cached != library)
+            {
+                // the import library is one of the files the program is built from, next to the others
+                File.Copy(cached, library, overwrite: true);
+            }
+
             libraries.Add(stem + ".lib");
         }
 
@@ -245,7 +337,11 @@ public sealed class ClangToolchain : IToolchain
     }
 
     /// <summary>Runs a tool in <paramref name="folder"/>; a failure reports the command and the tool's output.</summary>
-    private static void Run(string tool, IReadOnlyList<string> arguments, string folder)
+    private static void Run(string tool, IReadOnlyList<string> arguments, string folder) =>
+        Task.Run(() => RunAsync(tool, arguments, folder)).GetAwaiter().GetResult();
+
+    /// <summary>Runs a tool in <paramref name="folder"/>; a failure reports the command and the tool's output.</summary>
+    private static async Task RunAsync(string tool, IReadOnlyList<string> arguments, string folder)
     {
         var start = new ProcessStartInfo(tool)
         {
@@ -273,9 +369,9 @@ public sealed class ClangToolchain : IToolchain
         }
 
         var errors = process.StandardError.ReadToEndAsync();
-        var output = process.StandardOutput.ReadToEnd();
-        process.WaitForExit();
-        var messages = (output + errors.GetAwaiter().GetResult()).Trim();
+        var output = process.StandardOutput.ReadToEndAsync();
+        await process.WaitForExitAsync().ConfigureAwait(false);
+        var messages = (await output.ConfigureAwait(false) + await errors.ConfigureAwait(false)).Trim();
 
         if (process.ExitCode != 0)
         {
@@ -284,6 +380,7 @@ public sealed class ClangToolchain : IToolchain
                 $"  {CommandLine(tool, arguments)}\n{messages}");
         }
     }
+
 
     private static string CommandLine(string tool, IEnumerable<string> arguments) =>
         string.Join(' ', arguments.Prepend(tool).Select(a => a.Length == 0 || a.Contains(' ') ? $"\"{a}\"" : a));
