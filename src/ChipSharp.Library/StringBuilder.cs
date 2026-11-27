@@ -16,7 +16,8 @@ namespace ChipSharp.Library;
 /// otherwise; the text never does. C#'s <c>sb.Append($"...")</c> and <c>sb.AppendFormat("...", ...)</c> with a literal
 /// format are built where they are called (ChipSharp.Frontend's PrintedText), appending each part. Not here: the
 /// overloads of pointers, of <c>ReadOnlyMemory&lt;char&gt;</c>, of <c>decimal</c> and of an <c>IFormatProvider</c>,
-/// <c>AppendJoin</c> of an <c>IEnumerable&lt;T&gt;</c>, <c>GetChunks</c>.
+/// <c>AppendJoin</c> of an <c>IEnumerable&lt;T&gt;</c> and of a <c>params</c> span (<c>sb.AppendJoin(", ", a, b)</c>:
+/// give an array), <c>GetChunks</c>.
 /// </remarks>
 [Substitute(typeof(System.Text.StringBuilder))]
 internal sealed class StringBuilder
@@ -169,6 +170,7 @@ internal sealed class StringBuilder
 
     public int MaxCapacity => _maxCapacity;
 
+    [System.Runtime.CompilerServices.IndexerName("Chars")]
     public char this[int index]
     {
         get
@@ -545,12 +547,7 @@ internal sealed class StringBuilder
             Runtime.ArgumentNullOf("values");
         }
 
-        return AppendJoin(separator, new ReadOnlySpan<string?>(values));
-    }
-
-    public StringBuilder AppendJoin(string? separator, ReadOnlySpan<string?> values)
-    {
-        for (var i = 0; i < values.Length; i++)
+        for (var i = 0; i < values!.Length; i++)
         {
             if (i > 0)
             {
@@ -570,12 +567,7 @@ internal sealed class StringBuilder
             Runtime.ArgumentNullOf("values");
         }
 
-        return AppendJoin(separator, new ReadOnlySpan<object?>(values));
-    }
-
-    public StringBuilder AppendJoin(string? separator, ReadOnlySpan<object?> values)
-    {
-        for (var i = 0; i < values.Length; i++)
+        for (var i = 0; i < values!.Length; i++)
         {
             if (i > 0)
             {
@@ -595,12 +587,7 @@ internal sealed class StringBuilder
             Runtime.ArgumentNullOf("values");
         }
 
-        return AppendJoin(separator, new ReadOnlySpan<string?>(values));
-    }
-
-    public StringBuilder AppendJoin(char separator, ReadOnlySpan<string?> values)
-    {
-        for (var i = 0; i < values.Length; i++)
+        for (var i = 0; i < values!.Length; i++)
         {
             if (i > 0)
             {
@@ -620,12 +607,7 @@ internal sealed class StringBuilder
             Runtime.ArgumentNullOf("values");
         }
 
-        return AppendJoin(separator, new ReadOnlySpan<object?>(values));
-    }
-
-    public StringBuilder AppendJoin(char separator, ReadOnlySpan<object?> values)
-    {
-        for (var i = 0; i < values.Length; i++)
+        for (var i = 0; i < values!.Length; i++)
         {
             if (i > 0)
             {

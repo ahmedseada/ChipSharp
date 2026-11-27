@@ -56,11 +56,11 @@ public sealed class TextCheckTests
     }
 
     [Fact]
-    public void The_methods_of_string_compile_and_a_StringBuilder_is_building_text_still()
+    public void The_methods_of_string_compile_and_a_StringBuilder_compiles_too_but_not_a_format_known_only_when_it_runs()
     {
         // string.Format and Console.WriteLine's formatting overloads of a literal format, the properties and methods of
-        // string and == on text compile (those that make text are heap uses, fine without a target); a StringBuilder's
-        // methods are building text, which arrives with M3
+        // string and == on text compile (those that make text are heap uses, fine without a target); so do a
+        // StringBuilder (ChipSharp.Library's) and its AppendFormat of a literal format, but not of any other
         var analysis = Check("""
             using System;
             using System.Text;
@@ -75,8 +75,9 @@ public sealed class TextCheckTests
                     Console.WriteLine(name.Length);
                     Console.WriteLine(name.Substring(1));
                     Console.WriteLine(name == "road");
-                    Console.WriteLine(new StringBuilder().Append(lane).ToString());
+                    Console.WriteLine(new StringBuilder().Append(lane).AppendFormat("{0,4}", lane).ToString());
                     Console.WriteLine("{0} and {1}", lane, name);
+                    Console.WriteLine(new StringBuilder().AppendFormat(name, lane));
                 }
             }
             """);
@@ -84,8 +85,7 @@ public sealed class TextCheckTests
         Assert.Equal([BuildingFeature], analysis.Groups.Select(group => group.Feature));
         Assert.Equal(
         [
-            $"Program.Main() at IL_0044 (newobj): {Building}. {BuildingHint}",
-            $"Program.Main() at IL_004a (call): {Building}. {BuildingHint}",
+            $"Program.Main() at IL_008c (callvirt): {Building}. {BuildingHint}",
         ], analysis.Problems.Select(problem => problem.Line));
     }
 
