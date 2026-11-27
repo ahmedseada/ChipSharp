@@ -506,6 +506,9 @@ internal static class CollectionPrograms
                 copied.Add(4);
                 Show(copied);
                 Console.WriteLine(fromExpression.Count);
+                int[] head = { 7, 8 };
+                List<int> spread = [.. head, 0, .. copied];
+                Show(spread);
             }
         }
         """;
