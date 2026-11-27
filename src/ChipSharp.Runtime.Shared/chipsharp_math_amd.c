@@ -36,11 +36,19 @@
 
 #pragma STDC FP_CONTRACT OFF
 
-typedef unsigned int uint32_t;
-typedef int int32_t;
+typedef __UINT32_TYPE__ uint32_t; // 32 bits on every target (AVR's int has 16)
+typedef __INT32_TYPE__ int32_t;
 typedef unsigned long long uint64_t;
 typedef long long int64_t;
-typedef unsigned int U32;
+typedef __UINT32_TYPE__ U32;
+
+// ChipSharp: on an AVR the tables stay in flash (__flash: address space 1, which LPM reads), where a constant elsewhere
+// is copied to RAM at the start, which an ATmega328P has 2 KB of; on every other target this is nothing
+#if defined(__AVR__)
+#define FLASH_TABLE __flash
+#else
+#define FLASH_TABLE
+#endif
 
 #define WINDOWS 1
 #define ALM_PROTO_REF(fn) chipsharp_amd_##fn
@@ -167,7 +175,8 @@ static inline void splitexp(double x, double logbase,
                             int *m, double *z1, double *z2)
 {
     double q, r, r1, r2, f1, f2;
-    int n, j;
+    int32_t n; /* ChipSharp: up to 32 * 1024 and more, beyond an AVR's 16-bit int */
+    int j;
 
   /* Arrays two_to_jby32_lead_table and two_to_jby32_trail_table contain
     leading and trailing parts respectively of precomputed
@@ -175,7 +184,7 @@ static inline void splitexp(double x, double logbase,
     two_to_jby32_lead_table contains the first 25 bits of precision,
     and two_to_jby32_trail_table contains a further 53 bits precision. */
 
-    static const double two_to_jby32_lead_table[32] = {
+    static const FLASH_TABLE double two_to_jby32_lead_table[32] = {
         1.00000000000000000000e+00,   /* 0x3ff0000000000000 */
         1.02189713716506958008e+00,   /* 0x3ff059b0d0000000 */
         1.04427373409271240234e+00,   /* 0x3ff0b55860000000 */
@@ -209,7 +218,7 @@ static inline void splitexp(double x, double logbase,
         1.91520655155181884766e+00,   /* 0x3ffea4afa0000000 */
         1.95714408159255981445e+00};  /* 0x3fff507650000000 */
 
-    static const double two_to_jby32_trail_table[32] = {
+    static const FLASH_TABLE double two_to_jby32_trail_table[32] = {
         0.00000000000000000000e+00,   /* 0x0000000000000000 */
         1.14890470981563546737e-08,   /* 0x3e48ac2ba1d73e2a */
         4.83347014379782142328e-08,   /* 0x3e69f3121ec53172 */
@@ -264,9 +273,9 @@ static inline void splitexp(double x, double logbase,
     /* Set n = nearest integer to r */
     /* This is faster on Hammer */
     if (r > 0)
-        n = (int)(r + 0.5);
+        n = (int32_t)(r + 0.5);
     else
-        n = (int)(r - 0.5);
+        n = (int32_t)(r - 0.5);
 
     r1 = x - n * logbaseof2_by_32_lead;
     r2 =   - n * logbaseof2_by_32_trail;
@@ -316,7 +325,8 @@ static inline void splitexpf(float x, float logbase,
                              int *m, float *z1, float *z2)
 {
     float q, r, r1, r2, f1, f2;
-    int n, j;
+    int32_t n; /* ChipSharp: up to 32 * 128 and more, an int32_t as for doubles */
+    int j;
 
   /* Arrays two_to_jby32_lead_table and two_to_jby32_trail_table contain
     leading and trailing parts respectively of precomputed
@@ -324,7 +334,7 @@ static inline void splitexpf(float x, float logbase,
     two_to_jby32_lead_table contains the first 10 bits of precision,
     and two_to_jby32_trail_table contains a further 24 bits precision. */
 
-    static const float two_to_jby32_lead_table[32] = {
+    static const FLASH_TABLE float two_to_jby32_lead_table[32] = {
         1.0000000000E+00F,  /* 0x3F800000 */
         1.0214843750E+00F,  /* 0x3F82C000 */
         1.0429687500E+00F,  /* 0x3F858000 */
@@ -358,7 +368,7 @@ static inline void splitexpf(float x, float logbase,
         1.9140625000E+00F,  /* 0x3FF50000 */
         1.9570312500E+00F}; /* 0x3FFA8000 */
 
-    static const float two_to_jby32_trail_table[32] = {
+    static const FLASH_TABLE float two_to_jby32_trail_table[32] = {
         0.0000000000E+00F,  /* 0x00000000 */
         4.1277357377E-04F,  /* 0x39D86988 */
         1.3050324051E-03F,  /* 0x3AAB0D9F */
@@ -413,9 +423,9 @@ static inline void splitexpf(float x, float logbase,
     /* Set n = nearest integer to r */
     /* This is faster on Hammer */
     if (r > 0)
-        n = (int)(r + 0.5F);
+        n = (int32_t)(r + 0.5F);
     else
-        n = (int)(r - 0.5F);
+        n = (int32_t)(r - 0.5F);
 
     r1 = x - (float)n * logbaseof2_by_32_lead;
     r2 =   - (float)n * logbaseof2_by_32_trail;
@@ -903,7 +913,7 @@ double ALM_PROTO_REF(atan2)(double y, double x)
      atan_jby256_lead contains the first 21 bits of precision,
      and atan_jby256_tail contains a further 53 bits precision. */
 
-  static const double atan_jby256_lead[  241] = {
+  static const FLASH_TABLE double atan_jby256_lead[  241] = {
     6.24187886714935302734e-02,  /* 0x3faff55b00000000 */
     6.63088560104370117188e-02,  /* 0x3fb0f99e00000000 */
     7.01969265937805175781e-02,  /* 0x3fb1f86d00000000 */
@@ -1146,7 +1156,7 @@ double ALM_PROTO_REF(atan2)(double y, double x)
     7.83441066741943359375e-01,  /* 0x3fe911f300000000 */
     7.85398006439208984375e-01}; /* 0x3fe921fb00000000 */
 
-  static const double atan_jby256_tail[  241] = {
+  static const FLASH_TABLE double atan_jby256_tail[  241] = {
     2.13244638182005395671e-08,  /* 0x3e56e59fbd38db2c */
     3.89093864761712760656e-08,  /* 0x3e64e3aa54dedf96 */
     4.44780900009437454576e-08,  /* 0x3e67e105ab1bda88 */
@@ -1401,7 +1411,7 @@ double ALM_PROTO_REF(atan2)(double y, double x)
         piby2_tail = 6.1232339957367660e-17; /* 0x3c91a62633145c07 */
 
   double u, v, vbyu, q1, q2, s, u1, vu1, u2, vu2, uu, c, r;
-  unsigned int swap_vu, index, xzero, yzero, xnan, ynan, xinf, yinf;
+  U32 swap_vu, index, xzero, yzero, xnan, ynan, xinf, yinf;
   int m, xexp, yexp, diffexp;
 
   /* Find properties of arguments x and y. */
@@ -1550,7 +1560,7 @@ double ALM_PROTO_REF(atan2)(double y, double x)
     { /* General values of v/u. Use a look-up
          table and series expansion. */
 
-      index = (unsigned int)(256*vbyu + 0.5);
+      index = (U32)(256*vbyu + 0.5);
       q1 = atan_jby256_lead[index-16];
       q2 = atan_jby256_tail[index-16];
       c = index*1./256;
@@ -1641,7 +1651,7 @@ double ALM_PROTO_REF(sinh)(double x)
   /* Lead and tail tabulated values of sinh(i) and cosh(i)
      for i = 0,...,36. The lead part has 26 leading bits. */
 
-  static const double sinh_lead[37] = {
+  static const FLASH_TABLE double sinh_lead[37] = {
     0.00000000000000000000e+00,  /* 0x0000000000000000 */
     1.17520117759704589844e+00,  /* 0x3ff2cd9fc0000000 */
     3.62686038017272949219e+00,  /* 0x400d03cf60000000 */
@@ -1680,7 +1690,7 @@ double ALM_PROTO_REF(sinh)(double x)
     7.93006722514944000000e+14,  /* 0x430689e220000000 */
     2.15561576592179200000e+15}; /* 0x431ea215a0000000 */
 
-  static const double sinh_tail[37] = {
+  static const FLASH_TABLE double sinh_tail[37] = {
     0.00000000000000000000e+00,  /* 0x0000000000000000 */
     1.60467555584448807892e-08,  /* 0x3e513ae6096a0092 */
     2.76742892754807136947e-08,  /* 0x3e5db70cfb79a640 */
@@ -1719,7 +1729,7 @@ double ALM_PROTO_REF(sinh)(double x)
     3.64177136406482197344e+06,  /* 0x414bc8d5ae99ad14 */
     7.63580561355670914054e+06}; /* 0x415d20d76744835c */
 
-  static const double cosh_lead[37] = {
+  static const FLASH_TABLE double cosh_lead[37] = {
     1.00000000000000000000e+00,  /* 0x3ff0000000000000 */
     1.54308062791824340820e+00,  /* 0x3ff8b07550000000 */
     3.76219564676284790039e+00,  /* 0x400e18fa08000000 */
@@ -1758,7 +1768,7 @@ double ALM_PROTO_REF(sinh)(double x)
     7.93006722514944000000e+14,  /* 0x430689e220000000 */
     2.15561576592179200000e+15}; /* 0x431ea215a0000000 */
 
-  static const double cosh_tail[37] = {
+  static const FLASH_TABLE double cosh_tail[37] = {
     0.00000000000000000000e+00,  /* 0x0000000000000000 */
     6.89700037027478056904e-09,  /* 0x3e3d9f5504c2bd28 */
     4.43207835591715833630e-08,  /* 0x3e67cb66f0a4c9fd */
@@ -1956,7 +1966,7 @@ double ALM_PROTO_REF(cosh)(double x)
   /* Lead and tail tabulated values of sinh(i) and cosh(i) 
      for i = 0,...,36. The lead part has 26 leading bits. */
 
-  static const double sinh_lead[   37] = {
+  static const FLASH_TABLE double sinh_lead[   37] = {
     0.00000000000000000000e+00,  /* 0x0000000000000000 */
     1.17520117759704589844e+00,  /* 0x3ff2cd9fc0000000 */
     3.62686038017272949219e+00,  /* 0x400d03cf60000000 */
@@ -1995,7 +2005,7 @@ double ALM_PROTO_REF(cosh)(double x)
     7.93006722514944000000e+14,  /* 0x430689e220000000 */
     2.15561576592179200000e+15}; /* 0x431ea215a0000000 */
 
-  static const double sinh_tail[   37] = {
+  static const FLASH_TABLE double sinh_tail[   37] = {
     0.00000000000000000000e+00,  /* 0x0000000000000000 */
     1.60467555584448807892e-08,  /* 0x3e513ae6096a0092 */
     2.76742892754807136947e-08,  /* 0x3e5db70cfb79a640 */
@@ -2034,7 +2044,7 @@ double ALM_PROTO_REF(cosh)(double x)
     3.64177136406482197344e+06,  /* 0x414bc8d5ae99ad14 */
     7.63580561355670914054e+06}; /* 0x415d20d76744835c */
 
-  static const double cosh_lead[   37] = {
+  static const FLASH_TABLE double cosh_lead[   37] = {
     1.00000000000000000000e+00,  /* 0x3ff0000000000000 */
     1.54308062791824340820e+00,  /* 0x3ff8b07550000000 */
     3.76219564676284790039e+00,  /* 0x400e18fa08000000 */
@@ -2073,7 +2083,7 @@ double ALM_PROTO_REF(cosh)(double x)
     7.93006722514944000000e+14,  /* 0x430689e220000000 */
     2.15561576592179200000e+15}; /* 0x431ea215a0000000 */
 
-  static const double cosh_tail[   37] = {
+  static const FLASH_TABLE double cosh_tail[   37] = {
     0.00000000000000000000e+00,  /* 0x0000000000000000 */
     6.89700037027478056904e-09,  /* 0x3e3d9f5504c2bd28 */
     4.43207835591715833630e-08,  /* 0x3e67cb66f0a4c9fd */
@@ -2374,7 +2384,7 @@ float ALM_PROTO_REF(asinf)(float x)
   float u, v, y, s = 0.0F, r;
   int xexp, xnan, transform = 0;
 
-  unsigned int ux, aux, xneg;
+  U32 ux, aux, xneg;
   GET_BITS_SP32(x, ux);
   aux = ux & ~SIGNBIT_SP32;
   xneg = (ux & SIGNBIT_SP32);
@@ -2456,7 +2466,7 @@ float ALM_PROTO_REF(asinf)(float x)
     {
       /* Reconstruct asin carefully in transformed region */
       float c, s1, p, q;
-      unsigned int us;
+      U32 us;
       GET_BITS_SP32(s, us);
       PUT_BITS_SP32(0xffff0000 & us, s1);
       c = (r-s1*s1)/(s+s1);
@@ -2520,7 +2530,7 @@ float ALM_PROTO_REF(acosf)(float x)
   float u, y, s = 0.0F, r;
   int xexp, xnan, transform = 0;
 
-  unsigned int ux, aux, xneg;
+  U32 ux, aux, xneg;
 
   GET_BITS_SP32(x, ux);
   aux = ux & ~SIGNBIT_SP32;
@@ -2600,7 +2610,7 @@ float ALM_PROTO_REF(acosf)(float x)
       } else
 	{
 	  float c, s1;
-	  unsigned int us;
+	  U32 us;
 	  GET_BITS_SP32(s, us);
 	  PUT_BITS_SP32(0xffff0000 & us, s1);
 	  c = (r-s1*s1)/(s+s1);
@@ -2628,7 +2638,7 @@ float ALM_PROTO_REF(atanf)(float fx)
   static double piby2 = 1.5707963267948966e+00; /* 0x3ff921fb54442d18 */
 
   double c, v, s, q, z;
-  unsigned int xnan,fux,faux;
+  U32 xnan,fux,faux;
   unsigned long long ux, aux, xneg;
   double x;
    GET_BITS_SP32(fx, fux);
@@ -2740,7 +2750,7 @@ float ALM_PROTO_REF(atan2f)(float fy, float fx)
   /* Array atan_jby256 contains precomputed values of atan(j/256),
      for j = 16, 17, ..., 256. */
 
-  static const double atan_jby256[  241] = {
+  static const FLASH_TABLE double atan_jby256[  241] = {
     6.24188099959573430842e-02,  /* 0x3faff55bb72cfde9 */
     6.63088949198234745008e-02,  /* 0x3fb0f99ea71d52a6 */
     7.01969710718705064423e-02,  /* 0x3fb1f86dbf082d58 */
@@ -2991,14 +3001,14 @@ float ALM_PROTO_REF(atan2f)(float fy, float fx)
        three_piby4 = 2.3561944901923449e+00; /* 0x4002d97c7f3321d2 */
 
   double u, v, vbyu, q, s, uu, r;
-  unsigned int swap_vu, index, xzero, yzero, xnan, ynan, xinf, yinf;
+  U32 swap_vu, index, xzero, yzero, xnan, ynan, xinf, yinf;
   int xexp, yexp, diffexp;
   uint64_t uy;
 
   double x;
   double y;
-  unsigned int ufx,aufx,xneg;
-  unsigned int ufy,aufy,yneg;
+  U32 ufx,aufx,xneg;
+  U32 ufy,aufy,yneg;
 
   GET_BITS_SP32(fy, ufy);
   GET_BITS_SP32(fx, ufx);
@@ -3143,7 +3153,7 @@ float ALM_PROTO_REF(atan2f)(float fy, float fx)
     { /* General values of v/u. Use a look-up
          table and series expansion. */
 
-      index = (unsigned int)(256*vbyu + 0.5);
+      index = (U32)(256*vbyu + 0.5);
       r = (256*v-index*u)/(256*u+index*v);
 
       /* Polynomial approximation to atan(vbyu) */
@@ -3210,7 +3220,7 @@ float ALM_PROTO_REF(sinhf)(float fx)
 
   /* Tabulated values of sinh(i) and cosh(i) for i = 0,...,36. */
 
-  static const double sinh_lead[37] = {
+  static const FLASH_TABLE double sinh_lead[37] = {
     0.00000000000000000000e+00,  /* 0x0000000000000000 */
     1.17520119364380137839e+00,  /* 0x3ff2cd9fc44eb982 */
     3.62686040784701857476e+00,  /* 0x400d03cf63b6e19f */
@@ -3249,7 +3259,7 @@ float ALM_PROTO_REF(sinhf)(float fx)
     7.93006726156715250000e+14,  /* 0x430689e221bc8d5a */
     2.15561577355759750000e+15}; /* 0x431ea215a1d20d76 */
 
-  static const double cosh_lead[37] = {
+  static const FLASH_TABLE double cosh_lead[37] = {
     1.00000000000000000000e+00,  /* 0x3ff0000000000000 */
     1.54308063481524371241e+00,  /* 0x3ff8b07551d9f550 */
     3.76219569108363138810e+00,  /* 0x400e18fa0df2d9bc */
@@ -3289,7 +3299,7 @@ float ALM_PROTO_REF(sinhf)(float fx)
     2.15561577355759750000e+15}; /* 0x431ea215a1d20d76 */
 
   unsigned long long  aux, xneg;
-  unsigned int ux;
+  U32 ux;
   double y, z, z1, z2;
   int m;
 
@@ -3435,7 +3445,7 @@ float ALM_PROTO_REF(coshf)(float fx)
 
     /* Tabulated values of sinh(i) and cosh(i) for i = 0,...,36. */
 
-    static const double sinh_lead[   37] = {
+    static const FLASH_TABLE double sinh_lead[   37] = {
         0.00000000000000000000e+00,  /* 0x0000000000000000 */
         1.17520119364380137839e+00,  /* 0x3ff2cd9fc44eb982 */
         3.62686040784701857476e+00,  /* 0x400d03cf63b6e19f */
@@ -3474,7 +3484,7 @@ float ALM_PROTO_REF(coshf)(float fx)
         7.93006726156715250000e+14,  /* 0x430689e221bc8d5a */
         2.15561577355759750000e+15}; /* 0x431ea215a1d20d76 */
 
-    static const double cosh_lead[   37] = {
+    static const FLASH_TABLE double cosh_lead[   37] = {
         1.00000000000000000000e+00,  /* 0x3ff0000000000000 */
         1.54308063481524371241e+00,  /* 0x3ff8b07551d9f550 */
         3.76219569108363138810e+00,  /* 0x400e18fa0df2d9bc */
@@ -3514,7 +3524,7 @@ float ALM_PROTO_REF(coshf)(float fx)
         2.15561577355759750000e+15}; /* 0x431ea215a1d20d76 */
 
     unsigned long long aux, xneg;
-    unsigned int ux;
+    U32 ux;
     double x, y, z, z1, z2;
     int m;
 
@@ -3639,7 +3649,7 @@ float ALM_PROTO_REF(tanhf)(float x)
     log2_by_32_tail =  9.9831822808e-07F, /* 0x3585fdf4 */
     large_threshold = 10.0F; /* 0x41200000 */
 
-  unsigned int ux, aux;
+  U32 ux, aux;
   float y, z, p, z1, z2, xneg;
   int m;
 
@@ -3760,7 +3770,7 @@ float ALM_PROTO_REF(tanf)(float x)
 {
   double r = 0.0, dx;
   int region = 0, xneg;
-  unsigned int fux;
+  U32 fux;
   unsigned long long ux, ax;
   GET_BITS_SP32(x, fux);
 
@@ -3831,7 +3841,7 @@ float ALM_PROTO_REF(tanf)(float x)
         piby2_3  =  2.02226624871116645580e-21, /* 0x3ba3198a2e000000 */
         piby2_3tail =  8.47842766036889956997e-32; /* 0x397b839a252049c1 */
       double t, rhead, rtail;
-      int npi2;
+      int32_t npi2; /* ChipSharp: up to 5e5 * 2 / pi, beyond an AVR's 16-bit int */
       unsigned long long uy, xexp, expdiff;
       xexp  = ax >> EXPSHIFTBITS_DP64;
       /* How many pi/2 is dx a multiple of? */
@@ -3850,7 +3860,7 @@ float ALM_PROTO_REF(tanf)(float x)
             npi2 = 4;
         }
       else
-        npi2  = (int)(dx * twobypi + 0.5);
+        npi2  = (int32_t)(dx * twobypi + 0.5);
       /* Subtract the multiple from dx to get an extra-precision remainder */
       rhead  = dx - npi2 * piby2_1;
       rtail  = npi2 * piby2_1tail;

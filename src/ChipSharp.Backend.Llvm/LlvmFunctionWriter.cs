@@ -71,6 +71,15 @@ internal sealed class LlvmFunctionWriter
     /// <summary>Where constant data is on the target: in a flash of its own on an AVR; null as on a target without.</summary>
     public LlvmFlash? Flash { get; init; }
 
+    /// <summary>
+    /// True when the function gets a byte on the stack, so that LLVM gives it a frame pointer: on an AVR, for a call that
+    /// passes arguments on the stack (see <see cref="LlvmAvrCalls"/>).
+    /// </summary>
+    public bool HasFrame { get; init; }
+
+    /// <summary>True on an AVR, whose C int has 16 bits: a call to the C library's memset is LLVM's llvm.memset there.</summary>
+    public bool IsAvr { get; init; }
+
     public void Write()
     {
         var allocas = Unique("allocas");
@@ -94,7 +103,8 @@ internal sealed class LlvmFunctionWriter
         var parameters = string.Join(", ", _function.Parameters.Select(Typed));
         var linkage = LlvmExports.Linkage(_function);
         _text.Append(CultureInfo.InvariantCulture,
-            $"define {linkage}{_types.Of(_function.ReturnType)} @{_symbols[_function]}({parameters}) nounwind {{\n");
+            $"define {linkage}{_types.Of(_function.ReturnType)} @{_symbols[_function]}({parameters}) nounwind" +
+            $"{Flash?.FunctionAttributes} {{\n");
 
         // LLVM's entry block cannot be a jump target, and TIR's may be (a loop at the very start of a method),
         // so the slots get a block of their own. Each starts at zero, like the locals of IL's ".locals init".
@@ -107,6 +117,14 @@ internal sealed class LlvmFunctionWriter
         foreach (var slot in _function.Slots)
         {
             Line($"store {_types.Of(slot.Type)} {LlvmText.Zero(slot.Type)}, {Address(slot)}");
+        }
+
+        if (HasFrame)
+        {
+            foreach (var line in LlvmAvrCalls.FrameLines("%" + Unique("avr.frame")))
+            {
+                Line(line);
+            }
         }
 
         string? stackOverflow = null;
@@ -313,6 +331,24 @@ internal sealed class LlvmFunctionWriter
             case TirFunctionAddress address:
                 // a function's symbol is its address (a ptr addrspace(1) on an AVR, the same bits as a ptr)
                 _values[address] = _types.FunctionAddress(_symbols[address.Function]);
+                break;
+
+            case TirCall call when IsAvr && call.Callee.Kind == TirFunctionKind.External
+                && _symbols[call.Callee] == "memset" && call.Arguments.Count == 3:
+                // the C library's memset takes its value as a C int, which has 16 bits on an AVR, not TIR's i32: LLVM's
+                // own llvm.memset calls it the AVR's way (or sets small blocks itself), and gives back nothing, so the
+                // call's result is the destination, as memset's is
+                var memsetValue = Temporary();
+                Line($"{memsetValue} = trunc {Typed(call.Arguments[1])} to i8");
+                var memset = $"llvm.memset.p0.{_types.Of(call.Arguments[2].Type)}";
+                _declarations.Add($"declare void @{memset}(ptr, i8, {_types.Of(call.Arguments[2].Type)}, i1 immarg)");
+                Line($"call void @{memset}({Typed(call.Arguments[0])}, i8 {memsetValue}, {Typed(call.Arguments[2])}, " +
+                    "i1 false)");
+                if (call.HasResult)
+                {
+                    _values[call] = Value(call.Arguments[0]);
+                }
+
                 break;
 
             case TirCall call:

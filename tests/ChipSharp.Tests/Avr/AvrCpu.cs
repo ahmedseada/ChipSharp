@@ -28,13 +28,20 @@ internal sealed class AvrCpu
     /// <summary>A word no program has: where <see cref="Call"/> returns to.</summary>
     private readonly int _returnAddress;
 
-    public AvrCpu(byte[] flash, int dataSize = 0x900)
+    /// <summary>
+    /// A core with <paramref name="flash"/> in its flash, of the ATmega328P's 32 KB or, for a test that calls functions
+    /// too large for it together, <paramref name="flashSize"/> bytes (at most 64 KB: what LPM and a 2-byte program counter
+    /// reach, as on an ATmega644).
+    /// </summary>
+    public AvrCpu(byte[] flash, int dataSize = 0x900, int flashSize = 32 * 1024)
     {
         ArgumentNullException.ThrowIfNull(flash);
-        Program = new ushort[32 * 1024 / 2];
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(flashSize, 64 * 1024);
+        Program = new ushort[flashSize / 2];
         if (flash.Length > Program.Length * 2)
         {
-            throw new ArgumentException($"{flash.Length} bytes do not fit the ATmega328P's 32 KB of flash.", nameof(flash));
+            throw new ArgumentException($"{flash.Length} bytes do not fit the core's {flashSize / 1024} KB of flash.",
+                nameof(flash));
         }
 
         for (var i = 0; i < flash.Length; i++)

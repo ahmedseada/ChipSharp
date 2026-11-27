@@ -15,5 +15,12 @@
     <EmbeddedResource Include="avr_failures.c" LogicalName="avr_failures.c" />
     <!-- fmod, square roots, Math.Round and the like, shared with the other runtimes -->
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_math.c" LogicalName="chipsharp_float_math.c" />
+    <!-- the transcendental functions of Math and MathF, strings and chars, and the text of a substitute's exceptions,
+         shared with the other runtimes -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_math.c" LogicalName="chipsharp_math.c" />
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_math_musl.c" LogicalName="chipsharp_math_musl.c" />
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_math_amd.c" LogicalName="chipsharp_math_amd.c" />
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_string.c" LogicalName="chipsharp_string.c" />
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_exceptions.c" LogicalName="chipsharp_exceptions.c" />
   </ItemGroup>
 </Project>

@@ -74,7 +74,8 @@ public sealed class AvrFailureTests
             (6, "Stack overflow.\r\n"),
             (7, "Unhandled exception. System.ArgumentOutOfRangeException: Rounding digits must be between 0 and 15, " +
                 "inclusive. (Parameter 'digits')\r\n"),
-            (8, "Unhandled exception.\r\n"),
+            // the text of C#'s throw is the exception's ToString(), which chipsharp_exceptions.c writes: none for null
+            (8, "Unhandled exception. \r\n"),
         ];
         var program = await Built.Value;
         foreach (var (mode, expected) in cases)

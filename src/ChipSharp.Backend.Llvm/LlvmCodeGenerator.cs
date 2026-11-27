@@ -21,7 +21,8 @@ namespace ChipSharp.Backend.Llvm;
 /// descriptors, newobject, nullcheck, the static roots) are written as <see cref="LlvmHeap"/> says; a module that
 /// makes objects can only be generated for a target with a heap. On a chip, the functions through which the stack can
 /// grow without end check it when they start (see <see cref="LlvmStackChecks"/>). On an AVR the module says its data
-/// layout (see <see cref="LlvmTypes"/>), and constant data stays in flash (see <see cref="LlvmFlash"/>).
+/// layout (see <see cref="LlvmTypes"/>), constant data stays in flash (see <see cref="LlvmFlash"/>), and a function
+/// that passes arguments on the stack has a frame pointer (see <see cref="LlvmAvrCalls"/>).
 /// </summary>
 public sealed class LlvmCodeGenerator : ICodeGenerator
 {
@@ -50,7 +51,9 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
         var typeSymbols = LlvmHeap.AssignSymbols(module);
         var roots = LlvmHeap.RootTable(module, types, globalSymbols, out var rootCount);
         var heapStart = LlvmHeap.UsesHeap(module) ? LlvmHeap.InitializeCall(types, rootCount) : null;
-        var entry = module.EntryPoint is { } entryPoint ? EntryCall(entryPoint, symbols[entryPoint], heapStart) : null;
+        var entry = module.EntryPoint is { } entryPoint
+            ? EntryCall(entryPoint, symbols[entryPoint], heapStart, flash.FunctionAttributes)
+            : null;
 
         var text = new StringBuilder();
         text.Append("source_filename = ").Append(LlvmText.Quoted(module.Name)).Append('\n');
@@ -132,12 +135,14 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
         foreach (var function in externals)
         {
             var parameters = string.Join(", ", function.Parameters.Select(p => types.Of(p.Type)));
-            text.Append($"declare {types.Of(function.ReturnType)} @{symbols[function]}({parameters}) nounwind\n");
+            text.Append($"declare {types.Of(function.ReturnType)} @{symbols[function]}({parameters}) nounwind" +
+                $"{flash.DeclarationAttributes(symbols[function])}\n");
         }
 
         var intrinsics = new SortedSet<string>(StringComparer.Ordinal);
         var stackChecks = LlvmStackChecks.Find(module, target, types.Layout);
         var forgetRegisters = LlvmCollectCalls.ForgetRegisters(target);
+        var isAvr = LlvmTypes.IsAvr(target);
         foreach (var function in module.Functions.Where(f => f.Kind == TirFunctionKind.Defined))
         {
             text.Append('\n');
@@ -146,6 +151,8 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
                 Flash = flash,
                 ChecksStack = stackChecks.Contains(function),
                 ForgetRegisters = forgetRegisters,
+                HasFrame = isAvr && LlvmAvrCalls.NeedsFrame(function, types),
+                IsAvr = isAvr,
             }.Write();
         }
 
@@ -262,9 +269,11 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
 
     /// <summary>
     /// <c>define i32 @chipsharp_entry()</c>, which calls the entry point, after <paramref name="heapStart"/> (the call
-    /// that sets the heap up) for a program that uses the heap. The entry point must take nothing and return void or i32.
+    /// that sets the heap up) for a program that uses the heap, with the <paramref name="attributes"/> every function of
+    /// the module has (see <see cref="LlvmFlash.FunctionAttributes"/>), so that LLVM may inline the entry point into it.
+    /// The entry point must take nothing and return void or i32.
     /// </summary>
-    private static string EntryCall(TirFunction entryPoint, string symbol, string? heapStart)
+    private static string EntryCall(TirFunction entryPoint, string symbol, string? heapStart, string attributes)
     {
         if (entryPoint.Parameters.Count > 0)
         {
@@ -280,7 +289,7 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
                 $"{entryPoint.ReturnType}; it must return void or i32 (int)."),
         };
 
-        return $"define i32 @{EntrySymbol}() nounwind {{\nentry:\n{heapStart}{call}}}\n";
+        return $"define i32 @{EntrySymbol}() nounwind{attributes} {{\nentry:\n{heapStart}{call}}}\n";
     }
 
     /// <summary>

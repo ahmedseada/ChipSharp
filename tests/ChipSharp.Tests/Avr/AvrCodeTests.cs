@@ -78,7 +78,7 @@ public sealed class AvrCodeTests
             @Program_counts = internal global [2 x i16] zeroinitializer, align 1
             """), ll, StringComparison.Ordinal);
         Assert.Equal(Text("""
-            define internal i8 @Program_Digit(i32 %p.i) nounwind {
+            define internal i8 @Program_Digit(i32 %p.i) nounwind "no-builtin-memcpy" "no-builtin-memmove" {
             allocas:
               br label %entry
 
@@ -122,7 +122,7 @@ public sealed class AvrCodeTests
         Assert.Contains("call i32 @Program_Read(ptr getelementptr (i8, ptr @Program_Table, i16 -32768))",
             Define(ll, "Program_Caller"), StringComparison.Ordinal);
         Assert.Equal(Text("""
-            define internal i32 @chipsharp.read.i32(ptr %address) nounwind {
+            define internal i32 @chipsharp.read.i32(ptr %address) nounwind "no-builtin-memcpy" "no-builtin-memmove" {
             entry:
               %bits = ptrtoint ptr %address to i16
               %in.flash = icmp slt i16 %bits, 0
