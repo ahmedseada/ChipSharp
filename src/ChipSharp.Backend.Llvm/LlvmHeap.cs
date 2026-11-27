@@ -88,13 +88,19 @@ internal static class LlvmHeap
         return symbols;
     }
 
-    /// <summary>Writes every type descriptor of the module, with what it points to, as private constants.</summary>
+    /// <summary>
+    /// Writes every type descriptor of the module, with what it points to, as private constants (in flash, with flash's
+    /// addresses, on an AVR: see <see cref="LlvmFlash"/>).
+    /// </summary>
     public static void WriteDescriptors(StringBuilder text, TirModule module, LlvmTypes types,
-        IReadOnlyDictionary<TirTypeDescriptor, string> descriptors, IReadOnlyDictionary<TirFunction, string> functions)
+        IReadOnlyDictionary<TirTypeDescriptor, string> descriptors, IReadOnlyDictionary<TirFunction, string> functions,
+        LlvmFlash flash)
     {
         var layout = types.Layout;
         var word = layout.PointerSize;
-        string Function(TirFunction? function) => function is null ? "ptr null" : $"ptr @{functions[function]}";
+        string Function(TirFunction? function) =>
+            function is null ? "ptr null" : $"ptr {types.FunctionAddress(functions[function])}";
+        string Descriptor(TirTypeDescriptor type) => $"ptr {flash.Address(descriptors[type], flash.InFlash(type))}";
 
         foreach (var type in module.TypeDescriptors)
         {
@@ -105,6 +111,10 @@ internal static class LlvmHeap
                 text.Append($"@{symbol} = external constant i8, align {word}\n");
                 continue;
             }
+
+            var inFlash = flash.InFlash(type);
+            var section = LlvmFlash.SectionOf(inFlash);
+            string Part(string name) => flash.Address(name, inFlash);
 
             var (size, elementSize, flags, references) = type.Kind switch
             {
@@ -124,12 +134,14 @@ internal static class LlvmHeap
             if (references.Count > 0)
             {
                 text.Append($"@{symbol}.references = private constant [{references.Count} x i32] " +
-                    $"[{string.Join(", ", references.Select(offset => $"i32 {LlvmText.Integer(offset)}"))}], align 4\n");
-                referencesValue = $"ptr @{symbol}.references";
+                    $"[{string.Join(", ", references.Select(offset => $"i32 {LlvmText.Integer(offset)}"))}]{section}, " +
+                    $"align {types.Alignment(TirType.I32)}\n");
+                referencesValue = $"ptr {Part($"{symbol}.references")}";
             }
 
             var name = Encoding.UTF8.GetBytes((type.RuntimeName ?? type.Name) + "\0");
-            text.Append($"@{symbol}.name = private unnamed_addr constant [{name.Length} x i8] {LlvmText.Bytes(name)}, align 1\n");
+            text.Append($"@{symbol}.name = private unnamed_addr constant [{name.Length} x i8] {LlvmText.Bytes(name)}" +
+                $"{section}, align 1\n");
 
             var interfacesValue = "ptr null";
             if (type.Interfaces.Count > 0)
@@ -140,13 +152,13 @@ internal static class LlvmHeap
                     var methods = type.Interfaces[i].Methods;
                     var table = $"@{symbol}.interface{i.ToString(CultureInfo.InvariantCulture)}";
                     text.Append($"{table} = private constant [{methods.Count} x ptr] " +
-                        $"[{string.Join(", ", methods.Select(Function))}], align {word}\n");
-                    entries.Add($"{{ ptr, ptr }} {{ ptr @{descriptors[type.Interfaces[i].Interface]}, ptr {table} }}");
+                        $"[{string.Join(", ", methods.Select(Function))}]{section}, align {word}\n");
+                    entries.Add($"{{ ptr, ptr }} {{ {Descriptor(type.Interfaces[i].Interface)}, ptr {Part(table[1..])} }}");
                 }
 
                 text.Append($"@{symbol}.interfaces = private constant [{entries.Count} x {{ ptr, ptr }}] " +
-                    $"[{string.Join(", ", entries)}], align {word}\n");
-                interfacesValue = $"ptr @{symbol}.interfaces";
+                    $"[{string.Join(", ", entries)}]{section}, align {word}\n");
+                interfacesValue = $"ptr {Part($"{symbol}.interfaces")}";
             }
 
             var linked = type.Base ?? type.ElementDescriptor;
@@ -156,25 +168,27 @@ internal static class LlvmHeap
             text.Append($"@{symbol} = private constant {{ i32, i32, i32, i32, ptr, ptr, ptr, ptr, i32, i32, {vtable} }} {{ " +
                 $"i32 {LlvmText.Integer(size)}, i32 {LlvmText.Integer(elementSize)}, i32 {flags}, " +
                 $"i32 {references.Count}, {referencesValue}, " +
-                $"{(linked is null ? "ptr null" : $"ptr @{descriptors[linked]}")}, ptr @{symbol}.name, {interfacesValue}, " +
-                $"i32 {type.Interfaces.Count}, i32 {virtuals.Count}, {vtable} {vtableValue} }}, align {word}\n");
+                $"{(linked is null ? "ptr null" : Descriptor(linked))}, ptr {Part($"{symbol}.name")}, {interfacesValue}, " +
+                $"i32 {type.Interfaces.Count}, i32 {virtuals.Count}, {vtable} {vtableValue} }}{section}, align {word}\n");
         }
     }
 
     /// <summary>
     /// A constant object (<see cref="TirModule.AddConstantObject"/>), laid out as an array object on the heap: its header
     /// (the descriptor's address), its length, zeros up to <see cref="TirLayout.ArrayDataOffset"/>, then its elements'
-    /// bytes, as a packed struct, aligned like a heap object's fields need. Private, unnamed_addr and constant: read-only
-    /// data, in flash on a chip, which the garbage collector never marks (it is outside the heap).
+    /// bytes, as a packed struct, aligned like a heap object's fields need (not at all on an AVR). Private, unnamed_addr
+    /// and constant: read-only data, in flash on a chip (in flash's section on an AVR, see <see cref="LlvmFlash"/>), which
+    /// the garbage collector never marks (it is outside the heap).
     /// </summary>
     public static string ConstantObject(TirGlobal global, string symbol,
-        IReadOnlyDictionary<TirTypeDescriptor, string> descriptors, LlvmTypes types)
+        IReadOnlyDictionary<TirTypeDescriptor, string> descriptors, LlvmTypes types, LlvmFlash flash)
     {
         var layout = types.Layout;
         var padding = layout.ArrayDataOffset - layout.ArrayLengthOffset - 4;
         var bytes = global.Data!;
+        var header = flash.Address(descriptors[global.ObjectType!], flash.InFlash(global.ObjectType!));
         var fieldTypes = new List<string> { "ptr", "i32" };
-        var fields = new List<string> { $"ptr @{descriptors[global.ObjectType!]}", $"i32 {global.ObjectLength}" };
+        var fields = new List<string> { $"ptr {header}", $"i32 {global.ObjectLength}" };
         if (padding > 0)
         {
             fieldTypes.Add($"[{padding} x i8]");
@@ -187,8 +201,9 @@ internal static class LlvmHeap
             fields.Add($"[{bytes.Count} x i8] {LlvmText.Bytes(bytes)}");
         }
 
+        var align = Math.Max(types.Alignment(TirType.Ptr), types.Alignment(TirType.I32));
         return $"@{symbol} = private unnamed_addr constant <{{ {string.Join(", ", fieldTypes)} }}> " +
-            $"<{{ {string.Join(", ", fields)} }}>, align {Math.Max(layout.PointerSize, 4)}";
+            $"<{{ {string.Join(", ", fields)} }}>{LlvmFlash.SectionOf(flash.InFlash(global))}, align {align}";
     }
 
     /// <summary>

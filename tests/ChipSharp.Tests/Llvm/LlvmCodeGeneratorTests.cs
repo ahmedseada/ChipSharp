@@ -454,9 +454,10 @@ public sealed class LlvmCodeGeneratorTests
     {
         var module = TirSamples.WithMain(new TirModule("Test"));
 
-        var error = Assert.Throws<ChipSharpException>(() => Generator.Generate(module, LlvmTargets.Make("avr", null, 2)));
-        Assert.Equal("Target 'avr' has 2-byte pointers; the llvm code generator supports 4-byte and 8-byte pointers only.",
-            error.Message);
+        // 2-byte pointers are an AVR's (triple avr); a target without that triple has none the generator knows
+        var error = Assert.Throws<ChipSharpException>(() => Generator.Generate(module, LlvmTargets.Make("tiny16", null, 2)));
+        Assert.Equal("Target 'tiny16' has 2-byte pointers; the llvm code generator supports 4-byte and 8-byte pointers, " +
+            "and the 2-byte pointers of an AVR (triple avr).", error.Message);
     }
 
     // ---- names ----

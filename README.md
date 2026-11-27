@@ -174,6 +174,13 @@ runtime 'avr' is not registered".
   inside [Zig](https://ziglang.org/download/) (0.17 or later: unpack the zip anywhere). ChipSharp finds it through
   `CHIPSHARP_ZIG` (`zig.exe` or its folder), then `D:\Tools\zig\zig.exe`, then the PATH. The tests that need it are
   skipped, saying why, without it.
+- **The code**: the `llvm` code generator writes the AVR's data layout (2-byte pointers, nothing aligned; C#'s `int`
+  stays 32 bits, `long` and `double` 64), and keeps every constant in flash, none of it copied to the 2 KB of RAM: the
+  literals, tables, spans of constant data, enum and date names. The AVR reads flash only with its own instruction
+  (LPM), so an address of flash data has bit 15 set (0x8000 plus its flash address: RAM's addresses never have it); a
+  read whose address the compiler cannot place tests the bit, the others read flash or RAM straight away. The runtime
+  reads what the program hands it so too. The capability `"separateFlash": false` keeps constants as ordinary data
+  instead, which start-up copies to RAM, as avr-gcc does without `PROGMEM`.
 - **The `.hex`** is Intel HEX, what `llvm-objcopy -O ihex` writes: the flash's contents, the starting values of the
   variables included. The memory report reads like `flash 417 bytes of 32 KB (1.3%), RAM 12 bytes of 2 KB (stack 512
   bytes reserved)`. Uploading through the Uno's USB port (avrdude, the Arduino IDE) goes through its bootloader, which
