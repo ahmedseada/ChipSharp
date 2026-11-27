@@ -51,7 +51,7 @@ public sealed class UnsupportedTests
         Assert.All(IlOpCodes.All.Where(op => !SupportedSubset.OpCodes.Contains(op)), op =>
         {
             var message = Unsupported.ForInstruction(op).Message;
-            Assert.Matches(@"^.+ arrives? (later|with M3 \(the heap\))\. For now, .+\.$", message);
+            Assert.Matches(@"^.+ arrives? later\. For now, .+\.$", message);
         });
     }
 

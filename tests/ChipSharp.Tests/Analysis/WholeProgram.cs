@@ -13,7 +13,7 @@ internal static class WholeProgram
     public const string BuildingFeature = "building text ($\"...\", +, ToString, string.Format and the other methods of string)";
 
     /// <summary>The heading of a building-text problem: its feature and when it arrives.</summary>
-    public const string Building = $"{BuildingFeature} arrives with M3 (the heap)";
+    public const string Building = $"{BuildingFeature} arrives later";
 
     /// <summary>The hint of a building-text problem.</summary>
     public const string BuildingHint = "For now, print the parts one after another with Console.Write.";

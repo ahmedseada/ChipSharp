@@ -12,9 +12,9 @@ internal sealed partial record Unsupported
     private const string ForNow = "For now, ";
 
     /// <summary>
-    /// True for a feature that needs a heap: one that arrives with M3 (the heap) because it makes objects, or text, while
-    /// the program runs, or with a later piece of M3 built on objects (virtual calls, generics over classes). Generic
-    /// methods and types, char, references to text and enum names (printed from fixed text) arrive with M3 too, but need
+    /// True for a feature that needs a heap: one that comes with the heap because it makes objects, or text, while
+    /// the program runs, or with a later piece of M3 built on objects (stored strings, generics over classes). Generic
+    /// methods and types, char, references to text and enum names (printed from fixed text) came with M3 too, but need
     /// no heap.
     /// </summary>
     public bool NeedsHeap => (Arrival == WithTheHeap || ComesWithLaterClasses)

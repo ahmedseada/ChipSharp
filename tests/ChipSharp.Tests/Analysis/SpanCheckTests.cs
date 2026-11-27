@@ -18,7 +18,7 @@ namespace ChipSharp.Tests.Analysis;
 public sealed class SpanCheckTests : IDisposable
 {
     private const string Reuse = "a span of an array or of stackalloc made in a loop while a span or reference made there "
-        + "before may still be in use arrives with M3 (the heap). For now, make the array or the stackalloc once, before "
+        + "before may still be in use arrives later. For now, make the array or the stackalloc once, before "
         + "the loop, and reuse it.";
 
     private readonly string _scratch = Path.Combine(Path.GetTempPath(), "chipsharp-tests", Guid.NewGuid().ToString("N"));
@@ -206,7 +206,7 @@ public sealed class SpanCheckTests : IDisposable
             "Program.Main(), local variable V_5 (System.Runtime.CompilerServices.InlineArray2<int>): collection "
                 + "expressions as spans (Span<int> s = [1, 2, 3]) arrive later. For now, use stackalloc int[] { 1, 2, 3 }, "
                 + "or an array: Span<int> s = new int[] { 1, 2, 3 };",
-            "Program.Main() at IL_0015 (call): copying a span into a new array (ToArray) arrives with M3 (the heap). For "
+            "Program.Main() at IL_0015 (call): copying a span into a new array (ToArray) arrives later. For "
                 + "now, copy it into an array of your own with CopyTo.",
             "Program.Main() at IL_0021 (localloc): stackalloc of a size known only when the program runs arrives later. "
                 + "For now, give it a constant size, such as stackalloc byte[16].",

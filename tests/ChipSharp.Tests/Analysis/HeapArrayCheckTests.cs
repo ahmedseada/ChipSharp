@@ -203,8 +203,8 @@ public sealed class HeapArrayCheckTests : IDisposable
             + "object[] items = new int[2][]) arrives later. For now, make the array of the type it is used as: new object[2].";
         Assert.Equal(
         [
-            "Program.Main() at IL_000b (ldsflda): references to a static field that holds an array (ref, out) arrive with "
-                + "M3 (the heap). For now, use the field itself: it always holds the same array.",
+            "Program.Main() at IL_000b (ldsflda): references to a static field that holds an array (ref, out) arrive "
+                + "later. For now, use the field itself: it always holds the same array.",
             "Program.Replace(ref int[]), parameter 'values' (ref int[]): references to arrays (ref int[], out int[]) "
                 + "arrive later. For now, return the array, or keep it in a field.",
             "Program.Get() at IL_0005 (ret): an array in a static field that needs no heap (a constant table, or a fixed "

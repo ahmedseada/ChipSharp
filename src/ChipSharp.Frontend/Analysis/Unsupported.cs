@@ -4,8 +4,8 @@ namespace ChipSharp.Frontend.Analysis;
 
 /// <summary>
 /// A C# feature the program uses that <see cref="SupportedSubset"/> does not have yet, in C# words, with when it is
-/// planned and a hint for what to write instead. <see cref="Message"/> is e.g. "building text ($"...", +, ...) arrives
-/// with M3 (the heap). For now, print the parts one after another with Console.Write." The problems of a check that
+/// planned and a hint for what to write instead. <see cref="Message"/> is e.g. "checked arithmetic arrives later. For
+/// now, leave out checked: ChipSharp's arithmetic wraps around on overflow, like unchecked C#." The problems of a check that
 /// have equal features are one group in its summary.
 /// </summary>
 /// <param name="What">The feature as C# programmers know it, e.g. "arrays" or "checked arithmetic".</param>
@@ -13,10 +13,10 @@ namespace ChipSharp.Frontend.Analysis;
 /// <param name="Hint">What to do for now: a sentence; empty for a library method (the summary lists the ones there are).</param>
 internal sealed partial record Unsupported(string What, bool IsPlural, string Hint)
 {
-    /// <summary>The <see cref="Arrival"/> of what needs objects on the heap: classes, strings, generics, ...</summary>
-    private const string WithTheHeap = "with M3 (the heap)";
+    /// <summary>The <see cref="Arrival"/> of what needs objects on the heap: classes, strings, boxes, ... (<see cref="NeedsHeap"/>).</summary>
+    private const string WithTheHeap = "with the heap";
 
-    /// <summary>The <see cref="Arrival"/> of the rest: planned, without a milestone yet.</summary>
+    /// <summary>The <see cref="Arrival"/> of the rest, and when every feature that is not there yet arrives.</summary>
     private const string Later = "later";
 
     private const string ObjectsHint = "For now, use structs and static methods.";
@@ -85,8 +85,9 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
         "text), and the program's own structs and enums.");
 
     /// <summary>
-    /// When the feature is planned, as the end of <see cref="Heading"/>: "with M3 (the heap)" for what needs objects on
-    /// the heap, else "later".
+    /// What the feature comes with: the heap (<see cref="WithTheHeap"/>), for what makes objects, or a piece built on
+    /// objects, which says that it needs a heap (<see cref="NeedsHeap"/>); else "later". M3 (the heap) is done, so a
+    /// feature that is not there yet arrives later, whatever it comes with (<see cref="Heading"/>).
     /// </summary>
     public string Arrival { get; private init; } = Later;
 
@@ -97,12 +98,12 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
     public bool IsLibraryField { get; private init; }
 
     /// <summary>
-    /// What is not supported, as a clause: "classes and objects arrive with M3 (the heap)", "checked arithmetic arrives
+    /// What is not supported, as a clause: "multi-dimensional arrays (int[,]) arrive later", "checked arithmetic arrives
     /// later", "the library method System.Math.Abs(int) is not available yet".
     /// </summary>
     public string Heading => IsRule ? What
         : IsLibraryMethod || IsLibraryField ? $"{What} is not available yet"
-        : $"{What} {(IsPlural ? "arrive" : "arrives")} {Arrival}";
+        : $"{What} {(IsPlural ? "arrive" : "arrives")} {Later}";
 
     /// <summary>The sentence a problem line ends with: what is missing and when it arrives, then the hint.</summary>
     public string Message => Hint.Length == 0 ? $"{Heading}." : $"{Heading}. {Hint}";
@@ -133,7 +134,7 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
         Namespace: "System.Runtime.CompilerServices", Name: "DefaultInterpolatedStringHandler", IsDefinedInThisAssembly: false,
     } || StringBuilders.IsHandler(type);
 
-    /// <summary>A feature that needs objects on the heap, so it arrives <see cref="WithTheHeap"/>.</summary>
+    /// <summary>A feature that needs objects on the heap: it comes <see cref="WithTheHeap"/>.</summary>
     private static Unsupported Heap(string what, bool isPlural, string hint) =>
         new(what, isPlural, hint) { Arrival = WithTheHeap };
 

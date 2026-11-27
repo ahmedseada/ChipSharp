@@ -65,7 +65,7 @@ public sealed class Problem
     /// <summary>The same place, with another feature: what the target says about it (see <see cref="TargetRules"/>).</summary>
     internal Problem With(Unsupported unsupported) => new(Method, Kind, _where, Place, Offset, unsupported);
 
-    /// <summary>The method itself: "Counter.Next(int): virtual methods (virtual, override, abstract) arrive with M3 ...".</summary>
+    /// <summary>The method itself: "Program.Area(int[,]): multi-dimensional arrays (int[,]) arrive later ...".</summary>
     internal static Problem InMethod(IlMethod method, Unsupported unsupported) =>
         new(method, PlaceKind.Method, "", "", null, unsupported);
 

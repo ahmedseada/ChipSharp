@@ -15,7 +15,7 @@ internal static class TargetRules
     /// Changes <paramref name="problems"/>, the places in <paramref name="methods"/> that ChipSharp cannot compile, for
     /// <paramref name="target"/>: a heap use (<see cref="Unsupported.IsHeapUse"/>) is no problem on a target with a heap
     /// (or for any target, when <paramref name="target"/> is null); on a target without a heap, a feature that needs one
-    /// does not arrive with M3, it needs a heap the target does not have (<see cref="Unsupported.WithoutHeap"/>), and so
+    /// does not arrive later, it needs a heap the target does not have (<see cref="Unsupported.WithoutHeap"/>), and so
     /// does every place that makes an object of a class, which compiles on a target with a heap; on a target without a
     /// console, every
     /// call of Console.Write and Console.WriteLine is a problem too, added after the others. True when a problem says
