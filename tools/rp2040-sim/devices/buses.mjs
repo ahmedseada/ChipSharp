@@ -7,6 +7,8 @@
 //                                          lcd1602   a 16x2 character LCD on a PCF8574 backpack (lcd1602.mjs)
 //                                          lcd2004   the same, 20x4
 //                                          stuck     a device that holds the clock low for ever once addressed
+//                                          ds1307[@<date>]  a real-time clock (ds1307.mjs), from the PC's time, or
+//                                                    from a date (2026-11-27T18:00:00), or halted (@halted)
 //     --spi <bus>=<device>[@<pin>]       a device on SPI0 or SPI1:
 //                                          74hc595@<latch pin>   a shift register (shift-register.mjs)
 //                                          loopback[@<chip select pin>]   RX wired to TX; with a pin, only while
@@ -27,11 +29,12 @@
 
 import { GPIOPinState, I2CMode } from 'rp2040js';
 import { Bmp280 } from './bmp280.mjs';
+import { Ds1307, parseStart } from './ds1307.mjs';
 import { Lcd } from './lcd1602.mjs';
 import { Mpu6050 } from './mpu6050.mjs';
 import { Loopback, ShiftRegister } from './shift-register.mjs';
 
-export const USAGE = '[--i2c <bus>:<address>=<mpu6050|bmp280|lcd1602|lcd2004|stuck>]... ' +
+export const USAGE = '[--i2c <bus>:<address>=<mpu6050|bmp280|lcd1602|lcd2004|stuck|ds1307[@<date>]>]... ' +
   '[--spi <bus>=<74hc595@<pin>|loopback[@<pin>]>]...';
 
 // A device that answers its address, then never lets the clock go: every transfer on its bus waits for it from then on.
@@ -42,26 +45,33 @@ class Stuck {
   }
 }
 
-// Each device made for its address, with the simulation's clock and the log (the LCDs print what they show).
+// Each device made for its address, with the simulation's clock and the log (the LCDs print what they show), and
+// what the option says after '@' (the DS1307's date).
 const I2C_DEVICES = {
   mpu6050: () => new Mpu6050(),
   bmp280: () => new Bmp280(),
   lcd1602: (address, clock, log) => new Lcd(address, 16, 2, clock, log),
   lcd2004: (address, clock, log) => new Lcd(address, 20, 4, clock, log),
   stuck: () => new Stuck(),
+  ds1307: (address, clock, log, at) => new Ds1307(address, clock, log, at),
 };
 
 // The device an --i2c or --spi value names, e.g. "0:0x68=mpu6050" or "0=74hc595@17"; a message when it is not valid.
 export function parseBusOption(option, value) {
   if (option === '--i2c') {
-    const match = /^([01]):(0x[0-9a-fA-F]+|\d+)=([a-z0-9]+)$/.exec(value);
+    const match = /^([01]):(0x[0-9a-fA-F]+|\d+)=([a-z0-9]+)(?:@([0-9a-zA-Z:-]+))?$/.exec(value);
     const address = match === null ? NaN : Number(match[2]);
     if (match === null || !(address >= 0 && address <= 0x7f) || !(match[3] in I2C_DEVICES)) {
       return { error: `--i2c takes a bus (0 or 1), an address from 0 to 0x7f and a device ` +
         `(${Object.keys(I2C_DEVICES).join(', ')}), e.g. 0:0x68=mpu6050, not '${value}'.` };
     }
 
-    return { kind: 'i2c', bus: Number(match[1]), address, device: match[3] };
+    if (match[4] !== undefined && (match[3] !== 'ds1307' || parseStart(match[4]) === null)) {
+      return { error: `--i2c takes a date after '@' only for a ds1307, from 2000 to 2099 (2026-11-27T18:00:00, or ` +
+        `halted), not '${value}'.` };
+    }
+
+    return { kind: 'i2c', bus: Number(match[1]), address, device: match[3], at: match[4] ?? null };
   }
 
   const match = /^([01])=(74hc595|loopback)(?:@(\d+))?$/.exec(value);
@@ -172,7 +182,7 @@ export function attachBuses(mcu, options, log) {
   for (const bus of [0, 1]) {
     const devices = new Map();
     for (const option of options.filter((o) => o.kind === 'i2c' && o.bus === bus)) {
-      const device = I2C_DEVICES[option.device](option.address, mcu.clock, log);
+      const device = I2C_DEVICES[option.device](option.address, mcu.clock, log, option.at);
       devices.set(option.address, device);
       all.push(device);
     }

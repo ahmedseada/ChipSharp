@@ -22,7 +22,31 @@ internal sealed partial class PrintedTextFlow
         var plain = StackArrays.Primitive(ValueTypes.WithoutModifiers(type));
         return Nullables.ValueOf(plain) is { } inner
             ? !Nullables.IsNullable(inner) && IsBoxedHole(inner)
-            : Boxing.Of(plain, _method.Assembly) is { Kind: BoxedKind.Struct };
+            : Boxing.Of(plain, _method.Assembly) is { Kind: BoxedKind.Struct } || FormattedValues.Of(plain, _method.Assembly) is not null;
+    }
+
+    /// <summary>
+    /// <c>x.ToString()</c>, <c>x.ToString("yyyy-MM-dd")</c>, <c>x.ToShortTimeString()</c>, ... of a DateTime, DateOnly
+    /// or TimeOnly (see <see cref="FormattedValues"/>): a text of one part, the value read through its address. False
+    /// for a format that is not a literal: the call then makes its string as any call would.
+    /// </summary>
+    private bool FormattedToString(IlInstruction instruction, int index, IlMethodReference callee, List<Value> stack)
+    {
+        if (FormattedValues.ToStringOf(callee) is not var (type, takesFormat, standard)
+            || (takesFormat && stack is not [.., _, Literal]))
+        {
+            return false;
+        }
+
+        var format = takesFormat ? ((Literal)Pop(stack)).Text : standard;
+        Pop(stack);
+        Own(instruction, PrintedRole.ToString);
+        OwnLastText(index);
+        stack.Add(Produce(instruction, Parts.None.Then([new PrintedPiece(instruction, 0, IlType.Object, null, 0, default)
+        {
+            Formatted = type, TextFormat = format, ViaToString = true,
+        }])));
+        return true;
     }
 
     /// <summary>
@@ -51,6 +75,15 @@ internal sealed partial class PrintedTextFlow
             return problem is not null
                 ? (null, problem)
                 : (Parts.None.Then(parts!.Pieces.Select(piece => piece with { Nullable = plain })), null);
+        }
+
+        // a DateTime, DateOnly or TimeOnly, with its format (FormattedValues)
+        if (FormattedValues.Of(plain, _method.Assembly) is { } formatted)
+        {
+            return (Parts.None.Then([new PrintedPiece(instruction, operand, IlType.Object, null, alignment, default)
+            {
+                Formatted = formatted, TextFormat = format,
+            }]), null);
         }
 
         if (Boxing.Of(plain, _method.Assembly) is { Kind: BoxedKind.Struct } boxed)

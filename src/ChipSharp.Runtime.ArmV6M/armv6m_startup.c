@@ -6,6 +6,8 @@
 //   chipsharp_reset       the reset handler (vector 1): copies .data from flash to RAM, zeroes .bss, runs
 //                         chipsharp_chip_init and the program (chipsharp_entry), then sleeps forever
 //   chipsharp_exit_code   what chipsharp_entry returned, for a debugger to read
+//   ChipSharp_Runtime_LocalUtcOffset  the offset of local time from UTC that a date's z and K formats write: 0, a chip
+//                         has no time zones (ChipSharp.Library's Runtime.LocalUtcOffset)
 //
 // The linker script the toolchain writes defines the __chipsharp_* symbols this file uses.
 
@@ -18,6 +20,12 @@ extern unsigned int __chipsharp_bss_start[];
 extern unsigned int __chipsharp_bss_end[];
 
 volatile int chipsharp_exit_code;
+
+// A chip keeps no time zone: its local time is UTC, an offset of 0 ticks.
+__attribute__((weak)) long long ChipSharp_Runtime_LocalUtcOffset(void)
+{
+    return 0;
+}
 
 // The chip's own set-up, before the program runs. A chip runtime replaces this empty one.
 __attribute__((weak)) void chipsharp_chip_init(void)

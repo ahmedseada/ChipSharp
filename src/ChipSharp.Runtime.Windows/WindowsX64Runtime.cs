@@ -50,6 +50,12 @@ public sealed class WindowsX64Runtime : IArchRuntime
     /// <summary>memset, memcpy and memmove, which LLVM calls for big blocks of memory.</summary>
     public const string MemoryFileName = "chipsharp_memory.c";
 
+    /// <summary>
+    /// The clock and the uptime: DateTime.Now and UtcNow from Windows' clock and time zone, Clock.Start's software clock,
+    /// Stopwatch from the performance counter, Environment.TickCount (the target's "clock" capability).
+    /// </summary>
+    public const string ClockFileName = "chipsharp_clock.c";
+
     /// <summary>__chkstk, which LLVM calls before a stack frame larger than a page.</summary>
     public const string StackProbeFileName = "chipsharp_chkstk.S";
 
@@ -103,6 +109,7 @@ public sealed class WindowsX64Runtime : IArchRuntime
             new GeneratedFile(FailuresFileName, Read(FailuresFileName)),
             new GeneratedFile(MemoryFileName, Read(MemoryFileName)),
             new GeneratedFile(StackProbeFileName, Read(StackProbeFileName)),
+            new GeneratedFile(ClockFileName, Read(ClockFileName)),
             new GeneratedFile(StringFileName, Read(StringFileName)),
             new GeneratedFile(ExceptionsFileName, Read(ExceptionsFileName)),
             .. target.HeapSize is { } heap

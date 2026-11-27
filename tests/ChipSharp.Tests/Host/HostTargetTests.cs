@@ -45,7 +45,8 @@ public sealed class HostTargetTests
         var dlls = host.Settings["link"]!["imports"]!.AsObject();
         Assert.Equal(["kernel32.dll"], dlls.Select(d => d.Key));
         Assert.Equal(["GetStdHandle", "WriteFile", "ExitProcess", "VirtualAlloc", "AddVectoredExceptionHandler",
-                "SetThreadStackGuarantee"],
+                "SetThreadStackGuarantee", "GetSystemTimePreciseAsFileTime", "GetTimeZoneInformation",
+                "QueryPerformanceCounter", "QueryPerformanceFrequency", "GetTickCount64"],
             dlls["kernel32.dll"]!.AsArray().Select(f => f!.GetValue<string>()));
         Assert.Equal(["-O2", "-nostdlib", "-fuse-ld=lld", "-ffunction-sections", "-fdata-sections", "-Wno-override-module"],
             host.Settings["clang"]!["flags"]!.AsArray().Select(f => f!.GetValue<string>()));
@@ -74,8 +75,8 @@ public sealed class HostTargetTests
         Assert.Equal(
             ["chipsharp_runtime.c", "chipsharp_console.c", "chipsharp_float_text.c", "chipsharp_float_math.c",
                 "chipsharp_math.c", "chipsharp_math_musl.c", "chipsharp_math_amd.c", "chipsharp_failures.c",
-                "chipsharp_memory.c", "chipsharp_chkstk.S", "chipsharp_string.c", "chipsharp_exceptions.c",
-                "chipsharp_heap.c", "chipsharp_heap_windows.c", "chipsharp_heap_size.c",
+                "chipsharp_memory.c", "chipsharp_chkstk.S", "chipsharp_clock.c", "chipsharp_string.c",
+                "chipsharp_exceptions.c", "chipsharp_heap.c", "chipsharp_heap_windows.c", "chipsharp_heap_size.c",
                 "chipsharp_string_heap.c"],
             files.Select(f => f.FileName));
         var file = files[0];

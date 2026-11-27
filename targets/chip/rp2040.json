@@ -38,7 +38,8 @@
     "adc": 4,             // analog inputs for Adc: GPIO 26-29, and the temperature sensor
     "pwm": 16,            // PWM outputs: 8 slices of 2, on every GPIO (GPIO n and n + 16 are the same output)
     "i2c": true,          // ChipSharp.Hardware.I2c: two I2C controllers ("i2c" below)
-    "spi": true           // ChipSharp.Hardware.Spi: two SPI controllers ("spi" below)
+    "spi": true,          // ChipSharp.Hardware.Spi: two SPI controllers ("spi" below)
+    "clock": true         // a clock for DateTime.Now and Stopwatch: the timer's 64-bit count of microseconds
   },
   "pinFunctions": {
     // the pins each peripheral can use (datasheet 2.19.2, GPIO functions): chipsharp check holds the pins a program

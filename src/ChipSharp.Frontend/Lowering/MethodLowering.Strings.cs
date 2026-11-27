@@ -84,6 +84,12 @@ internal sealed partial class MethodLowering
                 PushObject(arguments[0]);
                 return;
 
+            case StringCallKind.Span when StringMethods.LiteralSpan(_method, _body.IndexOf(instruction.Offset)) is { } literal:
+                // a literal's chars: a constant of their own in flash, the literal's object not needed
+                Push(_ir.Call(_program.Arrays.Make, _ir.AddressOf(_program.CharData(literal)),
+                    _ir.Const(TirType.I32, literal.Length)));
+                return;
+
             case StringCallKind.Span:
                 StringSpan(values);
                 return;

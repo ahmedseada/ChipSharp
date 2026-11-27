@@ -60,6 +60,7 @@ public static partial class WholeProgramPass
 
         var forTarget = TargetRules.Apply(target, methods, problems);
         forTarget |= SerialAnalogRules.Apply(target, methods, problems);
+        forTarget |= ApplyClock(target, methods, problems);
         CheckHandlers(entryPoint, methods, handlers, interruptProblems, heapArrays);
         problems.AddRange(interruptProblems);
         return new AnalysisResult(assembly, methods, problems)
@@ -95,13 +96,17 @@ public static partial class WholeProgramPass
                 }
             }
 
+            // a DateTime written as text: its Print or Text, not the ToString printed text writes itself (FormattedValues)
+            var (formatted, written) = FormattedValues.Reached(methods[i]);
+            methods.AddRange(formatted.Where(found.Add));
+
             // generic code is reached as the instances calls are linked to (see Generics.Instantiations), never itself
             var instructions = methods[i].Body?.Instructions ?? [];
             for (var j = 0; j < instructions.Count; j++)
             {
                 if (ValueTypes.CalledMethod(instructions[j]) is { } callee && !Generics.Instantiations.IsGeneric(callee)
                     && VirtualMethods.CalledSlot(instructions, j) is null && !Delegates.IsDelegateMethod(callee)
-                    && found.Add(callee))
+                    && !written.Contains(instructions[j]) && found.Add(callee))
                 {
                     methods.Add(callee);
                 }

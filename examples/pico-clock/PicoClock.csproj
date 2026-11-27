@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A clock on a 16x2 character LCD, its time from a DS1307 real-time clock, with no heap: build with ChipSharp for the
+       target "pico" (see Program.cs) -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- I2c, Timing and Clock: the Pico's hardware from C#; Lcd and Ds1307: parts connected to it, which ChipSharp
+         compiles with the program -->
+    <ProjectReference Include="..\..\src\ChipSharp.Hardware\ChipSharp.Hardware.csproj" />
+    <ProjectReference Include="..\..\src\ChipSharp.Components\ChipSharp.Components.csproj" />
+  </ItemGroup>
+</Project>

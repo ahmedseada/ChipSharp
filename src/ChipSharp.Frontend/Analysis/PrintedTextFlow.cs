@@ -380,7 +380,8 @@ internal sealed partial class PrintedTextFlow
         var stack = state.Stack;
         if (callee.Definition is not null)
         {
-            return false;
+            // a ToString of a DateTime, DateOnly or TimeOnly (PrintedTextFlow.Objects.cs)
+            return FormattedToString(instruction, index, callee, stack);
         }
 
         if (Unsupported.IsInterpolatedStringHandler(callee.DeclaringType))

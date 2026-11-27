@@ -89,6 +89,7 @@ internal static partial class VirtualMethods
     /// </summary>
     private static readonly HashSet<string> LibraryInterfaces =
         new(["System.IComparable", "System.IComparable`1", "System.IEquatable`1", "System.IDisposable",
+            "System.IFormatProvider",
             .. Generics.GenericSubstitutes.CollectionInterfaces], StringComparer.Ordinal);
 
     /// <summary>

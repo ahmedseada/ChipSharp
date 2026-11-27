@@ -17,7 +17,8 @@ public static partial class WholeProgramPass
         {
             if (StringMethods.Find(method, i) is { } called)
             {
-                verdicts[instructions[i]] = StringMethods.Verdict(called);
+                // (a span of a literal is a constant, no copy on the heap)
+                verdicts[instructions[i]] = StringMethods.LiteralSpan(method, i) is null ? StringMethods.Verdict(called) : null;
             }
             else if (StringMethods.IsPrefix(method, i))
             {
