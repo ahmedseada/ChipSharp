@@ -2,27 +2,27 @@ namespace ChipSharp.Frontend.Analysis;
 
 /// <summary>
 /// What of classes (see <see cref="ClassRules"/>) does not compile yet, in C# words. The features that come with the
-/// next pieces of M3 name the piece: virtual calls (virtual methods, object's own methods, records, casts and
-/// interfaces of classes) and generics over classes. Like everything that makes objects, they need a heap.
+/// next pieces of M3 name the piece: stored strings (object's ToString, records) and generics over classes. Like
+/// everything that makes objects, they need a heap.
 /// </summary>
 internal sealed partial record Unsupported
 {
-    /// <summary>The <see cref="Arrival"/> of virtual methods and what is built on them.</summary>
-    private const string WithVirtualCalls = "with M3 (virtual calls)";
+    /// <summary>The <see cref="Arrival"/> of what returns or keeps a string: ToString, records.</summary>
+    private const string ArrivesWithStoredStrings = "with M3 (stored strings)";
 
     /// <summary>The <see cref="Arrival"/> of generic classes.</summary>
     private const string WithGenericClasses = "with M3 (generics over classes)";
 
-    public static readonly Unsupported VirtualMethods = Coming("virtual methods (virtual, override, abstract)", true,
-        "For now, leave out virtual, override and abstract, and give a derived class's method a name of its own.",
-        WithVirtualCalls);
-
-    public static readonly Unsupported ObjectMethods = Coming("ToString, Equals and GetHashCode of objects", true,
-        "For now, give the class a method of its own for it, such as Describe() or SameAs(other), and call that.",
-        WithVirtualCalls);
+    /// <summary>
+    /// An object's ToString (<c>node.ToString()</c>, and an object printed, which .NET prints as its ToString gives it):
+    /// it makes a string. Its Equals and GetHashCode compile (see <see cref="VirtualMethods"/>).
+    /// </summary>
+    public static readonly Unsupported ObjectMethods = Coming("ToString of objects (and printing an object)", false,
+        "For now, give the class a method that prints what it holds, such as Print(), and call that.",
+        ArrivesWithStoredStrings);
 
     public static readonly Unsupported Records = Coming("record classes", true,
-        "For now, write a class with its fields and a constructor (or a struct).", WithVirtualCalls);
+        "For now, write a class with its fields and a constructor (or a struct).", ArrivesWithStoredStrings);
 
     public static readonly Unsupported GenericClasses = Coming("generic classes", true,
         "For now, write a class for each type argument you need, or make it a generic struct.", WithGenericClasses);
@@ -49,7 +49,7 @@ internal sealed partial record Unsupported
     public static Unsupported LibraryType(string name) => new($"the library type {name}", false, "") { IsLibraryMethod = true };
 
     /// <summary>True for a feature of classes that comes with a later piece of M3 than classes: it needs a heap too.</summary>
-    private bool ComesWithLaterClasses => Arrival is WithVirtualCalls or WithGenericClasses;
+    private bool ComesWithLaterClasses => Arrival is ArrivesWithStoredStrings or WithGenericClasses;
 
     private static Unsupported Coming(string what, bool isPlural, string hint, string arrival) =>
         new(what, isPlural, hint) { Arrival = arrival };

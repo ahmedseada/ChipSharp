@@ -1,0 +1,33 @@
+circle: shape 4 at 5,5 with 0 sides, area 12
+shape 3 at 2,0 with 4 sides, area 10
+square: shape 2 at 1,1 with 4 sides, area 9
+shape 1 at 0,0 with 3 sides, area 6
+total area 37
+400 scaled to 48 is a big circle
+304 scaled to 40 measuring 28 is a wide rectangle
+9002 scaled to 36 measuring 24 is a square
+103 measuring 10 is another shape
+True
+False
+True
+True
+True
+True
+shape 3 at 3,1 with 4 sides, area 40
+False
+True
+True
+nothing
+True
+False
+True
+False
+True
+True
+True
+False
+True True True False
+1 0 -1
+1
+announcing square: shape 2 at 1,1 with 4 sides, area 36
+square: shape 2 at 1,1 with 4 sides, area 36

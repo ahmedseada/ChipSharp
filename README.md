@@ -46,7 +46,7 @@ that ChipSharp does not compile yet, where, when it is planned, and what to writ
 on a line of its own, and every library method ChipSharp can call). `tir` shows the program in TIR. `build` compiles
 it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` also keeps the `.tir` and `.ll` files.
 
-`dotnet test` runs 1206 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
+`dotnet test` runs 1274 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
 `CHIPSHARP_LLVM_BIN`); the Pico tests also need the simulator (see below), and are skipped, saying why, without it.
 
 ## What C# compiles today
@@ -58,6 +58,9 @@ it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` 
 | Code | `if`, `switch`, `for`, `while`, `do`, `foreach` over arrays, `&&`, `\|\|`, `?:`, patterns on numbers; arithmetic wraps around like unchecked C# |
 | Types | Structs, enums (`[Flags]` too), `ref`, `out` and `in` parameters, `ref` locals |
 | Classes | On a target with a heap: the program's classes, `sealed` or not, nested, derived from each other (and from an `abstract` class): `new`, fields of the types above, of objects (the class itself too: lists, trees) and of structs holding objects, field initializers, constructors (overloads, `this(...)`, `base(...)`), instance and static methods and properties, `this`, a method hidden with `new`; objects in locals, parameters, return values, the fields of objects and of structs, and static fields; `null`, `==`, `!=`, `is null`, `ReferenceEquals`, `?.` and `??` (`??=` too), object initializers (`new Node { Value = 1 }`), `object`. The garbage collector frees what the program no longer reaches |
+| Virtual calls | On a target with a heap: `virtual`, `override` and `abstract` methods and properties over any number of levels, `sealed override`, `base.M()`, a `new virtual` method that opens a slot of its own; object's `Equals` and `GetHashCode` (overridden, `base.Equals`, and object's own: the same object, and a number that stays the same for it). A call that only one method can answer, on every object the program makes that the variable can hold, is a plain call (a sealed class, a sealed override, a single subclass made), and a method no object of the program can run is left out |
+| Interfaces of classes | Classes that implement interfaces implicitly and explicitly, through a base class, again in a derived class, interfaces that inherit interfaces, default methods, properties, generic interfaces over values (`IStore<int>`) and the library's `IComparable`, `IComparable<T>`, `IEquatable<T>` and `IDisposable` over values; interfaces as the types of locals, parameters, return values, fields and static fields |
+| Type tests and casts | `is`, `as` and `(T)x` to classes, interfaces, `object` and arrays (`o is int[]`, covariant arrays of objects too), `x is Square s`, property patterns, `switch` on types, `is null`, `is not null`; a cast that fails stops the program with .NET's `InvalidCastException` message |
 | Generics | Generic methods, structs and static classes over values (numbers, bools, enums, structs, generic structs, fixed text), nested in each other: `static T Max<T>(T a, T b) where T : IComparable<T>`, `static void Swap<T>(ref T a, ref T b)`, `struct Pair<T>`, made once for each type argument, with no heap. Interfaces implemented by structs, through a constraint (`static void Run<T>(ref T device) where T : struct, IDevice`, explicit implementations and static abstract members too) or called on the struct itself; `CompareTo`, `Equals`, `GetHashCode` and `ToString` of a number `T`; generic math (`INumber<T>`): the operators, comparisons, `T.Zero`, `T.One`, `MinValue`, `MaxValue`; `default(T)`, `typeof(T) == typeof(int)`, `sizeof(T)`; a `T` printed and in printed text |
 | Static fields | Of the types above, `volatile` too, with field initializers and static constructors |
 | Arrays | Of numbers, bools, structs and enums, on the stack: a constant size, kept in the method that makes them and passed down to the methods it calls. On a target with a heap also on the heap: returned, kept in static fields, in the fields of objects and in other arrays, of a size known only when the program runs (`new int[n]`), `null` (`a == null`, `a?.Length ?? 0`), arrays of arrays (`int[][]`), of objects and of the program's classes; `[]` and `Array.Empty<T>()`, `foreach`, `.Length`, bounds checks and .NET's messages for null and a negative length. An array that stays in its method with a constant size is still on the stack |
@@ -69,7 +72,7 @@ it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` 
 
 | Not yet | When |
 |---|---|
-| Virtual methods (`virtual`, `override`, `abstract`), object's `ToString`, `Equals` and `GetHashCode`, records, casts and type tests (`is`, `as`, `(T)x`), variables of an interface type and a struct turned into one (boxing), generics over classes (`List<T>`, generic classes, a class, `object` or an array as a type argument), `ref` and `out` of an object, `?.` that gives a number (an `int?`); keeping built text (in a variable, a field, a return value), `string.Format` and the other methods of string, `==` on text, enum names in text, text in the fields of structs, `char`; arrays of strings, an array in the field of a struct, `ToArray` of a span | With M3 (the heap) |
+| Object's `ToString` (and printing an object: `Console.WriteLine(node)`, `$"{node}"`) and records (with M3's stored strings), a struct turned into an interface or `object` (boxing) and back (unboxing: `(int)o`, `o is int`), generic virtual methods, generics over classes (`List<T>`, generic classes, a class, `object` or an array as a type argument), `ref` and `out` of an object, type tests against `string` and library classes, `?.` that gives a number (an `int?`); keeping built text (in a variable, a field, a return value), `string.Format` and the other methods of string, `==` on text, enum names in text, text in the fields of structs, `char`; arrays of strings, an array in the field of a struct, `ToArray` of a span | With M3 (the heap) |
 | Exceptions (`try`, `catch`, `finally`, `throw`, `using`), `checked` arithmetic, multi-dimensional arrays, array covariance (`object[] items = new int[2][]`), `ref` and `out` of an array, a static array kept outside its field, unsafe code (pointers, `stackalloc` into a pointer, `stackalloc` of a size known only when the program runs), collection expressions as spans (`Span<int> s = [1, 2];`), delegates and lambdas, `typeof`, finalizers, classes derived from library classes | Later |
 | The methods of `System.Array` (`Array.Copy`, `Array.Fill`, `Array.Clear`, `Array.IndexOf`, `Array.Reverse`, `array.Clone()`, ...) | Not yet: `chipsharp check` says where, and to write the loop |
 | Other library types and methods (`decimal`, `Random`, `Math.Sin`, ...) | Not yet: `chipsharp check` lists the methods there are |
@@ -107,7 +110,8 @@ fields as a state machine), `Projectile.cs` (floats in structs, with operators),
 `LookupTables.cs` (a 7-segment display's tables in flash and a buffer of readings in RAM), `Generics.cs` (generic
 methods and structs, devices used through a constraint, generic math), `Spans.cs` (one `Sum` over an array, a slice,
 `stackalloc` and a table in flash; a sensor's packet read with `BinaryPrimitives` and `MemoryMarshal`, a struct from an odd
-offset, a checksum over its bytes), `Classes.cs` (a linked list and a tree of
+offset, a checksum over its bytes), `Shapes.cs` (an abstract shape and its overrides, interfaces called through a list
+and a static field, `is`, `as`, casts and a switch on types, `Equals` and `GetHashCode`), `Classes.cs` (a linked list and a tree of
 objects, constructors calling each other, a derived class, objects in static fields, and enough short-lived objects to
 make the Pico's garbage collector run again and again) and `HeapArrays.cs` (arrays returned, of sizes known when the
 program runs, an array of arrays, an array kept in a static field and replaced, null, and many arrays used once).
@@ -311,12 +315,49 @@ for (int i = 0; i < 5; i++)
 }
 ```
 
-On the Pico a `Node` takes 16 bytes of the heap (its header, an int and a reference, 12 bytes, rounded up to 8). Virtual
-methods (`virtual`, `override`, `abstract`), object's `ToString`, `Equals` and `GetHashCode`, records, casts and type
-tests arrive with M3's virtual calls, generic classes with generics over classes: `chipsharp check` says so for each
-place. A class that implements an interface compiles when the program calls its methods on the class itself, not
-through the interface. On a target without a heap the classes themselves compile (their static members, a reference
-that stays null); each place that makes an object needs a heap. `samples/Classes.cs` shows the rest.
+On the Pico a `Node` takes 16 bytes of the heap (its header, an int and a reference, 12 bytes, rounded up to 8). Object's
+`ToString` and records arrive with M3's stored strings, generic classes with generics over classes: `chipsharp check`
+says so for each place. On a target without a heap the classes themselves compile (their static members, their virtual
+calls and casts, a reference that stays null); each place that makes an object needs a heap. `samples/Classes.cs`
+shows the rest.
+
+### Virtual calls and interfaces
+
+The whole program is known, so ChipSharp compiles only what can run (`src/ChipSharp.Frontend/VirtualDispatch.cs`,
+rapid type analysis): a virtual call reaches the method its slot runs on each class whose objects the program makes
+(`new`), and a class made reaches the methods of the slots called so far, until nothing new is reached. An override of
+a class no one makes, or of a method no one calls, is not in the program. A call with one possible target, on every
+object made that its variable (a local, a parameter, a field, a call's result, a cast) can hold, is a plain call, after
+the object's null check, as .NET checks it; one with none is the null check alone. On the Shapes sample that makes the
+Pico's flash 11.2 KB instead of 11.8 KB.
+
+The other calls go through the object's descriptor, the address in its header (`src/ChipSharp.Frontend/Lowering`,
+`VirtualTables.cs` and `MethodLowering.Virtual.cs`):
+
+- **Virtual methods**: each class the program makes has a virtual method table in its descriptor (in flash on a chip):
+  object's `Equals` and `GetHashCode` first, then its base class's slots, then those its own methods open (`virtual`,
+  `abstract`, `new virtual`); an override fills in the slot of what it overrides. A slot is in the tables only when a
+  call through it can run two methods or more. A call loads the object's header, the slot's address from the table and
+  calls it: `call indirect`, two loads and a call, the same on every target.
+- **Interfaces**: each class made has an interface map, one entry for each interface it implements (through a base
+  class too) that a call or a type test needs: the interface's descriptor and a method table, the methods the class runs
+  for the interface's slots, in the order the program first calls them. A call finds the entry with
+  `ChipSharp.Object.FindInterface`, a scan of a map that holds a few entries, then calls through its table. Explicit
+  implementations, a method of a base class, an override of it in a derived class, re-implementation in a derived class
+  and default interface methods are resolved when compiling, as .NET resolves them.
+- **Type tests and casts**: `is` and `as` against a class walk the object's class and its bases to the one tested;
+  against an interface look it up in the interface map; against an array type compare the array's descriptor (an array
+  of a class's objects is an array of its base's too, as .NET's arrays are covariant). A test the variable passes by its
+  type is the object itself; one no object the program makes can pass is null. A cast that fails stops the program as
+  .NET does: `Unhandled exception. System.InvalidCastException: Unable to cast object of type 'Circle' to type 'IShape'.`
+  Each descriptor holds .NET's name of its type (`Program+Circle`); like .NET, the message names a nested type by its
+  own name and an instance of a generic type with its type arguments (``IStore`1[System.Int32]``).
+- **Object's `Equals` and `GetHashCode`**: an override where there is one; else object's own: the same object, and the
+  object's address divided by 8, which stays the same for as long as the object lives (the collector never moves an
+  object) and differs from every other live object's. .NET's own numbers are those of another heap, so the tests compare
+  only what they do. An array, which can be an object, has object's own.
+
+`samples/Shapes.cs` shows each of these.
 
 ### The heap
 

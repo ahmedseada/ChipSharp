@@ -279,10 +279,10 @@ public sealed class GenericCheckTests : IDisposable
     {
         var problems = Problems(StructAsInterface, target is null ? null : Shipped.Load(target));
 
-        Assert.Contains($"Program.Main() at IL_0010 (box): {Boxing} arrives with M3 (the heap). For now, {BoxingHint}", problems);
-        Assert.Contains("Program.Use(IDevice), parameter 'device' (IDevice): interfaces arrive with M3 (the heap). For now, " +
-            "implement the interface on a struct and use it through a constraint: static void Run<T>(ref T device) " +
-            "where T : struct, IDevice.", problems);
+        // a parameter of an interface type compiles (it holds an object, of a class that implements the interface); the
+        // struct must be boxed to be one
+        Assert.Equal([$"Program.Main() at IL_0010 (box): {Boxing} arrives with M3 (the heap). For now, {BoxingHint}"],
+            problems);
     }
 
     [Fact]

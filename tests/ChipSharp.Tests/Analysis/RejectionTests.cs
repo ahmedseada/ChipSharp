@@ -264,7 +264,7 @@ public sealed class RejectionTests
     [Fact]
     public void Boxing_and_objects()
     {
-        // an object compiles; a value turned into one does not, nor does object's Equals
+        // an object compiles, and so does object's Equals; a value turned into one does not
         var problems = Problems("""
             using System;
 
@@ -283,9 +283,6 @@ public sealed class RejectionTests
         Assert.Equal(
         [
             "Program.Main() at IL_0006 (call): the library method System.Console.WriteLine(object) is not available yet.",
-            "Program.Main() at IL_0011 (callvirt): ToString, Equals and GetHashCode of objects arrive with M3 (virtual "
-                + "calls). For now, give the class a method of its own for it, such as Describe() or SameAs(other), and "
-                + "call that.",
             "Program.Wrap(int) at IL_0001 (box): boxing (using a value as an object) arrives with M3 (the heap). "
                 + "For now, keep values in their own types, such as int and bool.",
         ], problems);

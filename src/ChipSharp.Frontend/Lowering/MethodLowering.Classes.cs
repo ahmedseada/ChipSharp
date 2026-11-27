@@ -121,9 +121,9 @@ internal sealed partial class MethodLowering
 
     /// <summary>
     /// <c>callvirt</c>: a call of an instance method on an object, the way C# makes every one, which .NET makes only
-    /// after checking the object for null. The method is not virtual (the whole-program pass rejects virtual ones), so
-    /// it is the null check of the object, then a plain <see cref="Call"/>. This is the one place a callvirt is
-    /// translated: virtual dispatch, through the object's virtual method table, goes here.
+    /// after checking the object for null. A callvirt through a slot (a virtual method, an interface's, object's) is
+    /// MethodLowering.Virtual.cs'; what comes here is not virtual, so it is the null check of the object, then a plain
+    /// <see cref="Call"/>.
     /// </summary>
     private void CallVirtual()
     {

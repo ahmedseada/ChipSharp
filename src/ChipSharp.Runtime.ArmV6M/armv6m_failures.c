@@ -16,12 +16,13 @@
 //   ChipSharp_Runtime_ArgumentOutOfRange, LengthOutOfRange, DestinationTooShort, DataMisaligned
 //                                        a span's start or length outside it, too few bytes for MemoryMarshal.Read or
 //                                        Write, a CopyTo a shorter span, a MemoryMarshal.Cast this chip cannot read
+//   ChipSharp_Runtime_InvalidCast        a cast to a type the object is not of (InvalidCastException)
 //   ChipSharp_Runtime_ArrayNull, ...     the arguments of the methods of System.Array (Array.Copy, Fill, IndexOf, ...):
 //                                        null, an index or a length outside the array, a destination too short
 //
 // The TimeSpan ones and NegateOverflow are the methods of ChipSharp.Library.Runtime, which says when each happens (so
-// are the four array ones Array.Sort and Array.BinarySearch call); the others are the code generator's and the heap's
-// (chipsharp_heap.c, armv6m_heap.c).
+// are the four array ones Array.Sort and Array.BinarySearch call); InvalidCast is the program's casts'; the others are
+// the code generator's and the heap's (chipsharp_heap.c, armv6m_heap.c).
 
 __attribute__((noreturn)) static void fail(void)
 {
@@ -47,6 +48,14 @@ __attribute__((weak, noreturn)) void ChipSharp_Runtime_ArgumentOutOfRange(void) 
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_LengthOutOfRange(void) { fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_DestinationTooShort(void) { fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_DataMisaligned(void) { fail(); }
+
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_InvalidCast(const char *from, const char *to)
+{
+    (void)from;
+    (void)to;
+    fail();
+}
+
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_ArrayNull(void) { fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_SourceArrayNull(void) { fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_DestinationArrayNull(void) { fail(); }

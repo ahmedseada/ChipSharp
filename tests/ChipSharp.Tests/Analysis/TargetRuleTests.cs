@@ -82,13 +82,20 @@ public sealed class TargetRuleTests : IDisposable
     [Fact]
     public void A_feature_of_objects_still_to_come_needs_a_heap_too()
     {
-        // a virtual method arrives with virtual calls where there is a heap; without one it never does
-        const string Virtual = """
+        // an object's ToString arrives with stored strings where there is a heap; without one it never does. Its virtual
+        // methods compile without a heap: no object is ever made, so a call of one is only its null check
+        const string ToText = """
             class Program
             {
                 static int count;
+                static bool same;
 
-                static void Main() => count = new Counter().Count();
+                static void Main()
+                {
+                    var counter = new Counter();
+                    count = counter.Count();
+                    same = counter.ToString() == null;
+                }
             }
 
             class Counter
@@ -101,14 +108,15 @@ public sealed class TargetRuleTests : IDisposable
         [
             "Program.Main() at IL_0000 (newobj): creating objects (new ...) needs a heap, and the target 'tiny' (2 KB RAM) " +
                 "has no heap. Use structs and static methods.",
-            "Program.Main() at IL_0005 (callvirt): virtual methods (virtual, override, abstract) need a heap, and the " +
-                "target 'tiny' (2 KB RAM) has no heap. Leave out virtual, override and abstract, and give a derived " +
-                "class's method a name of its own.",
-            "Counter.Count(): virtual methods (virtual, override, abstract) need a heap, and the target 'tiny' (2 KB RAM) " +
-                "has no heap. Leave out virtual, override and abstract, and give a derived class's method a name of its own.",
-        ], Problems(Virtual, Tiny));
-        Assert.StartsWith("Program.Main() at IL_0005 (callvirt): virtual methods (virtual, override, abstract) arrive " +
-            "with M3 (virtual calls).", Problems(Virtual, Shipped.Load("pico"))[0]);
+            "Program.Main() at IL_0010 (callvirt): ToString of objects (and printing an object) needs a heap, and the " +
+                "target 'tiny' (2 KB RAM) has no heap. Give the class a method that prints what it holds, such as " +
+                "Print(), and call that.",
+        ], Problems(ToText, Tiny));
+        Assert.Equal(
+        [
+            "Program.Main() at IL_0010 (callvirt): ToString of objects (and printing an object) arrives with M3 (stored " +
+                "strings). For now, give the class a method that prints what it holds, such as Print(), and call that.",
+        ], Problems(ToText, Shipped.Load("pico")));
     }
 
     [Fact]

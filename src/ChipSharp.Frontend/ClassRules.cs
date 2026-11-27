@@ -17,13 +17,13 @@ namespace ChipSharp.Frontend;
 /// reaches, and a target without a heap has none at all.</item>
 /// <item>A call of an instance method on an object is <c>callvirt</c>, as C# writes every one: for a method that is not
 /// virtual (<see cref="IsOverridable"/>) that is the object's null check, then the call. A virtual method, an override
-/// and an abstract one are not compiled yet: they arrive with virtual calls, as do object's ToString, Equals and
-/// GetHashCode, records and interfaces of classes.</item>
+/// and an abstract one, object's Equals and GetHashCode and the methods of interfaces are called through the object's
+/// descriptor (see <see cref="VirtualMethods"/>); object's ToString and records arrive with stored strings.</item>
 /// <item>Objects compare by reference (<c>==</c>, <c>!=</c>, <c>is null</c>, <c>object.ReferenceEquals</c>), and
 /// <c>?.</c> and <c>??</c> test them against null.</item>
 /// </list>
 /// Not yet: records (<see cref="IsRecord"/>), finalizers (<see cref="HasFinalizer"/>), classes derived from library
-/// classes, generic classes, casts and type tests.
+/// classes, generic classes.
 /// </summary>
 internal static class ClassRules
 {
