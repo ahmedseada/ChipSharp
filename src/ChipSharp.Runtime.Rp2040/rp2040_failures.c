@@ -7,13 +7,15 @@
 // handler sleeps forever. UART0 sends what is still in its FIFO on its own.
 //
 //   ChipSharp_Runtime_IndexOutOfRange    an array index outside the array (IndexOutOfRangeException)
+//   ChipSharp_Runtime_DivideByZero       a whole number divided by zero, x / 0 or x % 0 (DivideByZeroException)
 //   ChipSharp_Runtime_TimeSpan...        a TimeSpan too long, or NaN given to one (ChipSharp.Library's System.TimeSpan:
 //                                        OverflowException, ArgumentOutOfRangeException, ArgumentException)
 //   ChipSharp_Runtime_NegateOverflow     the negative of the smallest value, e.g. -TimeSpan.MinValue (OverflowException)
 //   ChipSharp_Runtime_NullReference      a field, element or method of null (NullReferenceException)
 //   ChipSharp_Runtime_OutOfMemory        an object that does not fit in the heap, even after a collection
 //                                        (OutOfMemoryException)
-//   ChipSharp_Runtime_Overflow           an array of a negative length, a span of more bytes than an int counts
+//   ChipSharp_Runtime_Overflow           an array of a negative length, a span of more bytes than an int counts, the
+//                                        smallest value divided by -1 (int.MinValue / -1)
 //                                        (OverflowException)
 //   ChipSharp_Runtime_HeapInInterrupt    an interrupt handler that makes an object, which it never may: the heap may be
 //                                        in the middle of an allocation or a collection when the interrupt comes
@@ -97,6 +99,12 @@ __attribute__((noreturn)) void ChipSharp_Runtime_IndexOutOfRange(void)
 {
     static const char message[] =
         "Unhandled exception. System.IndexOutOfRangeException: Index was outside the bounds of the array.\r\n";
+    fail(message, sizeof message - 1);
+}
+
+__attribute__((noreturn)) void ChipSharp_Runtime_DivideByZero(void)
+{
+    static const char message[] = UNHANDLED "System.DivideByZeroException: Attempted to divide by zero.\r\n";
     fail(message, sizeof message - 1);
 }
 

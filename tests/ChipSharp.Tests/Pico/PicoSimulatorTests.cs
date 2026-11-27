@@ -119,7 +119,7 @@ public sealed class PicoSimulatorTests : IDisposable
     }
 
     [SimulatorFact]
-    public async Task A_division_by_zero_stops_the_program_at_the_runtimes_breakpoint()
+    public async Task A_division_by_zero_says_so_on_UART0_and_stops_the_program_at_the_runtimes_breakpoint()
     {
         var program = PicoBuild.Build("""
             using System;
@@ -141,7 +141,8 @@ public sealed class PicoSimulatorTests : IDisposable
 
         Assert.True(run.ExitCode == 3, run.ToString());
         Assert.Contains("stopped: the program hit a breakpoint (bkpt #0)", run.Stopped);
-        Assert.Equal("1\r\n", System.Text.Encoding.ASCII.GetString(run.Uart0));
+        Assert.Equal("1\r\nUnhandled exception. System.DivideByZeroException: Attempted to divide by zero.\r\n",
+            System.Text.Encoding.ASCII.GetString(run.Uart0));
     }
 
     [SimulatorFact]

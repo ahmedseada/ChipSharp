@@ -42,9 +42,13 @@ internal sealed partial class ProgramFunctions(TirModule module)
     private readonly Dictionary<string, TirFunction> _externals = new(StringComparer.Ordinal);
 
     private ArrayFunctions? _arrays;
+    private DivisionFunctions? _divisions;
 
     /// <summary>The functions arrays use (making one, its length, the bounds check), shared by every method.</summary>
     public ArrayFunctions Arrays => _arrays ??= new ArrayFunctions(module);
+
+    /// <summary>The functions that divide whole numbers as .NET does: by 0, and the smallest value by -1, stop the program.</summary>
+    public DivisionFunctions Divisions => _divisions ??= new DivisionFunctions(module);
 
     /// <summary>Adds the TIR function of <paramref name="method"/>, checking that its signature can be compiled.</summary>
     public void Declare(IlMethod method, bool isEntryPoint)

@@ -151,9 +151,10 @@ internal sealed class LlvmFunctionWriter
                 break;
 
             case TirBinary binary:
-                // TODO: IL throws DivideByZeroException on x / 0 and x % 0, and OverflowException on
-                // int.MinValue / -1 (and long.MinValue / -1, and the same with %); LLVM's sdiv, udiv, srem and
-                // urem make all of these undefined behaviour. Add the checks once ChipSharp has exceptions.
+                // IL throws DivideByZeroException on x / 0 and x % 0, and OverflowException on int.MinValue / -1
+                // (and long.MinValue / -1, and the same with %); LLVM's sdiv, udiv, srem and urem make all of these
+                // undefined behaviour, so the translation checks the divisor first (ChipSharp.Frontend's
+                // DivisionFunctions) and a division reaches here only when it is safe.
                 // Shift amounts need no check: C# compilers mask them below the operand width.
                 var arithmetic = LlvmOpcodes.Binary(binary.Op, binary.Type.IsFloat);
                 Define(binary, $"{arithmetic} {Typed(binary.Left)}, {Value(binary.Right)}");
