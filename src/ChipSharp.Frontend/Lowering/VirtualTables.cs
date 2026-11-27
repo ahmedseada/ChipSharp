@@ -87,7 +87,11 @@ internal sealed class VirtualTables
                 .Where(method => method is { IsStatic: false } && (method.Attributes & MethodAttributes.Virtual) != 0)
                 .Select(VirtualMethods.SlotOf)
                 .Where(slot => slot.Kind == DispatchSlotKind.Class && slot.Opener!.DeclaringType == type && _live.Contains(slot));
-            table = [.. inherited, .. own];
+
+            // then those the instances of its generic virtual methods open, in the order the program first calls them
+            var generic = _live.Where(slot => slot is { Kind: DispatchSlotKind.Class, Opener.MethodArguments.Count: > 0 }
+                && slot.Opener.DeclaringType == type);
+            table = [.. inherited, .. own, .. generic];
             _tables.Add(type, table);
         }
 

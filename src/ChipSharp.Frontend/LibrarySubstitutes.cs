@@ -74,11 +74,14 @@ internal static class LibrarySubstitutes
         return type.IsDefinedInThisAssembly ? null : Loaded.Value.Substitutes.GetValueOrDefault(type.FullName);
     }
 
-    /// <summary>True for a method of the library: a substitute's member, or what it uses.</summary>
+    /// <summary>
+    /// True for a method of the library: a substitute's member, or what it uses, also an instance of its generic code over
+    /// the program's types (made in the program, see Generics.Instantiations).
+    /// </summary>
     public static bool Defines(IlMethod method)
     {
         ArgumentNullException.ThrowIfNull(method);
-        return method.Assembly == Assembly;
+        return method.Assembly == Assembly || method.GenericDefinition?.Assembly == Assembly;
     }
 
     /// <summary>
@@ -192,6 +195,12 @@ internal static class LibrarySubstitutes
     /// <summary>The members of <paramref name="type"/>, the substitute for <paramref name="library"/>: see Members.</summary>
     private static IEnumerable<string> MembersOf(IlTypeDefinition type, string library)
     {
+        // a generic type as C# writes it: System.Collections.Generic.EqualityComparer<T>
+        if (library.IndexOf('`', StringComparison.Ordinal) is > 0 and var tick)
+        {
+            library = $"{library[..tick]}<{string.Join(", ", type.GenericParameters)}>";
+        }
+
         var name = library[(library.LastIndexOf('.') + 1)..];
         foreach (var field in type.Fields.Where(field => IsPublic(field.Attributes)))
         {

@@ -80,21 +80,26 @@ public sealed class ArrayMethodCheckTests : IDisposable
     }
 
     [Fact]
-    public void Sort_and_BinarySearch_take_numbers_and_bools_and_say_so_for_enums_and_structs()
+    public void Sort_and_BinarySearch_take_numbers_bools_and_comparable_structs_and_say_so_for_enums_and_other_structs()
     {
+        // Point implements IComparable<Point>, which the library's Sort and BinarySearch ask of T (generics over classes)
         var problems = Problems(Program("""
             Color[] colors = { Color.Blue, Color.Red };
             Array.Sort(colors);
             Point[] points = new Point[2];
             Console.WriteLine(Array.BinarySearch(points, new Point()));
+            Plain[] plain = new Plain[2];
+            Array.Sort(plain);
             """, """
             enum Color { Red, Blue }
             struct Point : IComparable<Point> { public int X; public int CompareTo(Point other) => X - other.X; }
+            struct Plain { public int X; }
             """));
 
-        const string Sort = "Array.Sort and Array.BinarySearch of arrays of enums, structs, text or objects arrive later. "
-            + "For now, sort an array of numbers (a key for each element), or write the loop.";
-        Assert.Equal([$"Program.Main() at IL_000a (call): {Sort}", $"Program.Main() at IL_001e (call): {Sort}"],
+        const string Sort = "Array.Sort and Array.BinarySearch of arrays of enums, structs that do not implement " +
+            "IComparable<T>, text or objects arrive later. For now, sort an array of numbers (a key for each element) " +
+            "or of structs that implement IComparable<T>, or write the loop.";
+        Assert.Equal([$"Program.Main() at IL_000a (call): {Sort}", $"Program.Main() at IL_002e (call): {Sort}"],
             problems);
     }
 

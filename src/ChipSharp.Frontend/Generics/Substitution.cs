@@ -53,7 +53,7 @@ internal sealed class Substitution(IReadOnlyList<IlType> typeArguments, IReadOnl
         }
 
         return Instantiations.Link(LibrarySubstitutes.Link(owner,
-            new IlMethodReference(declaringType, reference.Name, reference.Signature, arguments, reference.Definition)));
+            new IlMethodReference(declaringType, reference.Name, reference.Signature, arguments, reference.Definition)), owner);
     }
 
     /// <summary>A field the generic code names, with the arguments in place in its type, linked like a method.</summary>
@@ -63,7 +63,7 @@ internal sealed class Substitution(IReadOnlyList<IlType> typeArguments, IReadOnl
         return declaringType == reference.DeclaringType
             ? reference
             : Instantiations.Link(LibrarySubstitutes.Link(owner,
-                new IlFieldReference(declaringType, reference.Name, reference.FieldType, reference.Definition)));
+                new IlFieldReference(declaringType, reference.Name, reference.FieldType, reference.Definition)), owner);
     }
 
     /// <summary>True when <paramref name="type"/> names a type parameter: it is in the code of a generic method or type.</summary>

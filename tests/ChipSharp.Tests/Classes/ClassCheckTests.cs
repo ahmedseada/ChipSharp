@@ -186,7 +186,7 @@ public sealed class ClassCheckTests : IDisposable
     }
 
     [Fact]
-    public void Records_generic_classes_finalizers_and_classes_derived_from_library_classes_are_rejected_where_used()
+    public void Records_finalizers_and_classes_derived_from_library_classes_are_rejected_where_used_and_generic_classes_compile()
     {
         var analysis = WholeProgram.Check("""
             using System;
@@ -233,10 +233,9 @@ public sealed class ClassCheckTests : IDisposable
             }
             """);
 
-        // the local of Box<int> comes first, then the code
+        // Box<int> compiles (generics over classes); the rest is rejected where the code uses it
         Assert.Equal(
         [
-            "generic classes arrive with M3 (generics over classes)",
             "record classes arrive with M3 (stored strings)",
             "finalizers (~ClassName()) arrive later",
             "exceptions arrive later",

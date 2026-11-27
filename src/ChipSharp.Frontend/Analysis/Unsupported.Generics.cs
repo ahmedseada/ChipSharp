@@ -7,7 +7,10 @@ namespace ChipSharp.Frontend.Analysis;
 /// </summary>
 internal sealed partial record Unsupported
 {
-    /// <summary>A class, an interface, object or an array as a type argument: one copy of the code for every object type, on the heap.</summary>
+    /// <summary>
+    /// A class, an interface, object or an array as a type argument: an instance over objects, which needs a heap (a heap
+    /// use where one is used, see <see cref="Generics.ReferenceArguments.Use"/>).
+    /// </summary>
     public static readonly Unsupported GenericsOverClasses = Heap(
         "generics over classes (a class, an interface, object or an array as a type argument)", true,
         "For now, use numbers, bools, enums and structs as type arguments: ChipSharp makes the code once for each.");

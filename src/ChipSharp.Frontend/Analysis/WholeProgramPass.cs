@@ -193,7 +193,7 @@ public static partial class WholeProgramPass
 
         foreach (var tryOffset in body.ExceptionRegions.Select(region => region.TryOffset).Distinct().Order())
         {
-            problems.Add(Problem.AtTry(method, tryOffset, Unsupported.TryCatchFinally));
+            problems.Add(Problem.AtTry(method, tryOffset, ForTry(method, tryOffset)));
         }
 
         // the verdict of printed text comes first for the instructions it is about, then the arrays' rule's (a problem;
@@ -236,6 +236,8 @@ public static partial class WholeProgramPass
                 unsupported = other;
             }
 
+            // a use of an instance over a reference type (generics over classes) needs a heap, but hides no problem
+            unsupported ??= Generics.ReferenceArguments.Use(method, instruction);
             if (unsupported is not null)
             {
                 problems.Add(Problem.At(method, instruction, unsupported));

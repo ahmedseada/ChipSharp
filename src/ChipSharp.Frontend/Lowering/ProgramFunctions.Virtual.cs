@@ -31,7 +31,7 @@ internal sealed partial class ProgramFunctions
     /// </summary>
     public TirTypeDescriptor InterfaceDescriptor(IlType type)
     {
-        var plain = ValueTypes.WithoutModifiers(type);
+        var plain = VirtualMethods.Canonical(type);
         if (!_interfaceDescriptors.TryGetValue(plain, out var descriptor))
         {
             descriptor = module.AddInterface(CSharpNames.Type(plain));
@@ -71,7 +71,7 @@ internal sealed partial class ProgramFunctions
     {
         foreach (var (type, descriptor) in _classes)
         {
-            descriptor.RuntimeName = VirtualMethods.RuntimeName(type.Type);
+            descriptor.RuntimeName = VirtualMethods.RuntimeName(Generics.Instantiations.Reference(type));
         }
 
         if (_classes.Count == 0 && _systemObject is null)

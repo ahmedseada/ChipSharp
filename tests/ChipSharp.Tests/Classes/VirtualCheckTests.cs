@@ -235,7 +235,7 @@ public sealed class VirtualCheckTests : IDisposable
     }
 
     [Fact]
-    public void What_still_needs_generics_over_classes_or_the_library_is_rejected()
+    public void What_still_needs_the_library_is_rejected_and_generic_virtual_methods_compile()
     {
         var problems = WholeProgram.Problems("""
             using System;
@@ -261,10 +261,9 @@ public sealed class VirtualCheckTests : IDisposable
             }
             """);
 
+        // Pick<int>, an instance of a generic virtual method, has a slot of its own (VirtualMethods.Generic.cs)
         Assert.Equal(
         [
-            "Program.Main() at IL_000d (callvirt): generic virtual methods (virtual void Run<T>(), or a generic method of " +
-                "an interface) arrive with M3 (generics over classes). For now, make the method generic or virtual, not both.",
             "Program.Main() at IL_0026 (callvirt): typeof and type handles arrive later. For now, leave them out.",
             "Program.Main() at IL_002c (call): the library method System.Type.op_Equality(System.Type, System.Type) is " +
                 "not available yet.",

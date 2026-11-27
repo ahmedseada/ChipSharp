@@ -68,13 +68,6 @@ public static partial class WholeProgramPass
                     verdicts[instruction] = ForSpanCall(call, assembly, made.Contains(i));
                     break;
 
-                // a generic substitute (MemoryExtensions) is made for types of the library and of .NET, not the program's
-                case { OpCode: IlOpCode.Call, Operand: IlMethodOperand { Method: { Definition: { } definition } callee } }
-                    when LibrarySubstitutes.Defines(definition) && Generics.Instantiations.IsGeneric(definition)
-                        && callee.GenericArguments.Any(argument => argument is IlNamedType { IsDefinedInThisAssembly: true }):
-                    verdicts[instruction] = Unsupported.LibraryGenericsOfProgramTypes;
-                    break;
-
                 case { OpCode: IlOpCode.Call, Operand: IlMethodOperand { Method: { } callee } }
                     when callee.GenericArguments.Any(Unsupported.IsCollectionExpression):
                 case { OpCode: IlOpCode.Initobj, Operand: IlTypeOperand { Type: var type } }

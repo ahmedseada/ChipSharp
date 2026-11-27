@@ -29,6 +29,12 @@ public sealed partial class IlAssembly
     {
         ArgumentNullException.ThrowIfNull(type);
         var definition = type.GenericDefinition ?? type;
+        if (definition.Assembly != this && type.Assembly == this)
+        {
+            // an instance made here of another assembly's generic type (ChipSharp.Library's)
+            return definition.Assembly.HasCustomLayout(definition);
+        }
+
         if (definition.Assembly != this)
         {
             throw new ArgumentException($"{type} is a type of {definition.Assembly}, not of {this}.", nameof(type));
