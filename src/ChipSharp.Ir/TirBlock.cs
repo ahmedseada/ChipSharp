@@ -44,5 +44,35 @@ public sealed class TirBlock
         return instruction;
     }
 
+    /// <summary>
+    /// Makes <paramref name="instructions"/> the block's instructions, for a pass that rewrites a block
+    /// (<see cref="Optimizations.TirNarrowing"/>): each is either one of the block's own or in no block yet. The ones
+    /// left out belong to no block afterwards.
+    /// </summary>
+    internal void ReplaceInstructions(IReadOnlyList<TirInstruction> instructions)
+    {
+        foreach (var instruction in instructions)
+        {
+            if (instruction.Block is { } owner && owner != this)
+            {
+                throw new TirException(
+                    $"'{TirPrinter.Print(instruction)}' is in block '{owner.Name}'; it cannot move to block '{Name}'.");
+            }
+        }
+
+        var kept = new HashSet<TirInstruction>(instructions);
+        foreach (var old in _instructions.Where(old => !kept.Contains(old)))
+        {
+            old.Block = null;
+        }
+
+        _instructions.Clear();
+        foreach (var instruction in instructions)
+        {
+            instruction.Block = this;
+            _instructions.Add(instruction);
+        }
+    }
+
     public override string ToString() => Name;
 }
