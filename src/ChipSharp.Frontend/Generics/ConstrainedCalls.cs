@@ -13,7 +13,8 @@ namespace ChipSharp.Frontend.Generics;
 /// call has as its <c>this</c>, is what its own method takes.</item>
 /// <item>On a number or bool: <c>ToString()</c> is its own, which printed text prints; <c>CompareTo</c>,
 /// <c>Equals</c> and <c>GetHashCode</c> are those of ChipSharp.Library's <c>Numbers</c>, which take its address; the
-/// static members of generic math are the operations themselves (<see cref="GenericMath"/>).</item>
+/// static members of generic math are the operations themselves (<see cref="GenericMath"/>), and those a float type
+/// shares with Math and MathF (<c>T.Sqrt</c>, <c>T.Sin</c>, ...) calls of those (<see cref="FloatMath"/>).</item>
 /// </list>
 /// </summary>
 internal static class ConstrainedCalls
@@ -34,6 +35,13 @@ internal static class ConstrainedCalls
         var plain = StackArrays.Primitive(ValueTypes.WithoutModifiers(type));
         if (plain is IlPrimitiveType { Kind: not (IlPrimitiveKind.String or IlPrimitiveKind.Object) } primitive)
         {
+            // T.Sqrt(x), T.Sin(x), ... on a float type: the Math or MathF method double's or float's calls
+            if (!callee.HasThis && callee.GenericArguments.Count == 0 && FloatMath.Reference(primitive.Kind, callee.Name,
+                    Interface(callee.DeclaringType).Apply(callee.Signature)) is { } math)
+            {
+                return [(IlOpCode.Call, new IlMethodOperand(LibrarySubstitutes.Link(owner, math)))];
+            }
+
             return callee.HasThis ? NumberMethod(primitive, callee) : GenericMath.Replacement(primitive.Kind, callee);
         }
 

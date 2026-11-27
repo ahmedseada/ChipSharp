@@ -65,7 +65,6 @@ public sealed class MathAccuracyTests(ITestOutputHelper output)
             [One(r => U(r, 0.5, 2)), One(r => LogU(r, f ? 1e-38 : 1e-308, f ? 3e38 : 1e308)), One(r => Math.Abs(Bits(r, f)))];
         Func<Random, (double, double)>[] hyperbolic =
             [One(r => U(r, -3, 3)), One(r => U(r, f ? -90 : -711, f ? 90 : 711)), One(r => S(r, LogU(r, tiny, 1)))];
-        string Name(string name) => f ? name + "f" : name;
         return
         [
             new("Sin", f, (x, _) => f ? MathF.Sin((float)x) : Math.Sin(x), trig, f ? 99.8 : 98.5, 1),

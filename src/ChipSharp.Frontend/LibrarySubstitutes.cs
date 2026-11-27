@@ -108,6 +108,8 @@ internal static class LibrarySubstitutes
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(reference);
 
+        // double.Sin(x) and the like are Math's (Generics.FloatMath), which are runtime functions or substitutes
+        reference = Generics.FloatMath.Link(reference);
         if (reference.Definition is { } definition)
         {
             return definition.DeclaringType.FullName == RuntimeType && Defines(definition)
