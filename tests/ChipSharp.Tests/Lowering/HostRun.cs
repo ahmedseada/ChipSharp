@@ -47,9 +47,10 @@ internal static class HostRun
     }
 
     /// <summary>
-    /// Runs a compiled C# program on .NET (the version the tests run on), from <paramref name="folder"/>, the way
-    /// samples/update-expected.ps1 makes the expected outputs: in the invariant culture (1.5 and Infinity, whatever
-    /// the PC's regional settings). A program that <paramref name="fails"/> may write to standard error.
+    /// Runs a compiled C# program on .NET (the version the tests run on) the way samples/update-expected.ps1 makes the
+    /// expected outputs: in the invariant culture (1.5 and Infinity, whatever the PC's regional settings). A program
+    /// that <paramref name="fails"/> may write to standard error. <paramref name="folder"/> is made, for the test's own
+    /// files; the program runs from a folder of the test run's own (see <see cref="DotnetFolder"/>).
     /// </summary>
     public static async Task<ProgramRun> RunOnDotnetAsync(byte[] assembly, string name, string folder) =>
         await RunOnDotnetAsync(assembly, name, folder, failing: false);
@@ -61,6 +62,48 @@ internal static class HostRun
     public static async Task<ProgramRun> RunOnDotnetAsync(byte[] assembly, string name, string folder, bool failing)
     {
         Directory.CreateDirectory(folder);
+
+        // the same assembly prints the same: it runs on .NET once per test run (the tests of the PC and of the Pico,
+        // in Release and in Debug, compare with the same program)
+        var key = $"{name}|{Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(assembly))}";
+        var run = await DotnetRuns.GetOrAdd(key, _ => new Lazy<Task<ProgramRun>>(() => RunOnceOnDotnetAsync(assembly, name)))
+            .Value;
+        Assert.True(failing || run.Errors.Length == 0, $"dotnet {name}.dll failed:\n{run}");
+        return run;
+    }
+
+    /// <summary>
+    /// The folder the programs run on .NET from, a folder of their own each: one for the test run, so that no test's
+    /// scratch folder holds a program .NET (or Windows' error reporting, after an exception) may still have open when
+    /// the test deletes it. A later test run deletes it.
+    /// </summary>
+    private static string DotnetFolder => DotnetRunsFolder.Value;
+
+    private static readonly Lazy<string> DotnetRunsFolder = new(() =>
+    {
+        var parent = Path.Combine(Path.GetTempPath(), "chipsharp-tests", "dotnet");
+        if (Directory.Exists(parent))
+        {
+            foreach (var old in new DirectoryInfo(parent).EnumerateDirectories()
+                .Where(folder => DateTime.UtcNow - folder.LastWriteTimeUtc > TimeSpan.FromHours(12)))
+            {
+                try
+                {
+                    old.Delete(recursive: true);
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    // still in use: another time
+                }
+            }
+        }
+
+        return Directory.CreateDirectory(Path.Combine(parent, Guid.NewGuid().ToString("N"))).FullName;
+    });
+
+    private static async Task<ProgramRun> RunOnceOnDotnetAsync(byte[] assembly, string name)
+    {
+        var folder = Directory.CreateDirectory(Path.Combine(DotnetFolder, Guid.NewGuid().ToString("N"))).FullName;
         var dll = Path.Combine(folder, name + ".dll");
         await File.WriteAllBytesAsync(dll, assembly);
         var (major, minor) = (Environment.Version.Major, Environment.Version.Minor);
@@ -74,12 +117,7 @@ internal static class HostRun
             }
             """);
 
-        // the same assembly prints the same: it runs on .NET once per test run (the tests of the PC and of the Pico,
-        // in Release and in Debug, compare with the same program), from the folder of the first test that runs it
-        var key = $"{name}|{Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(assembly))}";
-        var run = await DotnetRuns.GetOrAdd(key, _ => new Lazy<Task<ProgramRun>>(() => RunAsync(Dotnet(), [dll], folder))).Value;
-        Assert.True(failing || run.Errors.Length == 0, $"dotnet {dll} failed:\n{run}");
-        return run;
+        return await RunAsync(Dotnet(), [dll], folder);
     }
 
     public static async Task<ProgramRun> RunAsync(string program, IEnumerable<string> arguments, string folder)
