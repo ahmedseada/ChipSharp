@@ -11,12 +11,20 @@
 //     node tools/rp2040-sim/run.mjs <image.uf2> [--ms <simulated milliseconds, default 1000>]
 //                                              [--uart0 <file to write UART0's bytes to>]
 //                                              [--input <pin>=<high|low>[@<simulated milliseconds>ms]]...
+//                                              [--send <uart>=<text>[@<simulated milliseconds>ms]]...
+//                                              [--adc <pin|temp>=<volts>V|<celsius>C|<reading>[@<...>ms]]...
 //                                              [--i2c <bus>:<address>=<device>]... [--spi <bus>=<device>[@<pin>]]...
 //
 // --input drives a pin from outside, as a button or another chip would; the program reads it with Pin.Read, and
 // Pin.Watch... sees it change. Without a time it is the level from the start; with one, e.g. --input 15=high@100ms,
 // the pin changes then (as a button pressed after 100 ms), and the change is printed. Give a pin several times to
 // change it several times. (rp2040js reads only these outside levels: a pin the program drives itself reads as low.)
+//
+// --send sends text to UART0's or UART1's RX pin, as a terminal or another chip would, e.g. --send "0=led on\r@100ms":
+// from that time (or the start), byte after byte at the port's speed (10 bits a byte, 8N1), its UTF-8 bytes; \r, \n,
+// \t, \\ and \xHH stand for those bytes. Sends to one port follow each other. --adc sets the voltage an analog input
+// reads (GPIO 26-29, 0 to 3.3 V: 1.65V reads 2048 of 4095), or the chip's temperature (temp=30C; 27 C unless given),
+// from the start or from a time on.
 //
 // --i2c and --spi put simulated devices on the I2C and SPI buses (devices/buses.mjs): --i2c 0:0x68=mpu6050 an
 // MPU-6050 at address 0x68 on I2C0, --i2c 0:0x76=bmp280 a BMP280, --spi 0=74hc595@17 a 74HC595 shift register on
@@ -36,6 +44,14 @@
 //     [    0.200 ms] UART0 baud 115200           the program set UART0's baud rate
 //     [    1.234 ms] UART0: Hello                a line written to UART0 (without its line ending)
 //     [  100.000 ms] input: GPIO15 high          an --input with a time changed the pin from outside
+//     [    2.000 ms] UART1: Hello                the same as UART0's for UART1 (and "UART1 baud 9600")
+//     [  100.000 ms] input: UART0 "led on\r"     a --send starts sending
+//     [  100.000 ms] input: GPIO26 1.650 V (2048)  an --adc with a time changed an analog input
+//     [   12.000 ms] GPIO25 PWM 1000.00 Hz, duty 25.00% (250.00 us high)
+//                                                a PWM output, measured from its edges (rising to rising, rising
+//                                                to falling): printed when a period differs from the one before,
+//                                                instead of every edge
+//     [   15.000 ms] GPIO25 PWM steady low       a PWM output with no edge for 2.5 periods (duty 0, or 1: high)
 //     [    2.000 ms] I2C0 0x68 write 75, read 68 a transfer on an I2C bus (devices/buses.mjs lists them all)
 //     [    3.000 ms] SPI0 74HC595 Q3 high        an output of a device on an SPI bus changed
 //     [ 1000.000 ms] stopped: <why>              the last line
@@ -69,7 +85,8 @@ const PIN_STATES = {
 function usage(message) {
   console.error(`run.mjs: ${message}`);
   console.error('Usage: node run.mjs <image.uf2> [--ms <simulated milliseconds>] [--uart0 <output file>] ' +
-    `[--input <pin>=<high|low>[@<milliseconds>ms]]... ${BUS_USAGE}`);
+    `[--input <pin>=<high|low>[@<milliseconds>ms]]... ${BUS_USAGE} ` +
+    '[--send <uart>=<text>[@<milliseconds>ms]]... [--adc <pin|temp>=<volts>V|<celsius>C|<reading>[@<milliseconds>ms]]...');
   process.exit(2);
 }
 
@@ -79,10 +96,12 @@ function fail(message) {
 }
 
 function parseArguments(args) {
-  const options = { image: null, ms: 1000, uart0: null, inputs: [], buses: [] };
+  const options = { image: null, ms: 1000, uart0: null, inputs: [], buses: [], sends: [], adc: [] };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--ms' || arg === '--uart0' || arg === '--input') {
+    if (SERIAL_ANALOG_OPTIONS.has(arg)) {
+      parseSerialAnalogOption(arg, args[++i], options);
+    } else if (arg === '--ms' || arg === '--uart0' || arg === '--input') {
       const value = args[++i];
       if (value === undefined) {
         usage(`${arg} needs a value.`);
@@ -194,6 +213,199 @@ function exceptionName(number) {
   return names[number] ?? (number >= 16 ? `IRQ ${number - 16}` : `exception ${number}`);
 }
 
+// ---- Serial input, analog inputs and PWM outputs (--send, --adc, UART1's output, PWM measured) -------------------
+
+const SERIAL_ANALOG_OPTIONS = new Set(['--send', '--adc']);
+const FUNCTION_PWM = 4; // a GPIO's function select (IO_BANK0 GPIOn_CTRL) when its PWM slice drives it
+const ADC_REFERENCE = 3.3; // the Pico's: ADC_VREF is its 3.3 V supply
+const ADC_TEMPERATURE = 4; // the ADC input of the temperature sensor: 0.706 V at 27 C, 1.721 mV less per degree
+
+// Parses one --send or --adc into options.sends or options.adc.
+function parseSerialAnalogOption(arg, value, options) {
+  if (value === undefined) {
+    usage(`${arg} needs a value.`);
+  }
+
+  if (arg === '--send') {
+    const match = /^([01])=(.*?)(?:@(\d+(?:\.\d+)?)ms)?$/s.exec(value);
+    if (match === null) {
+      usage(`--send takes a UART (0 or 1), text and maybe a time, e.g. "0=led on\\r" or "1=hello\\n@100ms", ` +
+        `not '${value}'.`);
+    }
+
+    options.sends.push({ port: Number(match[1]), bytes: unescape(match[2]), at: timeOf(match[3]) });
+    return;
+  }
+
+  const match = /^(26|27|28|29|temp)=(-?\d+(?:\.\d+)?)(V|C)?(?:@(\d+(?:\.\d+)?)ms)?$/.exec(value);
+  if (match === null || (match[1] === 'temp') !== (match[3] === 'C')) {
+    usage(`--adc takes an analog pin (26 to 29) and volts or a reading (0 to 4095), or temp and degrees Celsius, and ` +
+      `maybe a time, e.g. 26=1.65V, 27=2048, temp=30C or 26=0.5V@100ms, not '${value}'.`);
+  }
+
+  const number = Number(match[2]);
+  const volts = match[1] === 'temp' ? 0.706 - (number - 27) * 0.001721 : match[3] === 'V' ? number : null;
+  const reading = volts === null ? number : Math.round((volts / ADC_REFERENCE) * 4096);
+  if (!Number.isInteger(reading) || reading < 0 || reading > 4096) {
+    usage(`--adc: '${value}' is outside what the ADC reads: 0 to 3.3 V, 0 to 4095.`);
+  }
+
+  const shown = volts ?? (reading * ADC_REFERENCE) / 4096;
+  options.adc.push({
+    input: match[1] === 'temp' ? ADC_TEMPERATURE : Number(match[1]) - 26,
+    what: match[1] === 'temp' ? `temperature ${number} C` : `GPIO${match[1]} ${shown.toFixed(3)} V`,
+    reading: Math.min(reading, 4095),
+    at: timeOf(match[4]),
+  });
+}
+
+function timeOf(milliseconds) {
+  return milliseconds === undefined ? null : Number(milliseconds);
+}
+
+// The bytes of --send's text: its UTF-8, with \r, \n, \t, \\ and \xHH as those bytes.
+function unescape(text) {
+  const bytes = [];
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] !== '\\' || i + 1 === text.length) {
+      bytes.push(...Buffer.from(text[i], 'utf8'));
+      continue;
+    }
+
+    const next = text[++i];
+    const simple = { r: 0x0d, n: 0x0a, t: 0x09, '\\': 0x5c }[next];
+    if (simple !== undefined) {
+      bytes.push(simple);
+    } else if (next === 'x' && /^[0-9a-fA-F]{2}$/.test(text.slice(i + 1, i + 3))) {
+      bytes.push(parseInt(text.slice(i + 1, i + 3), 16));
+      i += 2;
+    } else {
+      usage(`--send: '\\${next}' is not one of \\r, \\n, \\t, \\\\ and \\xHH.`);
+    }
+  }
+
+  return bytes;
+}
+
+// The bytes as --send takes them: printable ASCII as it is, the rest escaped.
+function escaped(bytes) {
+  const named = { 0x0d: '\\r', 0x0a: '\\n', 0x09: '\\t', 0x5c: '\\\\' };
+  return bytes.map((byte) => named[byte] ??
+    (byte >= 0x20 && byte < 0x7f ? String.fromCharCode(byte) : `\\x${byte.toString(16).padStart(2, '0')}`)).join('');
+}
+
+// UART1's output, as UART0's; the sends, byte after byte at the port's speed; the analog inputs' voltages.
+function startSerialAnalog(options) {
+  let uart1Line = [];
+  mcu.uart[1].onByte = (value) => {
+    if (value === 0x0a) {
+      console.log(`${milliseconds(clock.nanos)} UART1: ${Buffer.from(uart1Line).toString('latin1').replace(/\r$/, '')}`);
+      uart1Line = [];
+    } else {
+      uart1Line.push(value);
+    }
+  };
+  mcu.uart[1].onBaudRateChange = (baud) => console.log(`${milliseconds(clock.nanos)} UART1 baud ${baud}`);
+
+  for (const port of [0, 1]) {
+    const queue = options.sends.filter((send) => send.port === port);
+    if (queue.length === 0) {
+      continue;
+    }
+
+    // one send after the other, in the order given, each from its time (or once the one before is done)
+    const uart = mcu.uart[port];
+    let send = null;
+    let next = 0;
+    const alarm = clock.createAlarm(() => {
+      if (send === null) {
+        send = queue.shift();
+        next = 0;
+        console.log(`${milliseconds(clock.nanos)} input: UART${port} "${escaped(send.bytes)}"`);
+      }
+
+      if (next < send.bytes.length) {
+        uart.feedByte(send.bytes[next++]);
+      }
+
+      const byteNanos = (10 * 1e9) / (uart.baudRate || 115200);
+      if (next < send.bytes.length) {
+        alarm.schedule(byteNanos);
+      } else if (queue.length > 0) {
+        send = null;
+        alarm.schedule(Math.max(byteNanos, (queue[0].at ?? 0) * 1e6 - clock.nanos));
+      }
+    });
+    alarm.schedule((queue[0].at ?? 0) * 1e6);
+  }
+
+  // the temperature sensor reads 27 C unless an --adc says otherwise (rp2040js starts every input at 0 V)
+  mcu.adc.channelValues[ADC_TEMPERATURE] = Math.round((0.706 / ADC_REFERENCE) * 4096);
+  for (const { input, what, reading, at } of options.adc) {
+    if (at === null) {
+      mcu.adc.channelValues[input] = reading;
+    } else {
+      clock.createAlarm(() => {
+        console.log(`${milliseconds(clock.nanos)} input: ${what} (${reading})`);
+        mcu.adc.channelValues[input] = reading;
+      }).schedule(at * 1e6);
+    }
+  }
+}
+
+// What each PWM output did last: its last rising and falling edges, the last line printed, and the alarm that says it
+// is steady when no edge comes.
+const pwmOutputs = new Map();
+
+// Called for every change of a GPIO's level: true when the pin is a PWM output, whose edges are measured rather than
+// printed. A whole period (rising edge to rising edge, high until the falling edge between) is printed when it
+// differs from the one before; no edge for 2.5 of the slice's periods is printed as steady low or high.
+function pwmEdge(index, state) {
+  const pin = mcu.gpio[index];
+  let output = pwmOutputs.get(index);
+  if (pin.functionSelect !== FUNCTION_PWM) {
+    output?.steady.cancel();
+    pwmOutputs.delete(index);
+    return false;
+  }
+
+  const print = (text) => {
+    if (text !== output.printed) {
+      console.log(`${milliseconds(clock.nanos)} GPIO${index} PWM ${text}`);
+      output.printed = text;
+    }
+  };
+  if (output === undefined) {
+    output = { rise: null, fall: null, printed: null };
+    output.steady = clock.createAlarm(() => {
+      print(`steady ${pin.outputValue ? 'high' : 'low'}`);
+      output.rise = null; // the next period starts with the next rising edge
+      output.fall = null;
+    });
+    pwmOutputs.set(index, output);
+  }
+
+  const now = clock.nanos;
+  const high = state === GPIOPinState.High;
+  if (high && output.rise !== null && output.fall !== null && output.fall > output.rise) {
+    const period = now - output.rise;
+    const highTime = output.fall - output.rise;
+    print(`${(1e9 / period).toFixed(2)} Hz, duty ${((100 * highTime) / period).toFixed(2)}% ` +
+      `(${(highTime / 1000).toFixed(2)} us high)`);
+  }
+
+  if (high) {
+    output.rise = now;
+  } else {
+    output.fall = now;
+  }
+
+  // the slice's period: its counter's wraps, through its divider
+  const slice = mcu.pwm.channels[(index >> 1) & 7];
+  output.steady.schedule((2.5 * (slice.timer.top + 1) * slice.timer.prescaler * 1e9) / mcu.clkSys);
+  return true;
+}
+
 const options = parseArguments(process.argv.slice(2));
 const mcu = new RP2040();
 // errors only (the peripherals rp2040js does not model warn on every access); an error stops the run
@@ -213,6 +425,10 @@ console.log(`booting ${options.image} (${blocks} UF2 blocks), running ${options.
 const { clock, core } = mcu;
 mcu.gpio.forEach((pin, index) => {
   pin.addListener((state) => {
+    if (pwmEdge(index, state)) {
+      return; // a PWM output: measured below, not printed edge by edge
+    }
+
     console.log(`${milliseconds(clock.nanos)} GPIO${index} ${PIN_STATES[state] ?? `state ${state}`}`);
   });
 });
@@ -246,6 +462,8 @@ for (const { pin, high, at } of options.inputs) {
     }).schedule(at * 1e6);
   }
 }
+
+startSerialAnalog(options);
 
 // the boot ROM's part: boot2 copied to the top of RAM and run from there, as if called with lr = 0
 mcu.sram.set(boot2, BOOT2_RAM_ADDRESS - 0x20000000);

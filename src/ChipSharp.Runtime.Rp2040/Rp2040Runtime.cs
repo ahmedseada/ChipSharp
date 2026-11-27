@@ -22,6 +22,9 @@ namespace ChipSharp.Runtime.Rp2040;
 /// <item><see cref="InterruptsFileName"/>, with the vector table: the timer and pin events of the program's
 /// <c>[Interrupt]</c> methods (<c>ChipSharp_Runtime_Timer*</c>, <c>ChipSharp_Runtime_Pin*Watch</c>), and the functions
 /// that clear them, which the target's "interrupts" table names.</item>
+/// <item><see cref="UartFileName"/>, <see cref="AdcFileName"/> and <see cref="PwmFileName"/>: the serial ports and the
+/// console's input, the analog inputs and the PWM outputs (ChipSharp.Hardware's Uart, Adc and Pwm, and
+/// Console.Read).</item>
 /// </list>
 /// </summary>
 public sealed class Rp2040Runtime : IArchRuntime
@@ -53,6 +56,15 @@ public sealed class Rp2040Runtime : IArchRuntime
     /// <summary>The C file with the two SPI controllers (ChipSharp.Hardware.Spi).</summary>
     public const string SpiFileName = "rp2040_spi.c";
 
+    /// <summary>The C file with UART0 and UART1 (Uart, and Console.Read on UART0): receive buffers filled by interrupts.</summary>
+    public const string UartFileName = "rp2040_uart.c";
+
+    /// <summary>The C file with the analog inputs (Adc): GPIO 26-29 and the temperature sensor.</summary>
+    public const string AdcFileName = "rp2040_adc.c";
+
+    /// <summary>The C file with the PWM outputs (Pwm): 8 slices of two outputs.</summary>
+    public const string PwmFileName = "rp2040_pwm.c";
+
     /// <summary>The second-stage bootloaders this runtime ships, as a target's "boot.stage2" names them.</summary>
     public static IReadOnlyList<string> Boot2Names { get; } = ["boot2_w25q080.bin", "boot2_generic_03h.bin"];
 
@@ -62,7 +74,8 @@ public sealed class Rp2040Runtime : IArchRuntime
 
     /// <summary>
     /// The ARMv6-M start-up and helpers, boot2, the chip's own start-up and runtime functions, the console output, the
-    /// text of floats, the failures and the buses (which the linker leaves out of a program that does not use them).
+    /// text of floats, the failures, the buses and the serial ports, analog inputs and PWM outputs (which the linker
+    /// leaves out of a program that does not use them).
     /// </summary>
     public RuntimeSources Startup(TargetDescription target)
     {
@@ -79,6 +92,7 @@ public sealed class Rp2040Runtime : IArchRuntime
             Source(FailuresFileName),
             Source(I2cFileName),
             Source(SpiFileName),
+            Source(UartFileName), Source(AdcFileName), Source(PwmFileName),
         ]);
     }
 

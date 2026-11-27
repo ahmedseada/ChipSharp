@@ -25,6 +25,7 @@ internal static class WholeProgram
     public static readonly string LibraryCalls = """
         ChipSharp can call these library methods (--details lists each one with its parameters):
           Console.Write and Console.WriteLine of (nothing), text, char, int, uint, long, ulong, bool, float, double
+          Console.Read and Console.ReadLine
           Math and MathF: Abs, Min, Max, Sqrt
           GC: Collect, GetTotalMemory, KeepAlive
           Array: Copy, ConstrainedCopy, CopyTo, Clear, Fill, IndexOf, LastIndexOf, Reverse, Resize, Clone, Sort, BinarySearch, Exists, Find, FindAll, FindIndex, FindLast, FindLastIndex, ForEach, TrueForAll, ... (21 in all)
@@ -65,13 +66,13 @@ internal static class WholeProgram
           Enumerable.ToList and Enumerable.ToArray of System.Collections.Generic.IEnumerable<TSource>
           KeyCollection: GetEnumerator, CopyTo, Contains, its constructors and properties
           ValueCollection: GetEnumerator, CopyTo, its constructors and properties
-          ChipSharp.Hardware: Pin, Timing, Registers, I2c, Spi (see the README)
+          ChipSharp.Hardware: Pin, Timing, Registers, Adc, I2c, Pwm, Spi, Uart (see the README)
         """.ReplaceLineEndings("\n");
 
     /// <summary>The lines the details end with when the program calls a library method ChipSharp does not have.</summary>
     public static readonly string LibraryCallDetails = """
         ChipSharp can call these library methods:
-          System.Console: Write(string), Write(char), Write(int), Write(uint), Write(long), Write(ulong), Write(bool), Write(float), Write(double), WriteLine(), WriteLine(string), WriteLine(char), WriteLine(int), WriteLine(uint), WriteLine(long), WriteLine(ulong), WriteLine(bool), WriteLine(float), WriteLine(double)
+          System.Console: Write(string), Write(char), Write(int), Write(uint), Write(long), Write(ulong), Write(bool), Write(float), Write(double), WriteLine(), WriteLine(string), WriteLine(char), WriteLine(int), WriteLine(uint), WriteLine(long), WriteLine(ulong), WriteLine(bool), WriteLine(float), WriteLine(double), Read(), ReadLine()
           System.Math: Abs(double), Abs(float), Min(double, double), Min(float, float), Max(double, double), Max(float, float), Sqrt(double)
           System.MathF: Abs(float), Min(float, float), Max(float, float), Sqrt(float)
           System.GC: Collect(), GetTotalMemory(bool), KeepAlive(object)
@@ -144,8 +145,11 @@ internal static class WholeProgram
           ChipSharp.Hardware.Pin: Output(int), Input(int), Write(int, bool), Toggle(int), Read(int), Watch(int), WatchRising(int), WatchFalling(int), Unwatch(int)
           ChipSharp.Hardware.Timing: DelayMilliseconds(int), DelayMicroseconds(int), EveryMilliseconds(int), EveryMicroseconds(int), AfterMilliseconds(int), AfterMicroseconds(int), Stop(), Delay(System.TimeSpan)
           ChipSharp.Hardware.Registers: Read(uint), Write(uint, uint)
+          ChipSharp.Hardware.Adc: Input(int), Read(int), Volts(int), Temperature()
           ChipSharp.Hardware.I2c: Open(int, int, int, int), Write(int, int, System.ReadOnlySpan<byte>), Read(int, int, System.Span<byte>), WriteRead(int, int, System.ReadOnlySpan<byte>, System.Span<byte>), Probe(int, int), Scan(int, System.Span<byte>)
+          ChipSharp.Hardware.Pwm: Output(int, int), Duty(int, double), PulseMicroseconds(int, int), Stop(int)
           ChipSharp.Hardware.Spi: Open(int, int, int, int, int, int), Write(int, System.ReadOnlySpan<byte>), Read(int, System.Span<byte>), Transfer(int, System.ReadOnlySpan<byte>, System.Span<byte>)
+          ChipSharp.Hardware.Uart: Open(int, int, int, int), Write(int, System.ReadOnlySpan<byte>), WriteByte(int, byte), Read(int, System.Span<byte>), ReadByte(int), Available(int), Watch(int), Unwatch(int)
         """.ReplaceLineEndings("\n");
 
     public static IlProgram Analyze(string source) => WholeProgramPass.Analyze(Load(source));

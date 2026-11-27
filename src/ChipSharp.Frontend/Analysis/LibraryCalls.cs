@@ -68,9 +68,18 @@ internal static class LibraryCalls
             foreach (var same in sameNames)
             {
                 var types = And([.. same.Select(type => type.Key)]);
-                lines.Add(same.Count() == 1 && SharedParameters([.. same.First()]) is var (names, parameters)
-                    ? $"  {And([.. names.Select(name => $"{types}.{name}")])} of {string.Join(", ", parameters)}"
-                    : $"  {types}: {same.Key}");
+                if (same.Count() == 1 && SharedParameters([.. same.First()]) is var (names, parameters, alone))
+                {
+                    lines.Add($"  {And([.. names.Select(name => $"{types}.{name}")])} of {string.Join(", ", parameters)}");
+                    if (alone.Count > 0)
+                    {
+                        lines.Add($"  {And([.. alone.Select(name => $"{types}.{name}")])}");
+                    }
+                }
+                else
+                {
+                    lines.Add($"  {types}: {same.Key}");
+                }
             }
         }
 
@@ -92,10 +101,11 @@ internal static class LibraryCalls
     /// <summary>
     /// For the methods of one type that are overloads of the same parameters (Console.Write and Console.WriteLine,
     /// where WriteLine also takes nothing), their names and those parameters as <see cref="Parameters"/> writes them,
-    /// those of the name with the most overloads; null when the methods take different parameters (Math), or the
-    /// type has constructors, properties or operators.
+    /// those of the name with the most overloads, and apart from them the names that take nothing at all
+    /// (Console.Read and Console.ReadLine); null when the methods take different parameters (Math), or the type has
+    /// constructors, properties or operators.
     /// </summary>
-    private static (List<string> Names, List<string> Parameters)? SharedParameters(List<Method> methods)
+    private static (List<string> Names, List<string> Parameters, List<string> Alone)? SharedParameters(List<Method> methods)
     {
         if (methods.Any(method => method.IsProperty || IsConstructor(method) || IsOperator(method)))
         {
@@ -104,8 +114,12 @@ internal static class LibraryCalls
 
         var byName = methods.GroupBy(method => method.Name).ToList();
         var widest = byName.MaxBy(overloads => overloads.Count())!.ToList();
-        return byName.All(overloads => overloads.All(method => widest.Any(other => other.Parameters == method.Parameters)))
-            ? ([.. byName.Select(overloads => overloads.Key)], [.. widest.Select(Parameters)])
+        List<string> alone = widest.Any(method => method.Parameters.Length > 0)
+            ? [.. byName.Where(overloads => overloads.All(method => method.Parameters.Length == 0)).Select(o => o.Key)]
+            : [];
+        var shared = byName.Where(overloads => !alone.Contains(overloads.Key)).ToList();
+        return shared.All(overloads => overloads.All(method => widest.Any(other => other.Parameters == method.Parameters)))
+            ? ([.. shared.Select(overloads => overloads.Key)], [.. widest.Select(Parameters)], alone)
             : null;
     }
 

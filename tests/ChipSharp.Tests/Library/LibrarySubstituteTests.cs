@@ -27,6 +27,7 @@ public sealed class LibrarySubstituteTests
     {
         Assert.Equal(
             [
+                "ChipSharp.Library.Adc for ChipSharp.Hardware.Adc",
                 "ChipSharp.Library.Array for System.Array",
                 "ChipSharp.Library.BinaryPrimitives for System.Buffers.Binary.BinaryPrimitives",
                 "ChipSharp.Library.Collections.CollectionExtensions for System.Collections.Generic.CollectionExtensions",
@@ -47,6 +48,7 @@ public sealed class LibrarySubstituteTests
                 "ChipSharp.Library.Collections.Stack`1 for System.Collections.Generic.Stack`1",
                 "ChipSharp.Library.Collections.Stack`1+Enumerator for System.Collections.Generic.Stack`1+Enumerator",
                 "ChipSharp.Library.Comparer`1 for System.Collections.Generic.Comparer`1",
+                "ChipSharp.Library.Console for System.Console",
                 "ChipSharp.Library.Environment for System.Environment",
                 "ChipSharp.Library.EqualityComparer`1 for System.Collections.Generic.EqualityComparer`1",
                 "ChipSharp.Library.Exceptions.ApplicationException for System.ApplicationException",
@@ -73,6 +75,7 @@ public sealed class LibrarySubstituteTests
                 "ChipSharp.Library.MemoryExtensions for System.MemoryExtensions",
                 "ChipSharp.Library.Pairs.KeyValuePair for System.Collections.Generic.KeyValuePair",
                 "ChipSharp.Library.Pairs.KeyValuePair`2 for System.Collections.Generic.KeyValuePair`2",
+                "ChipSharp.Library.Pwm for ChipSharp.Hardware.Pwm",
                 "ChipSharp.Library.RuntimeHelpers for System.Runtime.CompilerServices.RuntimeHelpers",
                 "ChipSharp.Library.Spi for ChipSharp.Hardware.Spi",
                 "ChipSharp.Library.StringBuilder for System.Text.StringBuilder",
@@ -88,6 +91,7 @@ public sealed class LibrarySubstituteTests
                 "ChipSharp.Library.Tuples.ValueTuple`7 for System.ValueTuple`7",
                 "ChipSharp.Library.Tuples.ValueTuple`8 for System.ValueTuple`8",
                 "ChipSharp.Library.Type for System.Type",
+                "ChipSharp.Library.Uart for ChipSharp.Hardware.Uart",
             ],
             LibrarySubstitutes.Substituted.Select(pair => $"{pair.Key.FullName} for {pair.Value}").Order(StringComparer.Ordinal));
         Assert.Equal(
@@ -453,4 +457,5 @@ public sealed class LibrarySubstituteTests
     private static List<IlMethodReference> Calls(IlMethod method) =>
         [.. method.Body!.Instructions.Where(i => i.OpCode is IlOpCode.Call or IlOpCode.Newobj)
             .Select(i => ((IlMethodOperand)i.Operand!).Method)];
+
 }

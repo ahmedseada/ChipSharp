@@ -27,7 +27,7 @@ public sealed class BusLibraryTests
 
     private static List<IlMethod> ChipRuntimeFunctions => [.. LibrarySubstitutes.Assembly
         .FindType(LibrarySubstitutes.ChipRuntimeType)!.Methods.Where(method => method.IsStatic
-            && (method.Attributes & MethodAttributes.MemberAccessMask) == MethodAttributes.Public)];
+            && (method.Attributes & MethodAttributes.MemberAccessMask) == MethodAttributes.Public && IsBus(method.Name))];
 
     [Fact]
     public void The_buses_are_I2c_and_Spi_with_ints_and_spans_and_no_Set_names()
@@ -155,7 +155,8 @@ public sealed class BusLibraryTests
     public void On_dotnet_each_function_of_ChipRuntime_says_it_runs_on_a_chip()
     {
         var functions = typeof(global::ChipSharp.Library.SubstituteAttribute).Assembly
-            .GetType("ChipSharp.Library.ChipRuntime")!.GetMethods(BindingFlags.Public | BindingFlags.Static);
+            .GetType("ChipSharp.Library.ChipRuntime")!.GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Where(function => IsBus(function.Name)).ToArray();
 
         Assert.Equal(7, functions.Length);
         Assert.All(functions, function =>
@@ -166,4 +167,8 @@ public sealed class BusLibraryTests
             Assert.Contains("runs on a chip, not on .NET", Assert.IsType<PlatformNotSupportedException>(error.InnerException).Message);
         });
     }
+
+    /// <summary>A function of ChipRuntime of the buses (the serial ports', ADC's and PWM's are SerialAnalogCheckTests').</summary>
+    private static bool IsBus(string name) =>
+        name.StartsWith("I2c", StringComparison.Ordinal) || name.StartsWith("Spi", StringComparison.Ordinal);
 }
