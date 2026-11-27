@@ -17,7 +17,9 @@ public static partial class WholeProgramPass
     /// <see cref="VirtualMethods.IsInterface"/>) or of object's Equals or GetHashCode; of a generic virtual method,
     /// <see cref="Unsupported.GenericVirtualMethods"/>; of object's ToString on an object of the program's,
     /// <see cref="Unsupported.ObjectMethods"/> (it makes a string); of its GetType, <see cref="Unsupported.TypeHandles"/>;</item>
-    /// <item>a <c>call</c> of object's Equals or GetHashCode (C#'s <c>base.Equals(other)</c>);</item>
+    /// <item>a <c>call</c> of object's Equals or GetHashCode (C#'s <c>base.Equals(other)</c>); of Console.Write or
+    /// Console.WriteLine with an object of a class or an interface, which prints its ToString,
+    /// <see cref="Unsupported.ObjectMethods"/>;</item>
     /// <item><c>isinst</c> and <c>castclass</c> (<see cref="ForTypeTest"/>).</item>
     /// </list>
     /// </summary>
@@ -61,6 +63,13 @@ public static partial class WholeProgramPass
                 case { OpCode: IlOpCode.Call, Operand: IlMethodOperand { Method: var callee } } instruction
                     when VirtualMethods.ObjectSlotOf(callee) is not null:
                     verdicts[instruction] = null;
+                    break;
+
+                case { OpCode: IlOpCode.Call } instruction when IsConsoleWriteOfObject(instruction)
+                    && VirtualMethods.StackType(method, i, 0) is { } printed && !ObjectTypes.IsSystemObject(printed)
+                    && ObjectTypes.TryMapType(printed, method.Assembly, out _):
+                    // an object of a class (or an interface) printed: .NET prints what its ToString gives
+                    verdicts[instruction] = Unsupported.ObjectMethods;
                     break;
 
                 case { OpCode: IlOpCode.Isinst or IlOpCode.Castclass, Operand: IlTypeOperand { Type: var type } } instruction:

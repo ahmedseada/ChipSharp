@@ -282,6 +282,43 @@ public sealed class VirtualCheckTests : IDisposable
     }
 
     [Fact]
+    public void Printing_an_object_is_its_ToString_which_arrives_with_stored_strings()
+    {
+        var problems = WholeProgram.Problems("""
+            using System;
+
+            interface IShape
+            {
+            }
+
+            class Square : IShape
+            {
+            }
+
+            class Program
+            {
+                static void Main()
+                {
+                    var square = new Square();
+                    IShape shape = square;
+                    Console.WriteLine(square);
+                    Console.Write(shape);
+                    Console.WriteLine($"{square}");
+                }
+            }
+            """);
+
+        const string ToText = "ToString of objects (and printing an object) arrives with M3 (stored strings). For now, " +
+            "give the class a method that prints what it holds, such as Print(), and call that.";
+        Assert.Equal(
+        [
+            $"Program.Main() at IL_0008 (call): {ToText}",
+            $"Program.Main() at IL_000d (call): {ToText}",
+            $"Program.Main() at IL_001e (call): {ToText}",
+        ], problems);
+    }
+
+    [Fact]
     public void An_interrupt_handler_may_not_make_an_object_in_an_override_its_virtual_call_runs()
     {
         var analysis = WholeProgramPass.Check(InterruptCheckTests.Load("""

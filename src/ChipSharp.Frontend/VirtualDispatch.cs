@@ -92,8 +92,10 @@ internal sealed class VirtualDispatch
     /// </summary>
     public IReadOnlyList<DispatchTarget> Targets(DispatchSlot slot, IlType? receiver)
     {
+        // a variable of an array type holds an array, which runs object's own Equals and GetHashCode
+        var array = receiver is not null && ValueTypes.WithoutModifiers(receiver) is IlArrayType;
         var targets = new List<DispatchTarget>();
-        foreach (var type in _created.Where(type => VirtualMethods.Has(type, slot) && VirtualMethods.Fits(type, receiver)))
+        foreach (var type in _created.Where(type => !array && VirtualMethods.Has(type, slot) && VirtualMethods.Fits(type, receiver)))
         {
             if (Resolve(type, slot) is { } target && !targets.Contains(target))
             {
@@ -101,8 +103,8 @@ internal sealed class VirtualDispatch
             }
         }
 
-        if (slot.Kind == DispatchSlotKind.Object && (CreatesPlainObjects || CreatesArrays)
-            && (receiver is null || ObjectTypes.IsSystemObject(receiver))
+        if (slot.Kind == DispatchSlotKind.Object
+            && (array || ((CreatesPlainObjects || CreatesArrays) && (receiver is null || ObjectTypes.IsSystemObject(receiver))))
             && new DispatchTarget(null, slot.Name) is var own && !targets.Contains(own))
         {
             targets.Add(own);

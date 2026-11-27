@@ -480,6 +480,7 @@ internal static class VirtualPrograms
                 Console.WriteLine($"{Same(a, b)} {Same(t, t)} {Same(t, u)} {Same(plain, plain)} {Same(plain, t)}");
                 Console.WriteLine($"{Same(numbers, numbers)} {Same(numbers, new int[] { 1 })} {Same(c, d)}");
                 Console.WriteLine($"{Hash(a)} {Hash(c)} {Hash(t) == Hash(t)} {Hash(numbers) == Hash(numbers)}");
+                Console.WriteLine($"{numbers.Equals(numbers)} {numbers.Equals(new int[] { 1 })} {numbers.GetHashCode() == Hash(numbers)}");
                 IPoint p = new Point(5, 6);
                 Console.WriteLine($"{p.Equals(new Point(5, 6))} {p.GetHashCode()} {p.X}");
             }
