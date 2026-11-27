@@ -23,6 +23,11 @@ public static partial class WholeProgramPass
             {
                 verdicts[instructions[i]] = null;
             }
+            else if (StringMethods.IsConsoleWriteOfObject(instructions[i]))
+            {
+                // what an object's ToString gives (a string made for it, but for a literal an override returns)
+                verdicts[instructions[i]] = Unsupported.HeapUse(Unsupported.MakingText);
+            }
         }
 
         return verdicts;

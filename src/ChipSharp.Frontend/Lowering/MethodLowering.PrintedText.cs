@@ -89,7 +89,7 @@ internal sealed partial class MethodLowering
         {
             if (Printed.Saved.TryGetValue((instruction, i), out var piece))
             {
-                SavePart(piece, operands[i], throughAddress: role == PrintedRole.ToString);
+                SavePart(piece, operands[i], throughAddress: role is PrintedRole.ToString or PrintedRole.CharSpan);
             }
         }
 
@@ -105,7 +105,7 @@ internal sealed partial class MethodLowering
                 break;
 
             case PrintedRole.Handler or PrintedRole.Finish or PrintedRole.ToString or PrintedRole.Concat
-                or PrintedRole.PartArray or PrintedRole.Text or PrintedRole.Box:
+                or PrintedRole.PartArray or PrintedRole.Text or PrintedRole.Box or PrintedRole.CharSpan or PrintedRole.SpanText:
                 Push(Placeholder);
                 break;
         }

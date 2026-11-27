@@ -262,6 +262,12 @@ internal enum PrintedRole
     /// <summary><c>constrained.</c> before an enum's ToString (<c>color.ToString()</c>): nothing of its own.</summary>
     Prefix,
 
+    /// <summary><c>new ReadOnlySpan&lt;char&gt;(ref c)</c> for a <c>string.Concat</c> of spans: a char, read through its address.</summary>
+    CharSpan,
+
+    /// <summary><c>string.op_Implicit</c>, text as a span for a <c>string.Concat</c> of spans: its parts.</summary>
+    SpanText,
+
     /// <summary><c>box</c> of a hole of a format (<c>Console.WriteLine(color)</c>, <c>string.Format("{0}", x)</c>): a part.</summary>
     Box,
 }

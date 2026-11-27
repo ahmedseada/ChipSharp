@@ -54,8 +54,9 @@ public static partial class WholeProgramPass
                         && VirtualMethods.StackType(method, i, 0) is { } receiver
                         && ObjectTypes.TryMapType(receiver, method.Assembly, out _))
                     {
-                        // of an object of the program's: a StringBuilder's ToString is building text, as before
-                        verdicts[instruction] = Unsupported.ObjectMethods;
+                        // of an object of the program's, which may make a string (a StringBuilder's ToString is building
+                        // text, as before)
+                        verdicts[instruction] = Unsupported.HeapUse(Unsupported.MakingText);
                     }
 
                     break;
@@ -68,8 +69,9 @@ public static partial class WholeProgramPass
                 case { OpCode: IlOpCode.Call } instruction when IsConsoleWriteOfObject(instruction)
                     && VirtualMethods.StackType(method, i, 0) is { } printed && !ObjectTypes.IsSystemObject(printed)
                     && ObjectTypes.TryMapType(printed, method.Assembly, out _):
-                    // an object of a class (or an interface) printed: .NET prints what its ToString gives
-                    verdicts[instruction] = Unsupported.ObjectMethods;
+                    // an object of a class (or an interface) printed: .NET prints what its ToString gives, which may be
+                    // a string made for it
+                    verdicts[instruction] = Unsupported.HeapUse(Unsupported.MakingText);
                     break;
 
                 case { OpCode: IlOpCode.Isinst or IlOpCode.Castclass, Operand: IlTypeOperand { Type: var type } } instruction:
@@ -92,7 +94,7 @@ public static partial class WholeProgramPass
     {
         var assembly = method.Assembly;
         var plain = ValueTypes.WithoutModifiers(type);
-        if (ObjectTypes.IsSystemObject(plain) || VirtualMethods.IsInterface(plain, assembly))
+        if (ObjectTypes.IsSystemObject(plain) || VirtualMethods.IsInterface(plain, assembly) || FixedText.IsText(StackArrays.Primitive(plain)))
         {
             return null;
         }

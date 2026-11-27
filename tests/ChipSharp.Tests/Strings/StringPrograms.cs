@@ -380,8 +380,77 @@ internal static class StringPrograms
         }
         """;
 
+    /// <summary>
+    /// Strings among the other objects: ToString of the program's classes (overridden, and object's own, the type's
+    /// name), printed and in text, object's methods on a string held as an object, is, as and casts to string.
+    /// </summary>
+    public const string Objects = """
+        using System;
+
+        class Shape
+        {
+            public virtual string Name => "shape";
+
+            public override string ToString() => $"{Name} of {Sides()} sides";
+
+            public virtual int Sides() => 0;
+        }
+
+        sealed class Square : Shape
+        {
+            public override string Name => "square";
+
+            public override int Sides() => 4;
+        }
+
+        class Plain
+        {
+        }
+
+        class Program
+        {
+            class Nested
+            {
+            }
+
+            static string Describe(object value) => value switch
+            {
+                string text => "text " + text.Length,
+                Shape shape => "a " + shape.Name,
+                null => "nothing",
+                _ => "other",
+            };
+
+            static void Main()
+            {
+                Shape[] shapes = { new Shape(), new Square() };
+                foreach (var shape in shapes)
+                {
+                    Console.WriteLine(shape);
+                    Console.WriteLine(shape.ToString().ToUpper());
+                }
+
+                Console.WriteLine(new Plain());
+                Console.WriteLine(new Nested().ToString());
+                Console.WriteLine("made " + new Square() + "!");
+                object text = "hello";
+                object other = new Plain();
+                Console.WriteLine(text);
+                Console.WriteLine(text.ToString() + " " + text.Equals("hello") + " " + text.Equals(other) + " " + (text.GetHashCode() == "hello".GetHashCode()));
+                Console.WriteLine((text is string) + " " + (other is string) + " " + (text as string) + "|" + (other as string) + "|");
+                Console.WriteLine(Describe(text) + ", " + Describe(shapes[1]) + ", " + Describe(null) + ", " + Describe(other));
+                string back = (string)text;
+                Console.WriteLine(back.Length);
+                object none = null;
+                Console.WriteLine(none);
+                Console.WriteLine((string)none == null);
+            }
+        }
+        """;
+
     public static IReadOnlyList<(string Name, string Source)> All { get; } =
     [
+        (nameof(Objects), Objects),
         (nameof(Building), Building),
         (nameof(Methods), Methods),
         (nameof(Characters), Characters),

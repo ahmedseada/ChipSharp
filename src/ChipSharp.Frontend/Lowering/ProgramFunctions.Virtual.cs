@@ -20,7 +20,10 @@ internal sealed partial class ProgramFunctions
     public VirtualTables VirtualTables => _virtualTables ??= new VirtualTables([.. _methods.Keys]);
 
     /// <summary>The functions type tests, interface calls and object's own methods use.</summary>
-    public ObjectFunctions ObjectFunctions => _objectFunctions ??= new ObjectFunctions(module, () => ObjectDescriptor);
+    public ObjectFunctions ObjectFunctions => _objectFunctions ??= new ObjectFunctions(module, () => ObjectDescriptor)
+    {
+        ObjectToString = () => ObjectToString,
+    };
 
     /// <summary>
     /// The descriptor of an interface (see <see cref="VirtualMethods.IsInterface"/>), the same one every time: what an
@@ -54,6 +57,7 @@ internal sealed partial class ProgramFunctions
         {
             "Equals" => ObjectFunctions.ObjectEquals,
             "GetHashCode" => ObjectFunctions.ObjectHashCode,
+            "ToString" => ObjectToString,
             var other => throw new ChipSharpException($"System.Object.{other} is not compiled yet."),
         };
     }

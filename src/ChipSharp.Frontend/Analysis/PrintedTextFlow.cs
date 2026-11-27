@@ -290,6 +290,14 @@ internal sealed class PrintedTextFlow
                 stack.Add(new Boxed(instruction, StackArrays.Primitive(boxed)));
                 return;
 
+            case IlOpCode.Newobj when IsCharSpan(instruction) && !_plainArrays.Contains(instruction) && stack.Count > 0:
+                // new ReadOnlySpan<char>(ref c), which C# concatenates a char with: the char, read through its address
+                Pop(stack);
+                Own(instruction, PrintedRole.CharSpan);
+                stack.Add(new SpanText(instruction,
+                    Parts.None.Then([new PrintedPiece(instruction, 0, IlType.Char, null, 0, default)])));
+                return;
+
             case IlOpCode.Call when instruction.Operand is IlMethodOperand { Method: var callee }
                 && Call(instruction, index, callee, state):
                 return;
@@ -336,6 +344,10 @@ internal sealed class PrintedTextFlow
             case Boxed boxed:
                 MarkPlain(boxed.Box);
                 break;
+
+            case SpanText span:
+                MarkPlain(span.Source);
+                break;
         }
     }
 
@@ -361,6 +373,26 @@ internal sealed class PrintedTextFlow
         if (PrintedText.IsSystem(callee, "String") && callee is { Name: "Concat", HasThis: false, GenericArguments.Count: 0 })
         {
             return Concat(instruction, index, callee, stack);
+        }
+
+        if (PrintedText.IsSystem(callee, "String") && callee is { Name: "op_Implicit", ParameterTypes: [var from] }
+            && FixedText.IsText(from) && !_plainArrays.Contains(instruction) && stack.Count > 0)
+        {
+            // text as a ReadOnlySpan<char>, which C# concatenates with a char: the text's parts
+            var (parts, problem) = TextParts(Pop(stack), instruction, 0, 0);
+            if (problem is not null)
+            {
+                Problem(instruction, problem);
+                stack.Add(Unknown);
+            }
+            else
+            {
+                Own(instruction, PrintedRole.SpanText);
+                OwnLastText(index);
+                stack.Add(new SpanText(instruction, parts!));
+            }
+
+            return true;
         }
 
         if (PrintedText.IsToString(callee, out var type))
@@ -554,6 +586,12 @@ internal sealed class PrintedTextFlow
             : null;
     }
 
+    /// <summary>True for <c>new ReadOnlySpan&lt;char&gt;(ref c)</c>.</summary>
+    private static bool IsCharSpan(IlInstruction instruction) => instruction.Operand is IlMethodOperand
+    {
+        Method: { Name: ".ctor", Definition: null, ParameterTypes: [IlByRefType] } constructor,
+    } && Spans.IsSpan(constructor.DeclaringType, out var element, out _) && element == IlType.Char;
+
     /// <summary>True for a type a boxed value of is a hole: a number, bool or char that Console.Write prints, or an enum.</summary>
     private bool IsBoxedHole(IlType type) => EnumOf(type) is not null
         || (PrintedText.TryGetPrinted(StackArrays.Primitive(type), out var kind) && kind != IlPrimitiveKind.String);
@@ -693,6 +731,18 @@ internal sealed class PrintedTextFlow
         {
             Pop(stack);
             parts = array.Elements.Aggregate(parts, (all, element) => all.Then(element));
+        }
+        else if (parameters.Count is >= 2 and <= 4 && parameters.All(Spans.IsSpan) && stack.Count >= parameters.Count
+            && stack.Skip(stack.Count - parameters.Count).All(value => value is SpanText))
+        {
+            // string.Concat of spans of chars, which C# makes of text and chars
+            var values = new Value[parameters.Count];
+            for (var i = values.Length - 1; i >= 0; i--)
+            {
+                values[i] = Pop(stack);
+            }
+
+            parts = values.Cast<SpanText>().Aggregate(parts, (all, span) => all.Then(span.Parts));
         }
         else
         {
@@ -1037,6 +1087,11 @@ internal sealed class PrintedTextFlow
             MarkPlain(boxed.Box);
         }
 
+        foreach (var span in new[] { a, b }.OfType<SpanText>())
+        {
+            MarkPlain(span.Source);
+        }
+
         // built text that meets other text where ways join is kept: each way makes its string
         foreach (var built in new[] { a, b }.OfType<Built>())
         {
@@ -1149,6 +1204,9 @@ internal sealed class PrintedTextFlow
 
     /// <summary>Text built by <paramref name="Producer"/> (ToStringAndClear, Concat, ToString), with all its parts.</summary>
     private sealed record Built(IlInstruction Producer, Parts Parts) : Value;
+
+    /// <summary>Text or a char as a <c>ReadOnlySpan&lt;char&gt;</c> for a <c>string.Concat</c> of spans, made by <paramref name="Source"/>.</summary>
+    private sealed record SpanText(IlInstruction Source, Parts Parts) : Value;
 
     /// <summary>A value of <paramref name="Type"/> boxed by <paramref name="Box"/>, for a format: a hole.</summary>
     private sealed record Boxed(IlInstruction Box, IlType Type) : Value;

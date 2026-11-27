@@ -9,6 +9,13 @@ namespace ChipSharp.Frontend.Lowering;
 internal sealed partial class ProgramFunctions
 {
     private EnumNameFunctions? _enumNames;
+    private StringObjectFunctions? _stringObjects;
+
+    /// <summary>Strings among the other objects: object's methods on them, type tests against string.</summary>
+    public StringObjectFunctions StringObjects => _stringObjects ??= new StringObjectFunctions(module, this);
+
+    /// <summary>Object's own ToString: the type's .NET name.</summary>
+    public TirFunction ObjectToString => StringObjects.ObjectToString;
 
     /// <summary>The functions that write and give the names of enum values, shared by every method.</summary>
     public EnumNameFunctions EnumNames => _enumNames ??= new EnumNameFunctions(module, this);

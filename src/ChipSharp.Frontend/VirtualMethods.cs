@@ -91,6 +91,7 @@ internal static class VirtualMethods
         instructions[index] is { OpCode: IlOpCode.Callvirt, Operand: IlMethodOperand { Method: var callee } }
             && (index == 0 || instructions[index - 1].OpCode != IlOpCode.Constrained)
             ? SlotCalled(callee)
+            : StringMethods.IsConsoleWriteOfObject(instructions[index]) ? ObjectSlot("ToString", ToStringSignature)
             : null;
 
     /// <summary>The slot a callvirt of <paramref name="callee"/> goes through (see <see cref="CalledSlot"/>), or null.</summary>
@@ -412,10 +413,10 @@ internal static class VirtualMethods
     };
 
     /// <summary>
-    /// <paramref name="slot"/>, but null for ToString's: it makes a string, so a call of it waits for stored strings (M3),
-    /// which give it its slot here; until then the whole-program pass rejects it, and no override of it is reached.
+    /// <paramref name="slot"/>: ToString's too, now that strings are objects (object's own gives the type's name, see
+    /// ProgramFunctions.Strings.cs).
     /// </summary>
-    private static DispatchSlot? Callable(DispatchSlot? slot) => slot is { Kind: DispatchSlotKind.Object, Name: "ToString" } ? null : slot;
+    private static DispatchSlot? Callable(DispatchSlot? slot) => slot;
 
     /// <summary>The slot of a method of an interface, with the interface's type arguments in its signature.</summary>
     private static DispatchSlot InterfaceSlot(IlMethodReference callee)

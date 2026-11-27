@@ -17,6 +17,7 @@ internal sealed partial class MethodLowering
 
     /// <summary>True for a call of a method of strings, chars or parsing that <see cref="LowerStringInstruction"/> translates.</summary>
     private bool IsStringInstruction(IlInstruction instruction) => StringCall(instruction) is not null
+        || StringMethods.IsConsoleWriteOfObject(instruction)
         || (instruction.OpCode == IlOpCode.Constrained && StringMethods.IsPrefix(_method, _body.IndexOf(instruction.Offset)));
 
     private StringMethod? StringCall(IlInstruction instruction)
@@ -34,6 +35,12 @@ internal sealed partial class MethodLowering
 
     private void LowerStringInstruction(IlInstruction instruction)
     {
+        if (StringMethods.IsConsoleWriteOfObject(instruction))
+        {
+            WriteObject(instruction);
+            return;
+        }
+
         // the constrained. prefix of a span's ToString: the call does it all
         if (StringCall(instruction) is not { } method)
         {

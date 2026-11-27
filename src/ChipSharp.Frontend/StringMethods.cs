@@ -151,6 +151,7 @@ internal static class StringMethods
         new("System.ReadOnlySpan`1<Char>", "ToString", true, [], String, "StringOfChars", StringCallKind.Runtime, true),
         new("System.Span`1<Char>", "ToString", true, [], String, "StringOfChars", StringCallKind.Runtime, true),
         new("System.MemoryExtensions", "AsSpan", false, [String], Span, "", StringCallKind.Span, true),
+        new(String, "op_Implicit", false, [String], Span, "", StringCallKind.Span, true),
         new("System.MemoryExtensions", "AsSpan", false, [String, Int], Span, "", StringCallKind.Span, true),
         new("System.MemoryExtensions", "AsSpan", false, [String, Int, Int], Span, "", StringCallKind.Span, true),
 
@@ -277,6 +278,19 @@ internal static class StringMethods
         var start = Lowering.IlBlock.Split(method.Body!).Last(block => block.First <= index).First;
         return IsPushedString(method, index - 1, depth, start);
     }
+
+    /// <summary>True for Console.Write(object) or Console.WriteLine(object): .NET prints what the object's ToString gives.</summary>
+    public static bool IsConsoleWriteOfObject(IlInstruction instruction) => instruction is
+    {
+        OpCode: IlOpCode.Call,
+        Operand: IlMethodOperand
+        {
+            Method: { Name: "Write" or "WriteLine", HasThis: false, Definition: null, ParameterTypes: [var parameter] } callee,
+        },
+    } && ObjectTypes.IsSystemObject(parameter) && callee.DeclaringType is IlNamedType { FullName: "System.Console" };
+
+    /// <summary>True when a value of <paramref name="type"/> (null: not known) may be a string: object, or not known.</summary>
+    public static bool MayBeString(IlType? type) => type is null || ObjectTypes.IsSystemObject(type);
 
     /// <summary>The kinds of parameter type <see cref="Key"/> writes, for an array value or span of chars or strings.</summary>
     public static bool IsArrayValue(string key) => key is Chars or Span or "String[]";

@@ -934,3 +934,50 @@ void *ChipSharp_Runtime_StringOfCharRange(const unsigned short *chars, int count
 
     return ChipSharp_Runtime_StringOfChars(chars + start, length);
 }
+
+// A type's name, as its descriptor holds it (UTF-8 ending with a 0 byte), as a string: object's own ToString.
+void *ChipSharp_Runtime_StringOfName(const char *name)
+{
+    // the chars first: a byte that starts a UTF-8 sequence is one (a 4-byte sequence two, a surrogate pair)
+    int count = 0;
+    int wide = 0;
+    for (const unsigned char *c = (const unsigned char *)name; *c != 0; c++)
+    {
+        if ((*c & 0xC0) != 0x80)
+        {
+            count += *c >= 0xF0 ? 2 : 1;
+            wide |= *c >= 0xC4;
+        }
+    }
+
+    string *result = new_string(count, wide);
+    int to = 0;
+    for (const unsigned char *c = (const unsigned char *)name; *c != 0;)
+    {
+        unsigned int unit = *c++;
+        if (unit >= 0xF0)
+        {
+            unsigned int point = (unit & 0x07) << 18 | (c[0] & 0x3Fu) << 12 | (c[1] & 0x3Fu) << 6 | (c[2] & 0x3Fu);
+            c += 3;
+            point -= 0x10000;
+            set(result, to++, 0xD800 + (point >> 10));
+            set(result, to++, 0xDC00 + (point & 0x3FF));
+            continue;
+        }
+
+        if (unit >= 0xE0)
+        {
+            unit = (unit & 0x0F) << 12 | (c[0] & 0x3Fu) << 6 | (c[1] & 0x3Fu);
+            c += 2;
+        }
+        else if (unit >= 0xC0)
+        {
+            unit = (unit & 0x1F) << 6 | (c[0] & 0x3Fu);
+            c += 1;
+        }
+
+        set(result, to++, unit);
+    }
+
+    return result;
+}
