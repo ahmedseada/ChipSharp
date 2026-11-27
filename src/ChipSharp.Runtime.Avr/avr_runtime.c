@@ -12,6 +12,8 @@
 //                            then SLEEP forever
 //   chipsharp_before_halt    what both do first: empty unless the chip's runtime defines it, e.g. a console that sends
 //                            what it still holds (polling: interrupts may be off already, in an interrupt handler)
+//   ChipSharp_Runtime_LocalUtcOffset  the offset of local time from UTC that a date's z and K formats write: 0, a chip
+//                            has no time zones (ChipSharp.Library's Runtime.LocalUtcOffset)
 //
 // How a program stops, for a simulator to tell (as the Pico's: a breakpoint is a failure, a core asleep for good the
 // end): BREAK (opcode 0x9598) means it failed, and a debugger stops there; SLEEP (0x9588) with interrupts off (SREG's
@@ -28,6 +30,12 @@
 long chipsharp_entry(void);
 
 volatile long chipsharp_exit_code;
+
+// A chip keeps no time zone: its local time is UTC, an offset of 0 ticks.
+__attribute__((weak)) long long ChipSharp_Runtime_LocalUtcOffset(void)
+{
+    return 0;
+}
 
 // The chip's own set-up, before the program runs. A chip runtime replaces this empty one.
 __attribute__((weak)) void chipsharp_chip_init(void)

@@ -7,8 +7,13 @@
 //   void *memmove(void *target, const void *source, size_t count)    the blocks may overlap
 //   void *memset(void *target, int value, size_t count)
 //   int memcmp(const void *a, const void *b, size_t count)           the first byte that differs, as unsigned values
+//   void *chipsharp_memcpy_flash(void *target, const __flash void *source, size_t count)
+//                                                                    memcpy from flash (LPM) to RAM
 //
-// They work on RAM (AVR's data space). Data in flash (addrspace(1), read with LPM) is not RAM: these cannot read it.
+// memcpy and the others work on RAM (AVR's data space). Data in flash (addrspace(1), section .progmem.data) is not
+// RAM: its addresses are flash addresses, read with LPM. LLVM 22 turns a copy from addrspace(1) (llvm.memcpy.p0.p1)
+// into a call to memcpy all the same, which would read RAM at those addresses: a copy from flash must call
+// chipsharp_memcpy_flash instead. It reads the first 64 KB of flash (LPM; ELPM, beyond, is not used yet).
 
 .macro function name
     .section .text.\name, "ax", @progbits
@@ -90,3 +95,20 @@ function memcmp
 3:  sbc r25, r25            // 0xff when the subtraction borrowed: a's byte was the lower
     ret
 end memcmp
+
+function chipsharp_memcpy_flash
+    movw r26, r24           // X: the target, in RAM
+    movw r30, r22           // Z: the source, in flash
+    rjmp 2f
+1:
+#if defined(__AVR_HAVE_LPMX__)
+    lpm r0, Z+
+#else
+    lpm
+    adiw r30, 1
+#endif
+    st X+, r0
+2:  count_down
+    brcc 1b
+    ret
+end chipsharp_memcpy_flash

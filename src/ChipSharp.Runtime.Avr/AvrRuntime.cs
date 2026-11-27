@@ -20,7 +20,9 @@ namespace ChipSharp.Runtime.Avr;
 /// <item><see cref="MultiplyFileName"/> and <see cref="DivideFileName"/>: the functions LLVM calls for what AVR has no
 /// instruction for, with avr-gcc's names and registers: 32- and 64-bit multiplication (8- and 16-bit too on a chip
 /// without MUL), and the division and remainder of 8- to 64-bit values (__udivmodqi4 ... __moddi3).</item>
-/// <item><see cref="MemoryFileName"/>: memcpy, memmove, memset and memcmp.</item>
+/// <item><see cref="MemoryFileName"/>: memcpy, memmove, memset and memcmp, which work on RAM, and
+/// <c>chipsharp_memcpy_flash</c>, a memcpy from flash (LLVM calls memcpy for a copy from addrspace(1) too, which would
+/// read RAM: such a copy must call this one).</item>
 /// <item>Float math in software: <see cref="CompilerRt"/>, the very compiler-rt files the armv6m runtime ships, which on
 /// AVR define the plain names LLVM calls (__addsf3, __muldf3, __ltdf2, __fixdfsi, __floatsidf, ...): float and double
 /// exactly as IEEE 754 rounds them, as .NET does. AVR's clang makes double 32 bits unless told otherwise: the target's

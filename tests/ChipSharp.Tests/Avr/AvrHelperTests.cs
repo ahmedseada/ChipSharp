@@ -20,7 +20,7 @@ public sealed class AvrHelperTests
     private static readonly Lazy<Task<AvrProgram>> Built = new(() => AvrProgram.BuildAsync(
         [.. AvrProgram.RuntimeFiles, new GeneratedFile("helpers_test.ll", HarnessIr())],
         [.. Widths.SelectMany(bits => Operations.Select(op => Name(op, bits))), "__mulqi3", "__mulhi3", "memcpy",
-            "memmove", "memset", "memcmp"]));
+            "memmove", "memset", "memcmp", "chipsharp_memcpy_flash"]));
 
     [AvrFact]
     public async Task Eight_bit_division_and_multiplication_match_dotnet_for_every_pair()
@@ -124,6 +124,24 @@ public sealed class AvrHelperTests
         }
     }
 
+    /// <summary>A copy from flash reads flash (LPM), wherever it starts and whatever its length.</summary>
+    [AvrFact]
+    public async Task Chipsharp_memcpy_flash_copies_from_flash_to_RAM()
+    {
+        var program = await Built.Value;
+        var cpu = program.Load();
+        var random = new Random(1);
+        for (var test = 0; test < 300; test++)
+        {
+            var count = random.Next(5) == 0 ? random.Next(3) : random.Next(1, 600);
+            var source = random.Next(0, program.Flash.Length - count);
+            var target = 0x200 + random.Next(0, 0x100);
+            Assert.Equal((ulong)target, AvrAbi.Call(cpu, program.Address("chipsharp_memcpy_flash"), 2, random,
+                ((ulong)target, 2), ((ulong)source, 2), ((ulong)count, 2)));
+            Assert.Equal(program.Flash[source..(source + count)], cpu.Data[target..(target + count)]);
+        }
+    }
+
     /// <summary>
     /// Every helper is small, and a program has only those it calls: none of these is in a program that only divides
     /// 32-bit values but __divmodsi4 and __udivmodsi4.
@@ -138,7 +156,7 @@ public sealed class AvrHelperTests
             "__udivmodqi4", "__divmodqi4", "__udivmodhi4", "__divmodhi4", "__udivmodsi4", "__divmodsi4", "__udivdi3",
             "__umoddi3", "__divdi3", "__moddi3", "__chipsharp_udivmod64", "__chipsharp_divmod64",
         ];
-        string[] memory = ["memcpy", "memmove", "memset", "memcmp"];
+        string[] memory = ["memcpy", "memmove", "memset", "memcmp", "chipsharp_memcpy_flash"];
         Assert.InRange(multiply.Sum(program.SizeOf), 150, 256);
         Assert.InRange(divide.Sum(program.SizeOf), 400, 768);
         Assert.InRange(memory.Sum(program.SizeOf), 80, 160);

@@ -16,7 +16,7 @@ its notice too. Each source file keeps its own copyright lines and license text 
 -------------------
 
 Where: src/ChipSharp.Runtime.ArmV6M/CompilerRt (llvmorg-23.1.6, compiler-rt/lib/builtins, unchanged): the float and
-double arithmetic, comparisons and conversions of chips without float hardware.
+double arithmetic, comparisons and conversions of chips without float hardware (the armv6m and avr runtimes).
 License: Apache License v2.0 with LLVM Exceptions (SPDX: Apache-2.0 WITH LLVM-exception). Copyright the LLVM Project
 contributors. The full license text is src/ChipSharp.Runtime.ArmV6M/CompilerRt/LICENSE.TXT, shipped next to the files.
 Its LLVM exception says: "As an exception, if, as a result of your compiling your source code, portions of this
