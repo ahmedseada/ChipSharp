@@ -117,7 +117,7 @@ public sealed class Atmega328pRuntimeTests : IDisposable
         // the chip's vectors the runtime takes from the avr runtime's table (INT0, INT1, PCINT0-2, TIMER1_COMPB, USART_RX),
         // each with its source, as chipsharp_interrupt counts them; and TIMER1_OVF, the clock's, in C
         Assert.Equal(["1 0", "2 1", "3 2", "4 3", "5 4", "12 5", "18 6"],
-            Regex.Matches(entries, @"^\s+entry (\d+), (\d+)$", RegexOptions.Multiline).Select(m => $"{m.Groups[1]} {m.Groups[2]}"));
+            Regex.Matches(entries, @"^\s+entry (\d+), (\d+)\r?$", RegexOptions.Multiline).Select(m => $"{m.Groups[1]} {m.Groups[2]}"));
         Assert.Contains("__attribute__((signal)) void __vector_13(void)", Own(Atmega328pRuntime.SourceFileName));
         Assert.Contains(AvrRuntime.Handler(13), AvrRuntime.Vectors(uno.Name, vectors));
     }
