@@ -53,8 +53,10 @@ internal static class Lowered
             var instructions = methods[i].Body?.Instructions ?? [];
             for (var j = 0; j < instructions.Count; j++)
             {
+                // a delegate type's own methods are the runtime's; a delegate of a virtual method reaches it through its slot
                 if (instructions[j].Operand is IlMethodOperand { Method.Definition: { } callee } && !methods.Contains(callee)
-                    && VirtualMethods.CalledSlot(instructions, j) is null)
+                    && VirtualMethods.CalledSlot(instructions, j) is null && Delegates.LoadedSlot(instructions, j) is null
+                    && !Delegates.IsDelegateMethod(callee))
                 {
                     methods.Add(callee);
                 }

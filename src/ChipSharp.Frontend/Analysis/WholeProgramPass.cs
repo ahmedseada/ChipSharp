@@ -98,9 +98,16 @@ public static partial class WholeProgramPass
             for (var j = 0; j < instructions.Count; j++)
             {
                 if (ValueTypes.CalledMethod(instructions[j]) is { } callee && !Generics.Instantiations.IsGeneric(callee)
-                    && VirtualMethods.CalledSlot(instructions, j) is null && found.Add(callee))
+                    && VirtualMethods.CalledSlot(instructions, j) is null && !Delegates.IsDelegateMethod(callee)
+                    && found.Add(callee))
                 {
                     methods.Add(callee);
+                }
+
+                // a method a delegate calls (see Delegates): what the delegate's Invoke runs
+                if (Delegates.AddressTaken(instructions, j) is { } target && found.Add(target))
+                {
+                    methods.Add(target);
                 }
 
                 methods.AddRange(dispatch.Follow(instructions, j, methods[i].Assembly).Where(found.Add));
@@ -209,10 +216,12 @@ public static partial class WholeProgramPass
         var classes = ForClasses(method);
         var strings = ForStrings(method);
         var boxing = ForBoxing(method);
-        // after the arrays' and spans' verdicts: boxing's, strings', generics', virtual calls', classes', building text,
-        // the struct/reference rules, the rest
+        var delegates = ForDelegates(method);
+        // after the arrays' and spans' verdicts: boxing's, delegates', strings', generics', virtual calls', classes',
+        // building text, the struct/reference rules, the rest
         Unsupported? Others(IlInstruction instruction) =>
             boxing.TryGetValue(instruction, out var forBoxing) ? forBoxing
+            : delegates.TryGetValue(instruction, out var forDelegates) ? forDelegates
             : strings.TryGetValue(instruction, out var forStrings) ? forStrings
             : generics.TryGetValue(instruction, out var generic) ? generic
             : virtuals.TryGetValue(instruction, out var dispatched) ? dispatched

@@ -257,7 +257,7 @@ public sealed class LibrarySubstituteTests
         var pico = new Rp2040Runtime().Startup(Targets.Load("pico")).Files
             .Single(file => file.FileName == Rp2040Runtime.FailuresFileName).Content;
 
-        Assert.Equal(11, functions.Count);
+        Assert.Equal(19, functions.Count);
         Assert.All(functions, method =>
         {
             var symbol = LlvmCodeGenerator.SymbolName($"ChipSharp.Runtime.{method.Name}");
@@ -276,12 +276,23 @@ public sealed class LibrarySubstituteTests
 
         Assert.Equal(
             [
+                "ArgumentNullException: Value cannot be null. (Parameter 'action')",
                 "ArgumentNullException: Value cannot be null. (Parameter 'array')",
+                "ArgumentNullException: Value cannot be null. (Parameter 'comparison')",
+                "ArgumentNullException: Value cannot be null. (Parameter 'converter')",
+                "ArgumentOutOfRangeException: Count must be positive and count must refer to a location within the " +
+                    "string/array/collection. (Parameter 'count')",
+                "ArgumentException: Delegates must be of the same type.",
                 "ArgumentException: Offset and length were out of bounds for the array or count is greater than the " +
                     "number of elements from index to the end of the source collection.",
+                "ArgumentNullException: Value cannot be null. (Parameter 'match')",
                 "OverflowException: Negating the minimum value of a twos complement number is invalid.",
                 "ArgumentOutOfRangeException: Non-negative number required. (Parameter 'index')",
                 "ArgumentOutOfRangeException: Non-negative number required. (Parameter 'length')",
+                "ArgumentOutOfRangeException: Index was out of range. Must be non-negative and less than the size of the " +
+                    "collection. (Parameter 'startIndex')",
+                "ArgumentOutOfRangeException: Index was out of range. Must be non-negative and less than or equal to the " +
+                    "size of the collection. (Parameter 'startIndex')",
                 "OverflowException: The duration cannot be returned for TimeSpan.MinValue because the absolute value of " +
                     "TimeSpan.MinValue exceeds the value of TimeSpan.MaxValue.",
                 "ArgumentException: TimeSpan does not accept floating point Not-a-Number values.",

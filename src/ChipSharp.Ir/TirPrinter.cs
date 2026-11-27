@@ -112,6 +112,7 @@ public static class TirPrinter
             TirArrayObject o => $"arrayobject {names.Of(o.Data)}",
             TirTypeOf t => $"typeof {names.Of(t.Reference)}",
             TirTypeAddress a => $"typeaddr {a.TypeDescriptor}",
+            TirFunctionAddress a => $"funcaddr {a.Function.Name}",
             TirCall c => $"call {c.Type} {c.Callee.Name}({string.Join(", ", c.Arguments.Select(names.Of))})",
             TirCallIndirect c =>
                 $"call indirect {c.Type} {names.Of(c.Callee)}({string.Join(", ", c.Arguments.Select(names.Of))})",

@@ -64,19 +64,24 @@ public sealed class ArrayMethodCheckTests : IDisposable
     }
 
     [Fact]
-    public void The_methods_that_take_a_delegate_arrive_with_delegates()
+    public void The_methods_that_take_a_delegate_compile()
     {
-        var problems = Problems(Program("""
+        var analysis = WholeProgram.Check(Program("""
             int[] values = { 1, 2 };
-            Console.WriteLine(Array.Exists(values, IsTwo));
-            Console.WriteLine(Array.FindIndex(values, IsTwo));
-            """, "static bool IsTwo(int value) => value == 2;"));
+            Point[] points = new Point[2];
+            Console.WriteLine(Array.Exists(values, IsTwo) && Array.TrueForAll(values, x => x > 0));
+            Console.WriteLine(Array.FindIndex(values, IsTwo) + Array.FindLastIndex(values, 1, IsTwo));
+            Console.WriteLine(Array.Find(values, IsTwo) + Array.FindLast(values, IsTwo) + Array.FindAll(values, IsTwo).Length);
+            Array.ForEach(values, x => Console.WriteLine(x));
+            Console.WriteLine(Array.ConvertAll(values, x => x * 2L)[1]);
+            Array.Sort(points, (a, b) => a.X - b.X);
+            """, """
+            static bool IsTwo(int value) => value == 2;
 
-        Assert.Contains(problems, line => line.EndsWith("the methods of System.Array that take a delegate (Array.Exists, "
-            + "Find, FindIndex, FindAll, TrueForAll, ForEach, ConvertAll, Sort with a Comparison) arrive with M3 "
-            + "(delegates). For now, write the loop: for (int i = 0; i < array.Length; i++) if (...) { ... }.",
-            StringComparison.Ordinal));
-        Assert.Equal(2, problems.Count(line => line.Contains("(delegates)", StringComparison.Ordinal)));
+            struct Point { public int X; }
+            """));
+
+        Assert.True(analysis.IsSupported, analysis.Details);
     }
 
     [Fact]

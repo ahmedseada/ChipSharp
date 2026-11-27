@@ -257,6 +257,16 @@ typedef unsigned int COUNT;
 __attribute__((noreturn)) void ChipSharp_Runtime_ArrayNull(void) { FAIL_WITH(ARGUMENT_NULL("array")); }
 __attribute__((noreturn)) void ChipSharp_Runtime_SourceArrayNull(void) { FAIL_WITH(ARGUMENT_NULL("sourceArray")); }
 
+// the delegates the methods of System.Array take, and Delegate.Combine and Remove of two types
+__attribute__((noreturn)) void ChipSharp_Runtime_MatchNull(void) { FAIL_WITH(ARGUMENT_NULL("match")); }
+__attribute__((noreturn)) void ChipSharp_Runtime_ActionNull(void) { FAIL_WITH(ARGUMENT_NULL("action")); }
+__attribute__((noreturn)) void ChipSharp_Runtime_ConverterNull(void) { FAIL_WITH(ARGUMENT_NULL("converter")); }
+__attribute__((noreturn)) void ChipSharp_Runtime_ComparisonNull(void) { FAIL_WITH(ARGUMENT_NULL("comparison")); }
+__attribute__((noreturn)) void ChipSharp_Runtime_DelegateTypes(void)
+{
+    FAIL_WITH(UNHANDLED "System.ArgumentException: Delegates must be of the same type.\r\n");
+}
+
 __attribute__((noreturn)) void ChipSharp_Runtime_DestinationArrayNull(void)
 {
     FAIL_WITH(ARGUMENT_NULL("destinationArray"));

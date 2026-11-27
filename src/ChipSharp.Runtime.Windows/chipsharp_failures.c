@@ -276,6 +276,16 @@ __declspec(noreturn) void ChipSharp_Runtime_ArrayNull(void) { FAIL_WITH(ARGUMENT
 __declspec(noreturn) void ChipSharp_Runtime_SourceArrayNull(void) { FAIL_WITH(ARGUMENT_NULL("sourceArray")); }
 __declspec(noreturn) void ChipSharp_Runtime_DestinationArrayNull(void) { FAIL_WITH(ARGUMENT_NULL("destinationArray")); }
 
+// the delegates the methods of System.Array take, and Delegate.Combine and Remove of two types
+__declspec(noreturn) void ChipSharp_Runtime_MatchNull(void) { FAIL_WITH(ARGUMENT_NULL("match")); }
+__declspec(noreturn) void ChipSharp_Runtime_ActionNull(void) { FAIL_WITH(ARGUMENT_NULL("action")); }
+__declspec(noreturn) void ChipSharp_Runtime_ConverterNull(void) { FAIL_WITH(ARGUMENT_NULL("converter")); }
+__declspec(noreturn) void ChipSharp_Runtime_ComparisonNull(void) { FAIL_WITH(ARGUMENT_NULL("comparison")); }
+__declspec(noreturn) void ChipSharp_Runtime_DelegateTypes(void)
+{
+    FAIL_WITH(UNHANDLED "System.ArgumentException: Delegates must be of the same type.\r\n");
+}
+
 __declspec(noreturn) void ChipSharp_Runtime_SourceArrayTooShort(void)
 {
     FAIL_WITH(UNHANDLED "System.ArgumentException: Source array was not long enough. Check the source index, length, "

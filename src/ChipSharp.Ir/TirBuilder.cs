@@ -127,6 +127,9 @@ public sealed class TirBuilder(TirBlock block)
     /// <summary>The address of the type descriptor <paramref name="type"/>.</summary>
     public TirTypeAddress AddressOf(TirTypeDescriptor type) => Block.Append(new TirTypeAddress(type));
 
+    /// <summary>The address of the defined function <paramref name="function"/> (a ptr), for <see cref="CallIndirect"/>.</summary>
+    public TirFunctionAddress AddressOf(TirFunction function) => Block.Append(new TirFunctionAddress(function));
+
     public TirCall Call(TirFunction callee, params IEnumerable<TirValue> arguments) =>
         Block.Append(new TirCall(callee, arguments));
 

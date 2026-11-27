@@ -82,6 +82,7 @@ public static class IlToTir
 
         // the virtual method tables and interface maps hold the functions of the methods that virtual calls run
         functions.FillVirtualTables();
+        functions.FillDelegateTables();
 
         functions.AddInterruptEntries(program);
         module.EntryPoint = functions.Start(program);
