@@ -13,9 +13,13 @@ namespace ChipSharp.Tests.Records;
 /// </summary>
 internal static class RecordPrograms
 {
-    /// <summary>Positional records: ToString (members of every kind, nested records, null, an array), ==, Equals, GetHashCode, with, deconstruction, nominal records with init members, generic records.</summary>
+    /// <summary>
+    /// Positional records: ToString (members of every kind, nested records, null, an array, collections), ==, Equals,
+    /// GetHashCode, with, deconstruction, nominal records with init members, generic records.
+    /// </summary>
     public const string Positional = """
         using System;
+        using System.Collections.Generic;
 
         record Point(int X, int Y)
         {
@@ -36,6 +40,8 @@ internal static class RecordPrograms
         record Empty;
 
         record Pair<T>(T First, T Second);
+
+        record Log(string Name, List<int> Values, Dictionary<string, int> Counts);
 
         class Program
         {
@@ -81,6 +87,10 @@ internal static class RecordPrograms
                 Console.WriteLine(names with { Second = "c" });
                 Console.WriteLine(pair.GetType());
                 Console.WriteLine(new Pair<Point>(p, r));
+                var log = new Log("a", new List<int> { 1, 2 }, new Dictionary<string, int>());
+                Console.WriteLine(log);
+                Console.WriteLine(log == log with { } ? "same" : "other");
+                Console.WriteLine(log.Values.GetType() + " " + log.Values.GetType().Name);
 
                 Point none = null;
                 Console.WriteLine(none == null);
@@ -96,7 +106,11 @@ internal static class RecordPrograms
         }
         """;
 
-    /// <summary>Record classes derived from each other, abstract and sealed ones, PrintMembers and ToString of their own, Equals and GetHashCode of their own, required members, record structs, primary constructors of classes and structs, and typeof(T) in generic code.</summary>
+    /// <summary>
+    /// Record classes derived from each other, abstract and sealed ones, PrintMembers and ToString of their own, Equals
+    /// and GetHashCode of their own, required members, record structs, primary constructors of classes and structs, and
+    /// typeof(T) in generic code.
+    /// </summary>
     public const string Inheritance = """
         using System;
         using System.Text;
@@ -250,7 +264,11 @@ internal static class RecordPrograms
         }
         """;
 
-    /// <summary>Every member of StringBuilder: appends of every kind, growth and capacity, Length and Capacity set, Insert, Remove, Replace, the indexer, CopyTo, Equals, AppendJoin, and a report table built with Append($"...") and AppendFormat.</summary>
+    /// <summary>
+    /// Every member of StringBuilder: appends of every kind, growth and capacity, Length and Capacity set, Insert,
+    /// Remove, Replace, the indexer, CopyTo, Equals, AppendJoin, and a report table built with Append($"...") and
+    /// AppendFormat.
+    /// </summary>
     public const string Builders = """
         using System;
         using System.Text;
@@ -327,7 +345,9 @@ internal static class RecordPrograms
         }
         """;
 
-    /// <summary>typeof and GetType of every kind of type, with each of the names .NET gives it, the kind it is, and ==.</summary>
+    /// <summary>
+    /// typeof and GetType of every kind of type, with each of the names .NET gives it, the kind it is, and ==.
+    /// </summary>
     public const string Types = """
         using System;
         using System.Text;

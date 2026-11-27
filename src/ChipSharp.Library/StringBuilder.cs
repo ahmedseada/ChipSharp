@@ -11,9 +11,10 @@ namespace ChipSharp.Library;
 /// .NET keeps a builder that has grown as a list of chunks; this one is a single buffer, which grows as .NET's capacity
 /// does when text is appended (by the text that does not fit, at least as much as the builder holds, up to 8000 chars at
 /// a time), so <see cref="Capacity"/> is .NET's for a builder made and grown that way and set with <c>Capacity</c> and
-/// <c>EnsureCapacity</c>. Where .NET splits or drops chunks (an <c>Insert</c> into a full builder, <c>Clear</c> or a
-/// shorter <c>Length</c> of one that has grown, a <c>Replace</c> that makes the text longer) its capacity may come out
-/// otherwise; the text never does. C#'s <c>sb.Append($"...")</c> and <c>sb.AppendFormat("...", ...)</c> with a literal
+/// <c>EnsureCapacity</c>, and for <c>Insert</c> and a longer <c>Replace</c> of one that has not grown (which put a chunk
+/// before the last one in .NET: the capacity grows by what is inserted). Where .NET drops chunks or works in one that is
+/// not its last (<c>Clear</c>, a shorter <c>Length</c> or a <c>Remove</c> of a builder that has grown, an
+/// <c>Insert</c> into its first chunks), its capacity may come out otherwise; the text never does. C#'s <c>sb.Append($"...")</c> and <c>sb.AppendFormat("...", ...)</c> with a literal
 /// format are built where they are called (ChipSharp.Frontend's PrintedText), appending each part. Not here: the
 /// overloads of pointers, of <c>ReadOnlyMemory&lt;char&gt;</c>, of <c>decimal</c> and of an <c>IFormatProvider</c>,
 /// <c>AppendJoin</c> of an <c>IEnumerable&lt;T&gt;</c> and of a <c>params</c> span (<c>sb.AppendJoin(", ", a, b)</c>:
