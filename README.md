@@ -45,8 +45,14 @@ dotnet test -c Release --no-build
 that ChipSharp does not compile yet, where, when it is planned, and what to write for now (`--details`: every place
 on a line of its own, and every library method ChipSharp can call). `tir` shows the program in TIR. `build` compiles
 it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` also keeps the `.tir` and `.ll` files.
+Both write notes on standard error (`note: ...`; `--quiet-notes` leaves them out) where .NET's text depends on the PC's
+language settings and ChipSharp's does not (see Strings).
 
-`dotnet test` runs 1699 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
+**Build cache.** `build` compiles each source file (the runtime's C, the program's `.ll`) once for a target, its flags
+and its text, and keeps the object in `%LOCALAPPDATA%\ChipSharp\cache` (or `CHIPSHARP_CACHE`): the runtime is compiled
+once, and later builds only link it. `--no-cache` compiles everything; deleting the folder is always safe.
+
+`dotnet test` runs 1831 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
 `CHIPSHARP_LLVM_BIN`); the Pico tests also need the simulator (see below), and are skipped, saying why, without it.
 
 ## What C# compiles today
@@ -195,8 +201,10 @@ them (kept text, `Substring`, `Replace`, `ToUpper`, `Split`, number to text, ...
 (`src/ChipSharp.Runtime.Shared/chipsharp_string.c` and `chipsharp_string_heap.c`), and needs a heap. Each method gives
 .NET's results and stops the program with .NET's message where .NET throws (`"abc".Substring(4)`, `int.Parse("12x")`).
 Comparisons are ordinal, char by char: `==`, `Equals`, `IndexOf`, `StartsWith`, `CompareTo` and `string.Compare` too,
-as .NET compares them in its invariant mode (`CompareTo` gives the difference of the first chars that differ, as
-`CompareOrdinal` does); with a culture .NET compares the last four by it (the same results for text without the
+as .NET compares them in its invariant mode (`CompareTo` gives the difference of the first chars that differ, else of
+the lengths; `CompareOrdinal` too, but where one string starts with the other it ends as .NET's does: `"apple"` and
+`"app"` give 108, the `'l'`), and so do `Compare`, `Equals`, `StartsWith`, `EndsWith`, `IndexOf`, `LastIndexOf` and
+`Contains` with a `StringComparison` (the `IgnoreCase` ones compare upper case); with a culture .NET compares the last four by it (the same results for text without the
 characters a culture ignores, such as a zero char, but for the order of upper and lower case letters: `"a".CompareTo("B")`
 is 31 here and in invariant mode, -1 with a culture). `ToUpper`, `ToLower` and the char methods change case and tell letters as the
 invariant culture does for the chars up to U+00FF (Latin-1, `ÿ` to `Ÿ` too); from U+0100 on a char is no letter and
@@ -204,6 +212,16 @@ keeps its case (`IsWhiteSpace` knows all of .NET's spaces). `GetHashCode` of a s
 of its UTF-16 code units), where .NET's differs from one process to the next. `int.Parse` and `TryParse` (and those of
 `sbyte` to `ulong`) read as .NET's invariant culture does: spaces, a sign, digits. A `switch` on strings compiles as C#
 makes it, in Release (by length and char, or by hash) and in Debug (`==` one after another).
+
+Where .NET's result depends on the PC's language settings and ChipSharp's does not, `check` and `build` say so in a
+note, which stops nothing (`src/ChipSharp.Frontend/Analysis/CultureNotes.cs`): at `CompareTo`, `string.Compare(a, b)`,
+`StartsWith`, `EndsWith`, `IndexOf` and `LastIndexOf` of a string (and with a `StringComparison` but `Ordinal` and
+`OrdinalIgnoreCase`), `ToUpper` and `ToLower` (of strings and chars), `Parse` and `TryParse`, and a float written as text
+(`1,5` with German settings, `1.5` here), with what to write for the same result everywhere:
+
+```
+note: string.CompareTo compares by the PC's language settings in .NET; ChipSharp compares character codes (like .NET's invariant mode): 1 place in Program.Main() (IL_0007). Use string.CompareOrdinal to get the same result everywhere.
+```
 
 `ToString()` of the program's classes is a virtual call like any other: an override gives its string, object's own the
 type's .NET name (`Program+Node`); `Console.WriteLine(node)`, `"x" + node`, `$"{node}"` and `string.Format("{0}",
