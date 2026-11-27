@@ -30,6 +30,7 @@ Pico, and the tests compare programs, and thousands of library calls, with .NET'
 | [.NET 10 SDK](https://dot.net) | Building ChipSharp and your programs |
 | [LLVM](https://github.com/llvm/llvm-project/releases) (clang and ld.lld; `winget install LLVM.LLVM`) | Turning the program into native code. ChipSharp finds it in `C:\Program Files\LLVM\bin` or on the PATH, or set `CHIPSHARP_LLVM_BIN` to its `bin` folder |
 | [Node.js](https://nodejs.org) 18 or later | Only for the Pico simulator (`tools/rp2040-sim`), once: `cd tools\rp2040-sim; npm ci` |
+| [Zig](https://ziglang.org/download/) 0.17 or later | Only for the Arduino Uno ([in progress](#arduino-uno-in-progress)) |
 | A Raspberry Pi Pico | Optional: the simulator and [Wokwi](https://wokwi.com) run the same `.uf2` |
 
 ChipSharp is developed and tested on Windows; the PC target (`host`) makes Windows x64 programs.
@@ -121,7 +122,8 @@ new board is a few lines of JSON:
 | `host` | Your PC: a Windows x64 console program, with no C runtime (inherits `x86_64`) |
 | `pico` | Raspberry Pi Pico: RP2040, 2 MB flash, LED on GPIO 25 (inherits `rp2040`, which inherits `armv6m`) |
 | `pico-w` | Pico W: like the Pico, but its LED is wired to the Wi-Fi chip |
-| `rp2040`, `armv6m`, `x86_64` | A chip and two architectures, for target files to inherit; not built for directly |
+| `uno` | Arduino Uno: ATmega328P at 16 MHz, 32 KB flash, 2 KB RAM ([in progress](#arduino-uno-in-progress); inherits `atmega328p`, which inherits `avr`) |
+| `rp2040`, `atmega328p`, `armv6m`, `avr`, `x86_64` | Chips and architectures, for target files to inherit; not built for directly |
 
 ```
 > chipsharp targets show pico
@@ -161,6 +163,28 @@ event uses (`"interrupts"` in `rp2040.json`). `chipsharp check -t <target>` and 
 program for that chip: on one without a heap or without a console, they name each place that needs it (see
 [below](#when-chipsharp-check-says-no)). A new chip of a known architecture is a JSON file plus its runtime; a CPU no
 code generator supports yet (the ESP32-C5's RISC-V, next) also needs a runtime for its architecture.
+
+### Arduino Uno (in progress)
+
+Milestone M7 adds the Uno's ATmega328P, an 8-bit AVR. The toolchain, the `.hex` image and a simulator are in; the AVR
+runtime (start-up, 8-bit math helpers, float in software) is not yet, so `chipsharp build -t uno` stops at "Architecture
+runtime 'avr' is not registered".
+
+- **Zig**: LLVM's release builds for Windows have no AVR, so the target's toolchain `zig` runs the clang and ld.lld
+  inside [Zig](https://ziglang.org/download/) (0.17 or later: unpack the zip anywhere). ChipSharp finds it through
+  `CHIPSHARP_ZIG` (`zig.exe` or its folder), then `D:\Tools\zig\zig.exe`, then the PATH. The tests that need it are
+  skipped, saying why, without it.
+- **The `.hex`** is Intel HEX, what `llvm-objcopy -O ihex` writes: the flash's contents, the starting values of the
+  variables included. The memory report reads like `flash 417 bytes of 32 KB (1.3%), RAM 12 bytes of 2 KB (stack 512
+  bytes reserved)`. Uploading through the Uno's USB port (avrdude, the Arduino IDE) goes through its bootloader, which
+  keeps the last 512 bytes of the flash.
+- **In the simulator** (avr8js, what Wokwi runs; once: `cd tools\avr-sim; npm ci`):
+  `node tools\avr-sim\run.mjs Blink.hex --ms 1000` prints every pin change by its Uno name (`[   20.822 ms] D13 high`)
+  and every line written to USART0 (`USART0: Hello`); `--input D2=high@100ms` drives a pin from outside, `--send
+  "text\n@50ms"` types into USART0, `--usart0 file.bin` saves what it sent. A run stops when the program sleeps with
+  interrupts off (it has finished) or reaches a `break` (a fatal error, exit code 3).
+- **In Wokwi** ([wokwi.com](https://wokwi.com)): start a new Arduino Uno project, press F1 in the code editor, pick
+  "Upload Firmware and Start Simulation...", and choose the `.hex`.
 
 ## What C# compiles today
 
@@ -842,7 +866,8 @@ then compile C# programs and run them: on the PC, and on the simulated Pico, com
 with what .NET prints for the same program; the library code (collections, `StringBuilder`, sorting, `TimeSpan`, `DateTime` and its formats)
 runs next to .NET's own on thousands of random operations, and the math functions on hundreds of thousands of values,
 computed both with the PC's float hardware and in software as the Pico computes them. The PC tests need LLVM; the Pico tests also need Node.js
-and `npm ci` in `tools\rp2040-sim`, and are skipped, saying why, without them. The example projects are built with
+and `npm ci` in `tools\rp2040-sim` (the Uno's, Zig and `npm ci` in `tools\avr-sim`), and are skipped, saying why,
+without them. The example projects are built with
 `dotnet build` and `chipsharp build` and run in the simulator, the traffic lights with the button pressed.
 
 The simulator, rp2040js 1.4.1, has one known fault: it sets the overflow flag of `SBCS` wrong when the borrow takes the
@@ -860,14 +885,14 @@ the PC tests.
 | `src/ChipSharp.Ir` | TIR (Typed Intermediate Representation), which every code generator reads: its verifier, printer and builder |
 | `src/ChipSharp.Library` | ChipSharp's own C# for library types (`TimeSpan`, `List<T>`, `StringBuilder`, the exceptions, ...), compiled together with the programs that use them |
 | `src/ChipSharp.Backend.Llvm` | The `llvm` code generator: TIR in, LLVM IR text out |
-| `src/ChipSharp.Toolchain.Clang` | The `clang` toolchain: LLVM IR and runtime sources in, a linked program out |
+| `src/ChipSharp.Toolchain.Clang` | The `clang` toolchain: LLVM IR and runtime sources in, a linked program out; as the `zig` toolchain, the same with the clang and ld.lld inside Zig (AVR) |
 | `src/ChipSharp.Runtime.*` | The runtimes, in C: `Shared` (console, text, floats, heap and collector), `Windows` (the PC), `ArmV6M` and `Rp2040` (start-up, UART0, timers, pins, interrupts), `Avr` (any AVR chip's start-up, multiply and divide helpers, soft float) |
-| `src/ChipSharp.Image.Uf2`, `src/ChipSharp.Build`, `src/ChipSharp.Cli` | The `.uf2` image, the build pipeline, and the `chipsharp` command |
+| `src/ChipSharp.Image.Uf2`, `src/ChipSharp.Image.Hex`, `src/ChipSharp.Build`, `src/ChipSharp.Cli` | The `.uf2` and `.hex` images, the build pipeline, and the `chipsharp` command |
 | `src/ChipSharp.Hardware` | The library programs reference for pins, timing, the clock, registers, interrupts, serial ports, analog inputs, PWM and the I2C and SPI buses |
 | `src/ChipSharp.Components` | Drivers of parts connected to a chip (the character LCD, the 7-segment display, the DS1307 real-time clock), plain C# that ChipSharp compiles with the program |
 | `src/ChipSharp.Abstractions`, `src/ChipSharp.Targets` | The contracts (code generator, toolchain, image, runtime) and the target files' reader |
 | `targets/arch`, `chip`, `board` | Target files |
-| `samples`, `examples`, `tests`, `tools/rp2040-sim` | See above |
+| `samples`, `examples`, `tests`, `tools/rp2040-sim`, `tools/avr-sim` | See above |
 
 ### The whole program
 

@@ -1,7 +1,6 @@
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json.Nodes;
 using ChipSharp.Abstractions;
 using ChipSharp.Runtime.Avr;
 using ChipSharp.Tests.Llvm;
@@ -10,32 +9,12 @@ using Xunit.Sdk;
 namespace ChipSharp.Tests.Avr;
 
 /// <summary>
-/// A test that builds code for the ATmega328P with Zig (its clang and ld.lld have the AVR backend the installed LLVM
-/// lacks) and runs it on <see cref="AvrCpu"/>. It is skipped, with the reason, on a machine without Zig.
+/// C, assembly and LLVM IR built for the ATmega328P to run on <see cref="AvrCpu"/> (Zig's clang, -mdouble=64, function
+/// sections, ld.lld with --gc-sections and <see cref="LinkerScript"/>), loaded from the .elf: its flash and its symbols.
+/// The same files build once: the program lives in a folder named after their hash, which later test runs reuse.
 /// </summary>
-[XunitTestCaseDiscoverer("ChipSharp.Tests.Support.OwnCollectionFactDiscoverer", "ChipSharp.Tests")]
-public sealed class AvrFactAttribute : FactAttribute
+internal sealed class AvrCoreProgram
 {
-    public AvrFactAttribute()
-    {
-        if (AvrProgram.Zig is null)
-        {
-            Skip = $"Zig was not found: set {AvrProgram.ZigVariable} to zig.exe, or put it on the PATH. Its clang builds " +
-                "for AVR, which the LLVM installer's does not.";
-        }
-    }
-}
-
-/// <summary>
-/// C, assembly and LLVM IR built for the ATmega328P (Zig's clang, -mdouble=64, function sections, ld.lld with
-/// --gc-sections and <see cref="LinkerScript"/>), loaded from the .elf: its flash and its symbols. The same files build
-/// once: the program lives in a folder named after their hash, which later test runs reuse.
-/// </summary>
-internal sealed class AvrProgram
-{
-    /// <summary>The environment variable with the path of zig.exe.</summary>
-    public const string ZigVariable = "CHIPSHARP_ZIG";
-
     /// <summary>
     /// The flags every file is compiled with: the ATmega328P (zig cc needs both -mcpu and -mmcu for it: -mmcu alone
     /// builds for the generic AVR2, -mcpu alone warns), C#'s 64-bit double, and no C library.
@@ -71,33 +50,18 @@ internal sealed class AvrProgram
 
     private const uint RamInElf = 0x800000;
 
-    private AvrProgram(byte[] flash, IReadOnlyDictionary<string, (uint Value, uint Size)> symbols)
+    private AvrCoreProgram(byte[] flash, IReadOnlyDictionary<string, (uint Value, uint Size)> symbols)
     {
         Flash = flash;
         Symbols = symbols;
     }
 
-    /// <summary>The ATmega328P as the avr runtime sees it: its 26 vectors.</summary>
-    public static TargetDescription Target { get; } = new()
-    {
-        Name = "atmega328p-test",
-        InheritanceChain = ["atmega328p-test"],
-        Backend = "llvm",
-        Toolchain = "clang",
-        Runtime = "avr",
-        Triple = "avr",
-        Cpu = "atmega328p",
-        PointerSize = 2,
-        Endian = Endianness.Little,
-        Settings = new JsonObject { [AvrRuntime.VectorsSetting] = 26 },
-    };
+    /// <summary>The Arduino Uno, as its target files say (the ATmega328P's 26 vectors).</summary>
+    public static TargetDescription Target { get; } = AvrTestProgram.Uno;
 
     /// <summary>The avr runtime's files for <see cref="Target"/>: start-up, helpers, float math, failures, the vector table.</summary>
     public static IReadOnlyList<GeneratedFile> RuntimeFiles { get; } =
         [.. new AvrRuntime().Startup(Target).Files, .. new AvrRuntime().InterruptEntry(Target).Files];
-
-    /// <summary>zig.exe: <see cref="ZigVariable"/>, else the PATH; null when neither has it.</summary>
-    public static string? Zig { get; } = FindZig();
 
     /// <summary>The bytes of flash, from address 0 to the end of the last thing in it.</summary>
     public byte[] Flash { get; }
@@ -121,9 +85,9 @@ internal sealed class AvrProgram
     /// <paramref name="keep"/> are symbols the linker keeps although nothing calls them (ld.lld -u), e.g. the helpers a
     /// test calls itself.
     /// </summary>
-    public static async Task<AvrProgram> BuildAsync(IEnumerable<GeneratedFile> files, IEnumerable<string>? keep = null)
+    public static async Task<AvrCoreProgram> BuildAsync(IEnumerable<GeneratedFile> files, IEnumerable<string>? keep = null)
     {
-        var zig = Zig ?? throw new XunitException($"Zig was not found ({ZigVariable}, PATH).");
+        var zig = AvrTools.Zig.FindZig();
         var sources = files.ToList();
         var kept = (keep ?? []).ToList();
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Concat(
@@ -170,7 +134,7 @@ internal sealed class AvrProgram
     }
 
     /// <summary>The flash image (the loaded segments, at their load addresses) and the symbols of an AVR .elf.</summary>
-    private static AvrProgram Read(byte[] elf)
+    private static AvrCoreProgram Read(byte[] elf)
     {
         if (elf.Length < 52 || BinaryPrimitives.ReadUInt32BigEndian(elf) != 0x7F454C46 || elf[4] != 1 || elf[5] != 1)
         {
@@ -229,25 +193,10 @@ internal sealed class AvrProgram
             }
         }
 
-        return new AvrProgram([.. flash], symbols);
+        return new AvrCoreProgram([.. flash], symbols);
     }
 
     private static uint U32(byte[] bytes, long at) => BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan((int)at));
 
     private static ushort U16(byte[] bytes, int at) => BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(at));
-
-    private static string? FindZig()
-    {
-        var configured = Environment.GetEnvironmentVariable(ZigVariable);
-        if (!string.IsNullOrWhiteSpace(configured))
-        {
-            return File.Exists(configured) ? configured : null;
-        }
-
-        var fileName = OperatingSystem.IsWindows() ? "zig.exe" : "zig";
-        return (Environment.GetEnvironmentVariable("PATH") ?? "")
-            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(folder => Path.Combine(folder.Trim('"'), fileName))
-            .FirstOrDefault(File.Exists);
-    }
 }

@@ -17,8 +17,8 @@ public sealed class AvrHelperTests
     private static readonly string[] Operations = ["sdiv", "srem", "udiv", "urem", "mul"];
     private static readonly int[] Widths = [8, 16, 32, 64];
 
-    private static readonly Lazy<Task<AvrProgram>> Built = new(() => AvrProgram.BuildAsync(
-        [.. AvrProgram.RuntimeFiles, new GeneratedFile("helpers_test.ll", HarnessIr())],
+    private static readonly Lazy<Task<AvrCoreProgram>> Built = new(() => AvrCoreProgram.BuildAsync(
+        [.. AvrCoreProgram.RuntimeFiles, new GeneratedFile("helpers_test.ll", HarnessIr())],
         [.. Widths.SelectMany(bits => Operations.Select(op => Name(op, bits))), "__mulqi3", "__mulhi3", "memcpy",
             "memmove", "memset", "memcmp", "chipsharp_memcpy_flash"]));
 
@@ -161,9 +161,9 @@ public sealed class AvrHelperTests
         Assert.InRange(divide.Sum(program.SizeOf), 400, 768);
         Assert.InRange(memory.Sum(program.SizeOf), 80, 160);
 
-        var divides = await AvrProgram.BuildAsync(
+        var divides = await AvrCoreProgram.BuildAsync(
         [
-            .. AvrProgram.RuntimeFiles,
+            .. AvrCoreProgram.RuntimeFiles,
             new GeneratedFile("divides.c", "long chipsharp_entry(void) { static volatile long a = 1000, b = 7; return a / b + a % b; }\n"),
         ]);
         Assert.True(divides.Symbols.ContainsKey("__divmodsi4"));
@@ -173,7 +173,7 @@ public sealed class AvrHelperTests
     }
 
     /// <summary>Every operation of every width, as <paramref name="pairs"/> give them, against .NET's.</summary>
-    private static void Check(AvrProgram program, int bits, IReadOnlyList<(ulong A, ulong B)> pairs)
+    private static void Check(AvrCoreProgram program, int bits, IReadOnlyList<(ulong A, ulong B)> pairs)
     {
         var mask = bits == 64 ? ulong.MaxValue : (1UL << bits) - 1;
         var bytes = bits / 8;

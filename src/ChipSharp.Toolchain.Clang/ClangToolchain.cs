@@ -18,6 +18,13 @@ namespace ChipSharp.Toolchain.Clang;
 /// </list>
 /// The output folder and tool locations come from <see cref="ClangToolchainOptions"/> or the environment variables
 /// <see cref="ClangVariable"/> and <see cref="LlvmBinVariable"/>.
+/// <para>
+/// With <see cref="ClangDriver.Zig"/> (<see cref="ClangToolchainOptions.Driver"/>) the toolchain is "zig": for the chips
+/// whose processor the installed LLVM lacks (AVR), it runs the clang and ld.lld inside Zig instead, found by
+/// <see cref="ClangToolchainOptions.ZigPath"/> or the environment variable <see cref="ZigVariable"/>. It compiles with
+/// <c>zig cc --target=&lt;"zig.target"&gt;</c> (Zig's name of the target, e.g. avr-freestanding-none) and the same
+/// flags, and links with <c>zig ld.lld</c> itself, the "link.flags" passed as they are. It builds chip programs only.
+/// </para>
 /// </summary>
 /// <remarks>
 /// The caller passes everything to compile in one <see cref="GeneratedCode"/>: the code generator's files and
@@ -36,6 +43,12 @@ public sealed class ClangToolchain : IToolchain
 
     /// <summary>The environment variable that moves the build cache (see <see cref="ClangToolchainOptions.CacheFolder"/>).</summary>
     public const string CacheVariable = ObjectCache.FolderVariable;
+
+    /// <summary>The environment variable that points at Zig (zig.exe), for the toolchain "zig".</summary>
+    public const string ZigVariable = "CHIPSHARP_ZIG";
+
+    /// <summary>Where Zig is looked for when neither the ZigPath option nor <see cref="ZigVariable"/> says, before the PATH.</summary>
+    public const string DefaultZigPath = @"D:\Tools\zig\zig.exe";
 
     /// <summary>
     /// Quiets clang about the target's flags a step does not use (the linker's when it compiles, the compiler's when it
@@ -70,12 +83,16 @@ public sealed class ClangToolchain : IToolchain
     /// <summary>The build cache's folder, or null when <see cref="ClangToolchainOptions.UseCache"/> turns it off.</summary>
     public string? CacheFolder => _cache?.Folder;
 
-    public string Name => "clang";
+    /// <summary>"clang", or "zig" with <see cref="ClangDriver.Zig"/>.</summary>
+    public string Name => Options.Driver == ClangDriver.Zig ? "zig" : "clang";
 
     public ClangToolchainOptions Options { get; }
 
     /// <summary>The clang this toolchain runs, or an error that says where it looked and how to point at one.</summary>
     public string FindClang() => _tools.Clang();
+
+    /// <summary>The Zig the toolchain "zig" runs, or an error that says where it looked and how to point at one.</summary>
+    public string FindZig() => _tools.Zig();
 
     /// <summary>The llvm-dlltool this toolchain runs, or an error that says where it looked.</summary>
     public string FindDlltool() => _tools.Dlltool(FindClang());
@@ -89,7 +106,16 @@ public sealed class ClangToolchain : IToolchain
         ArgumentNullException.ThrowIfNull(code);
         ArgumentNullException.ThrowIfNull(target);
 
-        return ChipSettings.Applies(target) ? BuildChipProgram(code, target) : BuildPcProgram(code, target);
+        if (ChipSettings.Applies(target))
+        {
+            return BuildChipProgram(code, target);
+        }
+
+        return Options.Driver == ClangDriver.Zig
+            ? throw new ChipSharpException(
+                $"Target '{target.Name}': the toolchain \"zig\" builds chip programs (a target whose 'link.code' names a " +
+                "memory region), not PC programs; build those with the toolchain \"clang\".")
+            : BuildPcProgram(code, target);
     }
 
     private LinkedBinary BuildPcProgram(GeneratedCode code, TargetDescription target)
@@ -127,8 +153,13 @@ public sealed class ClangToolchain : IToolchain
     private LinkedBinary BuildChipProgram(GeneratedCode code, TargetDescription target)
     {
         var settings = ChipSettings.Read(target);
+        var zig = Options.Driver == ClangDriver.Zig;
+        var zigTarget = !zig || settings.ZigTarget is not null
+            ? settings.ZigTarget
+            : throw new ChipSharpException($"Target '{target.Name}': 'zig.target' is missing; the toolchain \"zig\" " +
+                "needs Zig's name of the target for zig cc, e.g. { \"zig\": { \"target\": \"avr-freestanding-none\" } }.");
         var sources = Sources(code);
-        var clang = FindClang();
+        var compiler = zig ? FindZig() : FindClang();
         var folder = OutputFolder();
         var name = ProgramName(code);
         var script = new GeneratedFile(name + ".ld", LinkerScript.Write(target, settings));
@@ -143,24 +174,35 @@ public sealed class ClangToolchain : IToolchain
         var program = name + ".elf";
         List<string> flags =
         [
-            $"--target={settings.Triple}",
-            .. settings.Cpu is null ? Array.Empty<string>() : [$"-mcpu={settings.Cpu}"],
+            .. zig ? ["cc", $"--target={zigTarget}"] : new[] { $"--target={settings.Triple}" },
+            .. settings.ProcessorFlags(Options.Driver),
             .. settings.ClangFlags,
             .. Options.ExtraFlags,
         ];
-        List<string> arguments =
-        [
-            .. flags,
-            NoUnusedArguments,
-            .. Compile(clang, flags, code, sources, folder),
-            "-o", program,
-            "-Xlinker", $"--script={script.FileName}",
-            "-Xlinker", $"-Map={name}.map",
-            .. settings.LinkFlags.SelectMany(flag => new[] { "-Xlinker", flag }),
-        ];
+        var objects = Compile(compiler, flags, code, sources, folder);
+        List<string> arguments = zig
+            ?
+            [
+                "ld.lld",
+                $"--script={script.FileName}",
+                $"-Map={name}.map",
+                .. settings.LinkFlags,
+                .. objects,
+                "-o", program,
+            ]
+            :
+            [
+                .. flags,
+                NoUnusedArguments,
+                .. objects,
+                "-o", program,
+                "-Xlinker", $"--script={script.FileName}",
+                "-Xlinker", $"-Map={name}.map",
+                .. settings.LinkFlags.SelectMany(flag => new[] { "-Xlinker", flag }),
+            ];
         try
         {
-            return Link(clang, arguments, folder, program);
+            return Link(compiler, arguments, folder, program);
         }
         catch (ChipSharpException e) when (MemoryOverflow.Message(e.Message, name, target, settings) is { } message)
         {
@@ -193,16 +235,16 @@ public sealed class ClangToolchain : IToolchain
             ?? (firstIr is null ? "program" : Path.GetFileNameWithoutExtension(firstIr.FileName));
     }
 
-    /// <summary>Runs clang to compile and link; returns the program it wrote.</summary>
-    private static LinkedBinary Link(string clang, IReadOnlyList<string> arguments, string folder, string program)
+    /// <summary>Runs clang (or zig ld.lld) to link; returns the program it wrote.</summary>
+    private static LinkedBinary Link(string tool, IReadOnlyList<string> arguments, string folder, string program)
     {
-        Run(clang, arguments, folder);
+        Run(tool, arguments, folder);
 
         var path = Path.Combine(folder, program);
         return File.Exists(path)
             ? new LinkedBinary(path)
-            : throw new ChipSharpException(
-                $"clang reported success but wrote no '{path}':\n  {CommandLine(clang, arguments)}");
+            : throw new ChipSharpException($"{Path.GetFileNameWithoutExtension(tool)} reported success but wrote no " +
+                $"'{path}':\n  {CommandLine(tool, arguments)}");
     }
 
     private static void CheckFileNames(IReadOnlyList<GeneratedFile> files)

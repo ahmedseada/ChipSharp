@@ -84,8 +84,8 @@ public sealed class AvrSoftFloatTests
         0x00800001,
     ];
 
-    private static readonly Lazy<Task<AvrProgram>> Built = new(() => AvrProgram.BuildAsync(
-        [.. AvrProgram.RuntimeFiles, new GeneratedFile("float_test.ll", HarnessIr())],
+    private static readonly Lazy<Task<AvrCoreProgram>> Built = new(() => AvrCoreProgram.BuildAsync(
+        [.. AvrCoreProgram.RuntimeFiles, new GeneratedFile("float_test.ll", HarnessIr())],
         Operations.Select(operation => operation.Name)));
 
     [AvrFact]

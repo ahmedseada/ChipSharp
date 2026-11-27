@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\ChipSharp.Backend.Llvm\ChipSharp.Backend.Llvm.csproj" />
     <ProjectReference Include="..\ChipSharp.Frontend\ChipSharp.Frontend.csproj" />
+    <ProjectReference Include="..\ChipSharp.Image.Hex\ChipSharp.Image.Hex.csproj" />
     <ProjectReference Include="..\ChipSharp.Image.Uf2\ChipSharp.Image.Uf2.csproj" />
     <ProjectReference Include="..\ChipSharp.Runtime.ArmV6M\ChipSharp.Runtime.ArmV6M.csproj" />
     <ProjectReference Include="..\ChipSharp.Runtime.Avr\ChipSharp.Runtime.Avr.csproj" />

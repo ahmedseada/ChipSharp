@@ -72,8 +72,8 @@ public sealed class AvrStartupTests
         }
         """;
 
-    private static readonly Lazy<Task<AvrProgram>> Built = new(() =>
-        AvrProgram.BuildAsync([.. AvrProgram.RuntimeFiles, new GeneratedFile("startup_test.c", ProgramSource)]));
+    private static readonly Lazy<Task<AvrCoreProgram>> Built = new(() =>
+        AvrCoreProgram.BuildAsync([.. AvrCoreProgram.RuntimeFiles, new GeneratedFile("startup_test.c", ProgramSource)]));
 
     [AvrFact]
     public async Task A_program_starts_as_compiled_code_expects_and_its_end_sleeps_with_interrupts_off()
@@ -150,7 +150,7 @@ public sealed class AvrStartupTests
     }
 
     /// <summary>A core at reset with the test program, RAM and registers as anything, and <paramref name="mode"/> in GPIOR0.</summary>
-    private static async Task<(AvrProgram Program, AvrCpu Cpu)> StartAsync(byte mode)
+    private static async Task<(AvrCoreProgram Program, AvrCpu Cpu)> StartAsync(byte mode)
     {
         var program = await Built.Value;
         var cpu = program.Load();
@@ -161,11 +161,11 @@ public sealed class AvrStartupTests
         return (program, cpu);
     }
 
-    private static int Byte(AvrProgram program, AvrCpu cpu, string symbol) => cpu.Data[program.Address(symbol)];
+    private static int Byte(AvrCoreProgram program, AvrCpu cpu, string symbol) => cpu.Data[program.Address(symbol)];
 
-    private static int Read16(AvrProgram program, AvrCpu cpu, string symbol) =>
+    private static int Read16(AvrCoreProgram program, AvrCpu cpu, string symbol) =>
         BinaryPrimitives.ReadUInt16LittleEndian(cpu.Data.AsSpan(program.Address(symbol)));
 
-    private static int Read32(AvrProgram program, AvrCpu cpu, string symbol) =>
+    private static int Read32(AvrCoreProgram program, AvrCpu cpu, string symbol) =>
         BinaryPrimitives.ReadInt32LittleEndian(cpu.Data.AsSpan(program.Address(symbol)));
 }

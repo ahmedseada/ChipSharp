@@ -3,6 +3,7 @@ using ChipSharp.Abstractions;
 using ChipSharp.Build;
 using ChipSharp.Runtime.ArmV6M;
 using ChipSharp.Runtime.Avr;
+using ChipSharp.Toolchain.Clang;
 
 namespace ChipSharp.Tests.Avr;
 
@@ -12,7 +13,7 @@ public sealed class AvrRuntimeTests
     [Fact]
     public void A_build_finds_the_avr_runtime_by_its_name()
     {
-        var build = new BuildContext(new BuildOptions(), AvrProgram.Target, "Program",
+        var build = new BuildContext(new BuildOptions(), AvrCoreProgram.Target, "Program",
             Path.Combine(Path.GetTempPath(), "chipsharp-tests", Guid.NewGuid().ToString("N")));
 
         Assert.IsType<AvrRuntime>(DefaultComponents.CreateRegistry(build).Get<IArchRuntime>("avr"));
@@ -23,14 +24,14 @@ public sealed class AvrRuntimeTests
     {
         var runtime = new AvrRuntime();
 
-        var files = runtime.Startup(AvrProgram.Target).Files;
+        var files = runtime.Startup(AvrCoreProgram.Target).Files;
 
         var softFloat = CompilerRt.Sources().Select(file => file.FileName).ToList();
         Assert.Equal(
             ["avr_startup.S", "avr_runtime.c", "avr_multiply.S", "avr_divide.S", "avr_memory.S", .. softFloat, "avr_failures.c"],
             files.Select(file => file.FileName));
-        Assert.Equal([AvrRuntime.VectorsFileName], runtime.InterruptEntry(AvrProgram.Target).Files.Select(file => file.FileName));
-        Assert.Empty(runtime.Atomics(AvrProgram.Target).Files);
+        Assert.Equal([AvrRuntime.VectorsFileName], runtime.InterruptEntry(AvrCoreProgram.Target).Files.Select(file => file.FileName));
+        Assert.Empty(runtime.Atomics(AvrCoreProgram.Target).Files);
 
         // the very compiler-rt files the armv6m runtime has; ChipSharp's own files include nothing
         Assert.Equal(CompilerRt.Sources().Select(file => file.Content), files.Where(file => softFloat.Contains(file.FileName))
@@ -47,9 +48,18 @@ public sealed class AvrRuntimeTests
     }
 
     [Fact]
+    public void The_Uno_builds_with_a_64_bit_double_and_says_how_many_vectors_its_chip_has()
+    {
+        var uno = AvrTestProgram.Uno;
+
+        Assert.Contains("-mdouble=64", ChipSettings.Read(uno).ClangFlags);
+        Assert.Equal(26, AvrRuntime.VectorCount(uno));
+    }
+
+    [Fact]
     public void The_vector_table_has_an_entry_for_reset_and_a_weak_handler_for_every_interrupt_of_the_chip()
     {
-        var vectors = Assert.Single(new AvrRuntime().InterruptEntry(AvrProgram.Target).Files).Content;
+        var vectors = Assert.Single(new AvrRuntime().InterruptEntry(AvrCoreProgram.Target).Files).Content;
 
         Assert.Contains("    .section .vectors, \"ax\", @progbits\n", vectors);
         Assert.Contains("chipsharp_vectors:\n    VECTOR chipsharp_reset\n    VECTOR chipsharp_isr_irq1\n", vectors);

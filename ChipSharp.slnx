@@ -14,6 +14,7 @@
     <Project Path="src/ChipSharp.Components/ChipSharp.Components.csproj" />
     <Project Path="src/ChipSharp.Frontend/ChipSharp.Frontend.csproj" />
     <Project Path="src/ChipSharp.Hardware/ChipSharp.Hardware.csproj" />
+    <Project Path="src/ChipSharp.Image.Hex/ChipSharp.Image.Hex.csproj" />
     <Project Path="src/ChipSharp.Image.Uf2/ChipSharp.Image.Uf2.csproj" />
     <Project Path="src/ChipSharp.Ir/ChipSharp.Ir.csproj" />
     <Project Path="src/ChipSharp.Library/ChipSharp.Library.csproj" />
