@@ -118,6 +118,9 @@ public sealed class TirBuilder(TirBlock block)
     /// <summary>The address of element 0 of the array object <paramref name="array"/>, whose elements are <paramref name="elementType"/>.</summary>
     public TirArrayData ArrayData(TirValue array, TirType elementType) => Block.Append(new TirArrayData(array, elementType));
 
+    /// <summary>The array object (a ref) whose element 0 is at <paramref name="data"/> (a ptr), as <see cref="ArrayData"/> gave it.</summary>
+    public TirArrayObject ArrayObject(TirValue data) => Block.Append(new TirArrayObject(data));
+
     /// <summary>The header of the object <paramref name="reference"/>: the address of its type descriptor.</summary>
     public TirTypeOf TypeOf(TirValue reference) => Block.Append(new TirTypeOf(reference));
 

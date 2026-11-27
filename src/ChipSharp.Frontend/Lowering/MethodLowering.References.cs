@@ -211,6 +211,7 @@ internal sealed partial class MethodLowering
     /// </summary>
     private void PassReferenceTargets(IEnumerable<IlBlock> successors)
     {
+        PassArrayTypes(successors); // see MethodLowering.HeapArrays.cs
         for (var depth = 0; depth < _stack.Count; depth++)
         {
             if (_stack[depth].Type != TirType.Ptr)
@@ -238,9 +239,16 @@ internal sealed partial class MethodLowering
             return null;
         }
 
+        CheckArrayConversion(value, ilType); // see MethodLowering.HeapArrays.cs
+
         if (type == TirType.Ref)
         {
             return ObjectFromStack(value, destination);
+        }
+
+        if (type == StackArrays.ArrayType && value.Type == TirType.Ptr)
+        {
+            return _ir.Zero(type); // null in place of an array (a ptr where IL has one is null): the view of zeros
         }
 
         if (value.Type != type)

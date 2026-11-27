@@ -113,6 +113,7 @@ internal sealed partial class MethodLowering
     {
         { IsObject: true } => Materialize(value),
         { IsNull: true } => _ir.Zero(TirType.Ref),
+        _ when value.Type == StackArrays.ArrayType => ArrayObject(value), // see MethodLowering.HeapArrays.cs
         _ => throw Error($"{destination} takes an object, but the evaluation stack has {StackName(value.Type)}" +
             UnsafeHint(value.Type)),
     };

@@ -17,7 +17,8 @@ namespace ChipSharp.Frontend;
 /// element (<c>ref a[i]</c>) obeys it too: it may be kept in a ref local and passed as a <c>ref</c> argument, but not
 /// returned from the method that made the array, also not through a method that returns the <c>ref</c> it was given.
 /// An array made again in a loop reuses its memory, so the one made there before (or a reference to one of its
-/// elements) must no longer be in use.
+/// elements) must no longer be in use. On a target with a heap, an array that does not keep to the rule is on the heap
+/// instead (see <see cref="HeapArrays"/>); on one without, it is rejected.
 /// </para>
 /// <para>
 /// The representation: an array value (on IL's evaluation stack, in a local, in a parameter) is a
@@ -59,12 +60,14 @@ public static class StackArrays
 
     /// <summary>
     /// The TIR type of a parameter or local of type <paramref name="type"/>: <see cref="ArrayType"/> for an array of an
-    /// element type arrays support. <paramref name="assembly"/> is the program's, which defines its structs and enums.
+    /// element type arrays support, references too (<see cref="HeapArrays.TryMapElementType"/>: an array of arrays or of
+    /// objects, which only a target with a heap has). <paramref name="assembly"/> is the program's, which defines its
+    /// structs and enums.
     /// </summary>
     public static bool TryMapType(IlType type, IlAssembly assembly, [NotNullWhen(true)] out TirType? tirType)
     {
         ArgumentNullException.ThrowIfNull(type);
-        tirType = type is IlArrayType array && TryMapElementType(array.ElementType, assembly, out _) ? ArrayType : null;
+        tirType = type is IlArrayType array && HeapArrays.TryMapElementType(array.ElementType, assembly, out _) ? ArrayType : null;
         return tirType is not null;
     }
 
@@ -159,8 +162,9 @@ public static class StackArrays
     }
 
     /// <summary>
-    /// True for <c>Array.Empty&lt;T&gt;()</c> of an element type arrays support, which C# calls for <c>[]</c> and for
-    /// a <c>params</c> array given no arguments; <paramref name="elementType"/> is T.
+    /// True for <c>Array.Empty&lt;T&gt;()</c> of an element type arrays support (references too, see
+    /// <see cref="HeapArrays.TryMapElementType"/>), which C# calls for <c>[]</c> and for a <c>params</c> array given no
+    /// arguments; <paramref name="elementType"/> is T.
     /// </summary>
     public static bool IsEmptyArray(IlMethodReference method, IlAssembly assembly, [NotNullWhen(true)] out IlType? elementType)
     {
@@ -169,7 +173,7 @@ public static class StackArrays
         {
             HasThis: false, Name: "Empty", ParameterTypes.Count: 0, GenericArguments: [var element],
             DeclaringType: IlNamedType { Namespace: "System", Name: "Array", IsDefinedInThisAssembly: false },
-        } && TryMapElementType(element, assembly, out _)
+        } && HeapArrays.TryMapElementType(element, assembly, out _)
             ? element
             : null;
         return elementType is not null;

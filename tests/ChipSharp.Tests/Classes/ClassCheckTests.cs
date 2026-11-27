@@ -317,12 +317,12 @@ public sealed class ClassCheckTests : IDisposable
             }
             """);
 
-        // an array in an object's field is an array that leaves the method that made it (arrays on the heap)
-        Assert.Equal("Program.Main() at IL_0001 (newobj): the library type System.Random is not available yet.", problems[0]);
-        Assert.StartsWith("Program.Main() at IL_0006 (newobj): an array that leaves the method that creates it (returned, " +
-            "or stored in a field or in another array) in the field Holder.Numbers arrives with M3 (the heap).", problems[1]);
-        Assert.Equal("Program.Main() at IL_000e (callvirt): the library method System.Random.Next(int) is not available yet.",
-            problems[2]);
+        // an array in an object's field compiles: the field holds the array object (see HeapArrays)
+        Assert.Equal(
+        [
+            "Program.Main() at IL_0001 (newobj): the library type System.Random is not available yet.",
+            "Program.Main() at IL_000e (callvirt): the library method System.Random.Next(int) is not available yet.",
+        ], problems);
     }
 
     [Fact]

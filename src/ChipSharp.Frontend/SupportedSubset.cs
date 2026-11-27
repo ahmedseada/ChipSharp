@@ -15,9 +15,10 @@ namespace ChipSharp.Frontend;
 /// </summary>
 public static class SupportedSubset
 {
-    /// <summary>The IL instructions compiled today. Checked arithmetic (<c>*.ovf</c>), objects, arrays (but those of
-    /// <see cref="StackArrays"/>), pointers, exceptions and ckfinite are not in it; newobj and the field instructions
-    /// are there for structs only, ldstr and ldnull for fixed text.</summary>
+    /// <summary>The IL instructions compiled today. Checked arithmetic (<c>*.ovf</c>), objects, pointers, exceptions
+    /// and ckfinite are not in it; the array instructions are there for the arrays of <see cref="StackArrays"/>,
+    /// <see cref="StaticArrays"/> and <see cref="HeapArrays"/>, newobj and the field instructions for structs only,
+    /// ldstr and ldnull for fixed text.</summary>
     public static FrozenSet<IlOpCode> OpCodes { get; } = new[]
     {
         IlOpCode.Nop,
@@ -64,8 +65,11 @@ public static class SupportedSubset
         IlOpCode.Stelem_R4, IlOpCode.Stelem_R8, IlOpCode.Stelem,
         IlOpCode.Conv_Ovf_I, IlOpCode.Conv_Ovf_I_Un, IlOpCode.Ldtoken,
 
-        // fixed text (FixedText): a string literal, and null, which text and objects can be (the whole-program pass
-        // rejects a null in place of an array; the other types it could be are rejected as types)
+        // arrays of references on the heap (see HeapArrays): arrays of arrays and of objects
+        IlOpCode.Ldelem_Ref, IlOpCode.Stelem_Ref,
+
+        // fixed text (FixedText): a string literal, and null, which text, objects and arrays on the heap can be (see
+        // HeapArrays; the other types it could be are rejected as types)
         IlOpCode.Ldstr, IlOpCode.Ldnull,
 
         // classes (ClassRules): callvirt of a method that is not virtual, which checks its object for null; newobj and

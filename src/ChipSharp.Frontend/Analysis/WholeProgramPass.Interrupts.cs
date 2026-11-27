@@ -67,12 +67,13 @@ public static partial class WholeProgramPass
     /// <summary>
     /// Adds a problem for every place in <paramref name="methods"/> (the program, with <paramref name="entryPoint"/>
     /// first) that breaks a rule of the <paramref name="handlers"/>: a call that starts an event no method is marked to
-    /// handle, a wait or a new object in what a handler runs, and every use of a static field that a handler and the
-    /// rest of the program share (one of them writing it) when it is not volatile. The type initializers run before
-    /// Main, before any interrupt can come, so what they alone do does not count.
+    /// handle, a wait or a new object (or an array on the heap, <paramref name="heapArrays"/>) in what a handler runs,
+    /// and every use of a static field that a handler and the rest of the program share (one of them writing it) when it
+    /// is not volatile. The type initializers run before Main, before any interrupt can come, so what they alone do
+    /// does not count.
     /// </summary>
     private static void CheckHandlers(IlMethod entryPoint, IReadOnlyList<IlMethod> methods,
-        IReadOnlyList<InterruptHandler> handlers, List<Problem> problems)
+        IReadOnlyList<InterruptHandler> handlers, List<Problem> problems, IReadOnlySet<IlInstruction> heapArrays)
     {
         var program = methods.ToHashSet();
         var main = Reach([entryPoint], program);
@@ -131,8 +132,9 @@ public static partial class WholeProgramPass
                     }
                 }
 
-                // the runtime stops a program that makes an object in a handler: this finds it before it runs
-                if (inHandlers.Contains(method) && ClassRules.Allocates(instruction))
+                // the runtime stops a program that makes an object (an array on the heap too) in a handler: this finds
+                // it before it runs
+                if (inHandlers.Contains(method) && (ClassRules.Allocates(instruction) || heapArrays.Contains(instruction)))
                 {
                     problems.Add(Problem.At(method, instruction, Unsupported.AllocationInHandler));
                 }

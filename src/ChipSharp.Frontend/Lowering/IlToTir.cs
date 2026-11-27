@@ -62,6 +62,7 @@ public static class IlToTir
         var functions = new ProgramFunctions(module)
         {
             StaticArrays = program.StaticArrays,
+            HeapArrays = program.HeapArrays,
             UnalignedAccess = program.UnalignedAccess,
         };
 

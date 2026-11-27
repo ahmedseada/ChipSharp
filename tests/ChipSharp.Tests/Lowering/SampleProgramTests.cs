@@ -57,6 +57,9 @@ public sealed class SampleProgramTests : IDisposable
     public Task Generics() => PrintsWhatDotnetPrints();
 
     [HostFact]
+    public Task HeapArrays() => PrintsWhatDotnetPrints();
+
+    [HostFact]
     public Task IfElse() => PrintsWhatDotnetPrints();
 
     [HostFact]

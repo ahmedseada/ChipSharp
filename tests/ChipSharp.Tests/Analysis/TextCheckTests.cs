@@ -103,8 +103,8 @@ public sealed class TextCheckTests
     [Fact]
     public void Text_kept_where_only_the_heap_can_keep_it_says_so()
     {
-        // in a struct's field, in an array, behind a reference; and an array that is null, which an array on the stack
-        // never is: stored, passed, or measured where ways join
+        // in a struct's field, in an array, behind a reference; an array that is null (stored, passed, or measured where
+        // ways join) is fine: arrays may be null on a target with a heap (see HeapArrayCheckTests)
         var problems = Problems("""
             using System;
 
@@ -141,13 +141,8 @@ public sealed class TextCheckTests
             $"Program.Main(), local variable V_3 (Person): text strings in the field Person.Name arrive with M3 (the heap). {Strings}",
             $"Program.Main() at IL_0002 (initobj): text strings in the field Person.Name arrive with M3 (the heap). {Strings}",
             $"Program.Main() at IL_0009 (ldfld): text strings in the field Person.Name arrive with M3 (the heap). {Strings}",
-            "Program.Main() at IL_0014 (newarr): arrays of strings, objects or arrays arrive with M3 (the heap). "
-                + "For now, use arrays of numbers, bools, structs or enums.",
-            "Program.Main() at IL_0020 (stelem.ref): arrays of strings, objects or arrays arrive with M3 (the heap). "
-                + "For now, use arrays of numbers, bools, structs or enums.",
-            $"Program.Main() at IL_0036 (stloc.1): {NullArrays}",
-            $"Program.Main() at IL_003f (call): {NullArrays}",
-            $"Program.Main() at IL_0056 (ldlen): {NullArrays}",
+            "Program.Main() at IL_0014 (newarr): arrays of strings arrive with M3 (the heap). For now, keep each string "
+                + "in a variable or a static field of its own, or pick it with a switch.",
             "Program.Clear(ref string), parameter 'text' (ref string): references to text (ref string, out string) "
                 + "arrive with M3 (the heap). For now, return the text instead.",
             "Program.Clear(ref string) at IL_0006 (stind.ref): references to objects (ref, out and in of a class, object "

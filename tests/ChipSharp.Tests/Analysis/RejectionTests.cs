@@ -8,6 +8,10 @@ namespace ChipSharp.Tests.Analysis;
 /// </summary>
 public sealed class RejectionTests
 {
+    /// <summary>The hint of an array of strings, which waits for strings on the heap.</summary>
+    private const string Strings =
+        "For now, keep each string in a variable or a static field of its own, or pick it with a switch.";
+
     private const string Source = """
         using System;
 
@@ -28,8 +32,8 @@ public sealed class RejectionTests
         var error = Error(Source);
 
         Assert.Equal($"""
-            Test.dll uses 3 C# features that ChipSharp does not compile yet (5 places):
-              arrays of strings, objects or arrays arrive with M3 (the heap): 3 places in Program.Main() (IL_0001, IL_000d and IL_000f). For now, use arrays of numbers, bools, structs or enums.
+            Test.dll uses 3 C# features that ChipSharp does not compile yet (3 places):
+              arrays of strings arrive with M3 (the heap): 1 place in Program.Main() (IL_0001). {Strings}
               {Building}: 1 place in Program.Main() (IL_0010). {BuildingHint}
               the library method System.Math.Abs(int) is not available yet: 1 place in Program.Main() (IL_0015).
             {LibraryCalls}
@@ -44,15 +48,13 @@ public sealed class RejectionTests
         var analysis = Check(Source);
 
         Assert.Equal($"""
-            Test.dll uses 3 C# features that ChipSharp does not compile yet (5 places):
-              Program.Main() at IL_0001 (newarr): arrays of strings, objects or arrays arrive with M3 (the heap). For now, use arrays of numbers, bools, structs or enums.
-              Program.Main() at IL_000d (stelem.ref): arrays of strings, objects or arrays arrive with M3 (the heap). For now, use arrays of numbers, bools, structs or enums.
-              Program.Main() at IL_000f (ldelem.ref): arrays of strings, objects or arrays arrive with M3 (the heap). For now, use arrays of numbers, bools, structs or enums.
+            Test.dll uses 3 C# features that ChipSharp does not compile yet (3 places):
+              Program.Main() at IL_0001 (newarr): arrays of strings arrive with M3 (the heap). {Strings}
               Program.Main() at IL_0010 (callvirt): {Building}. {BuildingHint}
               Program.Main() at IL_0015 (call): the library method System.Math.Abs(int) is not available yet.
             {LibraryCallDetails}
             """.ReplaceLineEndings("\n"), analysis.Details);
-        Assert.Equal([1, 13, 15, 16, 21], analysis.Problems.Select(problem => problem.Offset));
+        Assert.Equal([1, 16, 21], analysis.Problems.Select(problem => problem.Offset));
         Assert.All(analysis.Problems, problem => Assert.Equal("Program.Main", problem.Method.DisplayName));
     }
 
@@ -116,20 +118,16 @@ public sealed class RejectionTests
 
                 static void Main()
                 {
-                    Console.WriteLine(Make(2).Length);
+                    Console.WriteLine(Make(2).Length + new string[1].Length);
                 }
             }
             """);
 
-        // arrays live on the stack of the method that makes them: of a fixed size, and never returned
-        Assert.Equal(
-        [
-            "Program.Make(int), return type (int[]): an array that leaves the method that creates it (returned, or "
-                + "stored in a field or in another array) arrives with M3 (the heap). For now, keep each array in the "
-                + "method that creates it; the methods it calls can take it as a parameter.",
-            "Program.Make(int) at IL_0001 (newarr): an array whose size is known only when the program runs arrives "
-                + "with M3 (the heap). For now, give the array a fixed size: a constant, such as new int[16].",
-        ], problems);
+        // an array returned, or of a size known only when the program runs, is on the heap (see HeapArrays): fine for a
+        // target with one, and on a target without one it needs a heap (see HeapArrayCheckTests); an array of strings
+        // waits for strings on the heap
+        Assert.Equal([$"Program.Main() at IL_0009 (newarr): arrays of strings arrive with M3 (the heap). {Strings}"],
+            problems);
     }
 
     [Fact]
@@ -519,8 +517,7 @@ public sealed class RejectionTests
 
         Assert.Equal(
         [
-            "Program.Count(string[]), parameter 'names' (string[]): arrays of strings, objects or arrays arrive with M3 (the heap). "
-                + "For now, use arrays of numbers, bools, structs or enums.",
+            $"Program.Count(string[]), parameter 'names' (string[]): arrays of strings arrive with M3 (the heap). {Strings}",
         ], problems);
     }
 

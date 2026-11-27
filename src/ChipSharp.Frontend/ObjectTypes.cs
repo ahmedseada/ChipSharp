@@ -131,14 +131,21 @@ internal static class ObjectTypes
 
     /// <summary>
     /// The TIR type of an instance field of a class, when its type has one: a value (<see cref="ValueTypes"/>), an
-    /// object (<see cref="TryMapType"/>) or fixed text. The one test of which fields an object may have.
+    /// object (<see cref="TryMapType"/>), fixed text, or an array, which the field holds as its array object, a ref (see
+    /// <see cref="HeapArrays"/>). The one test of which fields an object may have.
     /// </summary>
     public static bool TryFieldType(IlField field, [NotNullWhen(true)] out TirType? type)
     {
         ArgumentNullException.ThrowIfNull(field);
         var assembly = field.DeclaringType.Assembly;
-        return (ValueTypes.TryMapType(field.Type, assembly, out type) && type != TirType.Void)
-            || TryMapType(field.Type, assembly, out type) || FixedText.TryMapType(field.Type, out type);
+        if ((ValueTypes.TryMapType(field.Type, assembly, out type) && type != TirType.Void)
+            || TryMapType(field.Type, assembly, out type) || FixedText.TryMapType(field.Type, out type))
+        {
+            return true;
+        }
+
+        type = StackArrays.TryMapType(ValueTypes.WithoutModifiers(field.Type), assembly, out _) ? TirType.Ref : null;
+        return type is not null;
     }
 
     private static TirStructType CreateObjectType(IlTypeDefinition type)

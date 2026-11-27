@@ -229,10 +229,17 @@ static const chipsharp_type *type_of(char *object)
     return (const chipsharp_type *)(*(uintptr_t *)object & ~MARK);
 }
 
-// The block size of an object of type with length elements (an array) or none: a multiple of 8, at least MIN_BLOCK.
+// The block size of an object of type with length elements (an array) or none: a multiple of 8, at least MIN_BLOCK. An
+// array without elements takes 8 bytes more, so that the address of its elements, which is what the program keeps of an
+// array (see HeapArrays in src/ChipSharp.Frontend), is inside it as for any other array.
 static uintptr_t object_size(const chipsharp_type *type, unsigned int length)
 {
     uintptr_t size = type->size + (uintptr_t)type->element_size * length;
+    if ((type->flags & TYPE_ARRAY) && size == type->size)
+    {
+        size += GRANULE;
+    }
+
     size = (size + GRANULE - 1) & SIZE_BITS;
     return size < MIN_BLOCK ? MIN_BLOCK : size;
 }

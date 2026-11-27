@@ -74,6 +74,26 @@ public sealed partial class IlToTirOpCodeTests
                 il.Emit(OpCodes.Ret);
             }, [[]]);
 
+            // an array of arrays (see HeapArrays): an array of the argument's length stored in an element and read back
+            Add("Jagged", typeof(int), [typeof(int)], il =>
+            {
+                il.DeclareLocal(typeof(int[][]));
+                il.Emit(OpCodes.Ldc_I4_2);
+                il.Emit(OpCodes.Newarr, typeof(int[]));
+                il.Emit(OpCodes.Stloc_0);
+                il.Emit(OpCodes.Ldloc_0);
+                il.Emit(OpCodes.Ldc_I4_1);
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Newarr, typeof(int));
+                il.Emit(OpCodes.Stelem_Ref);
+                il.Emit(OpCodes.Ldloc_0);
+                il.Emit(OpCodes.Ldc_I4_1);
+                il.Emit(OpCodes.Ldelem_Ref);
+                il.Emit(OpCodes.Ldlen);
+                il.Emit(OpCodes.Conv_I4);
+                il.Emit(OpCodes.Ret);
+            }, [3], [0]);
+
             // an element through its address (ldelema), as C# writes a[i] += x
             ThroughAddress("AddressOfByte", typeof(sbyte), typeof(int), OpCodes.Stind_I1, OpCodes.Ldind_I1, [300]);
             ThroughAddress("AddressOfUByte", typeof(byte), typeof(int), OpCodes.Stind_I1, OpCodes.Ldind_U1, [300]);
