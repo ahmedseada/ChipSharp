@@ -27,18 +27,13 @@ internal sealed partial record Unsupported
         "Array.Copy and CopyTo between arrays of different element types (int[] into long[])", true,
         "For now, copy the elements one by one: for (int i = 0; i < length; i++) destination[i] = source[i];");
 
-    public static readonly Unsupported ArrayClone = Heap("array.Clone(), which makes a new array", false,
+    public static readonly Unsupported ArrayClone = Heap("copying an array into a new one with array.Clone()", false,
         "For now, make the copy with new and Array.Copy into an array of your own.");
 
-    public static readonly Unsupported ArrayResize = Heap("Array.Resize, which makes a new array", false,
+    public static readonly Unsupported ArrayResize = Heap("resizing an array with Array.Resize", false,
         "For now, make an array as big as it will ever need to be, and keep its length in a variable.");
 
-    public static readonly Unsupported CloneWithoutCast = new(
-        "array.Clone() that is not cast back to its own array type at once", false,
-        "For now, cast it where it is made: int[] copy = (int[])values.Clone();");
-
     public static readonly Unsupported ResizeReference = new(
-        "Array.Resize of something other than a local, a parameter or a field, or with a new size worked out with " +
-        "?:, && or ||", false,
-        "For now, pass the variable itself (Array.Resize(ref buffer, size)), with the new size in a local.");
+        "Array.Resize of something other than a local, a parameter or a field (an element, a ref parameter)", false,
+        "For now, pass the variable itself: Array.Resize(ref buffer, size).");
 }

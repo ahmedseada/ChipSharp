@@ -11,7 +11,7 @@ namespace ChipSharp.Ir;
 public sealed class TirGlobal
 {
     internal TirGlobal(TirModule module, int index, string name, TirType type, TirConst? initialValue, byte[]? data,
-        TirConst[]? elements = null, bool isConstant = false)
+        TirConst[]? elements = null, bool isConstant = false, TirTypeDescriptor? header = null)
     {
         Module = module;
         Index = index;
@@ -21,6 +21,7 @@ public sealed class TirGlobal
         Data = data is null ? null : Array.AsReadOnly(data);
         Elements = elements is null ? null : Array.AsReadOnly(elements);
         IsConstant = data is not null || isConstant;
+        Header = header;
     }
 
     public TirModule Module { get; }
@@ -57,6 +58,12 @@ public sealed class TirGlobal
     /// flash on a chip.
     /// </summary>
     public bool IsConstant { get; }
+
+    /// <summary>
+    /// For a constant object outside the heap (<see cref="TirModule.AddObject"/>): the type descriptor whose address its
+    /// first field holds, as an object's header does; the rest of it is zero. Null for any other global.
+    /// </summary>
+    public TirTypeDescriptor? Header { get; }
 
     public override string ToString() => $"@{Name}";
 }

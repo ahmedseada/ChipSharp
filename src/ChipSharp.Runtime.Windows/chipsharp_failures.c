@@ -220,7 +220,6 @@ __declspec(noreturn) void ChipSharp_Runtime_InvalidCast(const char *from, const 
     fail(end, (DWORD)(sizeof end - 1));
 }
 
-#define NORETURN __declspec(noreturn)
 typedef DWORD COUNT;
 
 // ---- The methods of System.Array ----------------------------------------------------------------------------------
@@ -236,50 +235,50 @@ typedef DWORD COUNT;
         fail(message, (COUNT)(sizeof message - 1));                                                                    \
     } while (0)
 
-NORETURN void ChipSharp_Runtime_ArrayNull(void) { FAIL_WITH(ARGUMENT_NULL("array")); }
-NORETURN void ChipSharp_Runtime_SourceArrayNull(void) { FAIL_WITH(ARGUMENT_NULL("sourceArray")); }
-NORETURN void ChipSharp_Runtime_DestinationArrayNull(void) { FAIL_WITH(ARGUMENT_NULL("destinationArray")); }
+__declspec(noreturn) void ChipSharp_Runtime_ArrayNull(void) { FAIL_WITH(ARGUMENT_NULL("array")); }
+__declspec(noreturn) void ChipSharp_Runtime_SourceArrayNull(void) { FAIL_WITH(ARGUMENT_NULL("sourceArray")); }
+__declspec(noreturn) void ChipSharp_Runtime_DestinationArrayNull(void) { FAIL_WITH(ARGUMENT_NULL("destinationArray")); }
 
-NORETURN void ChipSharp_Runtime_SourceArrayTooShort(void)
+__declspec(noreturn) void ChipSharp_Runtime_SourceArrayTooShort(void)
 {
     FAIL_WITH(UNHANDLED "System.ArgumentException: Source array was not long enough. Check the source index, length, "
         "and the array's lower bounds. (Parameter 'sourceArray')\r\n");
 }
 
-NORETURN void ChipSharp_Runtime_DestinationArrayTooShort(void)
+__declspec(noreturn) void ChipSharp_Runtime_DestinationArrayTooShort(void)
 {
     FAIL_WITH(UNHANDLED "System.ArgumentException: Destination array was not long enough. Check the destination index, "
         "length, and the array's lower bounds. (Parameter 'destinationArray')\r\n");
 }
 
-NORETURN void ChipSharp_Runtime_HugeSourceIndex(void) { FAIL_WITH(HUGE_ARRAY("sourceIndex")); }
-NORETURN void ChipSharp_Runtime_HugeDestinationIndex(void) { FAIL_WITH(HUGE_ARRAY("destinationIndex")); }
-NORETURN void ChipSharp_Runtime_HugeLength(void) { FAIL_WITH(HUGE_ARRAY("length")); }
-NORETURN void ChipSharp_Runtime_HugeIndex(void) { FAIL_WITH(HUGE_ARRAY("index")); }
+__declspec(noreturn) void ChipSharp_Runtime_HugeSourceIndex(void) { FAIL_WITH(HUGE_ARRAY("sourceIndex")); }
+__declspec(noreturn) void ChipSharp_Runtime_HugeDestinationIndex(void) { FAIL_WITH(HUGE_ARRAY("destinationIndex")); }
+__declspec(noreturn) void ChipSharp_Runtime_HugeLength(void) { FAIL_WITH(HUGE_ARRAY("length")); }
+__declspec(noreturn) void ChipSharp_Runtime_HugeIndex(void) { FAIL_WITH(HUGE_ARRAY("index")); }
 
-NORETURN void ChipSharp_Runtime_StartIndexPastEnd(void)
+__declspec(noreturn) void ChipSharp_Runtime_StartIndexPastEnd(void)
 {
     FAIL_WITH(OUT_OF_RANGE("Index was out of range. Must be non-negative and less than or equal to the size of the "
         "collection. (Parameter 'startIndex')"));
 }
 
-NORETURN void ChipSharp_Runtime_StartIndexAtEnd(void)
+__declspec(noreturn) void ChipSharp_Runtime_StartIndexAtEnd(void)
 {
     FAIL_WITH(OUT_OF_RANGE("Index was out of range. Must be non-negative and less than the size of the collection. "
         "(Parameter 'startIndex')"));
 }
 
-NORETURN void ChipSharp_Runtime_CountOutOfRange(void)
+__declspec(noreturn) void ChipSharp_Runtime_CountOutOfRange(void)
 {
     FAIL_WITH(OUT_OF_RANGE("Count must be positive and count must refer to a location within the string/array/"
         "collection. (Parameter 'count')"));
 }
 
-NORETURN void ChipSharp_Runtime_NegativeIndex(void) { FAIL_WITH(NEGATIVE("index")); }
-NORETURN void ChipSharp_Runtime_NegativeLength(void) { FAIL_WITH(NEGATIVE("length")); }
-NORETURN void ChipSharp_Runtime_NegativeNewSize(void) { FAIL_WITH(NEGATIVE("newSize")); }
+__declspec(noreturn) void ChipSharp_Runtime_NegativeIndex(void) { FAIL_WITH(NEGATIVE("index")); }
+__declspec(noreturn) void ChipSharp_Runtime_NegativeLength(void) { FAIL_WITH(NEGATIVE("length")); }
+__declspec(noreturn) void ChipSharp_Runtime_NegativeNewSize(void) { FAIL_WITH(NEGATIVE("newSize")); }
 
-NORETURN void ChipSharp_Runtime_InvalidOffsetLength(void)
+__declspec(noreturn) void ChipSharp_Runtime_InvalidOffsetLength(void)
 {
     FAIL_WITH(UNHANDLED "System.ArgumentException: Offset and length were out of bounds for the array or count is "
         "greater than the number of elements from index to the end of the source collection.\r\n");
@@ -326,7 +325,7 @@ static void append_int(char *message, COUNT *count, int value)
 
 // The message of ArgumentOutOfRangeException.ThrowIfNegative and ThrowIfLessThan: "<name> ('<value>') <rule> (Parameter
 // '<name>')", then on a line of its own "Actual value was <value>."
-NORETURN static void fail_below_zero(const char *name, const char *rule, int value)
+__declspec(noreturn) static void fail_below_zero(const char *name, const char *rule, int value)
 {
     char message[MESSAGE_SIZE];
     COUNT count = 0;
@@ -344,17 +343,17 @@ NORETURN static void fail_below_zero(const char *name, const char *rule, int val
     fail(message, count);
 }
 
-NORETURN void ChipSharp_Runtime_LengthBelowZero(int value)
+__declspec(noreturn) void ChipSharp_Runtime_LengthBelowZero(int value)
 {
     fail_below_zero("length", "must be a non-negative value.", value);
 }
 
-NORETURN void ChipSharp_Runtime_SourceIndexBelowZero(int value)
+__declspec(noreturn) void ChipSharp_Runtime_SourceIndexBelowZero(int value)
 {
     fail_below_zero("sourceIndex", "must be greater than or equal to '0'.", value);
 }
 
-NORETURN void ChipSharp_Runtime_DestinationIndexBelowZero(int value)
+__declspec(noreturn) void ChipSharp_Runtime_DestinationIndexBelowZero(int value)
 {
     fail_below_zero("destinationIndex", "must be greater than or equal to '0'.", value);
 }

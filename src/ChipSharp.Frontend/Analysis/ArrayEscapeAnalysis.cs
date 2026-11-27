@@ -571,10 +571,6 @@ internal static partial class ArrayEscapeAnalysis
                     stack.Add(Value.Other);
                     break;
 
-                case IlOpCode.Castclass when ArrayMethods.IsCloneCast(_body, index):
-                    CloneCast(instruction, Pop, stack);
-                    break;
-
                 case IlOpCode.Call when instruction.Operand is IlMethodOperand { Method: var callee }
                     && StackArrays.IsEmptyArray(callee, _method.Assembly, out var emptyOf):
                     Verdict(instruction, null);

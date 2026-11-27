@@ -27,7 +27,7 @@ internal sealed partial class MethodLowering
         }
 
         PushArray(array.Length == 0
-            ? EmptyArray()
+            ? EmptyArray(StaticFields.Type(field))
             : _ir.Call(_program.Arrays.Make, _ir.AddressOf(_program.StaticArray(array)),
                 _ir.Const(TirType.I32, array.Length)), StaticFields.Type(field));
         return true;

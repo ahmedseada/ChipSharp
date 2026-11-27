@@ -159,7 +159,7 @@ internal sealed partial class MethodLowering
 
         CheckPrintedText();
         if (_body.Instructions.FirstOrDefault(i => !SupportedSubset.OpCodes.Contains(i.OpCode) && !IsPrintedText(i)
-            && !IsSpanInstruction(i) && !IsArrayMethodInstruction(i)) is { } unsupported)
+            && !IsSpanInstruction(i)) is { } unsupported)
         {
             throw Unsupported(unsupported);
         }

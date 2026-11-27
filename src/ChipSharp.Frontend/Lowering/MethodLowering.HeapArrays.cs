@@ -87,8 +87,9 @@ internal sealed partial class MethodLowering
         return _ir.Call(_program.Arrays.Make, _ir.AddressOf(slot), _ir.Const(TirType.I32, 0));
     }
 
-    /// <summary>The empty array of <c>Array.Empty&lt;T&gt;()</c> and of an empty static array.</summary>
-    private TirValue EmptyArray() => _ir.Call(HeapFunctions.Empty);
+    /// <summary>The empty array of <c>Array.Empty&lt;T&gt;()</c> and of an empty static array, of IL type <paramref name="arrayType"/>.</summary>
+    private TirValue EmptyArray(IlType arrayType) =>
+        _ir.Call(HeapFunctions.Empty(_program.HeapArrayDescriptor(arrayType, _method.Assembly)));
 
     /// <summary>
     /// ldelem.ref and stelem.ref, of an array of references: the element is a ref; one that is an array is loaded as its
@@ -141,8 +142,11 @@ internal sealed partial class MethodLowering
             return;
         }
 
-        var right = ElementsOf(PopValue());
-        var left = ElementsOf(PopValue());
+        // an array and an object (ReferenceEquals(o, array)): the array's object and the other, as references
+        var (second, first) = (PopValue(), PopValue());
+        var (left, right) = first.IsObject || second.IsObject
+            ? (ObjectFromStack(first, _instruction.Name), ObjectFromStack(second, _instruction.Name))
+            : (ElementsOf(first), ElementsOf(second));
         var op = _instruction.OpCode switch
         {
             IlOpCode.Ceq or IlOpCode.Beq or IlOpCode.Beq_S => TirCompareOp.Eq,

@@ -32,13 +32,13 @@ internal static class ArrayMethodPrograms
 
         static class Show
         {
-            public static void Line(int[] a) { foreach (var x in a) { Console.Write(x); Console.Write(' '); } Console.WriteLine(a.Length); }
-            public static void Line(byte[] a) { foreach (var x in a) { Console.Write(x); Console.Write(' '); } Console.WriteLine(a.Length); }
-            public static void Line(long[] a) { foreach (var x in a) { Console.Write(x); Console.Write(' '); } Console.WriteLine(a.Length); }
-            public static void Line(float[] a) { foreach (var x in a) { Console.Write(x); Console.Write(' '); } Console.WriteLine(a.Length); }
-            public static void Line(double[] a) { foreach (var x in a) { Console.Write(x); Console.Write(' '); } Console.WriteLine(a.Length); }
-            public static void Line(bool[] a) { foreach (var x in a) { Console.Write(x); Console.Write(' '); } Console.WriteLine(a.Length); }
-            public static void Line(Color[] a) { foreach (var x in a) { Console.Write((int)x); Console.Write(' '); } Console.WriteLine(a.Length); }
+            public static void Line(int[] a) { foreach (var x in a) { Console.Write(x); Console.Write(" "); } Console.WriteLine(a.Length); }
+            public static void Line(byte[] a) { foreach (var x in a) { Console.Write(x); Console.Write(" "); } Console.WriteLine(a.Length); }
+            public static void Line(long[] a) { foreach (var x in a) { Console.Write(x); Console.Write(" "); } Console.WriteLine(a.Length); }
+            public static void Line(float[] a) { foreach (var x in a) { Console.Write(x); Console.Write(" "); } Console.WriteLine(a.Length); }
+            public static void Line(double[] a) { foreach (var x in a) { Console.Write(x); Console.Write(" "); } Console.WriteLine(a.Length); }
+            public static void Line(bool[] a) { foreach (var x in a) { Console.Write(x); Console.Write(" "); } Console.WriteLine(a.Length); }
+            public static void Line(Color[] a) { foreach (var x in a) { Console.Write((int)x); Console.Write(" "); } Console.WriteLine(a.Length); }
             public static void Line(Point[] a)
             {
                 foreach (var p in a) { Console.Write($"{p.X},{p.Y},{p.On} "); }
@@ -47,7 +47,7 @@ internal static class ArrayMethodPrograms
 
             public static void Line(Node[] a)
             {
-                foreach (var n in a) { Console.Write(n == null ? -1 : n.Value); Console.Write(' '); }
+                foreach (var n in a) { Console.Write(n == null ? -1 : n.Value); Console.Write(" "); }
                 Console.WriteLine(a.Length);
             }
         }
@@ -283,14 +283,14 @@ internal static class ArrayMethodPrograms
 
             static int Next() { state = state * 1103515245 + 12345; return (int)(state >> 8); }
 
-            static void Line(double[] a) { foreach (var x in a) { Console.Write(x); Console.Write(' '); } Console.WriteLine(); }
-            static void Line(float[] a) { foreach (var x in a) { Console.Write(x); Console.Write(' '); } Console.WriteLine(); }
-            static void Line(int[] a) { foreach (var x in a) { Console.Write(x); Console.Write(' '); } Console.WriteLine(); }
+            static void Line(double[] a) { foreach (var x in a) { Console.Write(x); Console.Write(" "); } Console.WriteLine(); }
+            static void Line(float[] a) { foreach (var x in a) { Console.Write(x); Console.Write(" "); } Console.WriteLine(); }
+            static void Line(int[] a) { foreach (var x in a) { Console.Write(x); Console.Write(" "); } Console.WriteLine(); }
 
             // the sign of each zero after sorting, and the order: .NET's introsort decides where -0.0 and 0.0 go
             static void Zeros(double[] a)
             {
-                foreach (var x in a) { if (x == 0) Console.Write(1 / x < 0 ? '-' : '+'); }
+                foreach (var x in a) { if (x == 0) Console.Write(1 / x < 0 ? "-" : "+"); }
                 Console.WriteLine();
                 for (int i = 1; i < a.Length; i++) { if (a[i - 1] > a[i]) Console.WriteLine("out of order"); }
             }
@@ -363,11 +363,11 @@ internal static class ArrayMethodPrograms
                 Console.WriteLine();
                 nint[] natives = { 5, -5, 0 };
                 Array.Sort(natives);
-                foreach (var n in natives) Console.Write(n + " ");
+                foreach (var n in natives) Console.Write((long)n + " ");
                 Console.WriteLine();
                 nuint[] unatives = { 5, 0, 3 };
                 Array.Sort(unatives);
-                foreach (var n in unatives) Console.Write(n + " ");
+                foreach (var n in unatives) Console.Write((ulong)n + " ");
                 Console.WriteLine();
                 bool[] flags = { true, false, true, false, false };
                 Array.Sort(flags);
@@ -483,6 +483,62 @@ internal static class ArrayMethodPrograms
         """;
 
     /// <summary>
+    /// The empty arrays: one object of each array type (as .NET has one for each T), which a type test reads like any
+    /// array's, also <c>[]</c> and an empty static array; and clones, whose type is their array's.
+    /// </summary>
+    public const string EmptyArrays = """
+        using System;
+
+        class Node { }
+
+        class Program
+        {
+            static readonly int[] None = [];
+            static readonly long[] NoLongs = { };
+
+            static void Main()
+            {
+                object ints = Array.Empty<int>();
+                Console.WriteLine(ints is int[]);
+                Console.WriteLine(ints is long[]);
+                Console.WriteLine(ints is object);
+                Console.WriteLine(ints is Node[]);
+                object again = Array.Empty<int>();
+                object unsigned = Array.Empty<uint>();
+                Console.WriteLine(ReferenceEquals(ints, again));
+                Console.WriteLine(ReferenceEquals(ints, unsigned));
+                object nodes = Array.Empty<Node>();
+                Console.WriteLine(nodes is Node[]);
+                Console.WriteLine(nodes is int[]);
+                Console.WriteLine(nodes is object[]);
+                int[] none = [];
+                object empty = none;
+                Console.WriteLine(empty is int[]);
+                Console.WriteLine(ReferenceEquals(empty, ints));
+                object longs = Array.Empty<long>();
+                Console.WriteLine(longs is long[]);
+                Console.WriteLine(longs is int[]);
+                Console.WriteLine(((int[])ints).Length + ((long[])longs).Length + None.Length + NoLongs.Length);
+                Console.WriteLine(Array.IndexOf(None, 1) + Array.LastIndexOf(NoLongs, 2L));
+                Console.WriteLine(Array.IndexOf(Array.Empty<Node>(), null));
+
+                // a clone is an array of its own type
+                int[] values = { 3, 4 };
+                object clone = values.Clone();
+                Console.WriteLine(clone is int[]);
+                Console.WriteLine(clone is long[]);
+                object original = values;
+                Console.WriteLine(ReferenceEquals(clone, original));
+                Console.WriteLine(((int[])clone)[1]);
+                Node[][] grid = { new Node[2], Array.Empty<Node>() };
+                var copy = (Node[][])grid.Clone();
+                Console.WriteLine(copy[1].Length + copy[0].Length);
+                Console.WriteLine(copy[1] == grid[1]);
+            }
+        }
+        """;
+
+    /// <summary>
     /// The methods that make no array, on arrays that need no heap: on the stack and in static fields (a fixed array in
     /// RAM that they write, a constant table that they only read, which stays in flash).
     /// </summary>
@@ -494,7 +550,7 @@ internal static class ArrayMethodPrograms
             static readonly byte[] Table = { 9, 3, 7, 1, 5 };
             static readonly int[] Readings = new int[6];
 
-            static void Line(int[] a) { foreach (var x in a) { Console.Write(x); Console.Write(' '); } Console.WriteLine(); }
+            static void Line(int[] a) { foreach (var x in a) { Console.Write(x); Console.Write(" "); } Console.WriteLine(); }
 
             static void Main()
             {

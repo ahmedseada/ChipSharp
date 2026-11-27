@@ -16,9 +16,10 @@ namespace ChipSharp.Frontend.Lowering;
 /// </code>
 /// <list type="bullet">
 /// <item><c>Array.Resize(ref x, n)</c> takes the address of a local or a parameter (which hold a view) or of a field
-/// (which holds the array object): it reads what is there, and writes back the array Resize gives.</item>
-/// <item><c>(int[])values.Clone()</c>: the clone is an array of the type it is cast to, so the castclass right after it
-/// is nothing more.</item>
+/// (which holds the array object), which the reference knows (see MethodLowering.References.cs), also through a stack
+/// slot: it reads what is there, and writes back the array Resize gives.</item>
+/// <item><c>array.Clone()</c> gives the new array as an object, which <c>(int[])values.Clone()</c> casts back (see
+/// MethodLowering.Virtual.cs).</item>
 /// </list>
 /// </summary>
 internal sealed partial class MethodLowering
@@ -27,24 +28,14 @@ internal sealed partial class MethodLowering
 
     /// <summary>
     /// True for the instructions <see cref="LowerArrayMethod"/> translates: a call or callvirt of a method of System.Array
-    /// ChipSharp compiles itself, and the castclass of a clone.
+    /// ChipSharp compiles itself.
     /// </summary>
-    private bool IsArrayMethodInstruction(IlInstruction instruction) => instruction.OpCode switch
-    {
-        IlOpCode.Call or IlOpCode.Callvirt => instruction.Operand is IlMethodOperand { Method: var method }
-            && ArrayMethods.Call(method) is { Operation: not ArrayOperation.WithDelegate },
-        IlOpCode.Castclass => ArrayMethods.IsCloneCast(_body, _body.IndexOf(instruction.Offset)),
-        _ => false,
-    };
+    private static bool IsArrayMethodInstruction(IlInstruction instruction) =>
+        instruction is { OpCode: IlOpCode.Call or IlOpCode.Callvirt, Operand: IlMethodOperand { Method: var method } }
+        && ArrayMethods.Call(method) is { Operation: not ArrayOperation.WithDelegate };
 
     private void LowerArrayMethod(IlInstruction instruction)
     {
-        if (instruction.OpCode == IlOpCode.Castclass)
-        {
-            CloneCast(instruction);
-            return;
-        }
-
         var call = ArrayMethods.Call(((IlMethodOperand)instruction.Operand!).Method)!;
         var f = ArrayMethodFunctions;
         var zero = _ir.Const(TirType.I32, 0);
@@ -158,32 +149,19 @@ internal sealed partial class MethodLowering
 
             case ArrayOperation.Clone:
             {
+                // an object, as Clone returns one: its type is the array's, which a cast reads from its header
                 var (array, type) = PopArrayArgument();
-                var cast = ArrayMethods.CastType(_body.Instructions[_body.IndexOf(_instruction.Offset) + 1]);
-                var arrayType = (type == IlType.Void ? null : type) ?? cast
-                    ?? throw Error("array.Clone() of an array whose type is not known here");
+                var arrayType = type is null || type == IlType.Void
+                    ? throw Error("array.Clone() of an array whose type is not known here: keep it in a variable of its " +
+                        "type first")
+                    : type;
                 var clone = _ir.Call(f.Clone(_program.HeapArrayDescriptor(arrayType, _method.Assembly)), array);
-                PushArray(clone, arrayType);
+                Push(_ir.Call(HeapFunctions.ToObject, clone));
                 break;
             }
 
             default:
                 throw Error($"{call.Operation} of System.Array is not supported here");
-        }
-    }
-
-    /// <summary>
-    /// The castclass right after <c>array.Clone()</c>: the clone is an array of its own type already, which must be the
-    /// type it is cast to (array covariance is not supported).
-    /// </summary>
-    private void CloneCast(IlInstruction castclass)
-    {
-        var cast = ArrayMethods.CastType(castclass);
-        if (_stack.Count == 0 || _stack[^1].Type != StackArrays.ArrayType || cast is null
-            || ArrayTypeOf(_stack[^1]) is not { } type
-            || !ValueTypes.WithoutModifiers(type).Equals(ValueTypes.WithoutModifiers(cast)))
-        {
-            throw Error($"castclass of array.Clone() casts it to another type than its own; {Analysis.Unsupported.CloneWithoutCast.Heading}");
         }
     }
 
@@ -194,33 +172,22 @@ internal sealed partial class MethodLowering
     private void Resize(IlType element)
     {
         var newSize = PopInt(null);
-        var reference = PopValue();
-        var arrayType = new IlArrayType(element);
-        var descriptor = _program.HeapArrayDescriptor(arrayType, _method.Assembly);
+        var (address, target) = PopReference();
+        var descriptor = _program.HeapArrayDescriptor(new IlArrayType(element), _method.Assembly);
         var resize = ArrayMethodFunctions.Resize(descriptor);
-        switch (reference.Value)
+        if (target == StackArrays.ArrayType)
         {
-            case TirSlotAddress { Slot.Type: var type } address when type == StackArrays.ArrayType:
-                _ir.Store(address, _ir.Call(resize, _ir.Load(StackArrays.ArrayType, address), newSize));
-                break;
-
-            case TirGlobalAddress { Global.Type: var type } address when type == TirType.Ref:
-                ResizeObject(address);
-                break;
-
-            case TirFieldAddress { Field.Type: var type } address when type == TirType.Ref:
-                ResizeObject(address);
-                break;
-
-            default:
-                throw Error($"Array.Resize takes the address of a local, a parameter or a field here; " +
-                    $"{Analysis.Unsupported.ResizeReference.Heading}");
+            _ir.Store(address, _ir.Call(resize, _ir.Load(StackArrays.ArrayType, address), newSize));
         }
-
-        void ResizeObject(TirValue address)
+        else if (target == TirType.Ref)
         {
             var view = _ir.Call(HeapFunctions.FromObject(descriptor), _ir.Load(TirType.Ref, address));
             _ir.Store(address, _ir.Call(HeapFunctions.ToObject, _ir.Call(resize, view, newSize)));
+        }
+        else
+        {
+            throw Error("Array.Resize takes the address of a local, a parameter or a field (and the ways to it agree " +
+                $"on which); {Analysis.Unsupported.ResizeReference.Heading}");
         }
     }
 

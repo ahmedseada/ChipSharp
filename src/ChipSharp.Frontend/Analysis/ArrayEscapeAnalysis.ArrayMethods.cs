@@ -58,21 +58,9 @@ internal static partial class ArrayEscapeAnalysis
                 ArrayOperation.CopyRange or ArrayOperation.CopyRangeLong => SameElements(stack, 5, 3),
                 ArrayOperation.Resize => IsResizedVariable(call) ? HeapUse(Unsupported.ArrayResize)
                     : Unsupported.ResizeReference,
-                ArrayOperation.Clone => ClonedAndCast(call, stack) ? HeapUse(Unsupported.ArrayClone)
-                    : Unsupported.CloneWithoutCast,
+                ArrayOperation.Clone => HeapUse(Unsupported.ArrayClone),
                 _ => null,
             });
-        }
-
-        /// <summary>
-        /// The castclass right after <c>array.Clone()</c>, to the array's own type: the clone as an array of that type,
-        /// one that was kept (it is on the heap).
-        /// </summary>
-        private void CloneCast(IlInstruction castclass, Func<Value> pop, List<Value> stack)
-        {
-            Verdict(castclass, null);
-            pop();
-            stack.Add(Loaded(ArrayMethods.CastType(castclass)));
         }
 
         /// <summary>
@@ -101,11 +89,14 @@ internal static partial class ArrayEscapeAnalysis
                 : null;
         }
 
-        /// <summary>True when the reference Array.Resize takes is the address of a local, a parameter or a field, made for it.</summary>
+        /// <summary>
+        /// True when the reference Array.Resize takes is the address of a local, a parameter or a field, made for it (on
+        /// every way to the call, which the translation checks).
+        /// </summary>
         private bool IsResizedVariable(IlInstruction call)
         {
             var index = _body.IndexOf(call.Offset);
-            for (var i = index - 1; i >= 0 && _blockOf[i] == _blockOf[index]; i--)
+            for (var i = index - 1; i >= 0; i--)
             {
                 if (ArrayMethods.IsResizeReference(_method, i) && ArrayMethods.ConsumerOf(_method, i)?.Consumer == call)
                 {
@@ -114,20 +105,6 @@ internal static partial class ArrayEscapeAnalysis
             }
 
             return false;
-        }
-
-        /// <summary>True when <c>array.Clone()</c> is cast at once to the array's own type (when that is known here).</summary>
-        private bool ClonedAndCast(IlInstruction call, List<Value> stack)
-        {
-            var index = _body.IndexOf(call.Offset);
-            if (index + 1 >= _body.Instructions.Count || !ArrayMethods.IsCloneCast(_body, index + 1)
-                || ArrayMethods.CastType(_body.Instructions[index + 1]) is not { } cast)
-            {
-                return false;
-            }
-
-            return stack.Count == 0 || stack[^1].Type is not { } type || HeapArrays.ElementType(type) is not { } element
-                || ValueTypes.WithoutModifiers(element).Equals(ValueTypes.WithoutModifiers(cast.ElementType));
         }
     }
 }

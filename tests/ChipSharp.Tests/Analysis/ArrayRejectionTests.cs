@@ -295,22 +295,16 @@ public sealed class ArrayRejectionTests : IDisposable
     [Fact]
     public void An_array_passed_to_a_library_method_is_rejected_as_that_library_call()
     {
+        // the methods of System.Array ChipSharp compiles are Analysis/ArrayMethodCheckTests'
         var problems = Problems(Program("""
             int[] values = new int[3];
-            Array.Clear(values);
-            int[] copy = new int[3];
-            Array.Copy(values, copy, 3);
-            int[] clone = (int[])values.Clone();
-            Console.WriteLine(values[0] + copy[0] + clone[0]);
+            Console.WriteLine(values.GetLength(0));
             """));
 
         const string Loop = "is not available yet. For now, write it as a loop over the elements: for (int i = 0; "
             + "i < array.Length; i++) { ... }.";
-        Assert.Contains($"Program.Main() at IL_0007 (call): the library method System.Array.Clear(System.Array) {Loop}",
+        Assert.Contains($"Program.Main() at IL_0007 (callvirt): the library method System.Array.GetLength(int) {Loop}",
             problems);
-        Assert.Contains("Program.Main() at IL_0016 (call): the library method System.Array.Copy(System.Array, "
-            + $"System.Array, int) {Loop}", problems);
-        Assert.Contains($"Program.Main() at IL_001c (callvirt): the library method System.Array.Clone() {Loop}", problems);
     }
 
     [Fact]

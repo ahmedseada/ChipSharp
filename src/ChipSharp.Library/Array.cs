@@ -68,8 +68,11 @@ internal static class Array
         return BinarySearch(array, index, length, value, checkRange: true);
     }
 
-    /// <summary>True for null: the only array whose span has no elements' address (an empty array's has one).</summary>
-    private static bool IsNull<T>(T[] array) => array.AsSpan() == Span<T>.Empty;
+    /// <summary>
+    /// True for null: the only array whose span has no elements' address (an empty array's has one). A read-only view,
+    /// so that a constant table BinarySearch reads stays one.
+    /// </summary>
+    private static bool IsNull<T>(T[] array) => new ReadOnlySpan<T>(array) == ReadOnlySpan<T>.Empty;
 
     /// <summary>.NET's checks of an index and a length: neither negative, and together within the array.</summary>
     private static void CheckRange(int arrayLength, int index, int length)

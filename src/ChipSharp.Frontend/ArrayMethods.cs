@@ -174,33 +174,63 @@ internal static class ArrayMethods
     }
 
     /// <summary>
-    /// The instruction that takes the value the instruction at <paramref name="index"/> of <paramref name="body"/> pushes,
-    /// in the same block, and which of its arguments the value is (from 0, the first pushed); null when it goes on to
-    /// another block first. <c>Array.Resize(ref buffer, n)</c> takes the reference that way.
+    /// The instruction that takes the value the instruction at <paramref name="index"/> of <paramref name="method"/>
+    /// pushes, and which of its arguments the value is (from 0, the first pushed): the same one on every way the IL goes
+    /// from there (<c>Array.Resize(ref buffer, c ? 4 : 8)</c> branches before the call takes the reference); null when
+    /// the ways do not agree, or one leaves the method first.
     /// </summary>
     public static (IlInstruction Consumer, int Argument)? ConsumerOf(IlMethod method, int index)
     {
         ArgumentNullException.ThrowIfNull(method);
-        var instructions = method.Body!.Instructions;
-        var depth = 1; // the value is this deep from the top of the stack
-        for (var i = index + 1; i < instructions.Count; i++)
+        var body = method.Body!;
+        (IlInstruction Consumer, int Argument)? found = null;
+        var seen = new HashSet<(int Index, int Depth)>();
+        var work = new Stack<(int Index, int Depth)>([(index + 1, 1)]); // the value is that deep from the top
+        while (work.Count > 0)
         {
-            var instruction = instructions[i];
-            if (IlBlock.Targets(instruction).Any() || IsJumpTarget(method.Body, instruction.Offset))
+            var (i, depth) = work.Pop();
+            if (i >= body.Instructions.Count || !seen.Add((i, depth)))
+            {
+                if (i >= body.Instructions.Count)
+                {
+                    return null;
+                }
+
+                continue;
+            }
+
+            var instruction = body.Instructions[i];
+            var (pops, pushes) = IlStackEffects.Of(instruction, method);
+            if (pops >= depth)
+            {
+                if (found is { } other && (other.Consumer != instruction || other.Argument != pops - depth))
+                {
+                    return null;
+                }
+
+                found = (instruction, pops - depth);
+                continue;
+            }
+
+            var next = depth + pushes - pops;
+            if (instruction.OpCode is IlOpCode.Ret or IlOpCode.Throw or IlOpCode.Rethrow or IlOpCode.Jmp
+                or IlOpCode.Leave or IlOpCode.Leave_S or IlOpCode.Endfinally or IlOpCode.Endfilter)
             {
                 return null;
             }
 
-            var (pops, pushes) = IlStackEffects.Of(instruction, method);
-            if (pops >= depth)
+            foreach (var target in IlBlock.Targets(instruction))
             {
-                return (instruction, pops - depth);
+                work.Push((body.IndexOf(target), next));
             }
 
-            depth += pushes - pops;
+            if (instruction.OpCode is not (IlOpCode.Br or IlOpCode.Br_S))
+            {
+                work.Push((i + 1, next));
+            }
         }
 
-        return null;
+        return found;
     }
 
     /// <summary>
@@ -212,22 +242,6 @@ internal static class ArrayMethods
             or IlOpCode.Ldarga_S or IlOpCode.Ldsflda or IlOpCode.Ldflda
         && ConsumerOf(method, index) is ({ OpCode: IlOpCode.Call, Operand: IlMethodOperand { Method: var callee } }, 0)
         && Call(callee)?.Operation == ArrayOperation.Resize;
-
-    /// <summary>True for the castclass at <paramref name="index"/> when it comes right after <c>array.Clone()</c>.</summary>
-    public static bool IsCloneCast(IlMethodBody body, int index)
-    {
-        ArgumentNullException.ThrowIfNull(body);
-        return index > 0 && body.Instructions[index].OpCode == IlOpCode.Castclass
-            && !IsJumpTarget(body, body.Instructions[index].Offset)
-            && body.Instructions[index - 1] is { OpCode: IlOpCode.Callvirt, Operand: IlMethodOperand { Method: var callee } }
-            && Call(callee)?.Operation == ArrayOperation.Clone;
-    }
-
-    /// <summary>The array type a castclass casts to, e.g. <c>int32[]</c>; null for any other type.</summary>
-    public static IlArrayType? CastType(IlInstruction castclass) =>
-        castclass.Operand is IlTypeOperand { Type: var type } && ValueTypes.WithoutModifiers(type) is IlArrayType array
-            ? new IlArrayType(StackArrays.Primitive(array.ElementType))
-            : null;
 
     /// <summary>
     /// True when <paramref name="operation"/> writes the elements of the array it takes at <paramref name="argument"/>
@@ -250,9 +264,6 @@ internal static class ArrayMethods
     public static bool TakesAnyArray(ArrayOperation operation) => operation is ArrayOperation.Copy
         or ArrayOperation.CopyLong or ArrayOperation.CopyRange or ArrayOperation.CopyRangeLong or ArrayOperation.CopyTo
         or ArrayOperation.CopyToLong or ArrayOperation.Clear or ArrayOperation.ClearRange or ArrayOperation.Clone;
-
-    private static bool IsJumpTarget(IlMethodBody body, int offset) =>
-        body.Instructions.Any(instruction => IlBlock.Targets(instruction).Contains(offset));
 
     /// <summary>A parameter type as a letter: A for Array, [ for T[], &amp; for ref T[], T, i for int, l for long.</summary>
     private static string Shape(IlType type) => ValueTypes.WithoutModifiers(type) switch
@@ -333,7 +344,7 @@ internal enum ArrayOperation
     /// <summary><c>Array.Resize&lt;T&gt;(ref T[], int)</c>: a new array on the heap.</summary>
     Resize,
 
-    /// <summary><c>array.Clone()</c>: a new array on the heap, cast back to its type at once.</summary>
+    /// <summary><c>array.Clone()</c>: a new array on the heap, as an object (<c>(int[])values.Clone()</c> casts it back).</summary>
     Clone,
 
     /// <summary>A method of Array that takes a delegate (<c>Exists</c>, <c>Find</c>, ...): not yet.</summary>
