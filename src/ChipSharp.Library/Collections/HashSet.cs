@@ -354,7 +354,7 @@ public class HashSet<T> : ISet<T>, IReadOnlySet<T>, IReadOnlyCollection<T>
             return IsSubsetOfHashSetWithSameComparer(otherAsSet);
         }
 
-        var (uniqueCount, unfoundCount) = CheckUniqueAndUnfoundElements(other, returnIfUnfound: false);
+        var uniqueCount = CheckUniqueAndUnfoundElements(other, returnIfUnfound: false, out var unfoundCount);
         return uniqueCount == Count && unfoundCount >= 0;
     }
 
@@ -388,7 +388,7 @@ public class HashSet<T> : ISet<T>, IReadOnlySet<T>, IReadOnlyCollection<T>
             }
         }
 
-        var (uniqueCount, unfoundCount) = CheckUniqueAndUnfoundElements(other, returnIfUnfound: false);
+        var uniqueCount = CheckUniqueAndUnfoundElements(other, returnIfUnfound: false, out var unfoundCount);
         return uniqueCount == Count && unfoundCount > 0;
     }
 
@@ -458,7 +458,7 @@ public class HashSet<T> : ISet<T>, IReadOnlySet<T>, IReadOnlyCollection<T>
             }
         }
 
-        var (uniqueCount, unfoundCount) = CheckUniqueAndUnfoundElements(other, returnIfUnfound: true);
+        var uniqueCount = CheckUniqueAndUnfoundElements(other, returnIfUnfound: true, out var unfoundCount);
         return uniqueCount < Count && unfoundCount == 0;
     }
 
@@ -517,7 +517,7 @@ public class HashSet<T> : ISet<T>, IReadOnlySet<T>, IReadOnlyCollection<T>
             return false;
         }
 
-        var (uniqueCount, unfoundCount) = CheckUniqueAndUnfoundElements(other, returnIfUnfound: true);
+        var uniqueCount = CheckUniqueAndUnfoundElements(other, returnIfUnfound: true, out var unfoundCount);
         return uniqueCount == Count && unfoundCount == 0;
     }
 
@@ -845,10 +845,9 @@ public class HashSet<T> : ISet<T>, IReadOnlySet<T>, IReadOnlyCollection<T>
     }
 
     /// <summary>
-    /// How many items of the set <paramref name="other"/> has (each once), and how many of its items the set does not
-    /// have (-1: stopped at the first, with <paramref name="returnIfUnfound"/>).
+    /// How many items of the set <paramref name="other"/> has (each once); and how many of its items the set does not
     /// </summary>
-    private (int UniqueCount, int UnfoundCount) CheckUniqueAndUnfoundElements(IEnumerable<T> other, bool returnIfUnfound)
+    private int CheckUniqueAndUnfoundElements(IEnumerable<T> other, bool returnIfUnfound, out int unfoundCount)
     {
         if (_count == 0)
         {
@@ -859,12 +858,13 @@ public class HashSet<T> : ISet<T>, IReadOnlySet<T>, IReadOnlyCollection<T>
                 break;
             }
 
-            return (0, numElementsInOther);
+            unfoundCount = numElementsInOther;
+            return 0;
         }
 
         var originalCount = _count;
         var marked = new bool[originalCount];
-        var unfoundCount = 0;
+        unfoundCount = 0;
         var uniqueFoundCount = 0;
         foreach (var item in other)
         {
@@ -887,7 +887,7 @@ public class HashSet<T> : ISet<T>, IReadOnlySet<T>, IReadOnlyCollection<T>
             }
         }
 
-        return (uniqueFoundCount, unfoundCount);
+        return uniqueFoundCount;
     }
 
     /// <summary>True when the two sets compare their items the same way: with the same comparer.</summary>

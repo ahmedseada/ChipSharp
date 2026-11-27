@@ -62,6 +62,13 @@ internal static class Lowered
                 }
 
                 methods.AddRange(dispatch.Follow(instructions, j, methods[i].Assembly).Where(method => !methods.Contains(method)));
+                methods.AddRange(dispatch.FollowArrays(methods[i], j).Where(method => !methods.Contains(method)));
+
+                // a throw calls the library's Thrown.Unhandled
+                if (Exceptions.Reached(instructions[j]) is { } thrower && !methods.Contains(thrower))
+                {
+                    methods.Add(thrower);
+                }
             }
         }
 

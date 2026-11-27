@@ -247,7 +247,7 @@ public sealed class GenericClassCheckTests(ITestOutputHelper output) : IDisposab
     [Fact]
     public void A_foreach_over_an_enumerator_that_is_disposed_compiles_as_its_try_finally_does()
     {
-        var problems = WholeProgram.Problems("""
+        var analysis = WholeProgram.Check("""
             using System.Collections;
             using System.Collections.Generic;
 
@@ -284,13 +284,13 @@ public sealed class GenericClassCheckTests(ITestOutputHelper output) : IDisposab
             """);
 
         // C#'s try/finally around the loop is plain branches (TryFinally)
-        Assert.Empty(problems);
+        Assert.True(analysis.IsSupported, analysis.Summary);
     }
 
     [Fact]
     public void An_array_used_as_an_interface_compiles()
     {
-        var problems = WholeProgram.Problems("""
+        var analysis = WholeProgram.Check("""
             using System.Collections.Generic;
 
             class Program
@@ -310,7 +310,7 @@ public sealed class GenericClassCheckTests(ITestOutputHelper output) : IDisposab
             """);
 
         // a parameter and a static field of an interface type given an array: its interfaces (ArrayInterfaces)
-        Assert.Empty(problems);
+        Assert.True(analysis.IsSupported, analysis.Summary);
     }
 
     [Fact]

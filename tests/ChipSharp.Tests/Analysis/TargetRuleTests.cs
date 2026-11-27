@@ -128,7 +128,7 @@ public sealed class TargetRuleTests : IDisposable
     [Fact]
     public void A_reference_to_text_needs_no_heap()
     {
-        var problems = Problems("""
+        var analysis = Check("""
             class Program
             {
                 static int result;
@@ -147,7 +147,7 @@ public sealed class TargetRuleTests : IDisposable
             """, Tiny);
 
         // an out string is the address of a variable that holds a string (ObjectReferences), on any target
-        Assert.Empty(problems);
+        Assert.True(analysis.IsSupported, analysis.Summary);
     }
 
     [Fact]

@@ -243,7 +243,7 @@ public sealed class ClassCheckTests : IDisposable
     [Fact]
     public void Casts_type_tests_interfaces_of_classes_and_references_to_objects_compile()
     {
-        var problems = WholeProgram.Problems("""
+        var analysis = WholeProgram.Check("""
             interface IShape
             {
                 int Area();
@@ -273,7 +273,7 @@ public sealed class ClassCheckTests : IDisposable
             }
             """);
 
-        Assert.Empty(problems);
+        Assert.True(analysis.IsSupported, analysis.Summary);
     }
 
     [Fact]

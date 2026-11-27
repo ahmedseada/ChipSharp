@@ -36,10 +36,9 @@ public sealed partial class IlToTirOpCodeTests : IDisposable
         var module = Lowered.Lower(Lowered.Program(assembly, "Program.Main"));
 
         Assert.Empty(SupportedSubset.OpCodes.Except(used));
-        // (the library's methods a throw reaches, Exceptions.Thrown and the exception's, are functions too)
+        // (ChipSharp's own functions are there too: of arrays, and the library's methods and objects' a throw reaches)
         Assert.Equal(assembly.Methods.Count, module.Functions.Count(f => f.Kind == TirFunctionKind.Defined
-            && !f.Name.StartsWith("ChipSharp.Array.", StringComparison.Ordinal)
-            && !f.Name.StartsWith("ChipSharp.Library.", StringComparison.Ordinal)));
+            && !f.Name.StartsWith("ChipSharp.", StringComparison.Ordinal)));
         Assert.Empty(TirVerifier.FindErrors(module));
     }
 

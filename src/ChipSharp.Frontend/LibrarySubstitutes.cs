@@ -255,11 +255,16 @@ internal static class LibrarySubstitutes
     /// A type of the library's signatures as C# writes it, a substitute as the type it stands for, and a generic parameter
     /// by its name in <paramref name="method"/> (T).
     /// </summary>
-    private static string CSharpName(IlType type, IlMethod method) =>
-        type is IlNamedType { IsDefinedInThisAssembly: true } named && Assembly.FindType(named.FullName) is { } definition
-            && Substituted.TryGetValue(definition, out var library)
-            ? library
-            : CSharpNames.Type(type, method);
+    private static string CSharpName(IlType type, IlMethod method) => type switch
+    {
+        IlNamedType { IsDefinedInThisAssembly: true } named when SubstitutedName(named) is { } library => library,
+
+        // an instance of a generic substitute: Dictionary<TKey, TValue> for ChipSharp.Library.Collections.Dictionary`2
+        IlGenericInstanceType { Definition: IlNamedType { IsDefinedInThisAssembly: true } generic } instance
+            when SubstitutedName(generic) is { } library && library.IndexOf('`', StringComparison.Ordinal) is > 0 and var tick =>
+            $"{library[..tick]}<{string.Join(", ", instance.Arguments.Select(argument => CSharpName(argument, method)))}>",
+        _ => CSharpNames.Type(type, method),
+    };
 
     private static bool IsPublic(MethodAttributes attributes) =>
         (attributes & MethodAttributes.MemberAccessMask) == MethodAttributes.Public;

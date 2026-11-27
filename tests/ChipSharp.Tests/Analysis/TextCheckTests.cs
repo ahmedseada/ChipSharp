@@ -95,7 +95,7 @@ public sealed class TextCheckTests
         // a string is an object: in a struct's field and in an array it is a reference the collector follows; a reference
         // to a string is a reference to a variable that holds one (ObjectReferences); an array that is null is fine (see
         // HeapArrayCheckTests)
-        var problems = Problems("""
+        var analysis = Check("""
             using System;
 
             struct Person
@@ -126,7 +126,7 @@ public sealed class TextCheckTests
             }
             """);
 
-        Assert.Empty(problems);
+        Assert.True(analysis.IsSupported, analysis.Summary);
     }
 
     [Fact]

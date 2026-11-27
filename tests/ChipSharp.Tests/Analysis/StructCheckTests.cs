@@ -252,7 +252,7 @@ public sealed class StructCheckTests
     public void Objects_and_references_to_them_compile_next_to_structs()
     {
         // a class's field, constructor and methods compile, and so does a reference to a string (ObjectReferences)
-        var problems = Problems("""
+        var analysis = Check("""
             using System;
 
             class Holder
@@ -277,7 +277,7 @@ public sealed class StructCheckTests
             }
             """);
 
-        Assert.Empty(problems);
+        Assert.True(analysis.IsSupported, analysis.Summary);
     }
 
     [Fact]
