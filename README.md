@@ -185,7 +185,7 @@ gets no heap at all, even on the Pico. `chipsharp check` tells you for your prog
 | Type objects | `typeof(X)`, `typeof(T)`: `Name`, `FullName`, `Namespace`, `ToString()` as .NET 10 writes them, `==`, `IsValueType`, `IsArray`, `IsEnum`, `IsClass`, `IsInterface`, `IsPrimitive`, `IsGenericType` (constant objects in flash) |
 | Math | `Math` and `MathF`: trigonometry (`Sin`, `Cos`, `Tan`, `SinCos`, `Asin`, `Acos`, `Atan`, `Atan2`), hyperbolic functions and their inverses, `Exp`, `Log` (in any base), `Log2`, `Log10`, `Pow`, `Sqrt`, `Cbrt`; `Floor`, `Ceiling`, `Truncate`, `Round` (to digits, by every `MidpointRounding`), `Clamp`, `Sign`, `Abs`, `Min`, `Max`, `MinMagnitude`, `MaxMagnitude`, `CopySign`, `FusedMultiplyAdd`, `IEEERemainder`, `ScaleB`, `ILogB`, `BitIncrement`, `BitDecrement`, the reciprocal estimates, `E`, `PI`, `Tau`; for every whole-number type `Abs`, `Min`, `Max`, `Clamp`, `Sign`, `DivRem`, and `BigMul`; `double.Sin(x)` and the like, and generic math over float types (`T.Sqrt`, `T.Sin`, ...). The exact ones give .NET's bits; the transcendental ones the same bits on the PC and the Pico, and .NET's but for the last bit of a few results (see [differences](#where-a-program-behaves-differently)). A program links only the functions it calls (`Math.Sin`: 9 KB on the Pico) |
 | Library | `Console.Write` and `WriteLine`; `TimeSpan` (factories in any unit, parts, totals, arithmetic, comparisons); `System.Array`: `Copy`, `ConstrainedCopy`, `CopyTo`, `Clear`, `Fill`, `IndexOf`, `LastIndexOf`, `Reverse`, and `Sort` and `BinarySearch` of numbers, bools and structs that implement `IComparable<T>` |
-| Hardware | `ChipSharp.Hardware`: `Pin` (`Output`, `Input`, `Write`, `Read`, `Toggle`, `Watch`, `WatchRising`, `WatchFalling`, `Unwatch`), `Timing` (`Delay(TimeSpan)`, `DelayMilliseconds`, `DelayMicroseconds`, `EveryMilliseconds`, `EveryMicroseconds`, `AfterMilliseconds`, `AfterMicroseconds`, `Stop`), `Registers.Read` and `Write`, and `[Interrupt]` methods (see [Interrupts](#interrupts)); the serial ports and the console's input, the analog inputs, the PWM outputs and the I2C and SPI buses: `Uart` (and `Console.Read`), `Adc`, `Pwm`, `I2c` and `Spi`; and `ChipSharp.Components`, the parts connected to the chip: `Lcd` (see [Hardware](#hardware)) |
+| Hardware | `ChipSharp.Hardware`: `Pin` (`Output`, `Input`, `Write`, `Read`, `Toggle`, `Watch`, `WatchRising`, `WatchFalling`, `Unwatch`), `Timing` (`Delay(TimeSpan)`, `DelayMilliseconds`, `DelayMicroseconds`, `EveryMilliseconds`, `EveryMicroseconds`, `AfterMilliseconds`, `AfterMicroseconds`, `Stop`), `Registers.Read` and `Write`, and `[Interrupt]` methods (see [Interrupts](#interrupts)); the serial ports and the console's input, the analog inputs, the PWM outputs and the I2C and SPI buses: `Uart` (and `Console.Read`), `Adc`, `Pwm`, `I2c` and `Spi`; and `ChipSharp.Components`, the parts connected to the chip: `Lcd` and `SevenSegment` (see [Hardware](#hardware)) |
 | Failures | Where .NET throws (an index outside an array, a whole number divided by zero, `int.MinValue / -1`, a `TimeSpan` too long, a field of null, a cast that fails, ...), the program stops with the message .NET prints: on standard error with exit code 1 on the PC, over UART0 and then at a breakpoint on a chip |
 
 ### On a chip with a heap (the Pico and the PC)
@@ -363,9 +363,9 @@ The rules hold for everything a handler runs: the methods it calls, virtual call
 
 Two libraries, as .NET IoT has System.Device.Gpio and Iot.Device.Bindings: **`ChipSharp.Hardware`** is what the chip
 has (pins, timing, registers, interrupts, serial ports, analog inputs, PWM, the I2C and SPI buses), which the chip's
-runtime does; **`ChipSharp.Components`** is the parts you connect to it (a character LCD, below), drivers in plain C#
-over `ChipSharp.Hardware`, which ChipSharp compiles with the program like any class library it references (only what
-the program calls). A program references either or both.
+runtime does; **`ChipSharp.Components`** is the parts you connect to it (a character LCD, a 7-segment display, below),
+drivers in plain C# over `ChipSharp.Hardware`, which ChipSharp compiles with the program like any class library it
+references (only what the program calls). A program references either or both.
 
 `ChipSharp.Hardware` is what a program references to use the chip: `Pin`, `Timing`, `Registers` and `[Interrupt]`
 (above), and the serial ports, analog inputs, PWM outputs and buses below. Every method is static and takes numbers and
@@ -546,6 +546,40 @@ cannot call them. A real 1602 is a 5 V part: on VBUS its text has more contrast,
 to 5 V, more than the RP2040's pins stand (take them off, or use a 3.3 V display); `examples/pico-i2c-lcd1602` runs it
 on 3V3.
 
+### 7-segment display
+
+A 7-segment display with a pin for each segment (A to G, and the decimal point, DP, when it has a pin of its own),
+common cathode or common anode: `SevenSegment` in `ChipSharp.Components`, a struct, so a program has as many as it has
+displays, with no heap (`examples/pico-seven-segment`):
+
+```csharp
+var count = new SevenSegment(firstPin: 2);           // A to G on GPIO 2 to 8, common cathode: the pins outputs, blank
+var other = new SevenSegment(a: 10, b: 11, c: 12, d: 13, e: 14, f: 15, g: 16, dp: 17, commonAnode: true);
+count.Show(7);                                       // a digit, 0 to 9
+other.Show('F');                                     // '0' to '9', A b C d E F, '-', '_', ' '
+other.Point(true);                                   // the decimal point
+byte bits = SevenSegment.Pattern(7);                 // 0x07, A, B and C: e.g. for a 74HC595 over SPI
+```
+
+| Member | What it does |
+|---|---|
+| `new SevenSegment(firstPin, commonAnode = false)` | A display with A to G on `firstPin` to `firstPin + 6` and no DP: makes those pins outputs and the display blank |
+| `new SevenSegment(a, b, c, d, e, f, g, dp = -1, commonAnode = false)` | The same on any pins, with DP on `dp` (-1: none) |
+| `Show(digit)`, `Show(character)` | A digit, 0 to 9, or a char: `'0'` to `'9'`, `'A'` to `'F'` (as A b C d E F; `'a'` to `'f'` too), `'-'`, `'_'`, `' '`; on A to G, DP stays as it is |
+| `Write(segments)` | Lights the segments whose bits are set, bit 0 for A to bit 6 for G and bit 7 for DP (`0b0111111`, 0x3F, is a 0), the others off |
+| `Point(on)` | The decimal point on or off; nothing without a DP |
+| `Blank()` | Every segment off, DP too |
+| `SevenSegment.Pattern(digit)`, `Pattern(character)` | The bits alone: 0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F for 0 to 9, the byte a 74HC595 takes when its Q0 to Q7 drive A to DP |
+
+A digit outside 0 to 9, or a char it has no shape for, shows as `-`: as with the LCD's `?`, nothing stops the program.
+A common-anode display (its COM on 3V3) lights a segment whose pin is low, and the struct turns the levels round. A
+display made with `default` rather than `new` has no pins and drives nothing, nor does a pin number outside 0 to 254.
+The driver is plain C# over `Pin.Output` and `Pin.Write` (`src/ChipSharp.Components/SevenSegment.cs`), a struct of 9
+bytes; the shapes are a table of 16 bytes in flash. Nothing waits, so an interrupt handler can call it. It costs about
+150 bytes of flash with its table where a program only shows digits (the example), about 420 with every method, and
+nothing in a program that does not use it. A real display needs a resistor for each segment (220 ohm on 3.3 V);
+Wokwi's needs none.
+
 ### Buses in the simulator
 
 `tools/rp2040-sim/run.mjs` puts simulated devices on the buses (`tools/rp2040-sim/devices`), and prints what the buses
@@ -653,14 +687,16 @@ the Pico:
 | `pico-i2c-mpu6050` | Reads an MPU-6050 accelerometer and gyroscope over I2C (GPIO 4 and 5): its `WHO_AM_I`, then its acceleration, rotation and temperature twice a second, taken apart with `BinaryPrimitives`, over UART0. No heap | 8.8 KB, 40 bytes of RAM |
 | `pico-spi-shift-register` | Counts on a 7-segment digit through a 74HC595 shift register over SPI: three pins (GPIO 17, 18, 19) for eight segments. No heap | 6.0 KB, 24 bytes of RAM |
 | `pico-i2c-lcd1602` | A title and a count, once a second, on a 16x2 character LCD on an I2C backpack (I2C1, GPIO 26 and 27) with `ChipSharp.Components`' `Lcd`. No heap | 7.6 KB, 60 bytes of RAM |
+| `pico-seven-segment` | Counts from 0 to 9, once a second, on a 7-segment display on GPIO 2 to 8 with `ChipSharp.Components`' `SevenSegment`, and over UART0. No heap | 3.4 KB, 16 bytes of RAM |
 | `pico-uart-echo` | A command prompt on the console: `led on`, `led off` and `status` read with `Console.ReadLine` and a `switch` on the line, anything else answered with what was typed | 16.3 KB, 1.2 KB of RAM + heap |
 | `pico-adc-pwm` | A potentiometer on GPIO 26 sets the brightness of an LED on GPIO 15 through 1 kHz PWM, and each change of 0.1 V goes to the console. No heap | 10.5 KB, 128 bytes of RAM |
 | `pico-servo` | A servo on GPIO 22 sweeps from 0 to 180 degrees and back with 50 Hz pulses of 1 to 2 ms. No heap | 6.1 KB, 116 bytes of RAM |
 
-The traffic lights, the bus examples, the command prompt, the knob and the servo have a `diagram.json` for Wokwi
-with the whole circuit, wired directly (Wokwi needs no resistors): common-cathode displays, the button between
-GPIO 22 and 3V3, the potentiometer between 3V3 and GND, the servo on VBUS, the LCD in I2C mode on 3V3, UART0 on the
-serial monitor (where the prompt's commands are typed). With the button pressed at 2.5 s, both traffic lights print:
+The traffic lights, the bus examples, the 7-segment counter, the command prompt, the knob and the servo have a
+`diagram.json` for Wokwi with the whole circuit, wired directly (Wokwi needs no resistors): common-cathode displays,
+the button between GPIO 22 and 3V3, the potentiometer between 3V3 and GND, the servo on VBUS, the LCD in I2C mode on
+3V3, UART0 on the serial monitor (where the prompt's commands are typed). With the button pressed at 2.5 s, both
+traffic lights print:
 
 ```
 road : 1
@@ -710,7 +746,7 @@ the PC tests.
 | `src/ChipSharp.Runtime.*` | The runtimes, in C: `Shared` (console, text, floats, heap and collector), `Windows` (the PC), `ArmV6M` and `Rp2040` (start-up, UART0, timers, pins, interrupts) |
 | `src/ChipSharp.Image.Uf2`, `src/ChipSharp.Build`, `src/ChipSharp.Cli` | The `.uf2` image, the build pipeline, and the `chipsharp` command |
 | `src/ChipSharp.Hardware` | The library programs reference for pins, timing, registers, interrupts, serial ports, analog inputs, PWM and the I2C and SPI buses |
-| `src/ChipSharp.Components` | Drivers of parts connected to a chip (the character LCD), plain C# that ChipSharp compiles with the program |
+| `src/ChipSharp.Components` | Drivers of parts connected to a chip (the character LCD, the 7-segment display), plain C# that ChipSharp compiles with the program |
 | `src/ChipSharp.Abstractions`, `src/ChipSharp.Targets` | The contracts (code generator, toolchain, image, runtime) and the target files' reader |
 | `targets/arch`, `chip`, `board` | Target files |
 | `samples`, `examples`, `tests`, `tools/rp2040-sim` | See above |

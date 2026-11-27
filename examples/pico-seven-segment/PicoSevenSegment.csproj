@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Counts from 0 to 9 on a 7-segment display, one pin per segment, with no heap: build with ChipSharp for the
+       target "pico" (see Program.cs) -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Timing: the Pico's hardware from C#; SevenSegment: a part connected to it, which ChipSharp compiles with the
+         program -->
+    <ProjectReference Include="..\..\src\ChipSharp.Hardware\ChipSharp.Hardware.csproj" />
+    <ProjectReference Include="..\..\src\ChipSharp.Components\ChipSharp.Components.csproj" />
+  </ItemGroup>
+</Project>

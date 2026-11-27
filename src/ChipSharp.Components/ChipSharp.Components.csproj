@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    Drivers for the parts a program connects to a chip (a character LCD, ...), written in plain C# over
+    Drivers for the parts a program connects to a chip (a character LCD, a 7-segment display, ...), in plain C# over
     ChipSharp.Hardware: ChipSharp compiles what a program calls of them together with the program, as it does any class
     library the program references. On .NET they reach ChipSharp.Hardware, which runs on a chip only.
   -->
