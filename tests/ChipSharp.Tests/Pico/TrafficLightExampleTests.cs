@@ -173,7 +173,9 @@ public sealed class TrafficLightExampleTests(TrafficLightExampleTests.Builds bui
         // the button between GP22 and 3V3, which does not bounce (a press is one interrupt)
         var button = Assert.Single(parts.Keys, id => Type(id) == "wokwi-pushbutton");
         Assert.Equal("0", parts[button].GetProperty("attrs").GetProperty("bounce").GetString());
-        Assert.True(nets.Joined("pico:GP22", $"{button}:1.l") && nets.Joined("pico:3V3", $"{button}:2.l"));
+        // (its two contacts are the same either way round)
+        Assert.True(nets.Joined("pico:GP22", $"{button}:1.l") && nets.Joined("pico:3V3", $"{button}:2.l") ||
+            nets.Joined("pico:GP22", $"{button}:2.l") && nets.Joined("pico:3V3", $"{button}:1.l"));
 
         bool Reaches(string from, string to) => nets.Joined(from, to) || parts.Keys.Any(id =>
             Type(id) == "wokwi-resistor" && (nets.Joined(from, $"{id}:1") && nets.Joined(to, $"{id}:2") ||
