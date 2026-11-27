@@ -83,6 +83,9 @@ public static class SupportedSubset
         // throw (Exceptions): stops the program, as an exception nothing catches does; try/finally is plain branches by
         // then (TryFinally)
         IlOpCode.Throw,
+
+        // references to objects and strings (ObjectReferences): what they refer to, loaded and stored
+        IlOpCode.Ldind_Ref, IlOpCode.Stind_Ref,
     }.ToFrozenSet();
 
     /// <summary>
@@ -99,7 +102,8 @@ public static class SupportedSubset
         ArgumentNullException.ThrowIfNull(type);
         ArgumentNullException.ThrowIfNull(assembly);
         return ValueTypes.TryMapType(type, assembly, out tirType) || StackArrays.TryMapType(type, assembly, out tirType)
-            || FixedText.TryMapType(type, out tirType) || ObjectTypes.TryMapType(type, assembly, out tirType);
+            || FixedText.TryMapType(type, out tirType) || ObjectTypes.TryMapType(type, assembly, out tirType)
+            || ObjectReferences.TryMapType(type, assembly, out tirType);
     }
 
     /// <summary>

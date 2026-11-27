@@ -262,7 +262,7 @@ internal static partial class VirtualMethods
                 assembly.FindType(named.FullName) is { IsInterface: true, GenericParameters.Count: 0 },
             IlGenericInstanceType { Definition: IlNamedType { IsDefinedInThisAssembly: true } } instance =>
                 Instantiations.Type(instance, assembly) is { IsInterface: true },
-            IlGenericInstanceType { Definition: IlNamedType library, Arguments: [_] } instance =>
+            IlGenericInstanceType { Definition: IlNamedType library, Arguments.Count: > 0 } instance =>
                 LibraryInterfaces.Contains(library.FullName) && Instantiations.Refusal(assembly, instance.Arguments) is null,
             IlNamedType library => LibraryInterfaces.Contains(library.FullName),
             _ => false,

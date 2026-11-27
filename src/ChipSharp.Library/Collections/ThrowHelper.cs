@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace ChipSharp.Library.Collections;
 
 /// <summary>
@@ -17,11 +19,14 @@ internal static class ThrowHelper
     public const string IndexMustBeLessOrEqual =
         "Index was out of range. Must be non-negative and less than or equal to the size of the collection.";
 
+    [DoesNotReturn]
     public static void ArgumentNull(string paramName) => throw new ArgumentNullException(paramName);
 
+    [DoesNotReturn]
     public static void ArgumentOutOfRange(string paramName, string message) =>
         throw new ArgumentOutOfRangeException(paramName, message);
 
+    [DoesNotReturn]
     public static void NegativeArgument(string paramName) => ArgumentOutOfRange(paramName, NeedNonNegative);
 
     /// <summary>ArgumentOutOfRangeException.ThrowIfNegative's: the value in the message and on a line of its own.</summary>
@@ -35,21 +40,39 @@ internal static class ThrowHelper
         }
     }
 
+    /// <summary>ArgumentOutOfRangeException.ThrowIfLessThan's.</summary>
+    public static void IfLess(int value, int other, string paramName)
+    {
+        if (value < other)
+        {
+            var text = value.ToString();
+            throw new ArgumentOutOfRangeException(paramName, text,
+                paramName + " ('" + text + "') must be greater than or equal to '" + other.ToString() + "'.");
+        }
+    }
+
+    [DoesNotReturn]
     public static void IndexMustBeLessArgument() => ArgumentOutOfRange("index", IndexMustBeLess);
 
+    [DoesNotReturn]
     public static void IndexMustBeLessOrEqualArgument() => ArgumentOutOfRange("index", IndexMustBeLessOrEqual);
 
+    [DoesNotReturn]
     public static void OffsetLength() => throw new ArgumentException(InvalidOffsetLength);
 
+    [DoesNotReturn]
     public static void VersionChanged() => throw new InvalidOperationException(EnumFailedVersion);
 
+    [DoesNotReturn]
     public static void EnumerationCannotHappen() => throw new InvalidOperationException(EnumOpCantHappen);
 
     /// <summary>Dictionary's indexer: "The given key 'x' was not present in the dictionary."</summary>
+    [DoesNotReturn]
     public static void KeyNotFound<TKey>(TKey key) =>
         throw new KeyNotFoundException("The given key '" + Text(key) + "' was not present in the dictionary.");
 
     /// <summary>Dictionary's Add: "An item with the same key has already been added. Key: x".</summary>
+    [DoesNotReturn]
     public static void DuplicateKey<TKey>(TKey key) =>
         throw new ArgumentException("An item with the same key has already been added. Key: " + Text(key));
 

@@ -32,6 +32,12 @@ internal static class GenericSubstitutes
         "System.Collections.Generic.IReadOnlyList`1",
         "System.Collections.Generic.IComparer`1",
         "System.Collections.Generic.IEqualityComparer`1",
+
+        // and those of the library's collections (Library/Collections)
+        "System.Collections.Generic.IDictionary`2",
+        "System.Collections.Generic.IReadOnlyDictionary`2",
+        "System.Collections.Generic.ISet`1",
+        "System.Collections.Generic.IReadOnlySet`1",
     ];
 
     /// <summary>

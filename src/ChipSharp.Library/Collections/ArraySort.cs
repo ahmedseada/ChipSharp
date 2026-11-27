@@ -4,6 +4,8 @@ namespace ChipSharp.Library.Collections;
 /// The sorting and binary search of the collections (List&lt;T&gt;.Sort, BinarySearch): .NET's ArraySortHelper&lt;T&gt;
 /// (System.Private.CoreLib's ArraySortHelper.cs), its introsort (insertion sort for 16 elements or fewer, a
 /// median-of-three quicksort, a heapsort past the depth limit) over a comparer, the default one when none is given.
+/// .NET's works on a span and its slices; this one on the array from <c>lo</c> to <c>hi</c> (both in), which is the same
+/// moves of the same elements (spans of objects arrive later).
 /// </summary>
 /// <remarks>
 /// .NET sorts a T that implements IComparable&lt;T&gt; without a comparer with its GenericArraySortHelper, the same
@@ -33,12 +35,11 @@ internal static class ArraySort<T>
             }
         }
 
-        var by = comparer ?? Comparer<T>.Default;
-        IntrospectiveSort(new Span<T>(keys, index, length), by, null);
+        IntrospectiveSort(keys, index, length, comparer ?? Comparer<T>.Default, null);
     }
 
     public static void Sort(T[] keys, int index, int length, Comparison<T> comparison) =>
-        IntrospectiveSort(new Span<T>(keys, index, length), null, comparison);
+        IntrospectiveSort(keys, index, length, null, comparison);
 
     public static int BinarySearch(T[] array, int index, int length, T value, IComparer<T> comparer)
     {
@@ -66,12 +67,12 @@ internal static class ArraySort<T>
         return ~lo;
     }
 
-    /// <summary>Sorts with <paramref name="comparer"/>, or else <paramref name="comparison"/>.</summary>
-    private static void IntrospectiveSort(Span<T> keys, IComparer<T>? comparer, Comparison<T>? comparison)
+    /// <summary>Sorts <paramref name="length"/> elements from <paramref name="index"/> with <paramref name="comparer"/>, or else <paramref name="comparison"/>.</summary>
+    private static void IntrospectiveSort(T[] keys, int index, int length, IComparer<T>? comparer, Comparison<T>? comparison)
     {
-        if (keys.Length > 1)
+        if (length > 1)
         {
-            IntroSort(keys, 2 * (Log2((uint)keys.Length) + 1), comparer, comparison);
+            IntroSort(keys, index, index + length - 1, 2 * (Log2((uint)length) + 1), comparer, comparison);
         }
     }
 
@@ -90,70 +91,75 @@ internal static class ArraySort<T>
         return log;
     }
 
-    private static void IntroSort(Span<T> keys, int depthLimit, IComparer<T>? comparer, Comparison<T>? comparison)
+    private static void IntroSort(T[] keys, int lo, int hi, int depthLimit, IComparer<T>? comparer,
+        Comparison<T>? comparison)
     {
-        var partitionSize = keys.Length;
-        while (partitionSize > 1)
+        while (hi > lo)
         {
+            var partitionSize = hi - lo + 1;
             if (partitionSize <= IntrosortSizeThreshold)
             {
                 if (partitionSize == 2)
                 {
-                    SwapIfGreater(keys, comparer, comparison, 0, 1);
+                    SwapIfGreater(keys, comparer, comparison, lo, hi);
                     return;
                 }
 
                 if (partitionSize == 3)
                 {
-                    SwapIfGreater(keys, comparer, comparison, 0, 1);
-                    SwapIfGreater(keys, comparer, comparison, 0, 2);
-                    SwapIfGreater(keys, comparer, comparison, 1, 2);
+                    SwapIfGreater(keys, comparer, comparison, lo, hi - 1);
+                    SwapIfGreater(keys, comparer, comparison, lo, hi);
+                    SwapIfGreater(keys, comparer, comparison, hi - 1, hi);
                     return;
                 }
 
-                InsertionSort(keys.Slice(0, partitionSize), comparer, comparison);
+                InsertionSort(keys, lo, hi, comparer, comparison);
                 return;
             }
 
             if (depthLimit == 0)
             {
-                HeapSort(keys.Slice(0, partitionSize), comparer, comparison);
+                HeapSort(keys, lo, hi, comparer, comparison);
                 return;
             }
 
             depthLimit--;
-            var p = PickPivotAndPartition(keys.Slice(0, partitionSize), comparer, comparison);
+            var p = PickPivotAndPartition(keys, lo, hi, comparer, comparison);
 
             // the pivot is where it belongs already
-            IntroSort(keys.Slice(p + 1, partitionSize - (p + 1)), depthLimit, comparer, comparison);
-            partitionSize = p;
+            IntroSort(keys, p + 1, hi, depthLimit, comparer, comparison);
+            hi = p - 1;
         }
     }
 
-    private static void SwapIfGreater(Span<T> keys, IComparer<T>? comparer, Comparison<T>? comparison, int i, int j)
+    private static void SwapIfGreater(T[] keys, IComparer<T>? comparer, Comparison<T>? comparison, int i, int j)
     {
         if (Compare(keys[i], keys[j], comparer, comparison) > 0)
         {
-            (keys[i], keys[j]) = (keys[j], keys[i]);
+            Swap(keys, i, j);
         }
     }
 
-    private static void Swap(Span<T> keys, int i, int j) => (keys[i], keys[j]) = (keys[j], keys[i]);
+    private static void Swap(T[] keys, int i, int j)
+    {
+        var key = keys[i];
+        keys[i] = keys[j];
+        keys[j] = key;
+    }
 
-    private static int PickPivotAndPartition(Span<T> keys, IComparer<T>? comparer, Comparison<T>? comparison)
+    private static int PickPivotAndPartition(T[] keys, int lo, int hi, IComparer<T>? comparer, Comparison<T>? comparison)
     {
         // the median of the first, middle and last elements, moved just before the last
-        var hi = keys.Length - 1;
-        var middle = hi >> 1;
-        SwapIfGreater(keys, comparer, comparison, 0, middle);
-        SwapIfGreater(keys, comparer, comparison, 0, hi);
+        var middle = lo + ((hi - lo) >> 1);
+        SwapIfGreater(keys, comparer, comparison, lo, middle);
+        SwapIfGreater(keys, comparer, comparison, lo, hi);
         SwapIfGreater(keys, comparer, comparison, middle, hi);
 
         var pivot = keys[middle];
         Swap(keys, middle, hi - 1);
 
         // the left and right ends walk towards each other, swapping, until they meet
-        int left = 0, right = hi - 1;
+        int left = lo, right = hi - 1;
         while (left < right)
         {
             while (Compare(keys[++left], pivot, comparer, comparison) < 0)
@@ -181,51 +187,51 @@ internal static class ArraySort<T>
         return left;
     }
 
-    private static void HeapSort(Span<T> keys, IComparer<T>? comparer, Comparison<T>? comparison)
+    private static void HeapSort(T[] keys, int lo, int hi, IComparer<T>? comparer, Comparison<T>? comparison)
     {
-        var n = keys.Length;
+        var n = hi - lo + 1;
         for (var i = n >> 1; i >= 1; i--)
         {
-            DownHeap(keys, i, n, comparer, comparison);
+            DownHeap(keys, i, n, lo, comparer, comparison);
         }
 
         for (var i = n; i > 1; i--)
         {
-            Swap(keys, 0, i - 1);
-            DownHeap(keys, 1, i - 1, comparer, comparison);
+            Swap(keys, lo, lo + i - 1);
+            DownHeap(keys, 1, i - 1, lo, comparer, comparison);
         }
     }
 
-    private static void DownHeap(Span<T> keys, int i, int n, IComparer<T>? comparer, Comparison<T>? comparison)
+    private static void DownHeap(T[] keys, int i, int n, int lo, IComparer<T>? comparer, Comparison<T>? comparison)
     {
-        var d = keys[i - 1];
+        var d = keys[lo + i - 1];
         while (i <= n >> 1)
         {
             var child = 2 * i;
-            if (child < n && Compare(keys[child - 1], keys[child], comparer, comparison) < 0)
+            if (child < n && Compare(keys[lo + child - 1], keys[lo + child], comparer, comparison) < 0)
             {
                 child++;
             }
 
-            if (!(Compare(d, keys[child - 1], comparer, comparison) < 0))
+            if (!(Compare(d, keys[lo + child - 1], comparer, comparison) < 0))
             {
                 break;
             }
 
-            keys[i - 1] = keys[child - 1];
+            keys[lo + i - 1] = keys[lo + child - 1];
             i = child;
         }
 
-        keys[i - 1] = d;
+        keys[lo + i - 1] = d;
     }
 
-    private static void InsertionSort(Span<T> keys, IComparer<T>? comparer, Comparison<T>? comparison)
+    private static void InsertionSort(T[] keys, int lo, int hi, IComparer<T>? comparer, Comparison<T>? comparison)
     {
-        for (var i = 0; i < keys.Length - 1; i++)
+        for (var i = lo; i < hi; i++)
         {
-            var t = keys[i + 1];
             var j = i;
-            while (j >= 0 && Compare(t, keys[j], comparer, comparison) < 0)
+            var t = keys[i + 1];
+            while (j >= lo && Compare(t, keys[j], comparer, comparison) < 0)
             {
                 keys[j + 1] = keys[j];
                 j--;

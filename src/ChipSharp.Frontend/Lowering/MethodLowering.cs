@@ -249,6 +249,10 @@ internal sealed partial class MethodLowering
                 LowerReference(instruction);
                 break;
 
+            case IlOpCode.Ldind_Ref or IlOpCode.Stind_Ref:
+                LowerObjectReference(instruction); // see MethodLowering.ObjectReferences.cs
+                break;
+
             case IlOpCode.Ldfld or IlOpCode.Ldflda or IlOpCode.Stfld or IlOpCode.Initobj or IlOpCode.Ldobj
                 or IlOpCode.Stobj or IlOpCode.Cpobj or IlOpCode.Newobj:
                 LowerStruct(instruction);
