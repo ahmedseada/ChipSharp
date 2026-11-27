@@ -92,7 +92,9 @@ internal static class HardwareBuses
         if (arguments[0] is { } number && (number < 0 || number >= buses.Count))
         {
             yield return Unsupported.BusArgument($"{bus.Name} bus {Text(number)} ({open}'s bus) does not exist {where}",
-                $"Its {bus.Name} buses are {Numbers([.. Enumerable.Range(0, buses.Count)], "and")}.");
+                buses.Count == 1
+                    ? $"It has one {bus.Name} bus, bus 0."
+                    : $"Its {bus.Name} buses are {Numbers([.. Enumerable.Range(0, buses.Count)], "and")}.");
         }
         else if (arguments[0] is { } index && buses[index] is JsonObject pins)
         {
@@ -105,9 +107,10 @@ internal static class HardwareBuses
                     && !(optional && pin == -1))
                 {
                     yield return Unsupported.BusArgument(
-                        $"GPIO {Text(pin)} is not {(role == "TX" ? "a" : "an")} {role} pin of {bus.Name} bus {Text(index)} ({open}'s " +
-                        $"{name}) {where}",
-                        $"Its {role} pins are {Pins(allowed)}{(optional ? " (-1 for none)" : "")}.");
+                        $"{PinNames.Of(target, pin)} is not {(role == "TX" ? "a" : "an")} {role} pin of {bus.Name} bus " +
+                        $"{Text(index)} ({open}'s {name}) {where}",
+                        $"Its {role} {(allowed.Count == 1 ? "pin is" : "pins are")} {PinNames.List(target, allowed, "and")}" +
+                        $"{(optional ? " (-1 for none)" : "")}.");
                 }
             }
         }
@@ -165,9 +168,6 @@ internal static class HardwareBuses
         node is JsonArray array
             ? [.. array.Select(item => item is JsonValue value && value.TryGetValue(out int number) ? number : int.MinValue)]
             : [];
-
-    /// <summary>"GPIO 0, 4, 8 and 12".</summary>
-    private static string Pins(List<int> pins) => "GPIO " + Numbers(pins, "and");
 
     /// <summary>"0, 4, 8 and 12" (with "or" or "and").</summary>
     private static string Numbers(List<int> numbers, string last) => numbers.Count switch

@@ -115,7 +115,7 @@ internal static class SerialAnalogRules
     /// </summary>
     private static Unsupported? PinProblem(TargetDescription target, string function, int? pin, string role) =>
         pin is { } number && Pins(target, function) is { } pins && !pins.Contains(number)
-            ? Unsupported.WrongPin(number, role, pins, target.Name)
+            ? Unsupported.WrongPin(target, number, role, pins)
             : null;
 
     /// <summary>A count capability: "uart": 2 is 2, true is 1; false, none or anything else is 0.</summary>

@@ -1,6 +1,7 @@
 // Runs an Arduino Uno (ATmega328P at 16 MHz) .hex image in the avr8js simulator (the one Wokwi is built on) and prints
-// what the program does: every change of a pin, named as on the Uno's headers (D0-D13, A0-A5), and every line written
-// to USART0 (the Uno's serial port, D0 and D1), each with the simulated time it happened at.
+// what the program does: every change of a pin, named as on the Uno's headers (D0-D13, A0-A5), every line written to
+// USART0 (the Uno's serial port, D0 and D1), the PWM outputs, as measured, and what the I2C and SPI buses do with the
+// simulated devices on them, each with the simulated time it happened at.
 //
 // One-time setup (needs Node.js 18 or later):
 //
@@ -13,6 +14,8 @@
 //                                            [--usart0 <file to write USART0's bytes to>]
 //                                            [--input <pin>=<high|low>[@<simulated milliseconds>ms]]...
 //                                            [--send <text>[@<simulated milliseconds>ms]]...
+//                                            [--adc <A0-A5|temp>=<volts>V|<reading>|<celsius>C[@<...>ms]]...
+//                                            [--i2c 0:<address>=<device>]... [--spi 0=<device>[@<pin>]]...
 //
 // --input drives a pin from outside, as a button or another chip would, e.g. --input D2=high, or --input A0=low@100ms
 // (the pin changes then, as a button pressed after 100 ms, and the change is printed). Give a pin several times to
@@ -23,9 +26,20 @@
 // \t, \\ and \xHH stand for those bytes. Sends follow each other. A byte that arrives while the receiver is off is
 // lost, as on the chip.
 //
+// --adc sets the voltage an analog input reads (A0-A5, 0 to 5 V against AVcc: 2.5V reads 512 of 1023; or 512, a
+// reading), or the chip's temperature (temp=30C; 25 C unless given, which reads 352 against the 1.1 V reference, 1.28
+// more a degree, as the runtime's formula has it), from the start or from a time on, e.g. --adc A0=2.5V@100ms.
+//
+// --i2c and --spi put the Pico simulator's devices (tools/rp2040-sim/devices: catalog.mjs lists them) on the Uno's
+// buses, I2C0 (the TWI, A4 and A5) and SPI0 (D13, D11, D12): --i2c 0:0x27=lcd1602 a 16x2 LCD on a PCF8574 backpack at
+// 0x27, --i2c 0:0x68=ds1307 a DS1307 real-time clock (ds1307@2026-11-27T18:00:00 from a date, ds1307@halted a new one),
+// --i2c 0:0x68=mpu6050, 0:0x76=bmp280, 0:0x50=stuck (holds the clock low), --spi 0=74hc595@D10 a 74HC595 shift
+// register with its latch on D10 (or 10: a pin by its name or number), --spi 0=loopback RX wired to TX (@<pin>: only
+// while that pin is low). An I2C address without a device does not answer.
+//
 // The ATmega328P has the Uno's 32 KB of flash, 2 KB of RAM (data addresses 0x100-0x8ff), ports B, C and D, the
-// timers 0, 1 and 2, and USART0. The image is loaded at address 0 (no bootloader) and the CPU starts there, at the
-// reset vector, as after a reset with the fuses Wokwi uses.
+// timers 0, 1 and 2, USART0, the TWI (I2C), the SPI controller and the ADC. The image is loaded at address 0 (no
+// bootloader) and the CPU starts there, at the reset vector, as after a reset with the fuses Wokwi uses.
 //
 // The run stops after the simulated time, or earlier:
 //  - when the program has finished: it runs SLEEP with interrupts off (cli; sleep), so that nothing can wake the CPU
@@ -41,6 +55,16 @@
 //     [    1.234 ms] USART0: Hello               a line written to USART0 (without its line ending)
 //     [  100.000 ms] input: D2 high              an --input with a time changed the pin from outside
 //     [  100.000 ms] input: USART0 "on\n"        a --send starts sending
+//     [  100.000 ms] input: A0 2.500 V (512)      an --adc with a time changed an analog input
+//     [   12.000 ms] D9 PWM 50.00 Hz, duty 7.50% (1500.00 us high)
+//                                                a PWM output (its timer's compare output on), measured from its edges
+//                                                (rising to rising, rising to falling): printed when a period differs
+//                                                from the one before, instead of every edge
+//     [   15.000 ms] D9 PWM steady low           a PWM output with no edge for 2.5 periods
+//     [    2.000 ms] I2C0 0x68 write 00, read 30 a transfer on the I2C bus (catalog.mjs lists the lines)
+//     [    3.000 ms] SPI0 mode 0, 1000000 Hz     the SPI bus's mode and clock, when a transfer first uses them
+//     [    3.000 ms] SPI0 74HC595 Q3 high        an output of a device on the SPI bus changed
+//     [   58.230 ms] LCD 0x27: |count 12        |  a row of an LCD, when what it shows changes and settles
 //     [ 1000.000 ms] stopped: <why>              the last line
 //
 // Exit code: 0 when the program ran (to its end or for the whole time), 1 when the image is not valid, 2 for wrong
@@ -48,9 +72,12 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import {
-  AVRIOPort, AVRTimer, AVRUSART, CPU, PinState, avrInstruction, portBConfig, portCConfig, portDConfig, timer0Config,
-  timer1Config, timer2Config, usart0Config,
+  ADCMuxInputType, AVRADC, AVRIOPort, AVRSPI, AVRTimer, AVRTWI, AVRUSART, CPU, PinState, adcConfig, avrInstruction,
+  portBConfig, portCConfig, portDConfig, spiConfig, timer0Config, timer1Config, timer2Config, twiConfig, usart0Config,
 } from 'avr8js';
+import {
+  busUsage, I2cBus, makeI2cDevices, makeSpiDevices, parseI2cOption, parseSpiOption,
+} from '../rp2040-sim/devices/catalog.mjs';
 
 const CLOCK_HZ = 16e6;
 const FLASH_BYTES = 32 * 1024;
@@ -75,7 +102,8 @@ const PORTS = [
 function usage(message) {
   console.error(`run.mjs: ${message}`);
   console.error('Usage: node run.mjs <image.hex> [--ms <simulated milliseconds>] [--usart0 <output file>] ' +
-    '[--input <pin>=<high|low>[@<milliseconds>ms]]... [--send <text>[@<milliseconds>ms]]...');
+    '[--input <pin>=<high|low>[@<milliseconds>ms]]... [--send <text>[@<milliseconds>ms]]... ' +
+    `[--adc <A0-A5|temp>=<volts>V|<reading>|<celsius>C[@<milliseconds>ms]]... ${busUsage(BUSES)}`);
   process.exit(2);
 }
 
@@ -96,11 +124,77 @@ function pinByName(name) {
   return null;
 }
 
+// The Uno's buses: I2C0 and SPI0.
+const BUSES = [0];
+
+// An Uno pin by its name (D10, A4) or its number (10, 18: the numbers programs give, 0-13 D0-D13 and 14-19 A0-A5), as
+// that number; null for none.
+function unoPin(text) {
+  const pin = /^\d+$/.test(text) ? Number(text) : pinByName(text) === null ? NaN
+    : (({ port, bit }) => (port === 2 ? bit : port === 0 ? 8 + bit : 14 + bit))(pinByName(text));
+  return pin >= 0 && pin < 20 ? pin : null;
+}
+
+// The port (an index of PORTS) and the bit of an Uno pin number.
+function placeOf(pin) {
+  return pin < 8 ? { port: 2, bit: pin } : pin < 14 ? { port: 0, bit: pin - 8 } : { port: 1, bit: pin - 14 };
+}
+
+// ---- The analog inputs (--adc) -----------------------------------------------------------------------------------
+
+const AVCC = 5; // the reference of A0-A5: the Uno's 5 V
+const INTERNAL_REFERENCE = 1.1;
+const TEMPERATURE = 25; // degrees Celsius, unless an --adc says otherwise
+
+// The temperature sensor's voltage at a temperature: what reads, against the 1.1 V reference, as the runtime's formula
+// (atmega328p_adc.c) turns into those degrees: 352 at 25 C, 1.28 more a degree.
+function sensorVolts(celsius) {
+  return ((Math.round(352 + (celsius - 25) * 1.28) + 0.5) * INTERNAL_REFERENCE) / 1024;
+}
+
+// One --adc: { channel (0-5, or 'temp'), volts, what, reading, at }.
+function parseAdc(value) {
+  const match = value === undefined ? null
+    : /^([Aa][0-5]|temp)=(-?\d+(?:\.\d+)?)(V|C)?(?:@(\d+(?:\.\d+)?)ms)?$/.exec(value);
+  if (match === null || (match[1] === 'temp') !== (match[3] === 'C')) {
+    usage(`--adc takes an analog pin (A0 to A5) and volts or a reading (0 to 1023), or temp and degrees Celsius, and ` +
+      `maybe a time, e.g. A0=2.5V, A1=512, temp=30C or A0=1V@100ms, not '${value}'.`);
+  }
+
+  const number = Number(match[2]);
+  if (match[1] === 'temp') {
+    const volts = sensorVolts(number);
+    const reading = Math.floor((volts / INTERNAL_REFERENCE) * 1024);
+    return { channel: 'temp', volts, what: `temperature ${number} C`, reading, at: timeOf(match[4]) };
+  }
+
+  const volts = match[3] === 'V' ? number : ((number + 0.5) * AVCC) / 1024;
+  const reading = Math.min(Math.floor((volts / AVCC) * 1024), 1023);
+  if (match[3] === 'V' ? !(volts >= 0 && volts <= AVCC) : !(Number.isInteger(number) && number >= 0 && number <= 1023)) {
+    usage(`--adc: '${value}' is outside what the ADC reads: 0 to 5 V, 0 to 1023.`);
+  }
+
+  const name = match[1].toUpperCase();
+  return { channel: Number(name[1]), volts, what: `${name} ${(match[3] === 'V' ? volts : (reading * AVCC) / 1024).toFixed(3)} V`,
+    reading, at: timeOf(match[4]) };
+}
+
 function parseArguments(args) {
-  const options = { image: null, ms: 1000, usart0: null, inputs: [], sends: [] };
+  const options = { image: null, ms: 1000, usart0: null, inputs: [], sends: [], adc: [], buses: [] };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    if (arg === '--ms' || arg === '--usart0' || arg === '--input' || arg === '--send') {
+    if (arg === '--i2c' || arg === '--spi') {
+      // a simulated device on a bus (tools/rp2040-sim/devices/catalog.mjs)
+      const value = args[++i] ?? '';
+      const device = arg === '--i2c' ? parseI2cOption(value, BUSES) : parseSpiOption(value, BUSES, unoPin, 'D10');
+      if (device.error !== undefined) {
+        usage(device.error);
+      }
+
+      options.buses.push(device);
+    } else if (arg === '--adc') {
+      options.adc.push(parseAdc(args[++i]));
+    } else if (arg === '--ms' || arg === '--usart0' || arg === '--input' || arg === '--send') {
       const value = args[++i];
       if (value === undefined) {
         usage(`${arg} needs a value.`);
@@ -276,8 +370,105 @@ for (const config of [timer0Config, timer1Config, timer2Config]) {
   new AVRTimer(cpu, config);
 }
 
-// the pins: every change printed; an input no --input drives reads its pull-up
+// the simulation's clock, as the devices of tools/rp2040-sim take it (rp2040js's): its time in nanoseconds, and alarms
+const clock = {
+  get nanos() {
+    return (cpu.cycles * 1e9) / CLOCK_HZ;
+  },
+  createAlarm(callback) {
+    let pending = null;
+    const fire = () => {
+      pending = null;
+      callback();
+    };
+    return {
+      schedule(nanos) {
+        this.cancel();
+        pending = cpu.addClockEvent(fire, Math.max(1, Math.round((nanos * CLOCK_HZ) / 1e9)));
+      },
+      cancel() {
+        if (pending !== null) {
+          cpu.clearClockEvent(pending);
+          pending = null;
+        }
+      },
+    };
+  },
+};
+
+// ---- PWM outputs, measured -----------------------------------------------------------------------------------------
+
+// The pins a timer's compare output drives: its TCCRnA, the compare output mode's bits there, and the timer. A pin is
+// a PWM output while those bits are not 0; its edges are measured then rather than printed.
+const PWM_PINS = {
+  D6: { tccra: 0x44, mask: 0xc0, timer: 0 }, // OC0A
+  D5: { tccra: 0x44, mask: 0x30, timer: 0 }, // OC0B
+  D9: { tccra: 0x80, mask: 0xc0, timer: 1 }, // OC1A
+  D10: { tccra: 0x80, mask: 0x30, timer: 1 }, // OC1B
+  D11: { tccra: 0xb0, mask: 0xc0, timer: 2 }, // OC2A
+  D3: { tccra: 0xb0, mask: 0x30, timer: 2 }, // OC2B
+};
+
+// A PWM output's period in clock cycles until one is measured, from its timer's registers: TOP + 1 counts (510 phase
+// correct, up and down) of Timer0's or Timer2's divider. Timer1 runs in normal mode as the runtime's clock, and its
+// compare A times D9's edges itself, at any frequency from 1 Hz: a second.
+function timerCycles(timer) {
+  if (timer === 1) {
+    return CLOCK_HZ;
+  }
+
+  const [tccra, tccrb, dividers] = timer === 0 ? [0x44, 0x45, [0, 1, 8, 64, 256, 1024]]
+    : [0xb0, 0xb1, [0, 1, 8, 32, 64, 128, 256, 1024]];
+  return ((cpu.data[tccra] & 0x03) === 1 ? 510 : 256) * (dividers[cpu.data[tccrb] & 0x07] ?? 0) || CLOCK_HZ;
+}
+
+// What each PWM output did last: its last rising and falling edges, its period, the last line printed, and the alarm
+// that says it is steady when no edge comes.
+const pwmOutputs = new Map();
+
+// A PWM output's edge: a whole period (rising edge to rising edge, high until the falling edge between) is printed when
+// it differs from the one before; no edge for 2.5 periods is printed as steady low or high.
+function pwmEdge(name, high, level) {
+  let output = pwmOutputs.get(name);
+  const say = (text) => {
+    if (text !== output.printed) {
+      print(`${name} PWM ${text}`);
+      output.printed = text;
+    }
+  };
+  if (output === undefined) {
+    output = { rise: null, fall: null, period: null, printed: null };
+    output.steady = clock.createAlarm(() => {
+      say(`steady ${level() ? 'high' : 'low'}`);
+      output.rise = null; // the next period starts with the next rising edge
+      output.fall = null;
+    });
+    pwmOutputs.set(name, output);
+  }
+
+  const now = clock.nanos;
+  if (high && output.rise !== null && output.fall !== null && output.fall > output.rise) {
+    const period = now - output.rise;
+    const highTime = output.fall - output.rise;
+    output.period = period;
+    say(`${(1e9 / period).toFixed(2)} Hz, duty ${((100 * highTime) / period).toFixed(2)}% ` +
+      `(${(highTime / 1000).toFixed(2)} us high)`);
+  }
+
+  if (high) {
+    output.rise = now;
+  } else {
+    output.fall = now;
+  }
+
+  const timer = PWM_PINS[name].timer;
+  output.steady.schedule(2.5 * (output.period ?? (timerCycles(timer) * 1e9) / CLOCK_HZ));
+}
+
+// the pins: every change printed (a PWM output's measured instead); an input no --input drives reads its pull-up; the
+// pins a shift register's latch is on are watched for their rising edges
 const driven = new Set(); // the pins an --input drives, from its time on
+const latches = new Map(); // port * 8 + bit: what to call when the pin goes high
 const ports = PORTS.map(({ config, pins }, index) => {
   const port = new AVRIOPort(cpu, config);
   const states = pins.map(() => PinState.Input);
@@ -292,14 +483,37 @@ const ports = PORTS.map(({ config, pins }, index) => {
         port.setPin(bit, state === PinState.InputPullUp);
       }
 
-      if (state !== states[bit]) {
-        states[bit] = state;
+      if (state === states[bit]) {
+        continue;
+      }
+
+      const before = states[bit];
+      states[bit] = state;
+      const pwm = PWM_PINS[pins[bit]];
+      if (pwm !== undefined && (cpu.data[pwm.tccra] & pwm.mask) !== 0) {
+        pwmEdge(pins[bit], state === PinState.High, () => port.pinState(bit) === PinState.High);
+      } else {
+        if (pwmOutputs.has(pins[bit])) {
+          pwmOutputs.get(pins[bit]).steady.cancel();
+          pwmOutputs.delete(pins[bit]);
+        }
+
         print(`${pins[bit]} ${PIN_STATES[state] ?? `state ${state}`}`);
+      }
+
+      if (state === PinState.High && before !== PinState.High) {
+        latches.get(index * 8 + bit)?.forEach((latched) => latched());
       }
     }
   });
   return port;
 });
+
+// The state of an Uno pin by its number.
+function pinState(pin) {
+  const { port, bit } = placeOf(pin);
+  return ports[port].pinState(bit);
+}
 
 for (const { port, bit, name, high, at } of options.inputs) {
   if (at === null) {
@@ -362,6 +576,97 @@ if (options.sends.length > 0) {
   cpu.addClockEvent(sendByte, Math.round(((queue[0].at ?? 0) * CLOCK_HZ) / 1000));
 }
 
+// ---- The buses and their devices (--i2c, --spi) --------------------------------------------------------------------
+
+// I2C0: the TWI, whose steps (start, address, byte, stop) avr8js hands to an event handler, which the devices answer
+const i2cDevices = makeI2cDevices(options.buses, 0, clock, print);
+const twi = new AVRTWI(cpu, twiConfig, CLOCK_HZ);
+const i2c = new I2cBus('I2C0', i2cDevices, print);
+twi.eventHandler = {
+  start() {
+    i2c.start();
+    twi.completeStart();
+  },
+  stop() {
+    i2c.stop();
+    twi.completeStop();
+  },
+  connectToSlave(address, write) {
+    const answered = i2c.connect(address, !write, Math.round(twi.sclFrequency));
+    if (answered !== null) {
+      twi.completeConnect(answered); // else the device holds the clock low: the step never ends
+    }
+  },
+  writeByte(value) {
+    twi.completeWrite(i2c.write(value));
+  },
+  readByte() {
+    twi.completeRead(i2c.read());
+  },
+};
+
+// SPI0: each byte to the devices, and the selected one's answer back once the byte's time (8 bits of SCK) has passed
+const spiDevices = makeSpiDevices(options.buses, 0, (text) => print(`SPI0 ${text}`), (pin, latched) => {
+  const { port, bit } = placeOf(pin);
+  const key = port * 8 + bit;
+  latches.set(key, [...(latches.get(key) ?? []), latched]);
+});
+const spi = new AVRSPI(cpu, spiConfig, CLOCK_HZ);
+let spiSettings = null;
+spi.onByte = (value) => {
+  // SPCR: CPOL (bit 3), the clock's level when idle, and CPHA (bit 2), the edge data is read on
+  const spcr = cpu.data[spiConfig.SPCR];
+  const mode = (spcr & 0x08 ? 2 : 0) + (spcr & 0x04 ? 1 : 0);
+  const now = `mode ${mode}, ${Math.round(CLOCK_HZ / spi.clockDivider)} Hz`;
+  if (now !== spiSettings) {
+    print(`SPI0 ${now}`);
+    spiSettings = now;
+  }
+
+  let answer = 0;
+  for (const { device, select } of spiDevices) {
+    if (select === null || pinState(select) === PinState.Low) {
+      answer = device.transfer(value, mode) ?? answer;
+    }
+  }
+
+  cpu.addClockEvent(() => spi.completeTransfer(answer), spi.transferCycles);
+};
+
+// ---- The analog inputs (--adc) -------------------------------------------------------------------------------------
+
+// each conversion reads the voltage of its input against the reference the program chose (avr8js: AVcc, AREF or the
+// internal 1.1 V), as the chip's 10 bits, after the ADC's 13 (the first 25) clocks
+const adc = new AVRADC(cpu, adcConfig);
+const analogVolts = [0, 0, 0, 0, 0, 0, 0, 0];
+let temperatureVolts = sensorVolts(TEMPERATURE);
+adc.onADCRead = (input) => {
+  const volts = input.type === ADCMuxInputType.SingleEnded ? analogVolts[input.channel] ?? 0
+    : input.type === ADCMuxInputType.Temperature ? temperatureVolts
+      : input.type === ADCMuxInputType.Constant ? input.voltage
+        : 0;
+  const reading = Math.min(Math.max(Math.floor((volts / adc.referenceVoltage) * 1024), 0), 1023);
+  cpu.addClockEvent(() => adc.completeADCRead(reading), adc.sampleCycles);
+};
+
+for (const { channel, volts, what, reading, at } of options.adc) {
+  const set = () => {
+    if (channel === 'temp') {
+      temperatureVolts = volts;
+    } else {
+      analogVolts[channel] = volts;
+    }
+  };
+  if (at === null) {
+    set();
+  } else {
+    cpu.addClockEvent(() => {
+      print(`input: ${what} (${reading})`);
+      set();
+    }, Math.round((at * CLOCK_HZ) / 1000));
+  }
+}
+
 const end = Math.round((options.ms * CLOCK_HZ) / 1000);
 let reason = `${options.ms} ms of simulated time have passed`;
 let exitCode = 0;
@@ -389,6 +694,9 @@ while (cpu.cycles < end) {
   avrInstruction(cpu);
   cpu.tick();
 }
+
+// what the devices have not printed yet (an LCD that has not settled)
+i2cDevices.forEach((device) => device.finish?.());
 
 if (usartLine.length > 0) {
   print(`USART0: ${Buffer.from(usartLine).toString('latin1')} (no line ending)`);

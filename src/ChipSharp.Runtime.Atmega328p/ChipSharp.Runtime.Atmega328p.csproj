@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- The runtime of ATmega328P programs (Arduino Uno): the Uno's pins, Timer1's clock, delays and timer event, pin
-       interrupts, USART0's console and serial port; on top of the AVR runtime -->
+       interrupts, USART0's console and serial port, the I2C and SPI buses, the analog inputs and the PWM outputs; on
+       top of the AVR runtime -->
   <ItemGroup>
     <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
     <ProjectReference Include="..\ChipSharp.Runtime.Avr\ChipSharp.Runtime.Avr.csproj" />
@@ -12,6 +13,11 @@
     <EmbeddedResource Include="atmega328p_uart.c" LogicalName="atmega328p_uart.c" />
     <EmbeddedResource Include="atmega328p_interrupts.S" LogicalName="atmega328p_interrupts.S" />
     <EmbeddedResource Include="atmega328p_events.c" LogicalName="atmega328p_events.c" />
+    <EmbeddedResource Include="atmega328p_i2c.c" LogicalName="atmega328p_i2c.c" />
+    <EmbeddedResource Include="atmega328p_spi.c" LogicalName="atmega328p_spi.c" />
+    <EmbeddedResource Include="atmega328p_adc.c" LogicalName="atmega328p_adc.c" />
+    <EmbeddedResource Include="atmega328p_pwm.c" LogicalName="atmega328p_pwm.c" />
+    <EmbeddedResource Include="atmega328p_failures.c" LogicalName="atmega328p_failures.c" />
     <!-- Console.Write and Console.WriteLine, shared with the other runtimes -->
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_console.c" LogicalName="chipsharp_console.c" />
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_text.c" LogicalName="chipsharp_float_text.c" />

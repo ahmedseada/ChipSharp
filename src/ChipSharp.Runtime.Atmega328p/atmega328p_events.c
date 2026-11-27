@@ -60,7 +60,7 @@ typedef unsigned long u32;
 #define SOON_COUNTS 8u
 
 // In atmega328p_runtime.c.
-extern void (*volatile chipsharp_interrupt_hooks[3])(u8 source);
+extern void (*volatile chipsharp_interrupt_hooks[4])(u8 source);
 u8 chipsharp_pin_port(i32 pin, u8 *mask);
 void chipsharp_clock_read(u32 *rounds, u16 *count);
 u32 chipsharp_clock_microseconds(void);

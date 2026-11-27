@@ -20,6 +20,16 @@ namespace ChipSharp.Hardware;
 /// duty cycle in up to 65535 steps (fewer above 1907 Hz: 125 MHz / frequency steps).
 /// </para>
 /// <para>
+/// On the Arduino Uno the PWM pins are D3, D5, D6, D9 and D11 (D10's timer output is the timer event's). D5 and D6 are
+/// Timer0's and D3 and D11 Timer2's, 8-bit timers: a few frequencies only, from 30.6 Hz to 62.5 kHz (Timer0: 62500,
+/// 31373, 7813, 3922, 977, 490, 244, 123, 61 and 31 Hz; Timer2 also 1953, 980, 488 and 245), the nearest to the one
+/// asked for, both pins of a timer at its one frequency, the duty cycle in 256 (or 255) steps. D9 is Timer1's, whose
+/// compare times each edge to the half microsecond: any frequency from 1 Hz to 10 kHz, as exactly as the Pico's, the
+/// pin for a servo (<c>Pwm.Output(9, 50)</c>, 20 ms; <c>PulseMicroseconds(9, 1500)</c>); a pulse or a gap shorter than
+/// 20 microseconds is not made there (the pin stays low, or high, that period). D11 is not a PWM output while the SPI
+/// bus is open.
+/// </para>
+/// <para>
 /// These methods run on a chip, in a program built with ChipSharp. On .NET itself they throw
 /// <see cref="PlatformNotSupportedException"/>.
 /// </para>

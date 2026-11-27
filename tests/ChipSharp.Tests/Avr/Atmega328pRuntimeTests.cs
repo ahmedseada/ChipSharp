@@ -22,7 +22,8 @@ public sealed class Atmega328pRuntimeTests : IDisposable
     private static readonly string[] OwnFiles =
     [
         Atmega328pRuntime.SourceFileName, Atmega328pRuntime.UartFileName, Atmega328pRuntime.InterruptsFileName,
-        Atmega328pRuntime.EventsFileName,
+        Atmega328pRuntime.EventsFileName, Atmega328pRuntime.I2cFileName, Atmega328pRuntime.SpiFileName,
+        Atmega328pRuntime.AdcFileName, Atmega328pRuntime.PwmFileName, Atmega328pRuntime.FailuresFileName,
     ];
 
     private readonly string _scratch = Path.Combine(Path.GetTempPath(), "chipsharp-tests", Guid.NewGuid().ToString("N"));
@@ -59,7 +60,9 @@ public sealed class Atmega328pRuntimeTests : IDisposable
 
         Assert.Equal(
             [.. avr.Startup(uno).Files.Select(f => f.FileName), Atmega328pRuntime.SourceFileName,
-                Atmega328pRuntime.ConsoleFileName, Atmega328pRuntime.FloatTextFileName, Atmega328pRuntime.UartFileName],
+                Atmega328pRuntime.ConsoleFileName, Atmega328pRuntime.FloatTextFileName, Atmega328pRuntime.UartFileName,
+                Atmega328pRuntime.I2cFileName, Atmega328pRuntime.SpiFileName, Atmega328pRuntime.AdcFileName,
+                Atmega328pRuntime.PwmFileName, Atmega328pRuntime.FailuresFileName],
             files.Select(f => f.FileName));
         Assert.Equal([AvrRuntime.VectorsFileName, Atmega328pRuntime.InterruptsFileName, Atmega328pRuntime.EventsFileName],
             runtime.InterruptEntry(uno).Files.Select(f => f.FileName));
@@ -114,16 +117,16 @@ public sealed class Atmega328pRuntimeTests : IDisposable
         Assert.Contains($"    {interrupts["timer"].Symbol}();", events);
         Assert.Contains($"        {interrupts["uart"].Symbol}();", uart);
 
-        // the chip's vectors the runtime takes from the avr runtime's table (INT0, INT1, PCINT0-2, TIMER1_COMPB, USART_RX),
-        // each with its source, as chipsharp_interrupt counts them; and TIMER1_OVF, the clock's, in C
-        Assert.Equal(["1 0", "2 1", "3 2", "4 3", "5 4", "12 5", "18 6"],
+        // the chip's vectors the runtime takes from the avr runtime's table (INT0, INT1, PCINT0-2, TIMER1_COMPB, USART_RX,
+        // TIMER1_COMPA), each with its source, as chipsharp_interrupt counts them; and TIMER1_OVF, the clock's, in C
+        Assert.Equal(["1 0", "2 1", "3 2", "4 3", "5 4", "12 5", "18 6", "11 7"],
             Regex.Matches(entries, @"^\s+entry (\d+), (\d+)\r?$", RegexOptions.Multiline).Select(m => $"{m.Groups[1]} {m.Groups[2]}"));
         Assert.Contains("__attribute__((signal)) void __vector_13(void)", Own(Atmega328pRuntime.SourceFileName));
         Assert.Contains(AvrRuntime.Handler(13), AvrRuntime.Vectors(uno.Name, vectors));
     }
 
     [Fact]
-    public void The_Unos_capabilities_are_the_console_both_ways_the_clock_and_one_serial_port_on_D1_and_D0()
+    public void The_Unos_capabilities_are_the_console_both_ways_the_clock_one_serial_port_the_ADC_PWM_and_the_buses()
     {
         var uno = UnoProgram.Uno;
 
@@ -134,7 +137,15 @@ public sealed class Atmega328pRuntimeTests : IDisposable
         Assert.Equal("1", uno.Capabilities["uart"]);
         Assert.Equal("[1]", uno.Settings["pinFunctions"]!["uart0.tx"]!.ToJsonString());
         Assert.Equal("[0]", uno.Settings["pinFunctions"]!["uart0.rx"]!.ToJsonString());
-        Assert.All(["adc", "pwm", "i2c", "spi"], name => Assert.False(uno.Capabilities.ContainsKey(name), name));
+        Assert.Equal("6", uno.Capabilities["adc"]);
+        Assert.Equal("[14,15,16,17,18,19]", uno.Settings["pinFunctions"]!["adc"]!.ToJsonString());
+        Assert.Equal("5", uno.Capabilities["pwm"]);
+        Assert.Equal("[3,5,6,9,11]", uno.Settings["pinFunctions"]!["pwm"]!.ToJsonString());
+        Assert.True(uno.HasCapability("i2c"));
+        Assert.Equal("""{"sda":[18],"scl":[19]}""", uno.Settings["i2c"]!["buses"]!.AsArray().Single()!.ToJsonString());
+        Assert.True(uno.HasCapability("spi"));
+        Assert.Equal("""{"sck":[13],"tx":[11],"rx":[12]}""", uno.Settings["spi"]!["buses"]!.AsArray().Single()!.ToJsonString());
+        Assert.Equal("A4", uno.Settings["pinNames"]![18]!.GetValue<string>());
     }
 
     /// <summary>
@@ -168,7 +179,9 @@ public sealed class Atmega328pRuntimeTests : IDisposable
         undefined.ExceptWith(defined);
         Assert.Equal(
             [
+                "__adddf3", "__divdf3",                                     // the temperature's arithmetic, in software
                 "__do_clear_bss", "__do_copy_data",                         // what clang's AVR code says it needs of start-up
+                "__floatsidf",
                 "__muldi3", "__mulsi3", "__udivdi3", "__udivmodsi4",        // the avr runtime's helpers
                 "chipsharp_halt_failure",                                   // and its failure stop
             ],

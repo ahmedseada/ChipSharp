@@ -1,4 +1,4 @@
-using System.Globalization;
+using ChipSharp.Abstractions;
 
 namespace ChipSharp.Frontend.Analysis;
 
@@ -37,30 +37,12 @@ internal sealed partial record Unsupported
 
     /// <summary>
     /// A pin, given as a constant, that cannot be <paramref name="role"/> on the target: "GPIO 6 cannot be UART1's TX
-    /// on the target 'pico'", with the pins that can.
+    /// on the target 'pico'" ("pin 4 (D4) cannot be UART0's TX on the target 'uno'": see <see cref="PinNames"/>), with
+    /// the pins that can.
     /// </summary>
-    public static Unsupported WrongPin(int pin, string role, IReadOnlyList<int> pins, string target) => Rule(
-        $"GPIO {pin} cannot be {role} on the target '{target}'",
-        pins.Count == 0 ? "It has none." : $"{char.ToUpperInvariant(role[0])}{role[1..]} can be GPIO {Pins(pins)}.");
-
-    /// <summary>"4, 8, 20 or 24"; a run of three or more pins as "0 to 29".</summary>
-    private static string Pins(IReadOnlyList<int> pins)
-    {
-        var parts = new List<string>();
-        for (var i = 0; i < pins.Count;)
-        {
-            var end = i;
-            while (end + 1 < pins.Count && pins[end + 1] == pins[end] + 1)
-            {
-                end++;
-            }
-
-            parts.AddRange(end - i >= 2
-                ? [$"{pins[i]} to {pins[end]}"]
-                : pins.Skip(i).Take(end - i + 1).Select(pin => pin.ToString(CultureInfo.InvariantCulture)));
-            i = end + 1;
-        }
-
-        return parts.Count == 1 ? parts[0] : $"{string.Join(", ", parts.Take(parts.Count - 1))} or {parts[^1]}";
-    }
+    public static Unsupported WrongPin(TargetDescription target, int pin, string role, IReadOnlyList<int> pins) => Rule(
+        $"{PinNames.Of(target, pin)} cannot be {role} on the target '{target.Name}'",
+        pins.Count == 0
+            ? "It has none."
+            : $"{char.ToUpperInvariant(role[0])}{role[1..]} can be {PinNames.List(target, pins, "or")}.");
 }

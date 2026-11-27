@@ -8,6 +8,7 @@
 //   __vector_5    PCINT2: D0-D7 (port D)   source 4
 //   __vector_12   TIMER1_COMPB             source 5   the timer event (atmega328p_events.c)
 //   __vector_18   USART_RX                 source 6   a byte received (atmega328p_uart.c)
+//   __vector_11   TIMER1_COMPA             source 7   an edge of D9's PWM (atmega328p_pwm.c)
 //
 // Each entry saves r24, puts its source in it and goes to one common part, which saves what a C function may change
 // (r0, SREG, r1, r18-r27, r30, r31), clears r1 (compiled code takes it to be 0), calls chipsharp_interrupt(source)
@@ -42,6 +43,7 @@ __vector_\vector:
     entry 5, 4
     entry 12, 5
     entry 18, 6
+    entry 11, 7
 
 common:
     push r0

@@ -30,7 +30,8 @@
 // The clock: Timer1 counts 16 MHz / 8, two counts a microsecond, from 0 to 0xffff and round again (normal mode, every
 // 32.768 ms), and its overflow interrupt (TIMER1_OVF, __vector_13, a few instructions in every program, as Arduino's)
 // counts the rounds in 32 bits: 48 bits of half microseconds, which go round after 4.46 years. Timer1's compare B is the
-// timer event's (atmega328p_events.c); Timer0 and Timer2 are left to the program.
+// timer event's (atmega328p_events.c), compare A D9's PWM's (atmega328p_pwm.c); Timer0 and Timer2 make the other PWM
+// outputs' (D3, D5, D6, D11), and are the program's while it has none.
 //
 // USART0: 115200 baud is 16 MHz / (8 * 17) with U2X0, 117647 baud really, 2.1% fast, as the Arduino core's
 // Serial.begin(115200) has it (without U2X0, 16 MHz / (16 * 9) is 111111, 3.5% slow). A byte goes out when the one before
@@ -497,13 +498,14 @@ void chipsharp_before_halt(void)
 // ---- The runtime's interrupts ------------------------------------------------------------------------------------
 
 // The handlers of the interrupts atmega328p_interrupts.S takes, by kind: the pins' (INT0, INT1, PCINT0-2), the timer
-// event's (TIMER1_COMPB) and USART0's receiving (USART_RX). The file of each puts its handler here when the program first
-// uses it (Pin.Watch, Timing.Every and After, Uart.Open and Console.Read), so that a program that does not has none of
-// them, nor their variables: the vector table in flash cannot change, and it names the entries in every program.
-void (*volatile chipsharp_interrupt_hooks[3])(u8 source);
+// event's (TIMER1_COMPB), USART0's receiving (USART_RX) and the edges of D9's PWM (TIMER1_COMPA, atmega328p_pwm.c). The
+// file of each puts its handler here when the program first uses it (Pin.Watch, Timing.Every and After, Uart.Open and
+// Console.Read, a duty cycle on D9), so that a program that does not has none of them, nor their variables: the vector
+// table in flash cannot change, and it names the entries in every program.
+void (*volatile chipsharp_interrupt_hooks[4])(u8 source);
 
 // atmega328p_interrupts.S comes here, with registers and SREG saved, interrupts off: source is 0 for INT0, 1 INT1, 2-4
-// PCINT0-2, 5 TIMER1_COMPB, 6 USART_RX.
+// PCINT0-2, 5 TIMER1_COMPB, 6 USART_RX, 7 TIMER1_COMPA.
 void chipsharp_interrupt(u8 source)
 {
     void (*hook)(u8) = chipsharp_interrupt_hooks[source < 5 ? 0 : source - 4];

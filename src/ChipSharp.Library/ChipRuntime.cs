@@ -6,8 +6,8 @@ namespace ChipSharp.Library;
 /// <see cref="Runtime"/>'s, in a program ChipSharp compiles a call to one of these methods is a call to the runtime
 /// function of the same name, e.g. <c>ChipSharp.Runtime.I2cWrite</c>, and the method's own body is left out. Unlike
 /// those, only a chip whose target has the hardware has them (the RP2040's rp2040_i2c.c, rp2040_spi.c, rp2040_uart.c,
-/// rp2040_adc.c and rp2040_pwm.c), and <c>chipsharp check</c> refuses them on any other target; on .NET they throw, as
-/// ChipSharp.Hardware does.
+/// rp2040_adc.c and rp2040_pwm.c; the ATmega328P's atmega328p_i2c.c, ...), and <c>chipsharp check</c> refuses them on
+/// any other target; on .NET they throw, as ChipSharp.Hardware does.
 /// </summary>
 /// <remarks>
 /// A span arrives as a reference to its first byte and its number of bytes (an empty one as a reference to a local
@@ -68,14 +68,17 @@ internal static class ChipRuntime
     /// <summary>Adc.Input: makes a pin an analog input.</summary>
     public static void AdcInput(int pin) => throw ChipOnly("Adc.Input");
 
-    /// <summary>One reading of an analog input, 0 to 4095.</summary>
+    /// <summary>One reading of an analog input, in the chip's own range: 0 to 4095 on the RP2040, 0 to 1023 on the ATmega328P.</summary>
     public static int AdcRead(int pin) => throw ChipOnly("Adc.Read");
 
-    /// <summary>One reading of the temperature sensor, 0 to 4095.</summary>
-    public static int AdcTemperature() => throw ChipOnly("Adc.Temperature");
+    /// <summary>The chip's temperature in degrees Celsius, by the chip's datasheet's formula for its sensor's reading.</summary>
+    public static double AdcTemperature() => throw ChipOnly("Adc.Temperature");
 
-    /// <summary>The voltage a reading of 4096 would be: the board's ADC reference.</summary>
+    /// <summary>The voltage a reading of <see cref="AdcFullScale"/> would be: the board's ADC reference.</summary>
     public static double AdcReference() => throw ChipOnly("Adc.Volts");
+
+    /// <summary>The reading the reference voltage would be, one more than the highest: 4096 (12 bits), 1024 (10 bits).</summary>
+    public static int AdcFullScale() => throw ChipOnly("Adc.Volts");
 
     /// <summary>Pwm.Output: a pin a PWM output at a frequency, low.</summary>
     public static void PwmOutput(int pin, int frequency) => throw ChipOnly("Pwm.Output");

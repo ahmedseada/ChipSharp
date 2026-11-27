@@ -195,7 +195,7 @@ The `"capabilities"` decide what a program may use on the chip:
 | `console` | Whether `Console.Write` has somewhere to go | UART0 | standard output | none |
 | `consoleInput` | Whether `Console.Read` and `Console.ReadLine` have something to read | UART0 | not yet | none |
 | `clock` | Whether a timer counts time for `DateTime.Now`, `Stopwatch`, `Environment.TickCount` and `Clock.Start` (see [Date and time](#date-and-time)) | the timer's microseconds | Windows' clock | none |
-| `uart`, `adc`, `pwm` | How many serial ports, analog inputs and PWM outputs `ChipSharp.Hardware` can use (see [Hardware](#hardware)); `"pinFunctions"` lists their pins | 2, 4, 16 | none | none |
+| `uart`, `adc`, `pwm` | How many serial ports, analog inputs and PWM outputs `ChipSharp.Hardware` can use (see [Hardware](#hardware)); `"pinFunctions"` lists their pins (and `"pinNames"`, the Uno's, the names check's messages give them) | 2, 4, 16 | none | none |
 | `unalignedAccess` | Whether a word may be read at any address; without it `MemoryMarshal.Read` reads byte by byte and `MemoryMarshal.Cast` checks alignment | no | yes | no |
 | `stackCheck` | The functions that can recurse check the stack, so a stack overflow says `Stack overflow.` instead of locking the core up | yes | (Windows' guard page) | yes |
 | `narrowing` | Arithmetic in 8 or 16 bits where the values provably fit and the result is C#'s (see [Narrowing](#narrowing)); when not given, on for a chip with 2-byte pointers (the AVR) only | no | no | no |
@@ -236,10 +236,35 @@ go).
   when the one before has (no send buffer, no RAM taken); `Console.Read` and `Uart.Open(0, 1, 0, baud)` (489 to 2000000
   baud) receive into a buffer of 64 bytes, filled by the receive interrupt, as the Arduino core's. `Console.ReadLine`
   makes a string, so it needs a heap, which the Uno has none of. A failure prints .NET's message there, then stops.
+- **I2C** (`I2c`) is the TWI, bus 0, SDA on A4 and SCL on A5 (pins 18 and 19), with their pull-ups on: 490 Hz to 400
+  kHz, the nearest at or below the frequency (100 and 400 kHz exactly), the same `true` and `false` as on the Pico (no
+  answer, a refused byte, a bus held for longer than a byte's limit), a repeated start for `WriteRead`.
+- **SPI** (`Spi`) is bus 0, SCK on D13, TX (MOSI) on D11, RX (MISO) on D12, modes 0 to 3, at 16 MHz / 2, 4, 8, ...,
+  128 (8 MHz to 125 kHz), the fastest at or below the frequency. D10 (SS) becomes an output, high, as the Arduino
+  core's `SPI.begin` makes it: as an input that goes low it would make the chip a device; it is the usual chip select.
+- **Analog inputs** (`Adc`) are A0 to A5 (pins 14 to 19), read in the chip's own 10 bits, 0 to 1023 against the 5 V
+  supply (AVcc), as Arduino's `analogRead` reads them: `Adc.Read` is the chip's range (the Pico's is 0 to 4095), and
+  `Adc.Volts` the volts on both (reading * 5 / 1024 here). A reading takes 104 microseconds, with interrupts on (a
+  handler that reads one meanwhile gets its own); `Adc.Temperature` is the chip's sensor against its 1.1 V, by the
+  datasheet's typical readings (352 at 25 °C, 1.28 a degree), up to 10 degrees off. A4 and A5 are the I2C bus's while
+  it is open.
+- **PWM** (`Pwm`) is on D3, D5, D6, D9 and D11. D5 and D6 are Timer0's, D3 and D11 Timer2's: 8-bit timers, so a few
+  frequencies, the nearest to the one asked for, from 30.6 Hz to 62.5 kHz (Timer0: 62500, 31373, 7813, 3922, 977,
+  490, 244, 123, 61 and 31 Hz; Timer2 also 1953, 980, 488 and 245), a timer's two pins at its one frequency, the duty
+  cycle in 256 steps (255 phase correct). Timer1 is the clock's, counting half microseconds for ever, so D9 is made by
+  its compare A, which sets and clears the pin at the very count of each edge while its interrupt sets the next: any
+  frequency from 1 Hz to 10 kHz, the duty cycle to the half microsecond, the pin for a servo (`Pwm.Output(9, 50)` and
+  `Pwm.PulseMicroseconds(9, 1500)` are 20 ms and 1.5 ms exactly; on Timer0 and Timer2, 50 Hz would be 61 Hz in 64 us
+  steps). A pulse or a gap shorter than 20 us is not made on D9 (the pin stays low, or high), and a long interrupt
+  handler of the program's delays the edge after it. D10, Timer1's compare B, is the timer event's, and no PWM output.
+- **ChipSharp.Components** runs as it is: `Lcd` on A4 and A5, `Ds1307`, `SevenSegment` on any pins, a 74HC595 over SPI.
 - **What it takes**: a blink (`Pin.Output`, `Pin.Toggle`, `Timing.DelayMilliseconds`) is 1.2 KB of flash and 15 bytes
   of RAM; one that writes a few chars to the console 1.4 KB and 30 bytes; a serial echo (`Uart.Open`, `Console.Read`,
-  `Uart.WriteByte`) 2.9 KB and 90 bytes, the receive buffer's 64 among them. `chipsharp check -t uno` refuses what the
-  Uno has not yet (analog inputs, PWM, I2C, SPI) and a second serial port.
+  `Uart.WriteByte`) 2.9 KB and 90 bytes, the receive buffer's 64 among them. A 74HC595 over SPI is 4.2 KB and 20 bytes;
+  `Lcd` showing a line and a number 5.8 KB and 76 bytes; a servo sweep on D9 5.9 KB and 48 bytes, with a potentiometer
+  on A0 6.9 KB; the time from a `Ds1307` into `Clock.Start` 8.2 KB and 90 bytes. `chipsharp check -t uno` refuses a
+  second serial port or bus, and a pin, a clock or a bus the Uno does not have for them, naming its pins as the
+  Uno's headers do: `pin 4 (D4) cannot be UART0's TX on the target 'uno' ... UART0's TX can be pin 1 (D1).`
 
 - **Zig**: LLVM's release builds for Windows have no AVR, so the target's toolchain `zig` runs the clang and ld.lld
   inside [Zig](https://ziglang.org/download/) (0.17 or later: unpack the zip anywhere). ChipSharp finds it through
@@ -288,8 +313,11 @@ go).
 - **In the simulator** (avr8js, what Wokwi runs; once: `cd tools\avr-sim; npm ci`):
   `node tools\avr-sim\run.mjs Blink.hex --ms 1000` prints every pin change by its Uno name (`[   20.822 ms] D13 high`)
   and every line written to USART0 (`USART0: Hello`); `--input D2=high@100ms` drives a pin from outside, `--send
-  "text\n@50ms"` types into USART0, `--usart0 file.bin` saves what it sent. A run stops when the program sleeps with
-  interrupts off (it has finished) or reaches a `break` (a fatal error, exit code 3).
+  "text\n@50ms"` types into USART0, `--usart0 file.bin` saves what it sent. The Pico simulator's devices go on the
+  Uno's buses ([below](#buses-in-the-simulator)): `--i2c 0:0x27=lcd1602`, `--i2c 0:0x68=ds1307`, `--spi
+  0=74hc595@D10` (its latch on D10). `--adc A0=2.5V` sets an analog input (`A1=512`, a reading; `temp=30C`; `@100ms`
+  from a time), and a PWM output is printed as measured, `D9 PWM 50.00 Hz, duty 7.50% (1500.00 us high)`. A run stops
+  when the program sleeps with interrupts off (it has finished) or reaches a `break` (a fatal error, exit code 3).
 - **In Wokwi** ([wokwi.com](https://wokwi.com)): start a new Arduino Uno project, press F1 in the code editor, pick
   "Upload Firmware and Start Simulation...", and choose the `.hex`. The examples' `diagram.json` name the Uno's pins as
   Wokwi's `wokwi-arduino-uno` does: `uno:13`, `uno:2`, `uno:GND.1` (the GND beside 13; `GND.2` and `GND.3` are by
@@ -661,6 +689,8 @@ var celsius = Adc.Temperature();    // the chip's own sensor: 27 - (volts - 0.70
 
 The Pico's analog inputs are GPIO 26, 27 and 28, and 29, which measures a third of VSYS. A reading takes 2
 microseconds, with interrupts off; the temperature sensor needs no `Input` and is not calibrated (a few degrees off).
+The Uno's are A0 to A5 (pins 14 to 19), read in its 10 bits: `Adc.Read(14)` is 0 to 1023 (5 V), `Adc.Volts` reading *
+5 / 1024, so the volts are the same on both chips and the readings each chip's own (see [Arduino Uno](#arduino-uno-in-progress)).
 
 ### PWM outputs
 
@@ -682,6 +712,11 @@ output is in use, or a pin whose twin is a PWM output already, stops the program
 Unhandled exception. System.InvalidOperationException: GPIO 17 shares PWM slice 0 with GPIO 0, which runs at 1000 Hz, and a slice runs at one frequency. Give both the same frequency, stop GPIO 0 first, or use a pin of another slice.
 ```
 
+The Uno's PWM pins are D3, D5, D6 and D11, on two 8-bit timers at a few frequencies (the nearest is taken), and D9,
+whose edges Timer1's compare times to the half microsecond, the servo's pin: the same code runs there with `Pwm.Output(9,
+50)` (see [Arduino Uno](#arduino-uno-in-progress)). Its timers are shared as the Pico's slices: `Pin 6 shares Timer0
+with pin 5, which runs at 1000 Hz, ...`.
+
 ### I2C
 
 ```csharp
@@ -694,7 +729,7 @@ if (I2c.WriteRead(0, 0x68, register, id)) Console.WriteLine($"0x{id[0]:X2}");   
 
 | Method | What it does |
 |---|---|
-| `I2c.Open(bus, sda, scl, frequency)` | Sets the bus up on its pins, with the chip's pull-ups on, its clock from 2 kHz to 1 MHz (100 kHz standard mode, 400 kHz fast mode, 1 MHz fast mode plus). The Pico's bus 0 (I2C0) has SDA on GPIO 0, 4, 8, ..., 28 and SCL on the pin after each; bus 1 (I2C1) SDA on GPIO 2, 6, 10, ..., 26 and SCL on the pin after |
+| `I2c.Open(bus, sda, scl, frequency)` | Sets the bus up on its pins, with the chip's pull-ups on, its clock from 2 kHz to 1 MHz (100 kHz standard mode, 400 kHz fast mode, 1 MHz fast mode plus). The Pico's bus 0 (I2C0) has SDA on GPIO 0, 4, 8, ..., 28 and SCL on the pin after each; bus 1 (I2C1) SDA on GPIO 2, 6, 10, ..., 26 and SCL on the pin after. The Uno's one bus 0 has SDA on A4 (18) and SCL on A5 (19), 490 Hz to 400 kHz |
 | `I2c.Write(bus, address, data)` | Sends the bytes of a `ReadOnlySpan<byte>` to the device at a 7-bit address (0 to 127) |
 | `I2c.Read(bus, address, data)` | Fills a `Span<byte>` from the device |
 | `I2c.WriteRead(bus, address, write, read)` | Both in one transfer, a repeated start between and no stop: how a device's register is read (its number, then its value) |
@@ -718,7 +753,7 @@ Pin.Write(17, true);
 
 | Method | What it does |
 |---|---|
-| `Spi.Open(bus, sck, tx, rx, frequency, mode)` | Sets the bus up as its controller: 8 bits, most significant first, the clock the nearest the chip makes at or below `frequency` (2 kHz to 62.5 MHz), SPI `mode` 0 to 3; -1 for no `rx` (a device that only listens) or no `tx`. The Pico's bus 0 (SPI0) has SCK on GPIO 2, 6, 18 or 22, TX on 3, 7, 19 or 23, RX on 0, 4, 16 or 20; bus 1 (SPI1) SCK on 10, 14 or 26, TX on 11, 15 or 27, RX on 8, 12, 24 or 28 |
+| `Spi.Open(bus, sck, tx, rx, frequency, mode)` | Sets the bus up as its controller: 8 bits, most significant first, the clock the nearest the chip makes at or below `frequency` (2 kHz to 62.5 MHz), SPI `mode` 0 to 3; -1 for no `rx` (a device that only listens) or no `tx`. The Pico's bus 0 (SPI0) has SCK on GPIO 2, 6, 18 or 22, TX on 3, 7, 19 or 23, RX on 0, 4, 16 or 20; bus 1 (SPI1) SCK on 10, 14 or 26, TX on 11, 15 or 27, RX on 8, 12, 24 or 28. The Uno's one bus 0 has SCK on D13, TX on D11, RX on D12, 125 kHz to 8 MHz (16 MHz / 2 to 128) |
 | `Spi.Write(bus, data)` | Sends the bytes, and drops what comes back |
 | `Spi.Read(bus, data)` | Fills the span with what the device sends, sending zeros |
 | `Spi.Transfer(bus, write, read)` | Both at once, a byte back for each byte sent (the two spans may be one) |
@@ -833,8 +868,9 @@ SDA and SCL to 5 V: take them off, use a level shifter, or a DS3231, which runs 
 
 ### Buses in the simulator
 
-`tools/rp2040-sim/run.mjs` puts simulated devices on the buses (`tools/rp2040-sim/devices`), and prints what the buses
-do with the pin changes:
+`tools/rp2040-sim/run.mjs` puts simulated devices on the buses (`tools/rp2040-sim/devices`; `devices/catalog.mjs` is
+what `tools/avr-sim/run.mjs` shares of them, for the Uno's bus 0: `--i2c 0:0x27=lcd1602`, `--spi 0=74hc595@D10`), and
+prints what the buses do with the pin changes:
 
 | Option | Device |
 |---|---|
@@ -1002,6 +1038,10 @@ The simulator, rp2040js 1.4.1, has one known fault: it sets the overflow flag of
 subtrahend to 0x80000000, so a comparison of extreme `long` values, such as `long.MaxValue` with `long.MinValue`, gives
 the wrong answer on the simulated Pico only (a real RP2040 and the PC are right). The Pico tests leave those values to
 the PC tests.
+
+The Uno's, avr8js 0.21.1, ends a fast PWM pulse one count of its timer early (at OCR, where the ATmega328P ends it at
+OCR + 1), and moves a timer's edge by a clock cycle when the program reads the timer at its count; the Uno's PWM tests
+allow for both. Its TWI takes no time on the bus: the I2C transfers' timing is the program's own.
 
 ## How it works
 

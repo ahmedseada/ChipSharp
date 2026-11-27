@@ -50,7 +50,7 @@ typedef unsigned long u32;
 #define BUFFER_SIZE 64u
 
 // In atmega328p_runtime.c.
-extern void (*volatile chipsharp_interrupt_hooks[3])(u8 source);
+extern void (*volatile chipsharp_interrupt_hooks[4])(u8 source);
 extern u8 chipsharp_usart0_started;
 void chipsharp_usart0_start(u16 divisor, u8 receive);
 void chipsharp_usart0_write(const char *bytes, unsigned int count);

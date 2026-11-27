@@ -5,7 +5,9 @@ namespace ChipSharp.Hardware;
 /// SDI), for fast devices: shift registers, memories, converters, radios. <see cref="Open"/> a bus before using it.
 /// With every byte the chip sends it receives one, most significant bit first. On the Raspberry Pi Pico there are two,
 /// bus 0 and bus 1 (SPI0 and SPI1), each on pins of its own: for bus 0 SCK on GPIO 2, 6, 18 or 22, TX on 3, 7, 19 or 23
-/// and RX on 0, 4, 16 or 20; for bus 1 SCK on GPIO 10, 14 or 26, TX on 11, 15 or 27 and RX on 8, 12, 24 or 28.
+/// and RX on 0, 4, 16 or 20; for bus 1 SCK on GPIO 10, 14 or 26, TX on 11, 15 or 27 and RX on 8, 12, 24 or 28. On the
+/// Arduino Uno there is one, bus 0, with SCK on D13, TX (MOSI) on D11 and RX (MISO) on D12; D10 (SS) is made an output
+/// while it is open, so that the chip stays the bus's controller: it is the usual chip select.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -31,7 +33,8 @@ public static class Spi
     /// Sets up <paramref name="bus"/> as the bus's controller on the pins <paramref name="sck"/>, <paramref name="tx"/>
     /// and <paramref name="rx"/> (-1 for none: no <paramref name="rx"/> for a device that only listens, such as a shift
     /// register; no <paramref name="tx"/> for one that only talks), with its clock at <paramref name="frequency"/>
-    /// hertz, from 2_000 to 62_500_000 (the chip takes the nearest it can make below it), in SPI
+    /// hertz, from 2_000 to 62_500_000 (the chip takes the nearest it can make below it; the Uno makes 16 MHz / 2, 4, 8,
+    /// ..., 128, from 125_000 to 8_000_000), in SPI
     /// <paramref name="mode"/> 0 to 3: 0 (the clock low when idle, bits read on its rising edge) suits most devices,
     /// 1 reads on the falling edge, 2 and 3 are 0 and 1 with the clock high when idle. Call it again to change the
     /// frequency or the mode, e.g. for another device on the same bus.
