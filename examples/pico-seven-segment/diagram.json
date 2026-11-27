@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "author": "ChipSharp",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-pi-pico", "id": "pico", "top": 0, "left": 0, "attrs": {} },
+    {
+      "type": "wokwi-7segment",
+      "id": "digit",
+      "top": -30,
+      "left": -110,
+      "attrs": { "common": "cathode", "digits": "1", "color": "red" }
+    }
+  ],
+  "connections": [
+    ["pico:GP0", "$serialMonitor:RX", "", []],
+    ["pico:GP1", "$serialMonitor:TX", "", []],
+    ["pico:GP4", "digit:C", "orange", ["h-82.73", "*"]],
+    ["pico:GP5", "digit:D", "orange", ["h-101.93", "*"]],
+    ["pico:GP6", "digit:E", "orange", ["h-111.53", "*"]],
+    ["pico:GP2", "digit:A", "orange", ["h-46.05", "v-91.65", "h-36.68", "*"]],
+    ["pico:GP3", "digit:B", "orange", ["h-56.05", "v-91.25", "h-17.08", "*"]],
+    ["pico:GND.1", "digit:COM.2", "black", ["h-36.05", "v-92.05", "h-56.28", "*"]],
+    ["pico:GP7", "digit:F", "orange", ["h-126.05", "v-149.25", "h24.12", "*"]],
+    ["pico:GP8", "digit:G", "orange", ["h-136.05", "v-148.85", "h24.52", "*"]]
+  ],
+  "dependencies": {}
+}
