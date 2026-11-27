@@ -289,6 +289,8 @@ public static class TirVerifier
             TirTypeAddress a => DescriptorProblem("typeaddr", a.TypeDescriptor, null),
 
             TirCall c => CallProblem(c),
+            TirCallIndirect { Callee.Type: var callee } when callee != TirType.Ptr =>
+                $"call indirect takes the address of a function (ptr), not {callee}.",
 
             TirReturn { Value: null } when function.ReturnType != TirType.Void =>
                 $"returns nothing, but the function returns {function.ReturnType}.",

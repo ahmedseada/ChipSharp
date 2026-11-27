@@ -150,12 +150,14 @@ public static partial class WholeProgramPass
 
     /// <summary>
     /// <paramref name="roots"/> and every method of <paramref name="program"/> they reach through calls (constructors
-    /// too, see <see cref="ValueTypes.CalledMethod"/>).
+    /// too, see <see cref="ValueTypes.CalledMethod"/>), and through virtual calls what they can run on the objects the
+    /// program makes (<see cref="VirtualDispatch"/>).
     /// </summary>
     private static HashSet<IlMethod> Reach(IEnumerable<IlMethod> roots, HashSet<IlMethod> program)
     {
         var reached = new HashSet<IlMethod>();
         var pending = new Stack<IlMethod>(roots);
+        VirtualDispatch? dispatch = null;
         while (pending.TryPop(out var method))
         {
             if (!reached.Add(method))
@@ -163,11 +165,24 @@ public static partial class WholeProgramPass
                 continue;
             }
 
-            foreach (var instruction in method.Body?.Instructions ?? [])
+            var instructions = method.Body?.Instructions ?? [];
+            for (var i = 0; i < instructions.Count; i++)
             {
-                if (ValueTypes.CalledMethod(instruction) is { } callee && program.Contains(callee))
+                if (ValueTypes.CalledMethod(instructions[i]) is { } callee && program.Contains(callee))
                 {
                     pending.Push(callee);
+                }
+
+                if (VirtualMethods.CalledSlot(instructions, i) is { } slot)
+                {
+                    dispatch ??= VirtualDispatch.Of(program);
+                    foreach (var target in dispatch.Targets(slot, null))
+                    {
+                        if (target.Method is { } overrider && program.Contains(overrider))
+                        {
+                            pending.Push(overrider);
+                        }
+                    }
                 }
             }
         }

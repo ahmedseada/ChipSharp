@@ -127,6 +127,13 @@ public sealed class TirBuilder(TirBlock block)
     public TirCall Call(TirFunction callee, params IEnumerable<TirValue> arguments) =>
         Block.Append(new TirCall(callee, arguments));
 
+    /// <summary>
+    /// Calls the function at the address <paramref name="callee"/> (a ptr, e.g. read from a method table), which returns
+    /// <paramref name="returnType"/>.
+    /// </summary>
+    public TirCallIndirect CallIndirect(TirType returnType, TirValue callee, params IEnumerable<TirValue> arguments) =>
+        Block.Append(new TirCallIndirect(returnType, callee, arguments));
+
     /// <summary>Ends the block, returning <paramref name="value"/> (none in a void function).</summary>
     public TirReturn Return(TirValue? value = null) => Block.Append(new TirReturn(value));
 

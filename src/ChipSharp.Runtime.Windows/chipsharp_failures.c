@@ -17,9 +17,12 @@
 //   ChipSharp_Runtime_LengthOutOfRange   MemoryMarshal.Read and Write on too few bytes (ArgumentOutOfRangeException)
 //   ChipSharp_Runtime_DestinationTooShort  a span's CopyTo a shorter one (ArgumentException)
 //   ChipSharp_Runtime_DataMisaligned     MemoryMarshal.Cast on a chip without unaligned access (DataMisalignedException)
+//   ChipSharp_Runtime_InvalidCast        a cast to a type the object is not of (InvalidCastException), with the names of
+//                                        both types as their descriptors hold them (.NET's, e.g. Program+Node)
 //
 // IndexOutOfRange, NullReference, OutOfMemory, Overflow and the span ones are the code generator's and the heap's
-// (chipsharp_heap.c); the others are the methods of ChipSharp.Library.Runtime, which says when each happens.
+// (chipsharp_heap.c), InvalidCast the program's casts' (ChipSharp.Object.CastClass and CastInterface); the others are
+// the methods of ChipSharp.Library.Runtime, which says when each happens.
 
 #define UNHANDLED "Unhandled exception. "
 #define TIMESPAN_TOO_LONG "TimeSpan overflowed because the duration is too long."
@@ -36,23 +39,65 @@ __declspec(dllimport) BOOL __stdcall WriteFile(HANDLE hFile, const void *lpBuffe
                                                DWORD *lpNumberOfBytesWritten, void *lpOverlapped);
 __declspec(dllimport) __declspec(noreturn) void __stdcall ExitProcess(unsigned int uExitCode);
 
-// Writes the message to standard error (as much of it as can be written), then ends the program.
-__declspec(noreturn) static void fail(const char *message, DWORD count)
+// Writes text to standard error, as much of it as can be written.
+static void write_error(const char *text, DWORD count)
 {
     HANDLE error = GetStdHandle(STD_ERROR_HANDLE);
     while (count > 0)
     {
         DWORD written = 0;
-        if (!WriteFile(error, message, count, &written, 0) || written == 0)
+        if (!WriteFile(error, text, count, &written, 0) || written == 0)
         {
             break;
         }
 
-        message += written;
+        text += written;
         count -= written;
     }
+}
 
+// Writes the message to standard error (as much of it as can be written), then ends the program.
+__declspec(noreturn) static void fail(const char *message, DWORD count)
+{
+    write_error(message, count);
     ExitProcess(1);
+}
+
+// The number of bytes of text that ends with a 0 byte, without it.
+static unsigned int length(const char *text)
+{
+    unsigned int count = 0;
+    while (text[count] != 0)
+    {
+        count++;
+    }
+
+    return count;
+}
+
+// A type's name as .NET's InvalidCastException message writes it: a nested type by its own name (Program+Node is
+// Node), any other by its full name; a '+' between the brackets of a generic type's arguments stays.
+static const char *cast_name(const char *name)
+{
+    const char *start = name;
+    int depth = 0;
+    for (const char *c = name; *c != 0; c++)
+    {
+        if (*c == '[')
+        {
+            depth++;
+        }
+        else if (*c == ']')
+        {
+            depth--;
+        }
+        else if (*c == '+' && depth == 0)
+        {
+            start = c + 1;
+        }
+    }
+
+    return start;
 }
 
 __declspec(noreturn) void ChipSharp_Runtime_IndexOutOfRange(void)
@@ -154,4 +199,18 @@ __declspec(noreturn) void ChipSharp_Runtime_DataMisaligned(void)
     static const char message[] =
         UNHANDLED "System.DataMisalignedException: A datatype misalignment was detected in a load or store instruction.\r\n";
     fail(message, (DWORD)(sizeof message - 1));
+}
+
+__declspec(noreturn) void ChipSharp_Runtime_InvalidCast(const char *from, const char *to)
+{
+    static const char start[] = UNHANDLED "System.InvalidCastException: Unable to cast object of type '";
+    static const char middle[] = "' to type '";
+    static const char end[] = "'.\r\n";
+    from = cast_name(from);
+    to = cast_name(to);
+    write_error(start, (DWORD)(sizeof start - 1));
+    write_error(from, length(from));
+    write_error(middle, (DWORD)(sizeof middle - 1));
+    write_error(to, length(to));
+    fail(end, (DWORD)(sizeof end - 1));
 }

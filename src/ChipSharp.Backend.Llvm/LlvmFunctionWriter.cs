@@ -242,6 +242,21 @@ internal sealed class LlvmFunctionWriter
 
                 break;
 
+            case TirCallIndirect call:
+                // the address is a defined function's, from a method table: the same convention as a direct call
+                var indirectText = $"call {_types.Of(call.Type)} {Value(call.Callee)}" +
+                    $"({string.Join(", ", call.Arguments.Select(Typed))})";
+                if (call.HasResult)
+                {
+                    Define(call, indirectText);
+                }
+                else
+                {
+                    Line(indirectText);
+                }
+
+                break;
+
             case TirReturn { Value: null }:
                 Line("ret void");
                 break;

@@ -68,9 +68,10 @@ public static class SupportedSubset
         // rejects a null in place of an array; the other types it could be are rejected as types)
         IlOpCode.Ldstr, IlOpCode.Ldnull,
 
-        // classes (ClassRules): callvirt of a method that is not virtual, which checks its object for null; newobj and
-        // the field instructions above make objects and reach their fields
-        IlOpCode.Callvirt,
+        // classes (ClassRules): callvirt, which checks its object for null, then calls the method or what its virtual
+        // method table or interface map says (VirtualMethods); newobj and the field instructions above make objects and
+        // reach their fields; isinst and castclass test them against classes and interfaces
+        IlOpCode.Callvirt, IlOpCode.Isinst, IlOpCode.Castclass,
     }.ToFrozenSet();
 
     /// <summary>

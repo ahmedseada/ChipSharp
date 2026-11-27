@@ -15,9 +15,6 @@ namespace ChipSharp.Tests.Classes;
 /// </summary>
 public sealed class ClassCheckTests : IDisposable
 {
-    private const string Virtual = "virtual methods (virtual, override, abstract) arrive with M3 (virtual calls). For " +
-        "now, leave out virtual, override and abstract, and give a derived class's method a name of its own.";
-
     private const string InHandler = "an interrupt handler cannot create objects (new ...). The heap may be in the " +
         "middle of an allocation or a collection when the interrupt comes: create what the handler needs before, e.g. " +
         "in a static field.";
@@ -118,9 +115,9 @@ public sealed class ClassCheckTests : IDisposable
     }
 
     [Fact]
-    public void Virtual_override_and_abstract_methods_arrive_with_virtual_calls()
+    public void Virtual_override_and_abstract_methods_compile_and_only_the_overrides_that_can_run_are_reached()
     {
-        var problems = WholeProgram.Problems("""
+        var source = """
             abstract class Shape
             {
                 public abstract int Area();
@@ -135,6 +132,11 @@ public sealed class ClassCheckTests : IDisposable
                 public sealed override int Sides() => 4;
             }
 
+            class Circle : Shape
+            {
+                public override int Area() => 3;
+            }
+
             class Program
             {
                 static void Main()
@@ -143,19 +145,17 @@ public sealed class ClassCheckTests : IDisposable
                     System.Console.WriteLine(shape.Area() + shape.Sides());
                 }
             }
-            """);
+            """;
 
-        Assert.Equal(
-        [
-            $"Program.Main() at IL_0007 (callvirt): {Virtual}",
-            $"Program.Main() at IL_000d (callvirt): {Virtual}",
-            $"Shape.Area(): {Virtual}",
-            $"Shape.Sides(): {Virtual}",
-        ], problems);
+        // no Circle is made: its Area and Shape's Sides, which only a Circle would run, are left out
+        var analysis = WholeProgram.Check(source);
+        Assert.True(analysis.IsSupported, analysis.Details);
+        Assert.Equal(["Program.Main", "Square..ctor", "Square.Area", "Square.Sides", "Shape..ctor"],
+            WholeProgram.MethodNames(source));
     }
 
     [Fact]
-    public void Equals_GetHashCode_and_ToString_of_objects_arrive_with_virtual_calls_or_with_built_text()
+    public void Equals_and_GetHashCode_of_objects_compile_and_ToString_arrives_with_stored_strings()
     {
         var analysis = WholeProgram.Check("""
             class Node
@@ -172,16 +172,17 @@ public sealed class ClassCheckTests : IDisposable
                     System.Console.WriteLine(a.Equals(b));
                     System.Console.WriteLine(a.GetHashCode());
                     System.Console.WriteLine(a.ToString());
+                    System.Console.WriteLine($"{a}");
                 }
             }
             """);
 
+        // an object printed is printed as its ToString gives it
         Assert.Equal(
         [
-            "ToString, Equals and GetHashCode of objects arrive with M3 (virtual calls): 2 places in Program.Main() " +
-                "(IL_000d and IL_0018). For now, give the class a method of its own for it, such as Describe() or " +
-                "SameAs(other), and call that.",
-            $"{WholeProgram.Building}: 1 place in Program.Main() (IL_0022). {WholeProgram.BuildingHint}",
+            "ToString of objects (and printing an object) arrives with M3 (stored strings): 2 places in Program.Main() " +
+                "(IL_0024 and IL_003a). For now, give the class a method that prints what it holds, such as Print(), " +
+                "and call that.",
         ], analysis.Groups.Select(group => group.Line));
     }
 
@@ -237,7 +238,7 @@ public sealed class ClassCheckTests : IDisposable
         Assert.Equal(
         [
             "generic classes arrive with M3 (generics over classes)",
-            "record classes arrive with M3 (virtual calls)",
+            "record classes arrive with M3 (stored strings)",
             "finalizers (~ClassName()) arrive later",
             "exceptions arrive later",
             "classes derived from the library class System.Collections.ArrayList arrive later",
@@ -246,7 +247,7 @@ public sealed class ClassCheckTests : IDisposable
     }
 
     [Fact]
-    public void Casts_type_tests_interfaces_of_classes_and_references_to_objects_are_rejected()
+    public void Casts_type_tests_and_interfaces_of_classes_compile_and_references_to_objects_are_rejected()
     {
         var problems = WholeProgram.Problems("""
             interface IShape
@@ -280,14 +281,6 @@ public sealed class ClassCheckTests : IDisposable
 
         Assert.Equal(
         [
-            "Program.Main() at IL_0007 (isinst): type tests and casts on objects (is, as, (T)x) arrive with M3 (the heap). " +
-                "For now, use structs and static methods.",
-            "Program.Main() at IL_001c (castclass): type tests and casts on objects (is, as, (T)x) arrive with M3 (the " +
-                "heap). For now, use structs and static methods.",
-            "Program.Main() at IL_0021 (callvirt): interfaces arrive with M3 (the heap). For now, implement the interface " +
-                "on a struct and use it through a constraint: static void Run<T>(ref T device) where T : struct, IDevice.",
-            "IShape.Area(): interfaces arrive with M3 (the heap). For now, implement the interface on a struct and use it " +
-                "through a constraint: static void Run<T>(ref T device) where T : struct, IDevice.",
             "Program.Replace(ref object), parameter 'thing' (ref object): references to objects (ref, out and in of a " +
                 "class, object or string) arrive with M3 (the heap). For now, return the object, or keep it in a field.",
             "Program.Replace(ref object) at IL_0002 (stind.ref): references to objects (ref, out and in of a class, object " +

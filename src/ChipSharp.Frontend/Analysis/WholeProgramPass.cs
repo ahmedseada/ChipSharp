@@ -72,12 +72,14 @@ public static partial class WholeProgramPass
     /// they reach through <c>call</c> and <c>callvirt</c> (and through <c>newobj</c> of a struct or a class, which calls
     /// its constructor; see <see cref="ValueTypes.CalledMethod"/>), each once, in the order they are first called when
     /// the methods are scanned in this same order, instruction by instruction. The type initializers each method makes
-    /// run (see <see cref="StaticInitialization"/>) come before the methods it calls.
+    /// run (see <see cref="StaticInitialization"/>) come before the methods it calls. A virtual call reaches what its slot
+    /// runs on the objects the program makes (<see cref="VirtualDispatch"/>), not the method it names.
     /// </summary>
     private static IlMethod[] FindReachableMethods(IlMethod entryPoint, IEnumerable<IlMethod> handlers)
     {
         var methods = new List<IlMethod> { entryPoint };
         var found = new HashSet<IlMethod> { entryPoint };
+        var dispatch = new VirtualDispatch();
         methods.AddRange(handlers.Where(found.Add));
         for (var i = 0; i < methods.Count; i++)
         {
@@ -90,13 +92,16 @@ public static partial class WholeProgramPass
             }
 
             // generic code is reached as the instances calls are linked to (see Generics.Instantiations), never itself
-            foreach (var instruction in methods[i].Body?.Instructions ?? [])
+            var instructions = methods[i].Body?.Instructions ?? [];
+            for (var j = 0; j < instructions.Count; j++)
             {
-                if (ValueTypes.CalledMethod(instruction) is { } callee && !Generics.Instantiations.IsGeneric(callee)
-                    && found.Add(callee))
+                if (ValueTypes.CalledMethod(instructions[j]) is { } callee && !Generics.Instantiations.IsGeneric(callee)
+                    && VirtualMethods.CalledSlot(instructions, j) is null && found.Add(callee))
                 {
                     methods.Add(callee);
                 }
+
+                methods.AddRange(dispatch.Follow(instructions, j).Where(found.Add));
             }
         }
 
@@ -185,21 +190,23 @@ public static partial class WholeProgramPass
         }
 
         // the verdict of printed text comes first for the instructions it is about, then the arrays' rule's (a problem,
-        // then spans' verdict, then a fine), then generics', then classes'
+        // then spans' verdict, then a fine), then generics', then virtual calls', then classes'
         var printed = PrintedText.Of(method);
         var arrays = ArrayEscapeAnalysis.Check(method, statics);
         var spans = ForSpans(method);
         var generics = ForGenerics(method);
+        var virtuals = ForVirtualCalls(method);
         var classes = ForClasses(method);
         foreach (var instruction in body.Instructions)
         {
-            // what printed text, the array escape analysis, spans, generics or classes found for this instruction, else
-            // building text, else the struct/reference rules, else the rest
+            // what printed text, the array escape analysis, spans, generics, virtual calls or classes found for this
+            // instruction, else building text, else the struct/reference rules, else the rest
             var unsupported = printed.Verdicts.TryGetValue(instruction, out var text) ? text
                 : arrays.TryGetValue(instruction, out var array) && (array is not null || !spans.ContainsKey(instruction))
                     ? array
                 : spans.TryGetValue(instruction, out var span) ? span
                 : generics.TryGetValue(instruction, out var generic) ? generic
+                : virtuals.TryGetValue(instruction, out var dispatched) ? dispatched
                 : classes.TryGetValue(instruction, out var forClasses) ? forClasses
                 : ForText(method, instruction) ?? ForStructOrReference(method, instruction)
                     ?? ForInstruction(instruction, argsArgument, interpolations);
