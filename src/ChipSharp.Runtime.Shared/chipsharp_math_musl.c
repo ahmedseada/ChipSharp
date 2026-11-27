@@ -44,12 +44,20 @@
 
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
-typedef unsigned int uint32_t;
-typedef int int32_t;
+typedef __UINT32_TYPE__ uint32_t; // 32 bits on every target (AVR's int has 16)
+typedef __INT32_TYPE__ int32_t;
 typedef unsigned long long uint64_t;
 typedef long long int64_t;
 typedef double double_t;
 typedef float float_t;
+
+// ChipSharp: on an AVR the tables stay in flash (__flash: address space 1, which LPM reads), where a constant elsewhere
+// is copied to RAM at the start, which an ATmega328P has 2 KB of; on every other target this is nothing
+#if defined(__AVR__)
+#define FLASH_TABLE __flash
+#else
+#define FLASH_TABLE
+#endif
 
 #define sin chipsharp_musl_sin
 #define cos chipsharp_musl_cos
@@ -144,7 +152,7 @@ static inline float fp_barrierf(float x) { return x; }
 double ChipSharp_Runtime_SqrtFloat64(double value);
 float ChipSharp_Runtime_SqrtFloat32(float value);
 double ChipSharp_Runtime_FloorFloat64(double value);
-double ChipSharp_Runtime_ScaleBFloat64(double x, int n);
+double ChipSharp_Runtime_ScaleBFloat64(double x, int32_t n);
 #define sqrt ChipSharp_Runtime_SqrtFloat64
 #define sqrtf ChipSharp_Runtime_SqrtFloat32
 #define floor ChipSharp_Runtime_FloorFloat64
@@ -302,7 +310,7 @@ float __tandf(double, int);
  */
 
 
-static const int init_jk[] = {3,4,4,6}; /* initial value for jk */
+static const FLASH_TABLE int init_jk[] = {3,4,4,6}; /* initial value for jk */
 
 /*
  * Table of constants for 2/pi, 396 Hex digits (476 decimal) of 2/pi
@@ -316,7 +324,7 @@ static const int init_jk[] = {3,4,4,6}; /* initial value for jk */
  * NB: This table must have at least (e0-3)/24 + jk terms.
  *     For quad precision (e0 <= 16360, jk = 6), this is 686.
  */
-static const int32_t ipio2[] = {
+static const FLASH_TABLE int32_t ipio2[] = {
 0xA2F983, 0x6E4E44, 0x1529FC, 0x2757D1, 0xF534DD, 0xC0DB62,
 0x95993C, 0x439041, 0xFE5163, 0xABDEBB, 0xC561B7, 0x246E3A,
 0x424DD2, 0xE00649, 0x2EEA09, 0xD1921C, 0xFE1DEB, 0x1CB129,
@@ -437,7 +445,7 @@ static const int32_t ipio2[] = {
 #endif
 };
 
-static const double PIo2[] = {
+static const FLASH_TABLE double PIo2[] = {
   1.57079625129699707031e+00, /* 0x3FF921FB, 0x40000000 */
   7.54978941586159635335e-08, /* 0x3E74442D, 0x00000000 */
   5.39030252995776476554e-15, /* 0x3CF84698, 0x80000000 */
@@ -996,7 +1004,7 @@ double __cos(double x, double y)
  */
 
 
-static const double tan_T[] = {
+static const FLASH_TABLE double tan_T[] = {
              3.33333333333334091986e-01, /* 3FD55555, 55555563 */
              1.33333333333201242699e-01, /* 3FC11111, 1110FE7A */
              5.39682539762260521377e-02, /* 3FABA1BA, 1BB341FE */
@@ -1301,7 +1309,7 @@ double tan(double x)
 #define EXP_POLY_ORDER 5
 #define EXP_USE_TOINT_NARROW 0
 #define EXP2_POLY_ORDER 5
-extern const struct exp_data {
+extern const FLASH_TABLE struct exp_data {
 	double invln2N;
 	double shift;
 	double negln2hiN;
@@ -1325,7 +1333,7 @@ extern const struct exp_data {
 
 #define N (1 << EXP_TABLE_BITS)
 
-const struct exp_data __exp_data = {
+const FLASH_TABLE struct exp_data __exp_data = {
 // N/ln2
 .invln2N = 0x1.71547652b82fep0 * N,
 // -ln2/N
@@ -1652,7 +1660,7 @@ double exp(double x)
 #define LOG_TABLE_BITS 7
 #define LOG_POLY_ORDER 6
 #define LOG_POLY1_ORDER 12
-extern const struct log_data {
+extern const FLASH_TABLE struct log_data {
 	double ln2hi;
 	double ln2lo;
 	double poly[LOG_POLY_ORDER - 1]; /* First coefficient is 1.  */
@@ -1680,7 +1688,7 @@ extern const struct log_data {
 
 #define N (1 << LOG_TABLE_BITS)
 
-const struct log_data __log_data = {
+const FLASH_TABLE struct log_data __log_data = {
 .ln2hi = 0x1.62e42fefa3800p-1,
 .ln2lo = 0x1.ef35793c76730p-45,
 .poly1 = {
@@ -2131,7 +2139,7 @@ double log(double x)
 #define LOG2_TABLE_BITS 6
 #define LOG2_POLY_ORDER 7
 #define LOG2_POLY1_ORDER 11
-extern const struct log2_data {
+extern const FLASH_TABLE struct log2_data {
 	double invln2hi;
 	double invln2lo;
 	double poly[LOG2_POLY_ORDER - 1];
@@ -2159,7 +2167,7 @@ extern const struct log2_data {
 
 #define N (1 << LOG2_TABLE_BITS)
 
-const struct log2_data __log2_data = {
+const FLASH_TABLE struct log2_data __log2_data = {
 // First coefficient: 0x1.71547652b82fe1777d0ffda0d24p0
 .invln2hi = 0x1.7154765200000p+0,
 .invln2lo = 0x1.705fc2eefa200p-33,
@@ -2593,7 +2601,7 @@ double log10(double x)
 
 #define POW_LOG_TABLE_BITS 7
 #define POW_LOG_POLY_ORDER 8
-extern const struct pow_log_data {
+extern const FLASH_TABLE struct pow_log_data {
 	double ln2hi;
 	double ln2lo;
 	double poly[POW_LOG_POLY_ORDER - 1]; /* First coefficient is 1.  */
@@ -2616,7 +2624,7 @@ extern const struct pow_log_data {
 
 #define N (1 << POW_LOG_TABLE_BITS)
 
-const struct pow_log_data __pow_log_data = {
+const FLASH_TABLE struct pow_log_data __pow_log_data = {
 .ln2hi = 0x1.62e42fefa3800p-1,
 .ln2lo = 0x1.ef35793c76730p-45,
 .poly = {
@@ -2945,7 +2953,7 @@ static inline double pow_specialcase(double_t tmp, uint64_t sbits, uint64_t ki)
 	return eval_as_double(y);
 }
 
-#define SIGN_BIAS (0x800 << EXP_TABLE_BITS)
+#define SIGN_BIAS ((uint32_t)0x800 << EXP_TABLE_BITS) /* ChipSharp: uint32_t, as an AVR's int has 16 bits */
 
 /* Computes sign*exp(x+xtail) where |xtail| < 2^-8/N and |xtail| <= |x|.
    The sign_bias argument is SIGN_BIAS or 0 and sets the sign to -1 or 1.  */
@@ -3631,7 +3639,7 @@ int __rem_pio2f(float x, double *y)
 	/* scale x into [2^23, 2^24-1] */
 	sign = u.i>>31;
 	e0 = (ix>>23) - (0x7f+23);  /* e0 = ilogb(|x|)-23, positive */
-	u.i = ix - (e0<<23);
+	u.i = ix - ((uint32_t)e0<<23); /* ChipSharp: uint32_t, as an AVR's int has 16 bits */
 	tx[0] = u.f;
 	n  =  __rem_pio2_large(tx,ty,e0,1,0);
 	if (sign) {
@@ -3735,7 +3743,7 @@ float __cosdf(double x)
 
 
 /* |tan(x)/x - t(x)| < 2**-25.5 (~[-2e-08, 2e-08]). */
-static const double tandf_T[] = {
+static const FLASH_TABLE double tandf_T[] = {
   0x15554d3418c99f.0p-54, /* 0.333331395030791399758 */
   0x1112fd38999f72.0p-55, /* 0.133392002712976742718 */
   0x1b54c91d865afe.0p-57, /* 0.0533812378445670393523 */
@@ -3940,7 +3948,7 @@ float cosf(float x)
 /* Shared between expf, exp2f and powf.  */
 #define EXP2F_TABLE_BITS 5
 #define EXP2F_POLY_ORDER 3
-extern const struct exp2f_data {
+extern const FLASH_TABLE struct exp2f_data {
 	uint64_t tab[1 << EXP2F_TABLE_BITS];
 	double shift_scaled;
 	double poly[EXP2F_POLY_ORDER];
@@ -3962,7 +3970,7 @@ extern const struct exp2f_data {
 
 #define N (1 << EXP2F_TABLE_BITS)
 
-const struct exp2f_data __exp2f_data = {
+const FLASH_TABLE struct exp2f_data __exp2f_data = {
   /* tab[i] = uint(2^(i/N)) - (i << 52-BITS)
      used for computing 2^(k/N) for an int |k| < 150 N as
      double(tab[k%N] + (k << 52-BITS)) */
@@ -4082,7 +4090,7 @@ float expf(float x)
 
 #define LOGF_TABLE_BITS 4
 #define LOGF_POLY_ORDER 4
-extern const struct logf_data {
+extern const FLASH_TABLE struct logf_data {
 	struct {
 		double invc, logc;
 	} tab[1 << LOGF_TABLE_BITS];
@@ -4101,7 +4109,7 @@ extern const struct logf_data {
  */
 
 
-const struct logf_data __logf_data = {
+const FLASH_TABLE struct logf_data __logf_data = {
   .tab = {
   { 0x1.661ec79f8f3bep+0, -0x1.57bf7808caadep-2 },
   { 0x1.571ed4aaf883dp+0, -0x1.2bef0a7c06ddbp-2 },
@@ -4169,7 +4177,7 @@ float logf(float x)
 			return __math_invalidf(x);
 		/* x is subnormal, normalize it.  */
 		ix = asuint(x * 0x1p23f);
-		ix -= 23 << 23;
+		ix -= (uint32_t)23 << 23; /* ChipSharp: uint32_t, as an AVR's int has 16 bits */
 	}
 
 	/* x = 2^k z; where z is in range [OFF,2*OFF] and exact.
@@ -4211,7 +4219,7 @@ float logf(float x)
 
 #define LOG2F_TABLE_BITS 4
 #define LOG2F_POLY_ORDER 4
-extern const struct log2f_data {
+extern const FLASH_TABLE struct log2f_data {
 	struct {
 		double invc, logc;
 	} tab[1 << LOG2F_TABLE_BITS];
@@ -4229,7 +4237,7 @@ extern const struct log2f_data {
  */
 
 
-const struct log2f_data __log2f_data = {
+const FLASH_TABLE struct log2f_data __log2f_data = {
   .tab = {
   { 0x1.661ec79f8f3bep+0, -0x1.efec65b963019p-2 },
   { 0x1.571ed4aaf883dp+0, -0x1.b0b6832d4fca4p-2 },
@@ -4296,7 +4304,7 @@ float log2f(float x)
 			return __math_invalidf(x);
 		/* x is subnormal, normalize it.  */
 		ix = asuint(x * 0x1p23f);
-		ix -= 23 << 23;
+		ix -= (uint32_t)23 << 23; /* ChipSharp: uint32_t, as an AVR's int has 16 bits */
 	}
 
 	/* x = 2^k z; where z is in range [OFF,2*OFF] and exact.
@@ -4422,7 +4430,7 @@ float log10f(float x)
 #define POWF_SCALE_BITS 0
 #endif
 #define POWF_SCALE ((double)(1 << POWF_SCALE_BITS))
-extern const struct powf_log2_data {
+extern const FLASH_TABLE struct powf_log2_data {
 	struct {
 		double invc, logc;
 	} tab[1 << POWF_LOG2_TABLE_BITS];
@@ -4440,7 +4448,7 @@ extern const struct powf_log2_data {
  */
 
 
-const struct powf_log2_data __powf_log2_data = {
+const FLASH_TABLE struct powf_log2_data __powf_log2_data = {
   .tab = {
   { 0x1.661ec79f8f3bep+0, -0x1.efec65b963019p-2 * POWF_SCALE },
   { 0x1.571ed4aaf883dp+0, -0x1.b0b6832d4fca4p-2 * POWF_SCALE },
@@ -4527,7 +4535,7 @@ static inline double_t log2_inline(uint32_t ix)
 #undef T
 #define N (1 << EXP2F_TABLE_BITS)
 #define T __exp2f_data.tab
-#define SIGN_BIAS (1 << (EXP2F_TABLE_BITS + 11))
+#define SIGN_BIAS ((uint32_t)1 << (EXP2F_TABLE_BITS + 11)) /* ChipSharp: uint32_t, as an AVR's int has 16 bits */
 
 /* The output of log2 and thus the input of exp2 is either scaled by N
    (in case of fast toint intrinsics) or not.  The unscaled xd must be
@@ -4574,16 +4582,16 @@ static inline int powf_checkint(uint32_t iy)
 		return 0;
 	if (e > 0x7f + 23)
 		return 2;
-	if (iy & ((1 << (0x7f + 23 - e)) - 1))
+	if (iy & (((uint32_t)1 << (0x7f + 23 - e)) - 1)) /* ChipSharp: uint32_t, as an AVR's int has 16 bits */
 		return 0;
-	if (iy & (1 << (0x7f + 23 - e)))
+	if (iy & ((uint32_t)1 << (0x7f + 23 - e)))
 		return 1;
 	return 2;
 }
 
 static inline int powf_zeroinfnan(uint32_t ix)
 {
-	return 2 * ix - 1 >= 2u * 0x7f800000 - 1;
+	return 2 * ix - 1 >= 2 * (uint32_t)0x7f800000 - 1; /* ChipSharp: uint32_t, as an AVR's int has 16 bits */
 }
 
 float powf(float x, float y)
@@ -4601,8 +4609,8 @@ float powf(float x, float y)
 				return issignalingf_inline(x) ? x + y : 1.0f;
 			if (ix == 0x3f800000)
 				return issignalingf_inline(y) ? x + y : 1.0f;
-			if (2 * ix > 2u * 0x7f800000 ||
-			    2 * iy > 2u * 0x7f800000)
+			if (2 * ix > 2 * (uint32_t)0x7f800000 || /* ChipSharp: uint32_t, as an AVR's int has 16 bits */
+			    2 * iy > 2 * (uint32_t)0x7f800000)
 				return x + y;
 			if (2 * ix == 2 * 0x3f800000)
 				return 1.0f;
@@ -4632,7 +4640,7 @@ float powf(float x, float y)
 			/* Normalize subnormal x so exponent becomes negative.  */
 			ix = asuint(x * 0x1p23f);
 			ix &= 0x7fffffff;
-			ix -= 23 << 23;
+			ix -= (uint32_t)23 << 23; /* ChipSharp: uint32_t, as an AVR's int has 16 bits */
 		}
 	}
 	double_t logx = log2_inline(ix);
@@ -4679,7 +4687,7 @@ float powf(float x, float y)
  */
 
 
-static const unsigned
+static const uint32_t /* ChipSharp: uint32_t, as an AVR's int has 16 bits */
 cbrtf_B1 = 709958130, /* cbrtf_B1 = (127-127.0/3-0.03306235651)*2**23 */
 cbrtf_B2 = 642849266; /* cbrtf_B2 = (127-127.0/3-24/3-0.03306235651)*2**23 */
 

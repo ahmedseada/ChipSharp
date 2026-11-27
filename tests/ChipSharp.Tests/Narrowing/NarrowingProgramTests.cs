@@ -37,7 +37,10 @@ public sealed class NarrowingProgramTests(ITestOutputHelper output) : IDisposabl
         }
     }
 
-    public static TheoryData<string> Programs => ["Edges", "Random1", "Random2", "Random3", "Random4"];
+    // Random100, Random108 and Random114: LLVM 22 got their large functions wrong on the AVR, narrowed or not (see
+    // the code generator's LlvmAvrCalls), until each large function with a loop stayed out of line
+    public static TheoryData<string> Programs =>
+        ["Edges", "Random1", "Random2", "Random3", "Random4", "Random100", "Random108", "Random114"];
 
     [HostTheory]
     [MemberData(nameof(Programs))]

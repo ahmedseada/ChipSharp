@@ -77,22 +77,36 @@ internal sealed class AvrCoreProgram
     /// <summary>The size of <paramref name="symbol"/> in bytes, 0 when the program has none.</summary>
     public int SizeOf(string symbol) => Symbols.TryGetValue(symbol, out var found) ? (int)found.Size : 0;
 
+    /// <summary>The bytes of flash of the core the program runs on: the ATmega328P's 32 KB, or 64 KB for a larger one.</summary>
+    public int FlashSize => Flash.Length > 32 * 1024 ? 64 * 1024 : 32 * 1024;
+
     /// <summary>A core with this program in its flash, at reset.</summary>
-    public AvrCpu Load() => new(Flash);
+    public AvrCpu Load() => new(Flash, flashSize: FlashSize);
 
     /// <summary>
     /// Builds <paramref name="files"/> (.c, .S, .ll; the others, headers, are written next to them) into a program.
     /// <paramref name="keep"/> are symbols the linker keeps although nothing calls them (ld.lld -u), e.g. the helpers a
     /// test calls itself.
     /// </summary>
-    public static async Task<AvrCoreProgram> BuildAsync(IEnumerable<GeneratedFile> files, IEnumerable<string>? keep = null)
+    public static Task<AvrCoreProgram> BuildAsync(IEnumerable<GeneratedFile> files, IEnumerable<string>? keep = null) =>
+        BuildAsync(files, keep, LinkerScript);
+
+    /// <summary>
+    /// Like <see cref="BuildAsync(IEnumerable{GeneratedFile}, IEnumerable{string}?)"/>, for a core with 64 KB of flash
+    /// (an ATmega644's): for functions too large for the ATmega328P's 32 KB together.
+    /// </summary>
+    public static Task<AvrCoreProgram> BuildLargeAsync(IEnumerable<GeneratedFile> files, IEnumerable<string> keep) =>
+        BuildAsync(files, keep, LinkerScript.Replace("LENGTH = 32K", "LENGTH = 64K", StringComparison.Ordinal));
+
+    private static async Task<AvrCoreProgram> BuildAsync(IEnumerable<GeneratedFile> files, IEnumerable<string>? keep,
+        string linkerScript)
     {
         var zig = AvrTools.Zig.FindZig();
         var sources = files.ToList();
         var kept = (keep ?? []).ToList();
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(string.Concat(
             sources.Select(file => file.FileName + "\n" + file.Content + "\n").Append(string.Join(',', kept))
-                .Append(string.Join(' ', CompileFlags)).Append(LinkerScript)))))[..16];
+                .Append(string.Join(' ', CompileFlags)).Append(linkerScript)))))[..16];
         var folder = Path.Combine(Path.GetTempPath(), "chipsharp-tests", "avr-" + hash);
         var elf = Path.Combine(folder, "program.elf");
         if (!File.Exists(elf))
@@ -103,7 +117,7 @@ internal sealed class AvrCoreProgram
                 await File.WriteAllTextAsync(Path.Combine(folder, file.FileName), file.Content);
             }
 
-            await File.WriteAllTextAsync(Path.Combine(folder, "program.ld"), LinkerScript);
+            await File.WriteAllTextAsync(Path.Combine(folder, "program.ld"), linkerScript);
             var compiled = sources.Where(file => Path.GetExtension(file.FileName) is ".c" or ".S" or ".ll")
                 .Select(file => file.FileName).ToList();
             var results = await Task.WhenAll(compiled.Select(name =>

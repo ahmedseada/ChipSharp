@@ -15,7 +15,8 @@ namespace ChipSharp.Runtime.Atmega328p;
 /// microseconds), <c>ChipSharp_Runtime_Register*</c> (one byte at a data address); <c>chipsharp_console_write</c>, where
 /// the console output goes, and <c>chipsharp_failure_write</c>, where the AVR runtime's failure messages go: USART0 (D1,
 /// 115200 baud).</item>
-/// <item><see cref="ConsoleFileName"/>: Console.Write and Console.WriteLine of every type, shared with the other runtimes
+/// <item><see cref="ConsoleFileName"/>: Console.Write and Console.WriteLine of every type, and
+/// <see cref="FloatTextFileName"/>, floats and doubles as text, shared with the other runtimes
 /// (src/ChipSharp.Runtime.Shared).</item>
 /// <item><see cref="UartFileName"/>: USART0 as ChipSharp.Hardware.Uart's port 0 and the console's input (Console.Read):
 /// a receive buffer of 64 bytes, filled by its interrupt.</item>
@@ -33,6 +34,9 @@ public sealed class Atmega328pRuntime : IArchRuntime
 
     /// <summary>The C file with Console.Write and Console.WriteLine, which write through <see cref="SourceFileName"/>.</summary>
     public const string ConsoleFileName = "chipsharp_console.c";
+
+    /// <summary>The C file that writes floats and doubles as .NET does, for Console.Write and Console.WriteLine.</summary>
+    public const string FloatTextFileName = "chipsharp_float_text.c";
 
     /// <summary>The C file with USART0 as a serial port (Uart) and the console's input (Console.Read).</summary>
     public const string UartFileName = "atmega328p_uart.c";
@@ -59,6 +63,7 @@ public sealed class Atmega328pRuntime : IArchRuntime
             .. _avr.Startup(target).Files,
             Source(SourceFileName),
             Source(ConsoleFileName),
+            Source(FloatTextFileName),
             Source(UartFileName),
         ]);
     }

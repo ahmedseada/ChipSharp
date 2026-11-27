@@ -359,7 +359,7 @@ public sealed class LibrarySubstituteTests
             Assert.Contains($" {symbol}(", picoClock);
         });
         Assert.Contains("long long ChipSharp_Runtime_LocalUtcOffset(void)", clock);
-        Assert.Contains("void ChipSharp_Runtime_WriteChars(const unsigned short *chars, int count)", console);
+        Assert.Contains("void ChipSharp_Runtime_WriteChars(const unsigned short *chars, s32 count)", console);
         Assert.All(functions.Where(method => !OfText(method) && !Thrown(method) && !Returns(method)), method =>
         {
             // Unhandled takes the text of an exception, a string object; Math's the numbers their messages say

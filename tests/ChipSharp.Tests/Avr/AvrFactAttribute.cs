@@ -50,6 +50,19 @@ public sealed class AvrSimulatorFactAttribute : FactAttribute
     }
 }
 
+/// <summary>Like <see cref="AvrSimulatorFactAttribute"/>, for a test that runs once per case.</summary>
+[XunitTestCaseDiscoverer("ChipSharp.Tests.Support.OwnCollectionTheoryDiscoverer", "ChipSharp.Tests")]
+public sealed class AvrSimulatorTheoryAttribute : TheoryAttribute
+{
+    public AvrSimulatorTheoryAttribute()
+    {
+        if (AvrTools.MissingSimulator.Value is { } reason)
+        {
+            Skip = reason;
+        }
+    }
+}
+
 /// <summary>Where the tools the Arduino Uno tests need are, and why a test cannot run when one is missing.</summary>
 internal static class AvrTools
 {

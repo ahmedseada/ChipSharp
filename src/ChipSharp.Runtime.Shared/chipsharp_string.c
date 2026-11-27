@@ -3,7 +3,7 @@
 //
 // Freestanding: no headers and no C library.
 //
-// A string is an object laid out as an array object: its header (the address of its type), its length (an int, in
+// A string is an object laid out as an array object: its header (the address of its type), its length (an s32, in
 // UTF-16 code units, as .NET counts them), then from DATA on its chars, 1 byte each (chipsharp_string_type: every char
 // is below U+0100) or 2 bytes each (chipsharp_wide_string_type, UTF-16 code units). The form is canonical: a string is
 // 1 byte per char exactly when every char is below U+0100, so two equal strings have the same form. A literal is such
@@ -34,7 +34,7 @@
 //                                        below U+0100 (Latin-1); from U+0100 on, IsWhiteSpace knows .NET's spaces, and a
 //                                        char is no letter, digit, upper or lower case letter, and changes case not
 //                                        (but for U+0178 and U+039C, the upper case of U+00FF and U+00B5)
-//   ChipSharp_Runtime_Parse..., TryParse...  int.Parse and int.TryParse, and those of the other whole numbers: spaces
+//   ChipSharp_Runtime_Parse..., TryParse...  s32.Parse and s32.TryParse, and those of the other whole numbers: spaces
 //                                        before and after, a sign, decimal digits, as .NET's invariant culture reads
 //                                        them; FormatException and OverflowException with .NET's messages
 //
@@ -43,28 +43,56 @@
 
 typedef __UINTPTR_TYPE__ uintptr_t;
 
+// 32 bits on every target: an int or a long (AVR's int has 16), as the compiler's own fixed-width types say. C# passes
+// an int, a char (its UTF-16 code unit) and a bool (0 or 1) as 32 bits, and gets them back so.
+typedef __INT32_TYPE__ s32;
+typedef __UINT32_TYPE__ u32;
+
+// A string the program gives may be one of its constants, which on an AVR stay in flash: there an address with bit 15
+// set is 0x8000 plus a flash address, read with LPM (see src/ChipSharp.Backend.Llvm/LlvmFlash.cs); RAM's addresses
+// never have it. READ(type, address) reads a value of the type at such an address, from RAM or flash (it uses the
+// address twice: nothing like ++ in it); on every other target it is a plain read. MESSAGE(text) is a failure's
+// message, which chipsharp_fail reads so too: on an AVR in flash, a section of its own each (the linker keeps only
+// those a program can fail with), with bit 15 set, for a constant in RAM would take RAM there (start-up copies .rodata
+// to it).
+#if defined(__AVR__)
+#define READ(type, address)                                                                                            \
+    (((uintptr_t)(address) & 0x8000u) != 0 ? *(const __flash type *)((uintptr_t)(address) & 0x7FFFu)                   \
+                                           : *(const type *)(address))
+#define TEXT_OF(name) #name
+#define SECTION_NAME(number) ".progmem.data.chipsharp_string" TEXT_OF(number)
+#define MESSAGE(text)                                                                                                  \
+    (__extension__({                                                                                                   \
+        static const __flash char flash_text[] __attribute__((section(SECTION_NAME(__COUNTER__)))) = text;             \
+        (const char *)((uintptr_t)flash_text | 0x8000u);                                                               \
+    }))
+#else
+#define READ(type, address) (*(const type *)(address))
+#define MESSAGE(text) (text)
+#endif
+
 // A type descriptor, as the code generator writes it (see TirTypeDescriptor): a string's has no virtual methods.
 typedef struct chipsharp_type
 {
-    unsigned int size;
-    unsigned int element_size;
-    unsigned int flags;
-    unsigned int reference_count;
-    const unsigned int *references;
+    u32 size;
+    u32 element_size;
+    u32 flags;
+    u32 reference_count;
+    const u32 *references;
     const struct chipsharp_type *base;
     const char *name;
     const void *interfaces;
-    unsigned int interface_count;
-    unsigned int virtual_count;
+    u32 interface_count;
+    u32 virtual_count;
 } chipsharp_type;
 
 typedef struct string
 {
     const chipsharp_type *type;
-    int length;
+    s32 length;
 } string;
 
-#define DATA ((unsigned int)((sizeof(void *) + 4 + 7) / 8 * 8))
+#define DATA ((u32)((sizeof(void *) + 4 + 7) / 8 * 8))
 #define TYPE_ARRAY 1u
 
 const chipsharp_type chipsharp_string_type = {DATA, 1, TYPE_ARRAY, 0, 0, 0, "System.String", 0, 0, 0};
@@ -74,31 +102,38 @@ const chipsharp_type chipsharp_wide_string_type = {DATA, 2, TYPE_ARRAY, 0, 0, 0,
 __attribute__((noreturn)) void chipsharp_fail(const char *message);
 __attribute__((noreturn)) void ChipSharp_Runtime_IndexOutOfRange(void);
 
-static int is_wide(const string *s)
+typedef const chipsharp_type *type_pointer;
+
+static s32 length(const string *s)
 {
-    return s->type->element_size == 2;
+    return READ(s32, &s->length);
 }
 
-static unsigned int at(const string *s, int i)
+static s32 is_wide(const string *s)
+{
+    return READ(u32, &READ(type_pointer, &s->type)->element_size) == 2;
+}
+
+static u32 at(const string *s, s32 i)
 {
     const char *data = (const char *)s + DATA;
-    return is_wide(s) ? ((const unsigned short *)data)[i] : ((const unsigned char *)data)[i];
+    return is_wide(s) ? READ(unsigned short, (const unsigned short *)data + i) : READ(unsigned char, data + i);
 }
 
-int ChipSharp_Runtime_StringChar(const string *s, int index)
+s32 ChipSharp_Runtime_StringChar(const string *s, s32 index)
 {
-    if ((unsigned int)index >= (unsigned int)s->length)
+    if ((u32)index >= (u32)length(s))
     {
         ChipSharp_Runtime_IndexOutOfRange();
     }
 
-    return (int)at(s, index);
+    return (s32)at(s, index);
 }
 
 // True when the chars of a from start, count of them, are those of b from 0.
-static int same_chars(const string *a, int start, const string *b, int count)
+static s32 same_chars(const string *a, s32 start, const string *b, s32 count)
 {
-    for (int i = 0; i < count; i++)
+    for (s32 i = 0; i < count; i++)
     {
         if (at(a, start + i) != at(b, i))
         {
@@ -109,89 +144,89 @@ static int same_chars(const string *a, int start, const string *b, int count)
     return 1;
 }
 
-int ChipSharp_Runtime_StringEquals(const string *a, const string *b)
+s32 ChipSharp_Runtime_StringEquals(const string *a, const string *b)
 {
     if (a == b)
     {
         return 1;
     }
 
-    if (a == 0 || b == 0 || a->length != b->length || is_wide(a) != is_wide(b))
+    if (a == 0 || b == 0 || length(a) != length(b) || is_wide(a) != is_wide(b))
     {
         return 0;
     }
 
-    return same_chars(a, 0, b, a->length);
+    return same_chars(a, 0, b, length(a));
 }
 
-int ChipSharp_Runtime_StringNotEquals(const string *a, const string *b)
+s32 ChipSharp_Runtime_StringNotEquals(const string *a, const string *b)
 {
     return !ChipSharp_Runtime_StringEquals(a, b);
 }
 
 // True for a string object: its header is one of the two descriptors.
-static int is_string(const void *object)
+static s32 is_string(const void *object)
 {
-    const chipsharp_type *type = *(const chipsharp_type *const *)object;
+    type_pointer type = READ(type_pointer, object);
     return type == &chipsharp_string_type || type == &chipsharp_wide_string_type;
 }
 
-int ChipSharp_Runtime_StringEqualsObject(const string *s, const void *other)
+s32 ChipSharp_Runtime_StringEqualsObject(const string *s, const void *other)
 {
     return other != 0 && is_string(other) && ChipSharp_Runtime_StringEquals(s, (const string *)other);
 }
 
-int ChipSharp_Runtime_CharToUpper(int c);
+s32 ChipSharp_Runtime_CharToUpper(s32 c);
 
 // The char at i as a comparison reads it: its upper case when ignore_case is 1.
-static unsigned int char_as(const string *s, int i, int ignore_case)
+static u32 char_as(const string *s, s32 i, s32 ignore_case)
 {
-    unsigned int c = at(s, i);
-    return ignore_case ? (unsigned int)ChipSharp_Runtime_CharToUpper((int)c) : c;
+    u32 c = at(s, i);
+    return ignore_case ? (u32)ChipSharp_Runtime_CharToUpper((s32)c) : c;
 }
 
 // The difference of the first chars that differ (the upper case of each when ignore_case is 1), else of the lengths:
 // how .NET compares in its invariant mode.
-static int compare_chars(const string *a, const string *b, int ignore_case)
+static s32 compare_chars(const string *a, const string *b, s32 ignore_case)
 {
-    int count = a->length < b->length ? a->length : b->length;
-    for (int i = 0; i < count; i++)
+    s32 count = length(a) < length(b) ? length(a) : length(b);
+    for (s32 i = 0; i < count; i++)
     {
-        int difference = (int)char_as(a, i, ignore_case) - (int)char_as(b, i, ignore_case);
+        s32 difference = (s32)char_as(a, i, ignore_case) - (s32)char_as(b, i, ignore_case);
         if (difference != 0)
         {
             return difference;
         }
     }
 
-    return a->length - b->length;
+    return length(a) - length(b);
 }
 
 // As compare_chars, but where one string starts with the other, as .NET's ordinal comparison ends: it compares two chars
 // at a time from the third, so where the shorter has fewer than two chars or an odd number of them it reads the 0 that
 // ends a string in .NET and gives the difference of the longer one's next char and 0 ("apple" and "app": 108, the 'l'),
 // else the difference of the lengths ("apple" and "ap": 3).
-static int compare_ordinal(const string *a, const string *b)
+static s32 compare_ordinal(const string *a, const string *b)
 {
-    int count = a->length < b->length ? a->length : b->length;
-    for (int i = 0; i < count; i++)
+    s32 count = length(a) < length(b) ? length(a) : length(b);
+    for (s32 i = 0; i < count; i++)
     {
-        int difference = (int)at(a, i) - (int)at(b, i);
+        s32 difference = (s32)at(a, i) - (s32)at(b, i);
         if (difference != 0)
         {
             return difference;
         }
     }
 
-    if (a->length != b->length && (count <= 1 || (count & 1) == 1))
+    if (length(a) != length(b) && (count <= 1 || (count & 1) == 1))
     {
-        return a->length > count ? (int)at(a, count) : -(int)at(b, count);
+        return length(a) > count ? (s32)at(a, count) : -(s32)at(b, count);
     }
 
-    return a->length - b->length;
+    return length(a) - length(b);
 }
 
-int ChipSharp_Runtime_StringCompareOrdinal(const string *a, const string *b)
+s32 ChipSharp_Runtime_StringCompareOrdinal(const string *a, const string *b)
 {
     if (a == b)
     {
@@ -206,7 +241,7 @@ int ChipSharp_Runtime_StringCompareOrdinal(const string *a, const string *b)
     return compare_ordinal(a, b);
 }
 
-int ChipSharp_Runtime_StringCompare(const string *a, const string *b)
+s32 ChipSharp_Runtime_StringCompare(const string *a, const string *b)
 {
     if (a == b)
     {
@@ -221,51 +256,51 @@ int ChipSharp_Runtime_StringCompare(const string *a, const string *b)
     return compare_chars(a, b, 0);
 }
 
-int ChipSharp_Runtime_StringHash(const string *s)
+s32 ChipSharp_Runtime_StringHash(const string *s)
 {
-    unsigned int hash = 2166136261u;
-    for (int i = 0; i < s->length; i++)
+    u32 hash = 2166136261u;
+    for (s32 i = 0; i < length(s); i++)
     {
         hash = (hash ^ at(s, i)) * 16777619u;
     }
 
-    return (int)hash;
+    return (s32)hash;
 }
 
 // ---- Chars -----------------------------------------------------------------------------------------------------------
 
-int ChipSharp_Runtime_CharIsWhiteSpace(int c)
+s32 ChipSharp_Runtime_CharIsWhiteSpace(s32 c)
 {
     return (c >= 0x09 && c <= 0x0D) || c == 0x20 || c == 0x85 || c == 0xA0 || c == 0x1680 || (c >= 0x2000 && c <= 0x200A)
         || c == 0x2028 || c == 0x2029 || c == 0x202F || c == 0x205F || c == 0x3000;
 }
 
-int ChipSharp_Runtime_CharIsDigit(int c)
+s32 ChipSharp_Runtime_CharIsDigit(s32 c)
 {
     return c >= '0' && c <= '9';
 }
 
-int ChipSharp_Runtime_CharIsUpper(int c)
+s32 ChipSharp_Runtime_CharIsUpper(s32 c)
 {
     return (c >= 'A' && c <= 'Z') || (c >= 0xC0 && c <= 0xDE && c != 0xD7);
 }
 
-int ChipSharp_Runtime_CharIsLower(int c)
+s32 ChipSharp_Runtime_CharIsLower(s32 c)
 {
     return (c >= 'a' && c <= 'z') || c == 0xB5 || (c >= 0xDF && c <= 0xFF && c != 0xF7);
 }
 
-int ChipSharp_Runtime_CharIsLetter(int c)
+s32 ChipSharp_Runtime_CharIsLetter(s32 c)
 {
     return ChipSharp_Runtime_CharIsUpper(c) || ChipSharp_Runtime_CharIsLower(c) || c == 0xAA || c == 0xBA;
 }
 
-int ChipSharp_Runtime_CharIsLetterOrDigit(int c)
+s32 ChipSharp_Runtime_CharIsLetterOrDigit(s32 c)
 {
     return ChipSharp_Runtime_CharIsLetter(c) || ChipSharp_Runtime_CharIsDigit(c);
 }
 
-int ChipSharp_Runtime_CharToUpper(int c)
+s32 ChipSharp_Runtime_CharToUpper(s32 c)
 {
     if ((c >= 'a' && c <= 'z') || (c >= 0xE0 && c <= 0xFE && c != 0xF7))
     {
@@ -275,7 +310,7 @@ int ChipSharp_Runtime_CharToUpper(int c)
     return c == 0xFF ? 0x178 : c == 0xB5 ? 0x39C : c;
 }
 
-int ChipSharp_Runtime_CharToLower(int c)
+s32 ChipSharp_Runtime_CharToLower(s32 c)
 {
     return (c >= 'A' && c <= 'Z') || (c >= 0xC0 && c <= 0xDE && c != 0xD7) ? c + 0x20 : c;
 }
@@ -292,13 +327,13 @@ int ChipSharp_Runtime_CharToLower(int c)
 
 __attribute__((noreturn)) static void null_value(void)
 {
-    chipsharp_fail("System.ArgumentNullException: Value cannot be null. (Parameter 'value')");
+    chipsharp_fail(MESSAGE("System.ArgumentNullException: Value cannot be null. (Parameter 'value')"));
 }
 
 // Where c is first in s from start, count chars at most; -1 when it is not there.
-static int find_char(const string *s, unsigned int c, int start, int count)
+static s32 find_char(const string *s, u32 c, s32 start, s32 count)
 {
-    for (int i = start; i < start + count; i++)
+    for (s32 i = start; i < start + count; i++)
     {
         if (at(s, i) == c)
         {
@@ -310,11 +345,11 @@ static int find_char(const string *s, unsigned int c, int start, int count)
 }
 
 // Where value is first in s from start in count chars at most (the whole value inside them); -1 when it is not there.
-static int find(const string *s, const string *value, int start, int count)
+static s32 find(const string *s, const string *value, s32 start, s32 count)
 {
-    for (int i = start; i + value->length <= start + count; i++)
+    for (s32 i = start; i + length(value) <= start + count; i++)
     {
-        if (same_chars(s, i, value, value->length))
+        if (same_chars(s, i, value, length(value)))
         {
             return i;
         }
@@ -323,66 +358,66 @@ static int find(const string *s, const string *value, int start, int count)
     return -1;
 }
 
-int ChipSharp_Runtime_StringIndexOfChar(const string *s, int c)
+s32 ChipSharp_Runtime_StringIndexOfChar(const string *s, s32 c)
 {
-    return find_char(s, (unsigned int)c & 0xFFFF, 0, s->length);
+    return find_char(s, (u32)c & 0xFFFF, 0, length(s));
 }
 
-int ChipSharp_Runtime_StringIndexOfCharFrom(const string *s, int c, int start)
+s32 ChipSharp_Runtime_StringIndexOfCharFrom(const string *s, s32 c, s32 start)
 {
-    if ((unsigned int)start > (unsigned int)s->length)
+    if ((u32)start > (u32)length(s))
     {
-        chipsharp_fail(OUT_OF_RANGE START_INDEX_LE);
+        chipsharp_fail(MESSAGE(OUT_OF_RANGE START_INDEX_LE));
     }
 
-    return find_char(s, (unsigned int)c & 0xFFFF, start, s->length - start);
+    return find_char(s, (u32)c & 0xFFFF, start, length(s) - start);
 }
 
-int ChipSharp_Runtime_StringIndexOfCharIn(const string *s, int c, int start, int count)
+s32 ChipSharp_Runtime_StringIndexOfCharIn(const string *s, s32 c, s32 start, s32 count)
 {
-    if ((unsigned int)start > (unsigned int)s->length)
+    if ((u32)start > (u32)length(s))
     {
-        chipsharp_fail(OUT_OF_RANGE START_INDEX_LE);
+        chipsharp_fail(MESSAGE(OUT_OF_RANGE START_INDEX_LE));
     }
 
-    if ((unsigned int)count > (unsigned int)(s->length - start))
+    if ((u32)count > (u32)(length(s) - start))
     {
-        chipsharp_fail(OUT_OF_RANGE COUNT_RANGE);
+        chipsharp_fail(MESSAGE(OUT_OF_RANGE COUNT_RANGE));
     }
 
-    return find_char(s, (unsigned int)c & 0xFFFF, start, count);
+    return find_char(s, (u32)c & 0xFFFF, start, count);
 }
 
-int ChipSharp_Runtime_StringIndexOf(const string *s, const string *value)
+s32 ChipSharp_Runtime_StringIndexOf(const string *s, const string *value)
 {
     if (value == 0)
     {
         null_value();
     }
 
-    return find(s, value, 0, s->length);
+    return find(s, value, 0, length(s));
 }
 
-int ChipSharp_Runtime_StringIndexOfFrom(const string *s, const string *value, int start)
+s32 ChipSharp_Runtime_StringIndexOfFrom(const string *s, const string *value, s32 start)
 {
     if (value == 0)
     {
         null_value();
     }
 
-    if ((unsigned int)start > (unsigned int)s->length)
+    if ((u32)start > (u32)length(s))
     {
-        chipsharp_fail(OUT_OF_RANGE START_INDEX_LE);
+        chipsharp_fail(MESSAGE(OUT_OF_RANGE START_INDEX_LE));
     }
 
-    return find(s, value, start, s->length - start);
+    return find(s, value, start, length(s) - start);
 }
 
-int ChipSharp_Runtime_StringLastIndexOfChar(const string *s, int c)
+s32 ChipSharp_Runtime_StringLastIndexOfChar(const string *s, s32 c)
 {
-    for (int i = s->length - 1; i >= 0; i--)
+    for (s32 i = length(s) - 1; i >= 0; i--)
     {
-        if (at(s, i) == ((unsigned int)c & 0xFFFF))
+        if (at(s, i) == ((u32)c & 0xFFFF))
         {
             return i;
         }
@@ -391,21 +426,21 @@ int ChipSharp_Runtime_StringLastIndexOfChar(const string *s, int c)
     return -1;
 }
 
-int ChipSharp_Runtime_StringLastIndexOfCharFrom(const string *s, int c, int start)
+s32 ChipSharp_Runtime_StringLastIndexOfCharFrom(const string *s, s32 c, s32 start)
 {
-    if (s->length == 0)
+    if (length(s) == 0)
     {
         return -1;
     }
 
-    if ((unsigned int)start >= (unsigned int)s->length)
+    if ((u32)start >= (u32)length(s))
     {
-        chipsharp_fail(OUT_OF_RANGE START_INDEX_LT);
+        chipsharp_fail(MESSAGE(OUT_OF_RANGE START_INDEX_LT));
     }
 
-    for (int i = start; i >= 0; i--)
+    for (s32 i = start; i >= 0; i--)
     {
-        if (at(s, i) == ((unsigned int)c & 0xFFFF))
+        if (at(s, i) == ((u32)c & 0xFFFF))
         {
             return i;
         }
@@ -415,16 +450,16 @@ int ChipSharp_Runtime_StringLastIndexOfCharFrom(const string *s, int c, int star
 }
 
 // .NET finds the empty string at the end, at the string's length.
-int ChipSharp_Runtime_StringLastIndexOf(const string *s, const string *value)
+s32 ChipSharp_Runtime_StringLastIndexOf(const string *s, const string *value)
 {
     if (value == 0)
     {
         null_value();
     }
 
-    for (int i = s->length - value->length; i >= 0; i--)
+    for (s32 i = length(s) - length(value); i >= 0; i--)
     {
-        if (same_chars(s, i, value, value->length))
+        if (same_chars(s, i, value, length(value)))
         {
             return i;
         }
@@ -433,44 +468,44 @@ int ChipSharp_Runtime_StringLastIndexOf(const string *s, const string *value)
     return -1;
 }
 
-int ChipSharp_Runtime_StringContains(const string *s, const string *value)
+s32 ChipSharp_Runtime_StringContains(const string *s, const string *value)
 {
     return ChipSharp_Runtime_StringIndexOf(s, value) >= 0;
 }
 
-int ChipSharp_Runtime_StringContainsChar(const string *s, int c)
+s32 ChipSharp_Runtime_StringContainsChar(const string *s, s32 c)
 {
     return ChipSharp_Runtime_StringIndexOfChar(s, c) >= 0;
 }
 
-int ChipSharp_Runtime_StringStartsWith(const string *s, const string *value)
+s32 ChipSharp_Runtime_StringStartsWith(const string *s, const string *value)
 {
     if (value == 0)
     {
         null_value();
     }
 
-    return value->length <= s->length && same_chars(s, 0, value, value->length);
+    return length(value) <= length(s) && same_chars(s, 0, value, length(value));
 }
 
-int ChipSharp_Runtime_StringEndsWith(const string *s, const string *value)
+s32 ChipSharp_Runtime_StringEndsWith(const string *s, const string *value)
 {
     if (value == 0)
     {
         null_value();
     }
 
-    return value->length <= s->length && same_chars(s, s->length - value->length, value, value->length);
+    return length(value) <= length(s) && same_chars(s, length(s) - length(value), value, length(value));
 }
 
-int ChipSharp_Runtime_StringStartsWithChar(const string *s, int c)
+s32 ChipSharp_Runtime_StringStartsWithChar(const string *s, s32 c)
 {
-    return s->length != 0 && at(s, 0) == ((unsigned int)c & 0xFFFF);
+    return length(s) != 0 && at(s, 0) == ((u32)c & 0xFFFF);
 }
 
-int ChipSharp_Runtime_StringEndsWithChar(const string *s, int c)
+s32 ChipSharp_Runtime_StringEndsWithChar(const string *s, s32 c)
 {
-    return s->length != 0 && at(s, s->length - 1) == ((unsigned int)c & 0xFFFF);
+    return length(s) != 0 && at(s, length(s) - 1) == ((u32)c & 0xFFFF);
 }
 
 // ---- With a StringComparison -----------------------------------------------------------------------------------------
@@ -483,20 +518,20 @@ int ChipSharp_Runtime_StringEndsWithChar(const string *s, int c)
     "(Parameter 'comparisonType')"
 
 // 1 when the comparison ignores case; fails for a value that is no StringComparison.
-static int ignores_case(int comparison)
+static s32 ignores_case(s32 comparison)
 {
-    if ((unsigned int)comparison > 5)
+    if ((u32)comparison > 5)
     {
-        chipsharp_fail(COMPARISON_TYPE);
+        chipsharp_fail(MESSAGE(COMPARISON_TYPE));
     }
 
     return comparison & 1;
 }
 
 // Like same_chars, comparing the upper case of each char when ignore_case is 1.
-static int same_chars_as(const string *a, int start, const string *b, int count, int ignore_case)
+static s32 same_chars_as(const string *a, s32 start, const string *b, s32 count, s32 ignore_case)
 {
-    for (int i = 0; i < count; i++)
+    for (s32 i = 0; i < count; i++)
     {
         if (char_as(a, start + i, ignore_case) != char_as(b, i, ignore_case))
         {
@@ -508,11 +543,11 @@ static int same_chars_as(const string *a, int start, const string *b, int count,
 }
 
 // Like find, comparing the upper case of each char when ignore_case is 1.
-static int find_as(const string *s, const string *value, int start, int count, int ignore_case)
+static s32 find_as(const string *s, const string *value, s32 start, s32 count, s32 ignore_case)
 {
-    for (int i = start; i + value->length <= start + count; i++)
+    for (s32 i = start; i + length(value) <= start + count; i++)
     {
-        if (same_chars_as(s, i, value, value->length, ignore_case))
+        if (same_chars_as(s, i, value, length(value), ignore_case))
         {
             return i;
         }
@@ -522,9 +557,9 @@ static int find_as(const string *s, const string *value, int start, int count, i
 }
 
 // string.Compare(a, b, comparison): null first; Ordinal as string.CompareOrdinal, the others as CompareTo.
-int ChipSharp_Runtime_StringCompareUsing(const string *a, const string *b, int comparison)
+s32 ChipSharp_Runtime_StringCompareUsing(const string *a, const string *b, s32 comparison)
 {
-    int ignore_case = ignores_case(comparison);
+    s32 ignore_case = ignores_case(comparison);
     if (a == b)
     {
         return 0;
@@ -539,83 +574,83 @@ int ChipSharp_Runtime_StringCompareUsing(const string *a, const string *b, int c
 }
 
 // string.Equals(a, b, comparison) and a.Equals(b, comparison): null equals null only.
-int ChipSharp_Runtime_StringEqualsUsing(const string *a, const string *b, int comparison)
+s32 ChipSharp_Runtime_StringEqualsUsing(const string *a, const string *b, s32 comparison)
 {
-    int ignore_case = ignores_case(comparison);
+    s32 ignore_case = ignores_case(comparison);
     if (a == b)
     {
         return 1;
     }
 
-    return a != 0 && b != 0 && a->length == b->length && same_chars_as(a, 0, b, a->length, ignore_case);
+    return a != 0 && b != 0 && length(a) == length(b) && same_chars_as(a, 0, b, length(a), ignore_case);
 }
 
-int ChipSharp_Runtime_StringStartsWithUsing(const string *s, const string *value, int comparison)
+s32 ChipSharp_Runtime_StringStartsWithUsing(const string *s, const string *value, s32 comparison)
 {
     if (value == 0)
     {
         null_value();
     }
 
-    int ignore_case = ignores_case(comparison);
-    return value->length <= s->length && same_chars_as(s, 0, value, value->length, ignore_case);
+    s32 ignore_case = ignores_case(comparison);
+    return length(value) <= length(s) && same_chars_as(s, 0, value, length(value), ignore_case);
 }
 
-int ChipSharp_Runtime_StringEndsWithUsing(const string *s, const string *value, int comparison)
+s32 ChipSharp_Runtime_StringEndsWithUsing(const string *s, const string *value, s32 comparison)
 {
     if (value == 0)
     {
         null_value();
     }
 
-    int ignore_case = ignores_case(comparison);
-    return value->length <= s->length && same_chars_as(s, s->length - value->length, value, value->length, ignore_case);
+    s32 ignore_case = ignores_case(comparison);
+    return length(value) <= length(s) && same_chars_as(s, length(s) - length(value), value, length(value), ignore_case);
 }
 
 // .NET looks at the comparison first here, and says a null value is null whatever it is.
-int ChipSharp_Runtime_StringIndexOfFromUsing(const string *s, const string *value, int start, int comparison)
+s32 ChipSharp_Runtime_StringIndexOfFromUsing(const string *s, const string *value, s32 start, s32 comparison)
 {
     if (value == 0)
     {
         null_value();
     }
 
-    int ignore_case = ignores_case(comparison);
-    if ((unsigned int)start > (unsigned int)s->length)
+    s32 ignore_case = ignores_case(comparison);
+    if ((u32)start > (u32)length(s))
     {
-        chipsharp_fail(OUT_OF_RANGE START_INDEX_LE);
+        chipsharp_fail(MESSAGE(OUT_OF_RANGE START_INDEX_LE));
     }
 
-    return find_as(s, value, start, s->length - start, ignore_case);
+    return find_as(s, value, start, length(s) - start, ignore_case);
 }
 
-int ChipSharp_Runtime_StringIndexOfUsing(const string *s, const string *value, int comparison)
+s32 ChipSharp_Runtime_StringIndexOfUsing(const string *s, const string *value, s32 comparison)
 {
     return ChipSharp_Runtime_StringIndexOfFromUsing(s, value, 0, comparison);
 }
 
-int ChipSharp_Runtime_StringContainsUsing(const string *s, const string *value, int comparison)
+s32 ChipSharp_Runtime_StringContainsUsing(const string *s, const string *value, s32 comparison)
 {
     return ChipSharp_Runtime_StringIndexOfUsing(s, value, comparison) >= 0;
 }
 
 // As .NET: an empty string, or an empty value, is found before the comparison is looked at; the empty value at the end.
-int ChipSharp_Runtime_StringLastIndexOfUsing(const string *s, const string *value, int comparison)
+s32 ChipSharp_Runtime_StringLastIndexOfUsing(const string *s, const string *value, s32 comparison)
 {
     if (value == 0)
     {
         null_value();
     }
 
-    if (s->length == 0 || value->length == 0)
+    if (length(s) == 0 || length(value) == 0)
     {
-        return value->length == 0 ? s->length : -1;
+        return length(value) == 0 ? length(s) : -1;
     }
 
-    int ignore_case = ignores_case(comparison);
-    for (int i = s->length - value->length; i >= 0; i--)
+    s32 ignore_case = ignores_case(comparison);
+    for (s32 i = length(s) - length(value); i >= 0; i--)
     {
-        if (same_chars_as(s, i, value, value->length, ignore_case))
+        if (same_chars_as(s, i, value, length(value), ignore_case))
         {
             return i;
         }
@@ -624,18 +659,18 @@ int ChipSharp_Runtime_StringLastIndexOfUsing(const string *s, const string *valu
     return -1;
 }
 
-int ChipSharp_Runtime_StringIsNullOrEmpty(const string *s)
+s32 ChipSharp_Runtime_StringIsNullOrEmpty(const string *s)
 {
-    return s == 0 || s->length == 0;
+    return s == 0 || length(s) == 0;
 }
 
-int ChipSharp_Runtime_StringIsNullOrWhiteSpace(const string *s)
+s32 ChipSharp_Runtime_StringIsNullOrWhiteSpace(const string *s)
 {
     if (s != 0)
     {
-        for (int i = 0; i < s->length; i++)
+        for (s32 i = 0; i < length(s); i++)
         {
-            if (!ChipSharp_Runtime_CharIsWhiteSpace((int)at(s, i)))
+            if (!ChipSharp_Runtime_CharIsWhiteSpace((s32)at(s, i)))
             {
                 return 0;
             }
@@ -651,15 +686,15 @@ int ChipSharp_Runtime_StringIsNullOrWhiteSpace(const string *s)
 __attribute__((noreturn)) static void fail_with(const char *prefix, const string *s, const char *suffix)
 {
     char message[96 + 200 * 3 + 64];
-    unsigned int n = 0;
-    while (*prefix != 0)
+    u32 n = 0;
+    for (char c = READ(char, prefix); c != 0; prefix++, c = READ(char, prefix))
     {
-        message[n++] = *prefix++;
+        message[n++] = c;
     }
 
-    for (int i = 0; i < s->length && i < 200; i++)
+    for (s32 i = 0; i < length(s) && i < 200; i++)
     {
-        unsigned int c = at(s, i);
+        u32 c = at(s, i);
         if (c < 0x80)
         {
             message[n++] = (char)c;
@@ -683,26 +718,26 @@ __attribute__((noreturn)) static void fail_with(const char *prefix, const string
         }
     }
 
-    while (*suffix != 0)
+    for (char c = READ(char, suffix); c != 0; suffix++, c = READ(char, suffix))
     {
-        message[n++] = *suffix++;
+        message[n++] = c;
     }
 
     message[n] = 0;
     chipsharp_fail(message);
 }
 
-static int is_parse_space(unsigned int c)
+static s32 is_parse_space(u32 c)
 {
     return (c >= 0x09 && c <= 0x0D) || c == 0x20;
 }
 
 // Reads a whole number from s as .NET's NumberStyles.Integer does: spaces, a sign, digits, spaces (and zeros, the char
 // '\0', at the very end). 1 with *magnitude and *negative set; 0 when it is not one; -1 when it does not fit in 64 bits.
-static int read_integer(const string *s, unsigned long long *magnitude, int *negative)
+static s32 read_integer(const string *s, unsigned long long *magnitude, s32 *negative)
 {
-    int i = 0;
-    int end = s->length;
+    s32 i = 0;
+    s32 end = length(s);
     while (end > 0 && at(s, end - 1) == 0)
     {
         end--;
@@ -731,10 +766,10 @@ static int read_integer(const string *s, unsigned long long *magnitude, int *neg
     }
 
     unsigned long long value = 0;
-    int overflow = 0;
+    s32 overflow = 0;
     for (; i < end; i++)
     {
-        unsigned int c = at(s, i);
+        u32 c = at(s, i);
         if (c < '0' || c > '9')
         {
             return 0;
@@ -768,33 +803,50 @@ enum
     UINT64,
 };
 
-static const char *const overflow_messages[] = {
-    "System.OverflowException: Value was either too large or too small for a signed byte.",
-    "System.OverflowException: Value was either too large or too small for an unsigned byte.",
-    "System.OverflowException: Value was either too large or too small for an Int16.",
-    "System.OverflowException: Value was either too large or too small for a UInt16.",
-    "System.OverflowException: Value was either too large or too small for an Int32.",
-    "System.OverflowException: Value was either too large or too small for a UInt32.",
-    "System.OverflowException: Value was either too large or too small for an Int64.",
-    "System.OverflowException: Value was either too large or too small for a UInt64.",
-};
+// The message of a whole number too large or too small for its kind.
+static const char *overflow_message(s32 kind)
+{
+    switch (kind)
+    {
+    case INT8:
+        return MESSAGE("System.OverflowException: Value was either too large or too small for a signed byte.");
+    case UINT8:
+        return MESSAGE("System.OverflowException: Value was either too large or too small for an unsigned byte.");
+    case INT16:
+        return MESSAGE("System.OverflowException: Value was either too large or too small for an Int16.");
+    case UINT16:
+        return MESSAGE("System.OverflowException: Value was either too large or too small for a UInt16.");
+    case INT32:
+        return MESSAGE("System.OverflowException: Value was either too large or too small for an Int32.");
+    case UINT32:
+        return MESSAGE("System.OverflowException: Value was either too large or too small for a UInt32.");
+    case INT64:
+        return MESSAGE("System.OverflowException: Value was either too large or too small for an Int64.");
+    default:
+        return MESSAGE("System.OverflowException: Value was either too large or too small for a UInt64.");
+    }
+}
 
-static const unsigned long long largest[] = {
-    0x7Full, 0xFFull, 0x7FFFull, 0xFFFFull, 0x7FFFFFFFull, 0xFFFFFFFFull, 0x7FFFFFFFFFFFFFFFull, 0xFFFFFFFFFFFFFFFFull,
-};
+// The largest value of the kind: of 8, 16, 32 or 64 bits, signed (the even kinds) or not.
+static unsigned long long largest(s32 kind)
+{
+    s32 bits = 8 << (kind / 2);
+    unsigned long long all = bits == 64 ? ~0ull : (1ull << bits) - 1;
+    return kind % 2 == 0 ? all >> 1 : all;
+}
 
 // 1 with *result set (as the bits of the number), 0 when s is no number, -1 when the number is out of the kind's range.
-static int parse(const string *s, int kind, unsigned long long *result)
+static s32 parse(const string *s, s32 kind, unsigned long long *result)
 {
     unsigned long long magnitude;
-    int negative;
-    int read = read_integer(s, &magnitude, &negative);
+    s32 negative;
+    s32 read = read_integer(s, &magnitude, &negative);
     if (read <= 0)
     {
         return read;
     }
 
-    int is_signed = kind % 2 == 0;
+    s32 is_signed = kind % 2 == 0;
     if (negative)
     {
         // a whole number below zero: -0 is 0 for the unsigned kinds too
@@ -804,7 +856,7 @@ static int parse(const string *s, int kind, unsigned long long *result)
             return 1;
         }
 
-        if (!is_signed || magnitude > largest[kind] + 1)
+        if (!is_signed || magnitude > largest(kind) + 1)
         {
             return -1;
         }
@@ -813,7 +865,7 @@ static int parse(const string *s, int kind, unsigned long long *result)
         return 1;
     }
 
-    if (magnitude > largest[kind])
+    if (magnitude > largest(kind))
     {
         return -1;
     }
@@ -822,29 +874,29 @@ static int parse(const string *s, int kind, unsigned long long *result)
     return 1;
 }
 
-static unsigned long long parse_or_fail(const string *s, int kind)
+static unsigned long long parse_or_fail(const string *s, s32 kind)
 {
     if (s == 0)
     {
-        chipsharp_fail("System.ArgumentNullException: Value cannot be null. (Parameter 's')");
+        chipsharp_fail(MESSAGE("System.ArgumentNullException: Value cannot be null. (Parameter 's')"));
     }
 
     unsigned long long result = 0;
-    int parsed = parse(s, kind, &result);
+    s32 parsed = parse(s, kind, &result);
     if (parsed == 0)
     {
-        fail_with("System.FormatException: The input string '", s, "' was not in a correct format.");
+        fail_with(MESSAGE("System.FormatException: The input string '"), s, MESSAGE("' was not in a correct format."));
     }
 
     if (parsed < 0)
     {
-        chipsharp_fail(overflow_messages[kind]);
+        chipsharp_fail(overflow_message(kind));
     }
 
     return result;
 }
 
-static int try_parse(const string *s, int kind, unsigned long long *result)
+static s32 try_parse(const string *s, s32 kind, unsigned long long *result)
 {
     *result = 0;
     if (s == 0 || parse(s, kind, result) <= 0)
@@ -856,75 +908,75 @@ static int try_parse(const string *s, int kind, unsigned long long *result)
     return 1;
 }
 
-int ChipSharp_Runtime_ParseSByte(const string *s) { return (signed char)parse_or_fail(s, INT8); }
-int ChipSharp_Runtime_ParseByte(const string *s) { return (unsigned char)parse_or_fail(s, UINT8); }
-int ChipSharp_Runtime_ParseInt16(const string *s) { return (short)parse_or_fail(s, INT16); }
-int ChipSharp_Runtime_ParseUInt16(const string *s) { return (unsigned short)parse_or_fail(s, UINT16); }
-int ChipSharp_Runtime_ParseInt32(const string *s) { return (int)parse_or_fail(s, INT32); }
-int ChipSharp_Runtime_ParseUInt32(const string *s) { return (int)(unsigned int)parse_or_fail(s, UINT32); }
+s32 ChipSharp_Runtime_ParseSByte(const string *s) { return (signed char)parse_or_fail(s, INT8); }
+s32 ChipSharp_Runtime_ParseByte(const string *s) { return (unsigned char)parse_or_fail(s, UINT8); }
+s32 ChipSharp_Runtime_ParseInt16(const string *s) { return (short)parse_or_fail(s, INT16); }
+s32 ChipSharp_Runtime_ParseUInt16(const string *s) { return (unsigned short)parse_or_fail(s, UINT16); }
+s32 ChipSharp_Runtime_ParseInt32(const string *s) { return (s32)parse_or_fail(s, INT32); }
+s32 ChipSharp_Runtime_ParseUInt32(const string *s) { return (s32)(u32)parse_or_fail(s, UINT32); }
 long long ChipSharp_Runtime_ParseInt64(const string *s) { return (long long)parse_or_fail(s, INT64); }
 long long ChipSharp_Runtime_ParseUInt64(const string *s) { return (long long)parse_or_fail(s, UINT64); }
 
-int ChipSharp_Runtime_TryParseSByte(const string *s, signed char *value)
+s32 ChipSharp_Runtime_TryParseSByte(const string *s, signed char *value)
 {
     unsigned long long result;
-    int parsed = try_parse(s, INT8, &result);
+    s32 parsed = try_parse(s, INT8, &result);
     *value = (signed char)result;
     return parsed;
 }
 
-int ChipSharp_Runtime_TryParseByte(const string *s, unsigned char *value)
+s32 ChipSharp_Runtime_TryParseByte(const string *s, unsigned char *value)
 {
     unsigned long long result;
-    int parsed = try_parse(s, UINT8, &result);
+    s32 parsed = try_parse(s, UINT8, &result);
     *value = (unsigned char)result;
     return parsed;
 }
 
-int ChipSharp_Runtime_TryParseInt16(const string *s, short *value)
+s32 ChipSharp_Runtime_TryParseInt16(const string *s, short *value)
 {
     unsigned long long result;
-    int parsed = try_parse(s, INT16, &result);
+    s32 parsed = try_parse(s, INT16, &result);
     *value = (short)result;
     return parsed;
 }
 
-int ChipSharp_Runtime_TryParseUInt16(const string *s, unsigned short *value)
+s32 ChipSharp_Runtime_TryParseUInt16(const string *s, unsigned short *value)
 {
     unsigned long long result;
-    int parsed = try_parse(s, UINT16, &result);
+    s32 parsed = try_parse(s, UINT16, &result);
     *value = (unsigned short)result;
     return parsed;
 }
 
-int ChipSharp_Runtime_TryParseInt32(const string *s, int *value)
+s32 ChipSharp_Runtime_TryParseInt32(const string *s, s32 *value)
 {
     unsigned long long result;
-    int parsed = try_parse(s, INT32, &result);
-    *value = (int)result;
+    s32 parsed = try_parse(s, INT32, &result);
+    *value = (s32)result;
     return parsed;
 }
 
-int ChipSharp_Runtime_TryParseUInt32(const string *s, unsigned int *value)
+s32 ChipSharp_Runtime_TryParseUInt32(const string *s, u32 *value)
 {
     unsigned long long result;
-    int parsed = try_parse(s, UINT32, &result);
-    *value = (unsigned int)result;
+    s32 parsed = try_parse(s, UINT32, &result);
+    *value = (u32)result;
     return parsed;
 }
 
-int ChipSharp_Runtime_TryParseInt64(const string *s, long long *value)
+s32 ChipSharp_Runtime_TryParseInt64(const string *s, long long *value)
 {
     unsigned long long result;
-    int parsed = try_parse(s, INT64, &result);
+    s32 parsed = try_parse(s, INT64, &result);
     *value = (long long)result;
     return parsed;
 }
 
-int ChipSharp_Runtime_TryParseUInt64(const string *s, unsigned long long *value)
+s32 ChipSharp_Runtime_TryParseUInt64(const string *s, unsigned long long *value)
 {
     unsigned long long result;
-    int parsed = try_parse(s, UINT64, &result);
+    s32 parsed = try_parse(s, UINT64, &result);
     *value = result;
     return parsed;
 }
