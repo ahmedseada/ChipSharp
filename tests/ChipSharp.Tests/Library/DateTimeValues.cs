@@ -48,13 +48,13 @@ internal static class DateTimeValues
         "\"quoted\" HH", "\\H\\H HH", "ss.FFF", "ss.FFFFFFF", "HH:mm:ss.f ff fff ffff fffff ffffff fffffff",
         "F FF FFF FFFF FFFFF FFFFFF FFFFFFF", "g gg", "yyyyyyyyyyyyyyyyyyy", "MMMMM ddddd", "s.F", "H.F", ".F", "..F",
         "s..FF", "%F%F", "hh:mm:ss.FFFF tt", "dd/MM/yyyy", "yyyyMMddHHmmss", "HH'h'mm", "'it''s'", "mm:ss", "m s h H",
-        "d dd ddd dddd", "M MM MMM MMMM", "tt t", "'a\\'b'", "\"a\\\"b\"", "x", "abc", "% %", "yyyy-MM-ddTHH:mm:ss",
-        "HH:mm:ss.ffffff", "F.F", "g yyyy", "hh", "HHH", "mmm", "sss", "ttt", "K", "MM'/'dd",
+        "d dd ddd dddd", "M MM MMM MMMM", "tt t", "'a\\'b'", "\"a\\\"b\"", "xx", "abc", "%m %s", "yyyy-MM-ddTHH:mm:ss",
+        "HH:mm:ss.ffffff", "F.F", "g yyyy", "hh", "HHH", "mmm", "sss", "ttt", "HH K", "MM'/'dd",
     ];
 
     /// <summary>Formats .NET refuses with a FormatException, each in its own way.</summary>
     public static readonly string[] BadFormats =
-        ["x", "Q", "ffffffff", "FFFFFFFF", "'abc", "\"abc", "abc\\", "%", "%%", "yyyy'", "HH \"mm"];
+        ["x", "K", "% %", "Q", "ffffffff", "FFFFFFFF", "'abc", "\"abc", "abc\\", "%", "%%", "yyyy'", "HH \"mm"];
 
     /// <summary>The formats of a DateOnly, those it refuses, and custom ones with a time in them.</summary>
     public static readonly string[] DateOnlyFormats =
