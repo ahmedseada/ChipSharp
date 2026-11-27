@@ -27,6 +27,7 @@ public sealed class LibrarySubstituteTests
     {
         Assert.Equal(
             [
+                "ChipSharp.Library.Adc for ChipSharp.Hardware.Adc",
                 "ChipSharp.Library.Array for System.Array",
                 "ChipSharp.Library.BinaryPrimitives for System.Buffers.Binary.BinaryPrimitives",
                 "ChipSharp.Library.Collections.CollectionExtensions for System.Collections.Generic.CollectionExtensions",
@@ -47,6 +48,7 @@ public sealed class LibrarySubstituteTests
                 "ChipSharp.Library.Collections.Stack`1 for System.Collections.Generic.Stack`1",
                 "ChipSharp.Library.Collections.Stack`1+Enumerator for System.Collections.Generic.Stack`1+Enumerator",
                 "ChipSharp.Library.Comparer`1 for System.Collections.Generic.Comparer`1",
+                "ChipSharp.Library.Console for System.Console",
                 "ChipSharp.Library.Environment for System.Environment",
                 "ChipSharp.Library.EqualityComparer`1 for System.Collections.Generic.EqualityComparer`1",
                 "ChipSharp.Library.Exceptions.ApplicationException for System.ApplicationException",
@@ -72,6 +74,7 @@ public sealed class LibrarySubstituteTests
                 "ChipSharp.Library.MemoryExtensions for System.MemoryExtensions",
                 "ChipSharp.Library.Pairs.KeyValuePair for System.Collections.Generic.KeyValuePair",
                 "ChipSharp.Library.Pairs.KeyValuePair`2 for System.Collections.Generic.KeyValuePair`2",
+                "ChipSharp.Library.Pwm for ChipSharp.Hardware.Pwm",
                 "ChipSharp.Library.RuntimeHelpers for System.Runtime.CompilerServices.RuntimeHelpers",
                 "ChipSharp.Library.StringBuilder for System.Text.StringBuilder",
                 "ChipSharp.Library.TimeSpan for System.TimeSpan",
@@ -86,6 +89,7 @@ public sealed class LibrarySubstituteTests
                 "ChipSharp.Library.Tuples.ValueTuple`7 for System.ValueTuple`7",
                 "ChipSharp.Library.Tuples.ValueTuple`8 for System.ValueTuple`8",
                 "ChipSharp.Library.Type for System.Type",
+                "ChipSharp.Library.Uart for ChipSharp.Hardware.Uart",
             ],
             LibrarySubstitutes.Substituted.Select(pair => $"{pair.Key.FullName} for {pair.Value}").Order(StringComparer.Ordinal));
         Assert.Equal(
@@ -303,8 +307,9 @@ public sealed class LibrarySubstituteTests
     [Fact]
     public void Every_runtime_function_of_the_library_is_in_every_runtime()
     {
+        // (the serial ports', analog inputs' and PWM outputs' functions are a chip's, see SerialAnalogCheckTests)
         var functions = LibrarySubstitutes.Assembly.FindType(LibrarySubstitutes.RuntimeType)!.Methods
-            .Where(method => method.IsStatic && method.Name != ".cctor").ToList();
+            .Where(method => method.IsStatic && method.Name != ".cctor" && !IsSerialAnalog(method.Name)).ToList();
         var windows = new WindowsX64Runtime().Startup(Targets.Load("host")).Files
             .Single(file => file.FileName == WindowsX64Runtime.FailuresFileName).Content;
         var pico = new Rp2040Runtime().Startup(Targets.Load("pico")).Files
@@ -334,6 +339,7 @@ public sealed class LibrarySubstituteTests
     {
         // (each given a parameter's name, a message and a value: "count", "a message", -1)
         var thrown = typeof(global::ChipSharp.Library.Runtime).GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Where(method => !IsSerialAnalog(method.Name))
             .OrderBy(method => method.Name)
             .Select(method => Assert.Throws<TargetInvocationException>(() => method.Invoke(null,
                 [.. method.GetParameters().Select(parameter => parameter.ParameterType == typeof(int) ? -1
@@ -451,4 +457,12 @@ public sealed class LibrarySubstituteTests
     private static List<IlMethodReference> Calls(IlMethod method) =>
         [.. method.Body!.Instructions.Where(i => i.OpCode is IlOpCode.Call or IlOpCode.Newobj)
             .Select(i => ((IlMethodOperand)i.Operand!).Method)];
+
+    /// <summary>
+    /// True for a runtime function of the serial ports, the console's input, the analog inputs and the PWM outputs,
+    /// which only a chip's runtime has, and which is not a failure: on .NET each says it runs on a chip.
+    /// </summary>
+    private static bool IsSerialAnalog(string name) =>
+        name.StartsWith("Uart", StringComparison.Ordinal) || name.StartsWith("Adc", StringComparison.Ordinal)
+        || name.StartsWith("Pwm", StringComparison.Ordinal) || name is "ConsoleRead" or "SerialAnalogOnChip";
 }

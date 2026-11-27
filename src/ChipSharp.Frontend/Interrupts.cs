@@ -61,7 +61,7 @@ public static class Interrupts
     public const string AttributeType = "ChipSharp.Hardware.InterruptAttribute";
 
     /// <summary>The events of ChipSharp.Hardware.Event, which the program is checked against when no target is given.</summary>
-    public static IReadOnlyList<string> LibraryEvents { get; } = ["timer", "pin"];
+    public static IReadOnlyList<string> LibraryEvents { get; } = ["timer", "pin", "uart"];
 
     /// <summary>The runtime functions (of <see cref="KnownExternals"/>) that start an event, and the event they start.</summary>
     internal static IReadOnlyDictionary<string, string> Starters { get; } = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -73,12 +73,14 @@ public static class Interrupts
         ["ChipSharp.Runtime.PinWatch"] = "pin",
         ["ChipSharp.Runtime.PinWatchRising"] = "pin",
         ["ChipSharp.Runtime.PinWatchFalling"] = "pin",
+        ["ChipSharp.Runtime.UartWatch"] = "uart", // Uart.Watch, a library substitute's call
     };
 
     /// <summary>The runtime functions that wait, which a handler cannot call: the interrupt that ends the wait cannot come while it runs.</summary>
     internal static IReadOnlySet<string> Waits { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
         "ChipSharp.Runtime.DelayMilliseconds", "ChipSharp.Runtime.DelayMicroseconds",
+        "ChipSharp.Runtime.ConsoleRead", // Console.Read and ReadLine wait for the input's interrupt
     };
 
     /// <summary>

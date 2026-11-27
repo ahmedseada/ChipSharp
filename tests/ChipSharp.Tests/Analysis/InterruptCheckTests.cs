@@ -147,14 +147,14 @@ public sealed class InterruptCheckTests
         Assert.Equal(
             [
                 "Program.Tick(): [Interrupt(\"tick\")] names an event ChipSharp.Hardware does not have. The events are " +
-                    "\"timer\" (Event.Timer) and \"pin\" (Event.Pin).",
+                    "\"timer\" (Event.Timer), \"pin\" (Event.Pin) and \"uart\" (Event.Uart).",
                 "Program.Nothing(): [Interrupt(null)] names an event ChipSharp.Hardware does not have. The events are " +
-                    "\"timer\" (Event.Timer) and \"pin\" (Event.Pin).",
+                    "\"timer\" (Event.Timer), \"pin\" (Event.Pin) and \"uart\" (Event.Uart).",
             ],
             Problems(source));
         Assert.Equal(
             "Program.Tick(): [Interrupt(\"tick\")] names an event target 'pico' does not have. Its events are " +
-                "\"timer\" (Event.Timer) and \"pin\" (Event.Pin).",
+                "\"timer\" (Event.Timer), \"pin\" (Event.Pin) and \"uart\" (Event.Uart).",
             Problems(source, Targets.Load("pico"))[0]);
     }
 
@@ -254,7 +254,7 @@ public sealed class InterruptCheckTests
         Assert.Equal(
             [
                 "Program.Pause() at IL_0002 (call): an interrupt handler cannot wait (Timing.Delay, " +
-                    "Timing.DelayMilliseconds, Timing.DelayMicroseconds). The interrupt that ends the wait cannot come while a handler runs, so " +
+                    "Timing.DelayMilliseconds, Timing.DelayMicroseconds, Console.Read, Console.ReadLine). The interrupt that ends the wait cannot come while a handler runs, so " +
                     "it would wait forever: keep handlers short, and wait in Main, e.g. for a static volatile field the " +
                     "handler sets.",
             ],
@@ -447,11 +447,16 @@ public sealed class InterruptCheckTests
     public void The_targets_interrupts_come_from_its_file_and_a_PC_has_none()
     {
         Assert.Equal(
-            [new TargetInterrupt("timer", 1, "chipsharp_clear_timer_event"), new TargetInterrupt("pin", 13, "chipsharp_clear_pin_event")],
+            [
+                new TargetInterrupt("timer", 1, "chipsharp_clear_timer_event"),
+                new TargetInterrupt("pin", 13, "chipsharp_clear_pin_event"),
+                new TargetInterrupt("uart", 26, null),
+            ],
             Interrupts.ForTarget(Targets.Load("pico")).Values);
-        Assert.Equal(["timer", "pin"], Interrupts.ForTarget(Targets.Load("pico-w")).Keys);
+        Assert.Equal(["timer", "pin", "uart"], Interrupts.ForTarget(Targets.Load("pico-w")).Keys);
         Assert.Empty(Interrupts.ForTarget(Targets.Load("host")));
-        Assert.Equal(Interrupts.LibraryEvents, [ChipSharp.Hardware.Event.Timer, ChipSharp.Hardware.Event.Pin]);
+        Assert.Equal(Interrupts.LibraryEvents,
+            [ChipSharp.Hardware.Event.Timer, ChipSharp.Hardware.Event.Pin, ChipSharp.Hardware.Event.Uart]);
     }
 
     [Theory]

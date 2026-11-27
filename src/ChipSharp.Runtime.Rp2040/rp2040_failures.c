@@ -36,6 +36,9 @@
 //                                        null, an index or a length outside the array, a destination too short
 //                                        (ArgumentNullException, ArgumentOutOfRangeException, ArgumentException); the
 //                                        ...BelowZero ones say the value too, as .NET does
+//   chipsharp_hardware_failure          a serial port, an analog input or a PWM output used the wrong way: a pin it
+//                                        cannot use, one not set up first (ArgumentException,
+//                                        ArgumentOutOfRangeException, InvalidOperationException, with what to do)
 //
 // IndexOutOfRange, NullReference, OutOfMemory, Overflow, HeapInInterrupt, the span ones and the array ones are the code
 // generator's and the heap's (chipsharp_heap.c, armv6m_heap.c), InvalidCast the program's casts' (ChipSharp.Object.
@@ -431,5 +434,38 @@ __attribute__((noreturn)) void ChipSharp_Runtime_StackOverflow(void)
 __attribute__((noreturn)) void chipsharp_fatal(const char *message)
 {
     chipsharp_uart0_write(message, length(message));
+    fail("\r\n", 2);
+}
+
+// ---- The chip's peripherals ---------------------------------------------------------------------------------------
+
+// A serial port, an analog input or a PWM output used the wrong way (rp2040_uart.c, rp2040_adc.c, rp2040_pwm.c):
+// "Unhandled exception. " and text, e.g. "System.ArgumentException: GPIO {0} cannot be UART{1}'s TX. ...", with the
+// numbers n0 to n3 in place of {0} to {3}, as string.Format writes them.
+__attribute__((noreturn)) void chipsharp_hardware_failure(const char *text, int n0, int n1, int n2, int n3)
+{
+    const int numbers[] = {n0, n1, n2, n3};
+    chipsharp_uart0_write(UNHANDLED, sizeof UNHANDLED - 1);
+    while (*text != 0)
+    {
+        unsigned int plain = 0;
+        while (text[plain] != 0 && !(text[plain] == '{' && text[plain + 1] >= '0' && text[plain + 1] <= '3'
+            && text[plain + 2] == '}'))
+        {
+            plain++;
+        }
+
+        chipsharp_uart0_write(text, plain);
+        text += plain;
+        if (*text == '{')
+        {
+            char digits[16];
+            COUNT count = 0;
+            append_int(digits, &count, numbers[text[1] - '0']);
+            chipsharp_uart0_write(digits, count);
+            text += 3;
+        }
+    }
+
     fail("\r\n", 2);
 }
