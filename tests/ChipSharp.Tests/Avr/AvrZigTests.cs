@@ -29,23 +29,23 @@ public sealed class AvrZigTests : IDisposable
 
     // not -O0: there LLVM 22's AVR backend (its fast register allocator) runs out of registers in ordinary functions, such
     // as Program.SumOfSquares; ChipSharp always optimizes
-    [ZigTheory]
+    [AvrTheory]
     [InlineData("-Os")]
     [InlineData("-O2")]
     public async Task Zig_compiles_every_instruction_kind_on_every_type_for_an_atmega328p(string optimization)
     {
-        var ll = Assert.Single(new LlvmCodeGenerator().Generate(LlvmSamples.Everything(), AvrTools.Uno()).Files);
+        var ll = Assert.Single(new LlvmCodeGenerator().Generate(LlvmSamples.Everything(), AvrCode.Uno()).Files);
 
-        var objectFile = await AvrTools.CompileAsync(_scratch, ll.FileName, ll.Content, optimization);
+        var objectFile = await AvrCode.CompileAsync(_scratch, ll.FileName, ll.Content, optimization);
 
         Assert.True(new FileInfo(objectFile).Length > 0);
     }
 
-    [ZigTheory]
+    [AvrTheory]
     [MemberData(nameof(SampleNames))]
     public async Task Every_sample_without_objects_compiles_for_an_atmega328p_with_its_constants_in_flash(string name)
     {
-        var target = AvrTools.Uno();
+        var target = AvrCode.Uno();
         var dll = Samples.Compile(name, _scratch);
         var analysis = WholeProgramPass.Check(IlAssembly.Load(dll), target);
         if (!analysis.IsSupported)
@@ -55,11 +55,41 @@ public sealed class AvrZigTests : IDisposable
             return;
         }
 
+        await CompilesWithItsConstantsInFlash(dll, target);
+    }
+
+    [AvrFact]
+    public async Task DateTime_formatting_and_its_name_tables_compile_for_an_atmega328p_with_the_tables_in_flash()
+    {
+        var dll = CSharpCompiler.CompileToFile("""
+            using System;
+
+            class Program
+            {
+                static void Main()
+                {
+                    var day = new DateTime(2026, 11, 27, 21, 5, 9);
+                    Console.WriteLine($"{day:yyyy-MM-dd HH:mm:ss} {day:dddd} {day:MMMM}");
+                    Console.WriteLine(day.DayOfWeek);
+                    Console.WriteLine(day.AddDays(40).Month);
+                }
+            }
+            """, Path.Combine(_scratch, "Days.dll"));
+
+        await CompilesWithItsConstantsInFlash(dll, AvrCode.Uno());
+    }
+
+    /// <summary>
+    /// Translates the program in <paramref name="dll"/>, generates its LLVM for <paramref name="target"/> and compiles it
+    /// with Zig: nothing constant is copied to RAM (no .rodata; .data holds only static fields that start with a value),
+    /// and its constant data is in flash's section.
+    /// </summary>
+    private async Task CompilesWithItsConstantsInFlash(string dll, TargetDescription target)
+    {
         var module = ChipSharpBuilder.Translate(dll, target);
         var ll = Assert.Single(new LlvmCodeGenerator().Generate(module, target).Files);
-        var objectFile = await AvrTools.CompileAsync(_scratch, ll.FileName, ll.Content, "-Os");
+        var objectFile = await AvrCode.CompileAsync(_scratch, ll.FileName, ll.Content, "-Os");
 
-        // nothing constant is copied to RAM: no .rodata, and .data holds only static fields that start with a value
         var sections = await Sections(objectFile);
         Assert.DoesNotContain(sections, section => section.Name.StartsWith(".rodata", StringComparison.Ordinal));
         if (module.Globals.Any(global => global.IsConstant))

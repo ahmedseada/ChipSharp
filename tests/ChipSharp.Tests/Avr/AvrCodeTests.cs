@@ -259,7 +259,7 @@ public sealed class AvrCodeTests
         var first = b.Load(TirType.I8, b.ElementAddress(b.AddressOf(table), TirType.I8, b.Const(TirType.I32, 0)));
         b.Return(b.Binary(TirBinaryOp.Add, first, b.Load(TirType.I8, function.Parameters[0])));
 
-        var ll = Generate(module, AvrTools.Uno(("separateFlash", "false")));
+        var ll = Generate(module, AvrCode.Uno(("separateFlash", "false")));
 
         Assert.Contains("@_table_ = private unnamed_addr constant [2 x i8] c\"\\01\\02\", align 1\n", ll, StringComparison.Ordinal);
         Assert.DoesNotContain("progmem", ll, StringComparison.Ordinal);
@@ -286,8 +286,8 @@ public sealed class AvrCodeTests
         var b = new TirBuilder(make.AddBlock("entry"));
         b.Return(b.NewObject(type));
         var heap = Assert.Throws<ChipSharpException>(() =>
-            Generator.Generate(withHeap, AvrTools.UnoWithHeap(1024)));
-        Assert.Contains("the heap is not supported yet on target 'uno-test'", heap.Message, StringComparison.Ordinal);
+            Generator.Generate(withHeap, AvrCode.UnoWithHeap(1024)));
+        Assert.Contains("the heap is not supported yet on target 'uno'", heap.Message, StringComparison.Ordinal);
 
         var plain = TirSamples.WithMain(new TirModule("Demo"));
         var pico = LlvmTargets.Pico;
@@ -317,5 +317,5 @@ public sealed class AvrCodeTests
     }
 
     private static string Generate(TirModule module, TargetDescription? target = null) =>
-        Assert.Single(Generator.Generate(module, target ?? AvrTools.Uno()).Files).Content;
+        Assert.Single(Generator.Generate(module, target ?? AvrCode.Uno()).Files).Content;
 }
