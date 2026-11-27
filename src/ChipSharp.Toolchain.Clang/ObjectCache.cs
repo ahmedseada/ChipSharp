@@ -12,10 +12,11 @@ namespace ChipSharp.Toolchain.Clang;
 /// link it again.
 /// </summary>
 /// <remarks>
-/// Builds may run at once, in one process and in many: a file is written under a name of its own and then renamed to
+/// Builds may run at once, in one process and in many: a file is moved in under a name of its own and then renamed to
 /// its key, so a file under a key is always whole; a build that finds the same key being made in this process waits for
-/// it rather than making it twice. The cache keeps at most <see cref="MaxBytes"/>: past that, the files used longest ago
-/// go. Deleting the folder is always safe.
+/// it rather than making it twice. A build links the objects where they are in the cache: each new file costs time
+/// (a virus scanner reads it), and a copy is a new file. The cache keeps at most <see cref="MaxBytes"/>: past that, the
+/// files used longest ago go, but never those of the last hour. Deleting the folder is always safe.
 /// </remarks>
 internal sealed class ObjectCache
 {
@@ -94,15 +95,16 @@ internal sealed class ObjectCache
     }
 
     /// <summary>
-    /// Puts the file of <paramref name="key"/> at <paramref name="path"/>: copied from the cache when it is there, else
-    /// made by <paramref name="make"/> (which writes <paramref name="path"/>) and then kept. When another build of this
-    /// process is making it, waits for that one.
+    /// The file of <paramref name="key"/>: the cache's, when it has it; else made by <paramref name="make"/> (which writes
+    /// <paramref name="path"/>) and moved into the cache. Returns where the file is: in the cache, or at
+    /// <paramref name="path"/> when the cache cannot be written. When another build of this process is making it, waits
+    /// for that one.
     /// </summary>
-    public async Task GetAsync(string key, string path, Func<Task> make)
+    public async Task<string> GetAsync(string key, string path, Func<Task> make)
     {
-        if (TryCopy(key, path))
+        if (Find(key) is { } found)
         {
-            return;
+            return found;
         }
 
         var mine = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -111,20 +113,19 @@ internal sealed class ObjectCache
         {
             // another build makes it; when that one failed, this one makes it and reports its own error
             await making.ConfigureAwait(false);
-            if (TryCopy(key, path))
+            if (Find(key) is { } made)
             {
-                return;
+                return made;
             }
 
             await make().ConfigureAwait(false);
-            Keep(key, path);
-            return;
+            return Keep(key, path);
         }
 
         try
         {
             await make().ConfigureAwait(false);
-            Keep(key, path);
+            return Keep(key, path);
         }
         finally
         {
@@ -133,60 +134,73 @@ internal sealed class ObjectCache
         }
     }
 
-    /// <summary>Copies the file of <paramref name="key"/> to <paramref name="path"/>; false when the cache does not have it.</summary>
-    private bool TryCopy(string key, string path)
+    /// <summary>The cache's file of <paramref name="key"/>, or null when it has none.</summary>
+    private string? Find(string key)
     {
         var cached = Path.Combine(Folder, key);
         try
         {
-            File.Copy(cached, path, overwrite: true);
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            return false; // not there (or going): make it
-        }
-
-        // used now: a trim keeps it longer (the date of a file used today is left as it is)
-        try
-        {
-            var now = DateTime.UtcNow;
-            if (now - File.GetLastWriteTimeUtc(cached) > TimeSpan.FromHours(12))
+            var written = File.GetLastWriteTimeUtc(cached);
+            if (written.Year < 1700)
             {
-                File.SetLastWriteTimeUtc(cached, now);
+                return null; // not there: Windows gives the year 1601 for a file that does not exist
             }
+
+            // used now: a trim keeps it longer (the date of a file used today is left as it is)
+            if (DateTime.UtcNow - written > TimeSpan.FromHours(12))
+            {
+                File.SetLastWriteTimeUtc(cached, DateTime.UtcNow);
+            }
+
+            return cached;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            // the copy is what matters
+            return File.Exists(cached) ? cached : null;
         }
-
-        return true;
     }
 
-    /// <summary>Keeps a copy of the file at <paramref name="path"/> under <paramref name="key"/>; a cache that cannot be written is no error.</summary>
-    private void Keep(string key, string path)
+    /// <summary>
+    /// Moves the file at <paramref name="path"/> into the cache under <paramref name="key"/>; returns where the file is
+    /// then. A cache that cannot be written is no error: the file stays where it is.
+    /// </summary>
+    private string Keep(string key, string path)
     {
         var cached = Path.Combine(Folder, key);
         var temporary = $"{cached}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
         try
         {
             Directory.CreateDirectory(Folder);
-            File.Copy(path, temporary);
+            File.Move(path, temporary);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return path;
+        }
+
+        try
+        {
             File.Move(temporary, cached, overwrite: false);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            // another build kept the same file first, or the cache cannot be written: the build goes on without it
-            TryDelete(temporary);
-            return;
+            // another build kept the same file first
+            if (File.Exists(cached))
+            {
+                TryDelete(temporary);
+                return cached;
+            }
+
+            return temporary;
         }
 
         Trim();
+        return cached;
     }
 
     /// <summary>
-    /// When the cache holds more than <see cref="MaxBytes"/>, deletes the files used longest ago. It looks at the first
-    /// file a process keeps and at every 32nd after it.
+    /// When the cache holds more than <see cref="MaxBytes"/>, deletes the files used longest ago, but those of the last
+    /// hour (a build may be linking them). It looks at the first file a process keeps and at every 32nd after it.
     /// </summary>
     private void Trim()
     {
@@ -204,7 +218,8 @@ internal sealed class ObjectCache
                 return;
             }
 
-            foreach (var file in files.OrderBy(file => file.LastWriteTimeUtc))
+            var recent = DateTime.UtcNow - TimeSpan.FromHours(1);
+            foreach (var file in files.Where(file => file.LastWriteTimeUtc < recent).OrderBy(file => file.LastWriteTimeUtc))
             {
                 if (total <= TrimmedBytes)
                 {

@@ -113,6 +113,8 @@ public sealed class ClangToolchain : IToolchain
             "-o", program,
             $"-Wl,-entry:{settings.Entry}",
             $"-Wl,-subsystem:{settings.Subsystem}",
+            // the same files make the same program: its header's timestamp is a hash of it, not the time it was linked
+            "-Wl,-Brepro",
         ];
         return Link(clang, arguments, folder, program);
     }
@@ -241,7 +243,7 @@ public sealed class ClangToolchain : IToolchain
 
     /// <summary>
     /// Compiles each of <paramref name="sources"/> into an object file of its own (&lt;file&gt;.o, next to it), several
-    /// at once; one the build cache has is copied from there instead. Returns the objects in the order of the sources:
+    /// at once; one the build cache has is linked from there instead. Returns the objects in the order of the sources:
     /// linked in that order, they make the program clang makes from the sources themselves in one go.
     /// </summary>
     private List<string> Compile(string clang, IReadOnlyList<string> flags, GeneratedCode code,
@@ -281,21 +283,11 @@ public sealed class ClangToolchain : IToolchain
             }
 
             var key = ObjectCache.Key(clang, ".o", [.. arguments, texts[sources[i]], .. headers]);
-            await _cache.GetAsync(key, Path.Combine(folder, objects[i]), Make).ConfigureAwait(false);
+            objects[i] = await _cache.GetAsync(key, Path.Combine(folder, objects[i]), Make).ConfigureAwait(false);
         }
 
-        // the first source that fails is the error, as when clang compiles them in order
-        var compiles = Enumerable.Range(0, sources.Count).Select(i => Task.Run(() => CompileOne(i))).ToList();
-        try
-        {
-            Task.WhenAll(compiles).GetAwaiter().GetResult();
-        }
-        catch (ChipSharpException)
-        {
-            compiles.First(task => task.IsFaulted).GetAwaiter().GetResult();
-            throw;
-        }
-
+        // the first source that fails (in their order, as when clang compiles them in one go) is the error
+        Task.WhenAll(Enumerable.Range(0, sources.Count).Select(i => Task.Run(() => CompileOne(i)))).GetAwaiter().GetResult();
         return objects;
     }
 
@@ -326,11 +318,18 @@ public sealed class ClangToolchain : IToolchain
             File.WriteAllText(Path.Combine(folder, stem + ".def"), definition.ToString());
             string[] arguments = ["-d", stem + ".def", "-l", stem + ".lib", "-m", settings.Machine!];
             Task Make() => RunAsync(dlltool, arguments, folder);
-            var library = _cache is null
-                ? Make()
-                : _cache.GetAsync(ObjectCache.Key(dlltool, ".lib", [.. arguments, definition.ToString()]),
-                    Path.Combine(folder, stem + ".lib"), Make);
-            Task.Run(() => library).GetAwaiter().GetResult();
+            var library = Path.Combine(folder, stem + ".lib");
+            if (_cache is null)
+            {
+                Run(dlltool, arguments, folder);
+            }
+            else if (Task.Run(() => _cache.GetAsync(ObjectCache.Key(dlltool, ".lib", [.. arguments, definition.ToString()]),
+                library, Make)).GetAwaiter().GetResult() is var cached && cached != library)
+            {
+                // the import library is one of the files the program is built from, next to the others
+                File.Copy(cached, library, overwrite: true);
+            }
+
             libraries.Add(stem + ".lib");
         }
 

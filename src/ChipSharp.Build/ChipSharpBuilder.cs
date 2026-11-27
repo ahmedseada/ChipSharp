@@ -28,7 +28,8 @@ public static class ChipSharpBuilder
     /// <list type="number">
     /// <item>Load the target; it must be complete.</item>
     /// <item>Read the assembly, and find the parts the target names in the registry.</item>
-    /// <item>Check the program (the whole-program pass) and translate it into TIR.</item>
+    /// <item>Check the program (the whole-program pass) and translate it into TIR; the notes the pass gives (see
+    /// <see cref="AnalysisResult.Notes"/>) come back with the result.</item>
     /// <item>Generate code, add the runtime's startup, interrupt entry and atomics files, and link it all with the
     /// toolchain; then see how much of the target's memory the program takes (<see cref="MemoryReport"/>).</item>
     /// <item>When the target names an image format, package the linked program into the output folder as
