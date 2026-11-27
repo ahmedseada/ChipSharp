@@ -34,7 +34,7 @@ public static partial class WholeProgramPass
                 case { OpCode: IlOpCode.Call or IlOpCode.Callvirt or IlOpCode.Newobj,
                     Operand: IlMethodOperand { Method: { Definition: { } definition } callee } } instruction
                     when Instantiations.IsGeneric(definition):
-                    verdicts[instruction] = Instantiations.Refusal(callee)
+                    verdicts[instruction] = Instantiations.Refusal(callee, method.Assembly)
                         ?? (definition.GenericParameters.Count > 0 ? Unsupported.GenericMethods : Unsupported.GenericTypes);
                     break;
 
@@ -64,6 +64,13 @@ public static partial class WholeProgramPass
                     i++;
                     break;
             }
+        }
+
+        // a foreach over an enumerator that is disposed is its try block's problem, and an array is no interface yet
+        // (WholeProgramPass.GenericClasses.cs)
+        foreach (var (instruction, verdict) in ForDisposedEnumerators(method).Concat(ForArraysAsInterfaces(method)))
+        {
+            verdicts.TryAdd(instruction, verdict);
         }
 
         return verdicts;

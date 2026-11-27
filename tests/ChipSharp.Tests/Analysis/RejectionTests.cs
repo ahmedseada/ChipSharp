@@ -394,10 +394,10 @@ public sealed class RejectionTests
     }
 
     [Fact]
-    public void A_generic_method_over_a_class()
+    public void A_generic_method_over_a_class_compiles_once_for_each_type()
     {
-        // over a number it compiles, once for each type (Generics.Instantiations); over a class it needs the heap
-        var problems = Problems("""
+        // over a number and over a class alike (Generics.Instantiations); over a class it needs the heap (TargetRuleTests)
+        var methods = MethodNames("""
             using System;
 
             class Program
@@ -412,11 +412,11 @@ public sealed class RejectionTests
             }
             """);
 
-        Assert.Equal(["Program.Main() at IL_000c (call): " + OverClasses], problems);
+        Assert.Equal(["Program.Main", "Program.Id<int>", "Program.Id<object>"], methods);
     }
 
     [Fact]
-    public void A_method_of_a_generic_type_over_a_class()
+    public void A_method_of_a_generic_type_over_a_multi_dimensional_array()
     {
         var problems = Problems("""
             using System;
@@ -431,17 +431,15 @@ public sealed class RejectionTests
                 static void Main()
                 {
                     Console.WriteLine(Box<long>.Count(3));
-                    Console.WriteLine(Box<string[]>.Count(3));
+                    Console.WriteLine(Box<int[,]>.Count(3));
                 }
             }
             """);
 
-        Assert.Equal(["Program.Main() at IL_000c (call): " + OverClasses], problems);
+        // an array as a type argument is what its arrays need: a multi-dimensional one arrives later
+        Assert.Equal([$"Program.Main() at IL_000c (call): multi-dimensional arrays (int[,]) arrive later. {MultiDimensional}"],
+            problems);
     }
-
-    private const string OverClasses = "generics over classes (a class, an interface, object or an array as a type " +
-        "argument) arrive with M3 (the heap). For now, use numbers, bools, enums and structs as type arguments: " +
-        "ChipSharp makes the code once for each.";
 
     [Fact]
     public void A_library_call_that_is_not_known()

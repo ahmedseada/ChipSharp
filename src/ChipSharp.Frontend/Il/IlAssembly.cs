@@ -215,11 +215,11 @@ public sealed partial class IlAssembly
     // one to a generic method or a member of a generic type, with its type arguments, to that instance (Instantiations)
     internal IlMethodReference ResolveMethod(EntityHandle handle) => _methodReferences.GetOrAdd(handle,
         static (handle, assembly) => Generics.Instantiations.Link(
-            LibrarySubstitutes.Link(assembly, assembly.CreateMethodReference(handle))), this);
+            LibrarySubstitutes.Link(assembly, assembly.CreateMethodReference(handle)), assembly), this);
 
     internal IlFieldReference ResolveField(EntityHandle handle) => _fieldReferences.GetOrAdd(handle,
         static (handle, assembly) => Generics.Instantiations.Link(
-            LibrarySubstitutes.Link(assembly, assembly.CreateFieldReference(handle))), this);
+            LibrarySubstitutes.Link(assembly, assembly.CreateFieldReference(handle)), assembly), this);
 
     internal bool IsField(MemberReferenceHandle handle) =>
         _reader.GetMemberReference(handle).GetKind() == MemberReferenceKind.Field;

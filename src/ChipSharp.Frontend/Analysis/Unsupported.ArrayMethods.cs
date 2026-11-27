@@ -15,8 +15,10 @@ internal sealed partial record Unsupported
     };
 
     public static readonly Unsupported ArraySortElements = new(
-        "Array.Sort and Array.BinarySearch of arrays of enums, structs, text or objects", true,
-        "For now, sort an array of numbers (a key for each element), or write the loop.");
+        "Array.Sort and Array.BinarySearch of arrays of enums, structs that do not implement IComparable<T>, text or " +
+        "objects", true,
+        "For now, sort an array of numbers (a key for each element) or of structs that implement IComparable<T>, or " +
+        "write the loop.");
 
     public static readonly Unsupported ArrayIndexOfElements = new(
         "Array.IndexOf and Array.LastIndexOf of arrays of structs, text, object or classes with an Equals of their own",

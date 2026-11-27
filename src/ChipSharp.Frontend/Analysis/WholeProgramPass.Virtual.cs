@@ -33,7 +33,7 @@ public static partial class WholeProgramPass
             {
                 case { OpCode: IlOpCode.Callvirt, Operand: IlMethodOperand { Method: var callee } } instruction
                     when i == 0 || instructions[i - 1].OpCode != IlOpCode.Constrained:
-                    if (VirtualMethods.IsGenericVirtual(callee))
+                    if (VirtualMethods.IsGenericVirtual(callee) && VirtualMethods.SlotCalled(callee) is null)
                     {
                         verdicts[instruction] = Unsupported.GenericVirtualMethods;
                     }

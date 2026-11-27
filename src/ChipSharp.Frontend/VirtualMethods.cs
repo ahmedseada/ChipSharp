@@ -62,7 +62,7 @@ internal sealed record DispatchTarget(IlMethod? Method, string? ObjectMethod)
 /// interface's explicit override of it.</item>
 /// </list>
 /// </summary>
-internal static class VirtualMethods
+internal static partial class VirtualMethods
 {
     private static readonly ConditionalWeakTable<IlMethod, DispatchSlot> Slots = new();
 
@@ -76,9 +76,13 @@ internal static class VirtualMethods
 
     private static readonly IlMethodSignature ToStringSignature = new(true, IlType.String, []);
 
-    /// <summary>The library interfaces a class of the program may implement: those of values, over values.</summary>
+    /// <summary>
+    /// The library interfaces a class of the program may implement: those of values, and those of collections (generics
+    /// over classes), over a type that can be a type argument.
+    /// </summary>
     private static readonly HashSet<string> LibraryInterfaces =
-        new(["System.IComparable", "System.IComparable`1", "System.IEquatable`1", "System.IDisposable"], StringComparer.Ordinal);
+        new(["System.IComparable", "System.IComparable`1", "System.IEquatable`1", "System.IDisposable",
+            .. Generics.GenericSubstitutes.CollectionInterfaces], StringComparer.Ordinal);
 
     /// <summary>
     /// The slot the <c>callvirt</c> at <paramref name="index"/> of <paramref name="instructions"/> goes through: a
@@ -98,9 +102,15 @@ internal static class VirtualMethods
     public static DispatchSlot? SlotCalled(IlMethodReference callee)
     {
         ArgumentNullException.ThrowIfNull(callee);
-        if (!callee.HasThis || IsGenericVirtual(callee))
+        if (!callee.HasThis)
         {
             return null;
+        }
+
+        if (IsGenericVirtual(callee))
+        {
+            // a slot of its own for each instance the program calls (VirtualMethods.Generic.cs)
+            return GenericSlotCalled(callee);
         }
 
         if (callee.Definition is { } method)
@@ -159,6 +169,11 @@ internal static class VirtualMethods
     {
         ArgumentNullException.ThrowIfNull(type);
         ArgumentNullException.ThrowIfNull(slot);
+        if (slot.Opener is { MethodArguments.Count: > 0 })
+        {
+            return ResolveGeneric(type, slot);
+        }
+
         if (slot.Kind == DispatchSlotKind.Interface)
         {
             return ResolveInterface(type, slot);
@@ -204,7 +219,7 @@ internal static class VirtualMethods
     /// <summary>True when the class <paramref name="type"/> (or a base class of it) implements <paramref name="interfaceType"/>.</summary>
     public static bool Implements(IlTypeDefinition type, IlType interfaceType)
     {
-        var plain = ValueTypes.WithoutModifiers(interfaceType);
+        var plain = Canonical(interfaceType);
         for (IlTypeDefinition? current = type; current is not null; current = BaseOf(current))
         {
             if (InterfacesOf(current).Contains(plain))
@@ -213,7 +228,8 @@ internal static class VirtualMethods
             }
         }
 
-        return false;
+        // or one it is by variance (VirtualMethods.Variance.cs): an IProducer<Dog> is an IProducer<Animal>
+        return VariantInterface(type, plain) is not null;
     }
 
     /// <summary>
@@ -329,6 +345,7 @@ internal static class VirtualMethods
         { OpCode: IlOpCode.Call or IlOpCode.Callvirt, Operand: IlMethodOperand { Method: var callee } } => callee.ReturnType,
         { OpCode: IlOpCode.Newobj, Operand: IlMethodOperand { Method: var constructor } } => constructor.DeclaringType,
         { OpCode: IlOpCode.Isinst or IlOpCode.Castclass, Operand: IlTypeOperand { Type: var type } } => type,
+        { OpCode: IlOpCode.Newarr, Operand: IlTypeOperand { Type: var element } } => new IlArrayType(StackArrays.Primitive(element)),
         _ => null,
     };
 
@@ -357,12 +374,17 @@ internal static class VirtualMethods
     /// <summary>The interfaces the metadata says <paramref name="type"/> implements, without modifiers.</summary>
     private static IReadOnlyList<IlType> InterfacesOf(IlTypeDefinition type) => InterfaceLists.GetValue(type, own =>
         own.GenericDefinition is null
-            ? [.. own.Assembly.Interfaces(own).Select(ValueTypes.WithoutModifiers)]
+            ? [.. own.Assembly.Interfaces(own).Select(Canonical)]
             : [.. own.Assembly.Interfaces(own.GenericDefinition)
-                .Select(i => ValueTypes.WithoutModifiers(new Substitution(own.TypeArguments, []).Apply(i)))]);
+                .Select(i => Canonical(new Substitution(own.TypeArguments, []).Apply(i)))]);
 
     private static DispatchSlot FindSlot(IlMethod method)
     {
+        if (method.MethodArguments.Count > 0)
+        {
+            return GenericSlot(method);
+        }
+
         var type = method.DeclaringType;
 
         // C#'s covariant return type: a newslot method that names the method it overrides in a MethodImpl
@@ -371,7 +393,12 @@ internal static class VirtualMethods
             if ((body == method || body == method.GenericDefinition) && declaration.Definition is { } overridden
                 && ObjectTypes.IsClass(overridden.DeclaringType))
             {
-                return SlotOf(overridden);
+                // of a generic class, the method of the base class's instance (a declaration in terms of !0 names its own)
+                var baseClass = ObjectTypes.Class(new Substitution(type.TypeArguments, []).Apply(declaration.DeclaringType),
+                    type.Assembly);
+                return SlotOf(baseClass is not null && overridden.GenericDefinition is null && Instantiations.IsGeneric(overridden)
+                    ? Instantiations.MethodOf(baseClass, overridden)
+                    : overridden);
             }
         }
 
@@ -421,7 +448,7 @@ internal static class VirtualMethods
     /// <summary>The slot of a method of an interface, with the interface's type arguments in its signature.</summary>
     private static DispatchSlot InterfaceSlot(IlMethodReference callee)
     {
-        var owner = ValueTypes.WithoutModifiers(callee.DeclaringType);
+        var owner = Canonical(callee.DeclaringType);
         return new DispatchSlot(DispatchSlotKind.Interface, owner, callee.Name, Arguments(owner).Apply(callee.Signature));
     }
 
@@ -449,7 +476,7 @@ internal static class VirtualMethods
 
             foreach (var (body, declaration) in lister.Assembly.MethodImplementations(lister.GenericDefinition ?? lister))
             {
-                if (Implements(declaration, slot))
+                if (Implements(declaration, slot, lister))
                 {
                     return Final(type, Instantiations.MethodOf(lister, body));
                 }
@@ -467,7 +494,9 @@ internal static class VirtualMethods
             }
         }
 
-        return DefaultMethod(type, slot);
+        return VariantInterface(type, slot.Owner) is { } implemented
+            ? ResolveVariant(type, slot, implemented)
+            : DefaultMethod(type, slot);
     }
 
     /// <summary>
@@ -490,7 +519,7 @@ internal static class VirtualMethods
             {
                 foreach (var (body, declaration) in assembly.MethodImplementations(definition.GenericDefinition ?? definition))
                 {
-                    if (Implements(declaration, slot) && body.HasBody)
+                    if (Implements(declaration, slot, definition) && body.HasBody)
                     {
                         return DispatchTarget.Of(Instantiations.MethodOf(definition, body));
                     }
@@ -513,10 +542,13 @@ internal static class VirtualMethods
         _ => null,
     };
 
-    /// <summary>True when the interface method a MethodImpl names is <paramref name="slot"/>'s.</summary>
-    private static bool Implements(IlMethodReference declaration, DispatchSlot slot)
+    /// <summary>
+    /// True when the interface method a MethodImpl of <paramref name="implementer"/> names is <paramref name="slot"/>'s:
+    /// of a generic type's, in terms of its type parameters, which the instance's type arguments take the place of.
+    /// </summary>
+    private static bool Implements(IlMethodReference declaration, DispatchSlot slot, IlTypeDefinition implementer)
     {
-        var owner = ValueTypes.WithoutModifiers(declaration.DeclaringType);
+        var owner = Canonical(new Substitution(implementer.TypeArguments, []).Apply(declaration.DeclaringType));
         return owner == slot.Owner && declaration.Name == slot.Name
             && Arguments(owner).Apply(declaration.Signature) == slot.Signature;
     }

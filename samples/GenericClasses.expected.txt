@@ -1,0 +1,10 @@
+readings: 5, numbers: 5
+contains (3, 30): True, (3, 31): False
+contains 16: True, 17: False
+popped: 50 25
+array: 9 readings, total 204, past the end: True
+list: 9 readings, total 204, past the end: True
+new T(): sensor -1, 0
+equal: True False
+checksum: 120018
+4321

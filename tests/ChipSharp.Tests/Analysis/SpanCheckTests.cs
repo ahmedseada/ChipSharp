@@ -219,10 +219,8 @@ public sealed class SpanCheckTests : IDisposable
             "Program.Main() at IL_0045 (call): collection expressions as spans (Span<int> s = [1, 2, 3]) arrive later. "
                 + "For now, use stackalloc int[] { 1, 2, 3 }, or an array: Span<int> s = new int[] { 1, 2, 3 };",
             "Program.Main() at IL_004f (call): collection expressions as spans (Span<int> s = [1, 2, 3]) arrive later. "
-                + "For now, use stackalloc int[] { 1, 2, 3 }, or an array: Span<int> s = new int[] { 1, 2, 3 };",
-            "Program.Main() at IL_0088 (call): the library's generic methods (MemoryExtensions.IndexOf, SequenceEqual, ...) "
-                + "on the program's own structs arrive later. For now, write the loop: for (int i = 0; i < span.Length; "
-                + "i++) if (span[i].Equals(value)) ..."), string.Join("\n", problems));
+                + "For now, use stackalloc int[] { 1, 2, 3 }, or an array: Span<int> s = new int[] { 1, 2, 3 };"),
+            string.Join("\n", problems));
     }
 
     [Fact]

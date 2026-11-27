@@ -82,6 +82,7 @@ public sealed class IlTypeDefinition
 public sealed class IlMethod
 {
     private readonly Lazy<IlMethodBody?> _body;
+    private readonly IlAssembly? _context;
 
     internal IlMethod(IlTypeDefinition declaringType, int token, string name, MethodAttributes attributes,
         MethodImplAttributes implAttributes, IlMethodSignature signature, IReadOnlyList<IlParameter> parameters,
@@ -103,11 +104,15 @@ public sealed class IlMethod
     /// An instance of <paramref name="generic"/>, a generic method or a method of a generic type, for type arguments
     /// (see <see cref="Generics.Instantiations"/>): a method of its own, of <paramref name="declaringType"/>, whose
     /// signature and parameters have the arguments in place of the type parameters, and whose IL
-    /// <paramref name="body"/> makes the first time it is asked for.
+    /// <paramref name="body"/> makes the first time it is asked for. <paramref name="context"/>, when it is not null, is
+    /// the assembly whose types the type arguments name, which its IL then names them in (an instance of ChipSharp.Library's
+    /// generic code over the program's types): its <see cref="Assembly"/>.
     /// </summary>
     internal IlMethod(IlTypeDefinition declaringType, IlMethod generic, string name, IlMethodSignature signature,
-        IReadOnlyList<IlParameter> parameters, IReadOnlyList<IlType> methodArguments, Func<IlMethod, IlMethodBody?> body)
+        IReadOnlyList<IlParameter> parameters, IReadOnlyList<IlType> methodArguments, Func<IlMethod, IlMethodBody?> body,
+        IlAssembly? context = null)
     {
+        _context = context;
         DeclaringType = declaringType;
         Token = generic.Token;
         Name = name;
@@ -124,7 +129,8 @@ public sealed class IlMethod
 
     public IlTypeDefinition DeclaringType { get; }
 
-    public IlAssembly Assembly => DeclaringType.Assembly;
+    /// <summary>The assembly whose types the method's signature and IL name: its type's, or an instance's context.</summary>
+    public IlAssembly Assembly => _context ?? DeclaringType.Assembly;
 
     /// <summary>The metadata token, e.g. 0x06000001.</summary>
     public int Token { get; }

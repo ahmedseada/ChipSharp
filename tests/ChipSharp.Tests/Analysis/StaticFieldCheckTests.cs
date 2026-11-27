@@ -305,16 +305,14 @@ public sealed class StaticFieldCheckTests
 
         // thing, ratio, color and origin compile: object, double, and the enums and structs of the program, are
         // supported types (and so are string, char, and the program's classes); so does table, an array in a static
-        // field assigned in Main, which is on the heap (see HeapArrays): any target may have one
+        // field assigned in Main, which is on the heap (see HeapArrays): any target may have one; and so does the static
+        // field of Box<object>, an instance of a generic class over a class (generics over classes)
         const string Randoms = "the type System.Random arrives later. For now, use bool, the whole-number types (sbyte to "
             + "ulong, nint, nuint), float, double, string (for fixed text), and the program's own structs and enums.";
         Assert.Equal(
         [
             $"Program.Main() at IL_0032 (ldsfld): {Randoms}",
             $"Program.Main() at IL_0037 (stsfld): {Randoms}",
-            "Program.Main() at IL_003d (stsfld): generics over classes (a class, an interface, object or an array as a "
-                + "type argument) arrive with M3 (the heap). For now, use numbers, bools, enums and structs as type "
-                + "arguments: ChipSharp makes the code once for each.",
         ], problems);
     }
 

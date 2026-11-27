@@ -12,7 +12,8 @@ namespace ChipSharp.Library;
 /// <remarks>
 /// The other members of System.Array are ChipSharp's own intrinsics (see ChipSharp.Frontend's ArrayMethods), or not here
 /// yet: the overloads of an IComparer or a Comparison, of keys and items, and of Array. The constraint T : struct,
-/// IComparable&lt;T&gt; is this library's; .NET's T has none, and ChipSharp makes these for numbers and bools only. A
+/// IComparable&lt;T&gt; is this library's; .NET's T has none, and ChipSharp makes these only for a T that meets it (numbers,
+/// bools, the program's structs that implement IComparable&lt;T&gt;; see ChipSharp.Frontend's LibraryConstraints). A
 /// null array is told apart from an empty one by its span: null's has no elements' address, and every array has one.
 /// </remarks>
 [Substitute(typeof(System.Array))]

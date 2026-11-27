@@ -7,8 +7,8 @@ namespace ChipSharp.Frontend;
 /// The program's classes (<see cref="ObjectTypes"/> says how they map to TIR): what ChipSharp compiles of them, which the
 /// whole-program pass checks and the IL-to-TIR translation follows (<c>Lowering/MethodLowering.Classes.cs</c>).
 /// <list type="bullet">
-/// <item>A class of the program, sealed or not, nested or not, that is not generic and derives from object or from
-/// another such class, with instance fields of every type an object may hold (<see cref="ObjectTypes.TryFieldType"/>:
+/// <item>A class of the program, sealed or not, nested or not, or an instance of a generic class of the program's (see
+/// <see cref="Generics.ReferenceArguments"/>), that derives from object or from another such class, with instance fields of every type an object may hold (<see cref="ObjectTypes.TryFieldType"/>:
 /// numbers, bools, enums, structs, also ones that hold objects, other objects, the class itself, fixed text), field
 /// initializers, constructors (overloads, <c>this(...)</c> and <c>base(...)</c>; object's own constructor does
 /// nothing), instance methods and properties, and static members.</item>
@@ -23,7 +23,7 @@ namespace ChipSharp.Frontend;
 /// <c>?.</c> and <c>??</c> test them against null.</item>
 /// </list>
 /// Not yet: records (<see cref="IsRecord"/>), finalizers (<see cref="HasFinalizer"/>), classes derived from library
-/// classes, generic classes.
+/// classes.
 /// </summary>
 internal static class ClassRules
 {

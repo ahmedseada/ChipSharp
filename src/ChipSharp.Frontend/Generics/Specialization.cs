@@ -22,7 +22,7 @@ namespace ChipSharp.Frontend.Generics;
 /// its offset and every branch its target: a <c>nop</c> takes the bytes the new ones do not. What is left (a
 /// constrained call that is none of these) the whole-program pass reports.
 /// </summary>
-internal static class Specialization
+internal static partial class Specialization
 {
     /// <summary>The IL of <paramref name="instance"/>: that of <paramref name="definition"/> with <paramref name="substitution"/>.</summary>
     public static IlMethodBody? Body(IlMethod instance, IlMethod definition, Substitution substitution)
@@ -32,7 +32,8 @@ internal static class Specialization
             return null;
         }
 
-        var owner = definition.Assembly;
+        // the instance's IL names types as its context does: the program's, for the library's generic code over them
+        var owner = instance.Assembly;
         IlLocal[] locals = [.. body.Locals.Select(local => local with { Type = substitution.Apply(local.Type) })];
         var instructions = body.Instructions
             .Select(instruction => new IlInstruction(instruction.Offset, instruction.OpCode,
@@ -44,7 +45,7 @@ internal static class Specialization
                 region with { CatchType = region.CatchType is { } type ? substitution.Apply(type) : null }),
         ];
 
-        Rewrite(owner, instructions);
+        Rewrite(owner, instructions, instance);
         return new IlMethodBody(instance, body.MaxStack, body.InitLocals, body.CodeSize, locals, instructions, regions);
     }
 
@@ -58,11 +59,17 @@ internal static class Specialization
     };
 
     /// <summary>Replaces what the code does through a type parameter (see the summary), in place.</summary>
-    private static void Rewrite(IlAssembly owner, List<IlInstruction> instructions)
+    private static void Rewrite(IlAssembly owner, List<IlInstruction> instructions, IlMethod instance)
     {
         var targets = instructions.SelectMany(Targets).ToHashSet();
         for (var i = 0; i < instructions.Count; i++)
         {
+            // what the code does through a T that is a reference type (Specialization.References.cs)
+            if (RewriteReference(owner, instructions, i, instance, targets))
+            {
+                continue;
+            }
+
             var (count, replacement) = Replacement(owner, instructions, i);
             if (replacement is not null)
             {

@@ -26,7 +26,8 @@ namespace ChipSharp.Frontend;
 /// <item>Each class has one type descriptor per module, made with its base's first; System.Object's has no base (see
 /// <c>ProgramFunctions.ClassDescriptor</c>).</item>
 /// </list>
-/// It knows System.Object, the program's own classes that are not generic and the interfaces they may implement (see
+/// It knows System.Object, the program's own classes (and the instances of its generic classes, each a class of its own,
+/// see <see cref="Generics.ReferenceArguments"/>) and the interfaces they may implement (see
 /// <see cref="VirtualMethods.IsInterface"/>). A parameter, local, return value, static
 /// field or struct field may be of any of them (<see cref="SupportedSubset.TryMapType(IlType, IlAssembly, out TirType?)"/>
 /// asks this mapping); what keeps a class from compiling (<see cref="ClassRules"/>) is reported where the program
@@ -67,8 +68,14 @@ internal static class ObjectTypes
 
     /// <summary>The class of <paramref name="assembly"/> that <paramref name="type"/> names (modifiers looked through), or null.</summary>
     public static IlTypeDefinition? Class(IlType type, IlAssembly assembly) =>
-        ValueTypes.WithoutModifiers(type) is IlNamedType { IsDefinedInThisAssembly: true } named
-            && assembly.FindType(named.FullName) is { GenericParameters.Count: 0 } definition && IsClass(definition)
+        ValueTypes.WithoutModifiers(type) switch
+        {
+            IlNamedType { IsDefinedInThisAssembly: true } named => assembly.FindType(named.FullName),
+
+            // an instance of a generic class (generics over classes), of the program's or a library substitute's
+            IlGenericInstanceType instance => Generics.Instantiations.Type(instance, assembly),
+            _ => null,
+        } is { GenericParameters.Count: 0 } definition && IsClass(definition)
             ? definition
             : null;
 

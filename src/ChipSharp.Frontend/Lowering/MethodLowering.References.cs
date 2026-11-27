@@ -240,6 +240,7 @@ internal sealed partial class MethodLowering
         }
 
         CheckArrayConversion(value, ilType); // see MethodLowering.HeapArrays.cs
+        CheckArrayAsInterface(value, ilType); // see MethodLowering.GenericClasses.cs
 
         if (type == TirType.Ref)
         {
