@@ -9,10 +9,6 @@ namespace ChipSharp.Tests.Analysis;
 /// </summary>
 public sealed class TextCheckTests
 {
-    private const string Strings = "For now, keep text in locals, parameters, return values and static fields.";
-    private const string NullArrays = "null in place of an array arrives with M3 (the heap). For now, use an empty array "
-        + "(new int[0]): an array on the stack is never null.";
-
     [Fact]
     public void Literals_compile_in_locals_parameters_return_values_static_fields_and_consts_and_compare_with_null()
     {
@@ -60,11 +56,11 @@ public sealed class TextCheckTests
     }
 
     [Fact]
-    public void Building_text_with_the_methods_of_string_is_one_feature_whatever_builds_it()
+    public void The_methods_of_string_compile_and_a_StringBuilder_is_building_text_still()
     {
-        // string.Format, the properties and methods of string, == on text, StringBuilder, and Console.WriteLine's
-        // formatting overloads; text built with $"...", + and ToString and printed straight away is printed text
-        // (PrintedTextCheckTests)
+        // string.Format and Console.WriteLine's formatting overloads of a literal format, the properties and methods of
+        // string and == on text compile (those that make text are heap uses, fine without a target); a StringBuilder's
+        // methods are building text, which arrives with M3
         var analysis = Check("""
             using System;
             using System.Text;
@@ -85,26 +81,19 @@ public sealed class TextCheckTests
             }
             """);
 
-        Assert.Equal(["boxing (using a value as an object)", BuildingFeature],
-            analysis.Groups.Select(group => group.Feature));
-        Assert.Equal([2, 8], analysis.Groups.Select(group => group.Problems.Count));
-        Assert.Equal($"{Building}: 8 places in Program.Main() (IL_0013, IL_001e, IL_002a and 5 more). {BuildingHint}",
-            analysis.Groups[1].Line);
+        Assert.Equal([BuildingFeature], analysis.Groups.Select(group => group.Feature));
         Assert.Equal(
         [
-            $"Program.Main() at IL_001e (callvirt): {Building}. {BuildingHint}",
-            $"Program.Main() at IL_003a (call): {Building}. {BuildingHint}",
             $"Program.Main() at IL_0044 (newobj): {Building}. {BuildingHint}",
-            $"Program.Main() at IL_0065 (call): {Building}. {BuildingHint}",
-        ], analysis.Problems.Where(problem => problem.Offset is 0x1e or 0x3a or 0x44 or 0x65)
-            .Select(problem => problem.Line));
+            $"Program.Main() at IL_004a (call): {Building}. {BuildingHint}",
+        ], analysis.Problems.Select(problem => problem.Line));
     }
 
     [Fact]
-    public void Text_kept_where_only_the_heap_can_keep_it_says_so()
+    public void Text_in_the_fields_of_structs_and_in_arrays_compiles_and_a_reference_to_it_waits()
     {
-        // in a struct's field, in an array, behind a reference; an array that is null (stored, passed, or measured where
-        // ways join) is fine: arrays may be null on a target with a heap (see HeapArrayCheckTests)
+        // a string is an object: in a struct's field and in an array it is a reference the collector follows; a reference
+        // to a string waits, as one to an object does; an array that is null is fine (see HeapArrayCheckTests)
         var problems = Problems("""
             using System;
 
@@ -138,11 +127,6 @@ public sealed class TextCheckTests
 
         Assert.Equal(
         [
-            $"Program.Main(), local variable V_3 (Person): text strings in the field Person.Name arrive with M3 (the heap). {Strings}",
-            $"Program.Main() at IL_0002 (initobj): text strings in the field Person.Name arrive with M3 (the heap). {Strings}",
-            $"Program.Main() at IL_0009 (ldfld): text strings in the field Person.Name arrive with M3 (the heap). {Strings}",
-            "Program.Main() at IL_0014 (newarr): arrays of strings arrive with M3 (the heap). For now, keep each string "
-                + "in a variable or a static field of its own, or pick it with a switch.",
             "Program.Clear(ref string), parameter 'text' (ref string): references to text (ref string, out string) "
                 + "arrive with M3 (the heap). For now, return the text instead.",
             "Program.Clear(ref string) at IL_0006 (stind.ref): references to objects (ref, out and in of a class, object "
@@ -151,10 +135,10 @@ public sealed class TextCheckTests
     }
 
     [Fact]
-    public void A_character_is_not_text_yet()
+    public void A_character_compiles_and_is_printed_and_read_from_text()
     {
-        // the indexer is a method of string; printing a char is a library method there is not
-        var problems = Problems("""
+        // the indexer is a method of string that makes no text, and Console.Write prints a char
+        var analysis = Check("""
             using System;
 
             class Program
@@ -168,11 +152,6 @@ public sealed class TextCheckTests
             }
             """);
 
-        Assert.Equal(
-        [
-            $"Program.Main() at IL_0006 (callvirt): {Building}. {BuildingHint}",
-            "Program.Main() at IL_000b (call): the library method System.Console.Write(char) is not available yet.",
-            "Program.Main() at IL_0012 (call): the library method System.Console.WriteLine(char) is not available yet.",
-        ], problems);
+        Assert.True(analysis.IsSupported, analysis.Details);
     }
 }

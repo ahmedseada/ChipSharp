@@ -10,8 +10,8 @@ namespace ChipSharp.Frontend.Lowering;
 /// <list type="bullet">
 /// <item>Each instruction that hands a hole (or any part that is not a literal) to the text keeps its value in a slot
 /// of its own, <c>$part_IL_xxxx</c> (and <c>_n</c> after it for operand n of a <c>string.Concat</c>), as the right
-/// type for the runtime's Console.Write function: i32 for bools and the whole numbers up to 32 bits, i64, f32, f64,
-/// ptr for text. A ToString reads the value through the address it is called on.</item>
+/// type for the runtime's Console.Write function: i32 for bools, chars and the whole numbers up to 32 bits, i64, f32,
+/// f64, ref for text. A ToString reads the value through the address it is called on.</item>
 /// <item>What stands for the text being built on the evaluation stack (the handler's address, the array of a
 /// <c>string.Concat</c>, the built text) is a null ptr that nothing reads, so it may go through a stack slot where a
 /// part comes in on several ways; so is a literal that a part or a format takes at once, which the print writes from
@@ -41,7 +41,8 @@ internal sealed partial class MethodLowering
     /// </summary>
     private void CheckPrintedText()
     {
-        var problem = Printed.Verdicts.Where(verdict => verdict.Value is not null)
+        // a heap use (kept text) is the whole-program pass's to judge for the target
+        var problem = Printed.Verdicts.Where(verdict => verdict.Value is { IsHeapUse: false })
             .OrderBy(verdict => verdict.Key.Offset).FirstOrDefault();
         if (problem.Value is { } unsupported)
         {
@@ -88,7 +89,7 @@ internal sealed partial class MethodLowering
         {
             if (Printed.Saved.TryGetValue((instruction, i), out var piece))
             {
-                SavePart(piece, operands[i], throughAddress: role == PrintedRole.ToString);
+                SavePart(piece, operands[i], throughAddress: role is PrintedRole.ToString or PrintedRole.CharSpan);
             }
         }
 
@@ -98,8 +99,13 @@ internal sealed partial class MethodLowering
                 Print(Printed.Prints[instruction]);
                 break;
 
+            case PrintedRole.Finish or PrintedRole.ToString or PrintedRole.Concat
+                when Printed.Builds.TryGetValue(instruction, out var kept):
+                PushObject(Build(kept));
+                break;
+
             case PrintedRole.Handler or PrintedRole.Finish or PrintedRole.ToString or PrintedRole.Concat
-                or PrintedRole.PartArray or PrintedRole.Text:
+                or PrintedRole.PartArray or PrintedRole.Text or PrintedRole.Box or PrintedRole.CharSpan or PrintedRole.SpanText:
                 Push(Placeholder);
                 break;
         }
@@ -164,6 +170,26 @@ internal sealed partial class MethodLowering
         var kind = piece.Type.Kind;
         var value = _ir.Load(PartSlot(piece));
         var format = piece.Format;
+        if (piece.Enum is { } enumType)
+        {
+            var bits = Widen(value, unsigned: !PrintedText.IsSigned(kind));
+            if (piece.Alignment != 0)
+            {
+                _ir.Call(_program.TextFunctions.WriteAligned, _ir.Call(_program.EnumNames.Name(enumType), bits),
+                    _ir.Const(TirType.I32, piece.Alignment));
+                return false;
+            }
+
+            _ir.Call(_program.EnumNames.Write(enumType), bits);
+            return false;
+        }
+
+        if (kind == IlPrimitiveKind.Char && piece.Alignment != 0)
+        {
+            _ir.Call(_program.TextFunctions.WriteChar, value, _ir.Const(TirType.I32, piece.Alignment));
+            return false;
+        }
+
         if (piece.Alignment == 0 && format.Kind is PrintedFormatKind.None or PrintedFormatKind.Decimal
             && format.Precision <= 1)
         {
@@ -183,8 +209,8 @@ internal sealed partial class MethodLowering
         }
         else if (format.Kind is PrintedFormatKind.UpperHex or PrintedFormatKind.LowerHex)
         {
-            var digits = _ir.AddressOf(_program.HexDigits(format.Kind == PrintedFormatKind.UpperHex));
-            _ir.Call(functions.WriteHex, HexBits(value, kind), digits, precision, alignment);
+            var upper = _ir.Const(TirType.I32, format.Kind == PrintedFormatKind.UpperHex ? 1 : 0);
+            _ir.Call(functions.WriteHex, HexBits(value, kind), upper, precision, alignment);
         }
         else if (PrintedText.IsSigned(kind))
         {
@@ -212,7 +238,7 @@ internal sealed partial class MethodLowering
     /// <summary>The type a part waits in: what the runtime's Console.Write of its type takes.</summary>
     private static TirType PartType(IlPrimitiveKind kind) => kind switch
     {
-        IlPrimitiveKind.String => TirType.Ptr,
+        IlPrimitiveKind.String => TirType.Ref,
         IlPrimitiveKind.Int64 or IlPrimitiveKind.UInt64 => TirType.I64,
         IlPrimitiveKind.Float32 => TirType.F32,
         IlPrimitiveKind.Float64 => TirType.F64,
@@ -227,6 +253,7 @@ internal sealed partial class MethodLowering
     {
         IlPrimitiveKind.String => "String",
         IlPrimitiveKind.Bool => "Bool",
+        IlPrimitiveKind.Char => "Char",
         IlPrimitiveKind.UInt32 => "UInt32",
         IlPrimitiveKind.Int64 => "Int64",
         IlPrimitiveKind.UInt64 => "UInt64",

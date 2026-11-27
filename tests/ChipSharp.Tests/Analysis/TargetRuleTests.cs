@@ -82,8 +82,8 @@ public sealed class TargetRuleTests : IDisposable
     [Fact]
     public void A_feature_of_objects_still_to_come_needs_a_heap_too()
     {
-        // an object's ToString arrives with stored strings where there is a heap; without one it never does. Its virtual
-        // methods compile without a heap: no object is ever made, so a call of one is only its null check
+        // an object's ToString compiles where there is a heap (it may make a string); without one no object is ever made,
+        // so a call of it, like one of its virtual methods, is only its null check
         const string ToText = """
             class Program
             {
@@ -108,15 +108,8 @@ public sealed class TargetRuleTests : IDisposable
         [
             "Program.Main() at IL_0000 (newobj): creating objects (new ...) needs a heap, and the target 'tiny' (2 KB RAM) " +
                 "has no heap. Use structs and static methods.",
-            "Program.Main() at IL_0010 (callvirt): ToString of objects (and printing an object) needs a heap, and the " +
-                "target 'tiny' (2 KB RAM) has no heap. Give the class a method that prints what it holds, such as " +
-                "Print(), and call that.",
         ], Problems(ToText, Tiny));
-        Assert.Equal(
-        [
-            "Program.Main() at IL_0010 (callvirt): ToString of objects (and printing an object) arrives with M3 (stored " +
-                "strings). For now, give the class a method that prints what it holds, such as Print(), and call that.",
-        ], Problems(ToText, Shipped.Load("pico")));
+        Assert.True(Check(ToText, Shipped.Load("pico")).IsSupported);
     }
 
     [Fact]
@@ -142,17 +135,21 @@ public sealed class TargetRuleTests : IDisposable
 
                 static void Main()
                 {
-                    result = Code('a');
+                    result = Code(out var text);
                 }
 
-                static int Code(char letter) => letter;
+                static int Code(out string text)
+                {
+                    text = "a";
+                    return 1;
+                }
             }
             """, Tiny);
 
         Assert.Equal(
-            ["Program.Code(char), parameter 'letter' (char): characters (char) arrive with M3 (the heap). For now, use " +
-                "whole numbers."],
-            problems);
+            ["Program.Code(ref string), parameter 'text' (ref string): references to text (ref string, out string) " +
+                "arrive with M3 (the heap). For now, return the text instead."],
+            problems.Where(problem => problem.Contains("parameter", StringComparison.Ordinal)));
     }
 
     [Fact]

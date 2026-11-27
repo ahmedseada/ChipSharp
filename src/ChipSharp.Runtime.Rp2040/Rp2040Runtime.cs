@@ -61,13 +61,15 @@ public sealed class Rp2040Runtime : IArchRuntime
     public RuntimeSources Startup(TargetDescription target)
     {
         ArgumentNullException.ThrowIfNull(target);
+        // with a heap, the ARMv6-M runtime has the text of floats already (strings need it)
+        var armv6m = _armv6m.Startup(target).Files;
         return new RuntimeSources(
         [
-            .. _armv6m.Startup(target).Files,
+            .. armv6m,
             Boot2(target),
             Source(SourceFileName),
             Source(ConsoleFileName),
-            Source(FloatTextFileName),
+            .. armv6m.Any(file => file.FileName == FloatTextFileName) ? [] : new[] { Source(FloatTextFileName) },
             Source(FailuresFileName),
         ]);
     }

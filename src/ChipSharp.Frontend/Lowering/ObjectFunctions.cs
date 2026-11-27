@@ -68,6 +68,9 @@ internal sealed class ObjectFunctions(TirModule module, Func<TirTypeDescriptor> 
     /// <summary>Object's own Equals: true for the same object.</summary>
     public TirFunction ObjectEquals => _equals ??= DefineEquals();
 
+    /// <summary>Object's own ToString, which strings give (see ProgramFunctions.Strings.cs): the type's .NET name.</summary>
+    public Func<TirFunction>? ObjectToString { get; init; }
+
     /// <summary>Object's own GetHashCode: the object's address divided by 8.</summary>
     public TirFunction ObjectHashCode => _hashCode ??= DefineHashCode();
 
@@ -293,16 +296,21 @@ internal sealed class ObjectFunctions(TirModule module, Func<TirTypeDescriptor> 
         return function;
     }
 
-    private TirFunction InvalidCast => _invalidCast ??= module.AddExternalFunction(InvalidCastName, TirType.Void,
+    public TirFunction InvalidCast => _invalidCast ??= module.AddExternalFunction(InvalidCastName, TirType.Void,
         ("from", TirType.Ptr), ("to", TirType.Ptr));
 
     /// <summary>The name a failed cast gives the empty array: "System.Array", as UTF-8 ending with a 0 byte.</summary>
-    private TirGlobal EmptyArrayName => _emptyArrayName ??=
+    public TirGlobal EmptyArrayName => _emptyArrayName ??=
         module.AddConstant("<System.Array>", [.. System.Text.Encoding.UTF8.GetBytes("System.Array"), 0]);
 
     private TirFunction DefineVirtualObjectCall(string name, int index)
     {
-        var own = name == "Equals" ? ObjectEquals : ObjectHashCode;
+        var own = name switch
+        {
+            "Equals" => ObjectEquals,
+            "GetHashCode" => ObjectHashCode,
+            _ => ObjectToString?.Invoke() ?? throw new InvalidOperationException("Object's ToString is not given."),
+        };
         var function = module.AddFunction($"ChipSharp.Object.Call{name}", own.ReturnType,
             [.. own.Parameters.Select(parameter => (parameter.Name, parameter.Type))]);
         TirValue[] arguments = [.. function.Parameters];

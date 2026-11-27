@@ -144,6 +144,13 @@ public sealed class TirTypeDescriptor
     public TirTypeDescriptor? ElementDescriptor { get; set; }
 
     /// <summary>
+    /// The symbol of a descriptor that the runtime defines, laid out as above (e.g. <c>chipsharp_string_type</c>, a
+    /// string's, see src/ChipSharp.Runtime.Shared/chipsharp_string.c): the code generator then only names it, so that the
+    /// runtime's C and the program share one descriptor; null (the default) for one the code generator writes.
+    /// </summary>
+    public string? ExternalSymbol { get; set; }
+
+    /// <summary>
     /// A class's virtual method table, slot by slot: the function each slot calls (null for a slot nothing can call,
     /// such as an abstract method's in an abstract class). Empty until the program fills it in.
     /// </summary>

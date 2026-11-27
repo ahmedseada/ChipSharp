@@ -1,0 +1,15 @@
+Heat to 20.0 C
+Heat to 21.0 C
+'x' is no number
+Cool to 21.0 C
+Cool to 18.0 C
+unknown command: jump
+kitchen | 19.2 C|None
+attic   | 24.5 C|TooHot
+        | 12.0 C|TooCold, Sensor
+kitchen | 19.2 C|None | attic   | 24.5 C|TooHot |         | 12.0 C|TooCold, Sensor | 
+TooHot, Sensor
+ThErMoStAt has 1 capital, 10 letters, ends with 't'
+...Thermometer True True
+58890 characters, the last: reading 2999: 24.9 C
+10 parts in the log, still there

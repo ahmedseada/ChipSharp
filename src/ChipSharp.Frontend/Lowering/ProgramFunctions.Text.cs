@@ -4,24 +4,42 @@ using ChipSharp.Ir;
 namespace ChipSharp.Frontend.Lowering;
 
 /// <summary>
-/// The program's fixed text (see <see cref="FixedText"/>): one constant global per distinct string literal, its
-/// record, added when first used and shared by every method after that, named <c>&lt;text 0&gt;</c>,
-/// <c>&lt;text 1&gt;</c>, ... in that order.
+/// The program's fixed text: one constant string object per distinct string literal (see <see cref="Strings"/>), added
+/// when first used and shared by every method after that, named <c>&lt;text 0&gt;</c>, <c>&lt;text 1&gt;</c>, ... in
+/// that order, and the two descriptors of strings, the runtime's.
 /// </summary>
 internal sealed partial class ProgramFunctions
 {
     private readonly Dictionary<string, TirGlobal> _texts = new(StringComparer.Ordinal);
+    private TirTypeDescriptor? _narrowString;
+    private TirTypeDescriptor? _wideString;
 
-    /// <summary>The constant global that holds the record of <paramref name="text"/>: the same one for equal text.</summary>
+    /// <summary>The descriptor of strings stored 1 byte per char, the runtime's <c>chipsharp_string_type</c>.</summary>
+    public TirTypeDescriptor NarrowString => _narrowString ??= StringDescriptor(Strings.NarrowName, TirType.I8,
+        Strings.NarrowSymbol);
+
+    /// <summary>The descriptor of strings stored 2 bytes per char, the runtime's <c>chipsharp_wide_string_type</c>.</summary>
+    public TirTypeDescriptor WideString => _wideString ??= StringDescriptor(Strings.WideName, TirType.I16,
+        Strings.WideSymbol);
+
+    /// <summary>The constant string object of <paramref name="text"/>: the same one for equal text.</summary>
     public TirGlobal Text(string text)
     {
         if (!_texts.TryGetValue(text, out var global))
         {
             var name = GlobalName(string.Create(CultureInfo.InvariantCulture, $"<text {_texts.Count}>"));
-            global = module.AddConstant(name, FixedText.Record(text));
+            global = module.AddConstantObject(name, Strings.IsNarrow(text) ? NarrowString : WideString, text.Length,
+                Strings.Elements(text));
             _texts.Add(text, global);
         }
 
         return global;
+    }
+
+    private TirTypeDescriptor StringDescriptor(string name, TirType element, string symbol)
+    {
+        var descriptor = module.AddArrayType(name, element);
+        descriptor.ExternalSymbol = symbol;
+        return descriptor;
     }
 }

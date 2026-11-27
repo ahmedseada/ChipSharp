@@ -72,8 +72,8 @@ public sealed class HostTargetTests
 
         Assert.Equal(
             ["chipsharp_runtime.c", "chipsharp_console.c", "chipsharp_float_text.c", "chipsharp_float_math.c",
-                "chipsharp_failures.c", "chipsharp_memory.c", "chipsharp_chkstk.S", "chipsharp_heap.c",
-                "chipsharp_heap_windows.c", "chipsharp_heap_size.c"],
+                "chipsharp_failures.c", "chipsharp_memory.c", "chipsharp_chkstk.S", "chipsharp_string.c",
+                "chipsharp_heap.c", "chipsharp_heap_windows.c", "chipsharp_heap_size.c", "chipsharp_string_heap.c"],
             files.Select(f => f.FileName));
         var file = files[0];
         Assert.Equal(WindowsX64Runtime.Source, file.Content);
@@ -87,8 +87,8 @@ public sealed class HostTargetTests
         string[] functions =
         [
             "void ChipSharp_Runtime_WriteLine(void)",
-            "void ChipSharp_Runtime_WriteString(const unsigned char *value)",
-            "void ChipSharp_Runtime_WriteLineString(const unsigned char *value)",
+            "void ChipSharp_Runtime_WriteString(const string *value)",
+            "void ChipSharp_Runtime_WriteLineString(const string *value)",
             "void ChipSharp_Runtime_WriteInt32(int value)",
             "void ChipSharp_Runtime_WriteLineInt32(int value)",
             "void ChipSharp_Runtime_WriteUInt32(unsigned int value)",

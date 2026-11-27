@@ -8,7 +8,8 @@ namespace ChipSharp.Tests.Analysis;
 /// </summary>
 public sealed class StructCheckTests
 {
-    private const string Strings = "For now, keep text in locals, parameters, return values and static fields.";
+    private const string Decimals = "For now, use bool, the whole-number types (sbyte to ulong, nint, nuint), float, double, "
+        + "string (for fixed text), and the program's own structs and enums.";
     private const string Objects = "For now, use structs and static methods.";
 
     [Fact]
@@ -132,13 +133,14 @@ public sealed class StructCheckTests
     [Fact]
     public void A_struct_field_of_an_unsupported_type_is_that_types_problem_where_the_struct_is_used_naming_the_field()
     {
-        // Outer has nothing wrong itself: its field Inner has a char
+        // Outer has nothing wrong itself: its field Inner has a decimal (a string and a char are fine)
         var problems = Problems("""
             using System;
 
             struct Person
             {
-                public string Name;
+                public decimal Name;
+                public string Title;
                 public int Age;
 
                 public int Older(int years) => Age + years;
@@ -146,8 +148,8 @@ public sealed class StructCheckTests
 
             struct Inner
             {
-                public int Id;
-                public char Letter;
+                public char Id;
+                public decimal Letter;
             }
 
             struct Outer
@@ -170,8 +172,8 @@ public sealed class StructCheckTests
             }
             """);
 
-        const string Name = $"text strings in the field Person.Name arrive with M3 (the heap). {Strings}";
-        const string Letter = "characters (char) in the field Inner.Letter arrive with M3 (the heap). For now, use whole numbers.";
+        const string Name = $"the type decimal in the field Person.Name arrives later. {Decimals}";
+        const string Letter = $"the type decimal in the field Inner.Letter arrives later. {Decimals}";
         Assert.Equal(
         [
             $"Program.Main(), local variable V_0 (Person): {Name}",

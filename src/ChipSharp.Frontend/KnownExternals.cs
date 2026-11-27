@@ -8,8 +8,8 @@ namespace ChipSharp.Frontend;
 /// <param name="DisplayName">The TIR external function's name; the code generator turns it into the runtime's symbol.</param>
 /// <param name="ReturnType">What it returns.</param>
 /// <param name="ParameterTypes">
-/// The TIR type of each parameter. A C# bool is passed (and returned) as an i32 holding 0 or 1; text as a ptr to its
-/// record (see <see cref="FixedText"/>).
+/// The TIR type of each parameter. A C# bool is passed (and returned) as an i32 holding 0 or 1, a char as an i32
+/// holding its UTF-16 code unit; a string as the ref it is (see <see cref="Strings"/>).
 /// </param>
 /// <param name="LibraryMethod">The library method it stands for, as messages show it, e.g. "System.Console.WriteLine(int)".</param>
 public sealed record ExternalFunction(
@@ -32,8 +32,8 @@ public static class KnownExternals
 
     private static readonly (string Type, string Name, IlType[] Parameters, IlType Returns, ExternalFunction Function)[] Table =
     [
-        // Console.Write and Console.WriteLine of text (FixedText: a ptr to a literal's record, or null), of the numbers
-        // and of bools, as .NET writes them; WriteLine also of nothing
+        // Console.Write and Console.WriteLine of text (a string, or null: see Strings), of a char, of the numbers and of
+        // bools, as .NET writes them; WriteLine also of nothing
         .. ConsoleWrites("Write"),
         ("System.Console", "WriteLine", [], IlType.Void,
             new("ChipSharp.Runtime.WriteLine", TirType.Void, [], "System.Console.WriteLine()")),
@@ -137,7 +137,8 @@ public static class KnownExternals
     {
         (IlType Type, TirType TirType, string Runtime, string CSharp)[] printed =
         [
-            (IlType.String, TirType.Ptr, "String", "string"),
+            (IlType.String, TirType.Ref, "String", "string"),
+            (IlType.Char, TirType.I32, "Char", "char"),
             (IlType.Int32, TirType.I32, "Int32", "int"),
             (IlType.UInt32, TirType.I32, "UInt32", "uint"),
             (IlType.Int64, TirType.I64, "Int64", "long"),

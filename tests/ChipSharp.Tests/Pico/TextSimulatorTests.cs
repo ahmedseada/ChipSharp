@@ -55,7 +55,8 @@ public sealed class TextSimulatorTests : IDisposable
     [PicoFact]
     public void Each_literal_is_in_flash_once_and_none_is_copied_to_RAM()
     {
-        // "lane : " three times is one record; the static field that holds text is a pointer in .bss
+        // "lane : " three times is one string object in flash: the address of the runtime's string descriptor, the
+        // length, then a byte per char; the static field that holds text is a reference in .bss
         var program = PicoBuild.Build("""
             using System;
 
@@ -77,7 +78,11 @@ public sealed class TextSimulatorTests : IDisposable
         var elf = ElfFile.Read(program.Elf);
         var flash = PicoBuild.FlashImage(elf);
 
-        Assert.Equal(1, Count(flash, [7, 0, 0, 0, 7, 0, 0, 0, .. "lane : "u8]));
+        Assert.Equal(1, Count(flash, [7, 0, 0, 0, .. "lane : "u8]));
+        byte[] lane = [7, 0, 0, 0, .. "lane : "u8];
+        var at = flash.AsSpan().IndexOf(lane);
+        Assert.Equal(elf.Symbols["chipsharp_string_type"],
+            System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(flash.AsSpan(at - 4)));
         Assert.Equal(1, Count(flash, [.. " interrupted, move to lane "u8]));
         Assert.Equal(elf.Symbols[LinkerScript.DataStart], elf.Symbols[LinkerScript.DataEnd]);
     }

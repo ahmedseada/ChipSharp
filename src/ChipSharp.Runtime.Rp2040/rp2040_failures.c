@@ -214,6 +214,15 @@ __attribute__((noreturn)) void ChipSharp_Runtime_InvalidCast(const char *from, c
     fail(end, sizeof end - 1);
 }
 
+// Any other failure, its exception and message given (from chipsharp_string.c and chipsharp_string_heap.c), e.g.
+// "System.FormatException: The input string 'x' was not in a correct format.".
+__attribute__((noreturn)) void chipsharp_fail(const char *message)
+{
+    chipsharp_uart0_write(UNHANDLED, sizeof UNHANDLED - 1);
+    chipsharp_uart0_write(message, length(message));
+    fail("\r\n", 2);
+}
+
 typedef unsigned int COUNT;
 
 // ---- The methods of System.Array ----------------------------------------------------------------------------------

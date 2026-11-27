@@ -247,7 +247,7 @@ public sealed class StaticFieldCheckTests
 
             class Program
             {
-                static int length = "hello".Length;
+                static int length = new Random().Next();
 
                 static void Main() => Console.WriteLine(length + Settings.Ticks);
             }
@@ -255,11 +255,14 @@ public sealed class StaticFieldCheckTests
 
         Assert.Equal(
         [
-            $"{Building}: 1 place in the static field initializers of Program (IL_0005). {BuildingHint}",
+            "the library type System.Random is not available yet: 1 place in the static field initializers of Program (IL_0000).",
+            "the library method System.Random.Next() is not available yet: 1 place in the static field initializers of "
+                + "Program (IL_0005).",
             "checked arithmetic arrives later: 1 place in the static constructor of Settings (IL_000b). "
                 + "For now, leave out checked: ChipSharp's arithmetic wraps around on overflow, like unchecked C#.",
         ], analysis.Groups.Select(group => group.Line));
-        Assert.Contains($"\n  Program..cctor() at IL_0005 (call): {Building}.", analysis.Details);
+        Assert.Contains("\n  Program..cctor() at IL_0005 (callvirt): the library method System.Random.Next() is not available yet.",
+            analysis.Details);
     }
 
     [Fact]
@@ -285,7 +288,7 @@ public sealed class StaticFieldCheckTests
                 static Color color;
                 static Point origin;
                 static int[] table;
-                static char letter;
+                static System.Random random;
 
                 static void Main()
                 {
@@ -294,20 +297,21 @@ public sealed class StaticFieldCheckTests
                     color = color;
                     origin = origin;
                     table = table;
-                    letter = letter;
+                    random = random;
                     Box<object>.Count = 1;
                 }
             }
             """);
 
         // thing, ratio, color and origin compile: object, double, and the enums and structs of the program, are
-        // supported types (and so are string, for fixed text, and the program's classes); so does table, an array in a
-        // static field assigned in Main, which is on the heap (see HeapArrays): any target may have one
-        const string Characters = "characters (char) arrive with M3 (the heap). For now, use whole numbers.";
+        // supported types (and so are string, char, and the program's classes); so does table, an array in a static
+        // field assigned in Main, which is on the heap (see HeapArrays): any target may have one
+        const string Randoms = "the type System.Random arrives later. For now, use bool, the whole-number types (sbyte to "
+            + "ulong, nint, nuint), float, double, string (for fixed text), and the program's own structs and enums.";
         Assert.Equal(
         [
-            $"Program.Main() at IL_0032 (ldsfld): {Characters}",
-            $"Program.Main() at IL_0037 (stsfld): {Characters}",
+            $"Program.Main() at IL_0032 (ldsfld): {Randoms}",
+            $"Program.Main() at IL_0037 (stsfld): {Randoms}",
             "Program.Main() at IL_003d (stsfld): generics over classes (a class, an interface, object or an array as a "
                 + "type argument) arrive with M3 (the heap). For now, use numbers, bools, enums and structs as type "
                 + "arguments: ChipSharp makes the code once for each.",

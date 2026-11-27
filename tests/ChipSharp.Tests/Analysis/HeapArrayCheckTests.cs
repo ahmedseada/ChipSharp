@@ -172,7 +172,7 @@ public sealed class HeapArrayCheckTests : IDisposable
     }
 
     [Fact]
-    public void What_no_target_compiles_yet_a_static_array_kept_covariance_references_to_arrays_and_arrays_of_strings()
+    public void What_no_target_compiles_yet_a_static_array_kept_covariance_and_references_to_arrays()
     {
         var problems = Problems("""
             using System;
@@ -198,16 +198,13 @@ public sealed class HeapArrayCheckTests : IDisposable
             }
             """);
 
-        const string Strings = "arrays of strings arrive with M3 (the heap). For now, keep each string in a variable or "
-            + "a static field of its own, or pick it with a switch.";
+        // an array of strings is an array of objects, which compiles
         const string Covariance = "array covariance (an array of one type of object used as an array of another, "
             + "object[] items = new int[2][]) arrives later. For now, make the array of the type it is used as: new object[2].";
         Assert.Equal(
         [
-            $"Program.Main(), local variable V_0 (string[]): {Strings}",
             "Program.Main() at IL_000b (ldsflda): references to a static field that holds an array (ref, out) arrive with "
                 + "M3 (the heap). For now, use the field itself: it always holds the same array.",
-            $"Program.Main() at IL_0016 (newarr): {Strings}",
             "Program.Replace(ref int[]), parameter 'values' (ref int[]): references to arrays (ref int[], out int[]) "
                 + "arrive later. For now, return the array, or keep it in a field.",
             "Program.Replace(ref int[]) at IL_0007 (stind.ref): references to objects (ref, out and in of a class, object "

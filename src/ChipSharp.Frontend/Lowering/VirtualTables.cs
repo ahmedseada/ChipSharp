@@ -43,8 +43,11 @@ internal sealed class VirtualTables
                     continue;
                 }
 
+                // Console.WriteLine(object) calls the ToString of its one argument, on top of the stack
                 var callee = ((IlMethodOperand)instructions[i].Operand!).Method;
-                var receiver = VirtualMethods.StackType(method, i, callee.ParameterTypes.Count) ?? callee.DeclaringType;
+                var printed = StringMethods.IsConsoleWriteOfObject(instructions[i]);
+                var receiver = VirtualMethods.StackType(method, i, printed ? 0 : callee.ParameterTypes.Count)
+                    ?? (printed ? callee.ParameterTypes[0] : callee.DeclaringType);
                 if (Dispatch.Targets(slot, receiver).Count < 2)
                 {
                     continue;

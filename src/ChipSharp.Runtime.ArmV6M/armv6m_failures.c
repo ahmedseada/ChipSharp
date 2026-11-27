@@ -56,6 +56,7 @@ __attribute__((weak, noreturn)) void ChipSharp_Runtime_InvalidCast(const char *f
     fail();
 }
 
+__attribute__((weak, noreturn)) void chipsharp_fail(const char *message) { (void)message; fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_ArrayNull(void) { fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_SourceArrayNull(void) { fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_DestinationArrayNull(void) { fail(); }

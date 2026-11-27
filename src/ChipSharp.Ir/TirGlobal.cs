@@ -11,8 +11,11 @@ namespace ChipSharp.Ir;
 public sealed class TirGlobal
 {
     internal TirGlobal(TirModule module, int index, string name, TirType type, TirConst? initialValue, byte[]? data,
-        TirConst[]? elements = null, bool isConstant = false, TirTypeDescriptor? header = null)
+        TirConst[]? elements = null, bool isConstant = false, TirTypeDescriptor? header = null,
+        TirTypeDescriptor? objectType = null, int objectLength = 0)
     {
+        ObjectType = objectType;
+        ObjectLength = objectLength;
         Module = module;
         Index = index;
         Name = name;
@@ -64,6 +67,16 @@ public sealed class TirGlobal
     /// first field holds, as an object's header does; the rest of it is zero. Null for any other global.
     /// </summary>
     public TirTypeDescriptor? Header { get; }
+
+    /// <summary>
+    /// For a constant object with elements (<see cref="TirModule.AddConstantObject"/>, such as a string literal), the
+    /// array type of the object: its header is this descriptor's address, then come <see cref="ObjectLength"/> and, from
+    /// <see cref="TirLayout.ArrayDataOffset"/> on, the elements' bytes, <see cref="Data"/>. Null for any other global.
+    /// </summary>
+    public TirTypeDescriptor? ObjectType { get; }
+
+    /// <summary>The length of a constant object, as its length field holds it; 0 for any other global.</summary>
+    public int ObjectLength { get; }
 
     public override string ToString() => $"@{Name}";
 }

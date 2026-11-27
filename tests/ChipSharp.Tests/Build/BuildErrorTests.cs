@@ -126,7 +126,7 @@ public sealed class BuildErrorTests : IDisposable
 
             class Program
             {
-                static void Main() => Console.WriteLine("Hello".ToUpper());
+                static void Main() => Console.WriteLine(new System.Text.StringBuilder("Hello").ToString());
             }
             """, Path.Combine(_scratch, "Hello.dll"));
         var output = Path.Combine(_scratch, "out");
