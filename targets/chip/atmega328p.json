@@ -3,6 +3,7 @@
   "name": "atmega328p",
   "inherits": "avr",
   "mmcu": "atmega328p",           // the microcontroller, as avr-gcc and clang name it (-mmcu; with Zig, -mcpu too)
+  "vectors": 26,                  // the entries of the interrupt vector table, reset included, which the runtime writes
   "memory": {
     "flash": { "origin": "0x0", "size": "32K" },
     // RAM's data addresses: 0x000-0x0ff are the 32 registers and the I/O registers, RAM follows

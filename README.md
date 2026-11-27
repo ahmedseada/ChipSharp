@@ -893,7 +893,7 @@ the PC tests.
 | `src/ChipSharp.Library` | ChipSharp's own C# for library types (`TimeSpan`, `List<T>`, `StringBuilder`, the exceptions, ...), compiled together with the programs that use them |
 | `src/ChipSharp.Backend.Llvm` | The `llvm` code generator: TIR in, LLVM IR text out |
 | `src/ChipSharp.Toolchain.Clang` | The `clang` toolchain: LLVM IR and runtime sources in, a linked program out; as the `zig` toolchain, the same with the clang and ld.lld inside Zig (AVR) |
-| `src/ChipSharp.Runtime.*` | The runtimes, in C: `Shared` (console, text, floats, heap and collector), `Windows` (the PC), `ArmV6M` and `Rp2040` (start-up, UART0, timers, pins, interrupts) |
+| `src/ChipSharp.Runtime.*` | The runtimes, in C: `Shared` (console, text, floats, heap and collector), `Windows` (the PC), `ArmV6M` and `Rp2040` (start-up, UART0, timers, pins, interrupts), `Avr` (any AVR chip's start-up, multiply and divide helpers, soft float) |
 | `src/ChipSharp.Image.Uf2`, `src/ChipSharp.Image.Hex`, `src/ChipSharp.Build`, `src/ChipSharp.Cli` | The `.uf2` and `.hex` images, the build pipeline, and the `chipsharp` command |
 | `src/ChipSharp.Hardware` | The library programs reference for pins, timing, the clock, registers, interrupts, serial ports, analog inputs, PWM and the I2C and SPI buses |
 | `src/ChipSharp.Components` | Drivers of parts connected to a chip (the character LCD, the 7-segment display, the DS1307 real-time clock), plain C# that ChipSharp compiles with the program |

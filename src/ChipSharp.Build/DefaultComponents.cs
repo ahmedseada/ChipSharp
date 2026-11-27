@@ -3,6 +3,7 @@ using ChipSharp.Backend.Llvm;
 using ChipSharp.Image.Hex;
 using ChipSharp.Image.Uf2;
 using ChipSharp.Runtime.ArmV6M;
+using ChipSharp.Runtime.Avr;
 using ChipSharp.Runtime.Rp2040;
 using ChipSharp.Runtime.Windows;
 using ChipSharp.Toolchain.Clang;
@@ -43,6 +44,7 @@ public static class DefaultComponents
             .Register(new WindowsX64Runtime())      // runtime "windows-x64"
             .Register(new ArmV6MRuntime())          // runtime "armv6m": any Cortex-M0/M0+ chip
             .Register(new Rp2040Runtime())          // runtime "rp2040": Raspberry Pi Pico
+            .Register(new AvrRuntime())             // runtime "avr": any AVR chip (ATmega328P: Arduino Uno)
             .Register(new Uf2ImageFormat())         // image "uf2"
             .Register(new IntelHexImageFormat());   // image "hex": Intel HEX (an AVR's flash)
     }

@@ -19,6 +19,7 @@
     <Project Path="src/ChipSharp.Ir/ChipSharp.Ir.csproj" />
     <Project Path="src/ChipSharp.Library/ChipSharp.Library.csproj" />
     <Project Path="src/ChipSharp.Runtime.ArmV6M/ChipSharp.Runtime.ArmV6M.csproj" />
+    <Project Path="src/ChipSharp.Runtime.Avr/ChipSharp.Runtime.Avr.csproj" />
     <Project Path="src/ChipSharp.Runtime.Rp2040/ChipSharp.Runtime.Rp2040.csproj" />
     <Project Path="src/ChipSharp.Runtime.Windows/ChipSharp.Runtime.Windows.csproj" />
     <Project Path="src/ChipSharp.Targets/ChipSharp.Targets.csproj" />
