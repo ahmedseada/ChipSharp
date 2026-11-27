@@ -129,19 +129,19 @@ public sealed class RecordCheckTests : IDisposable
 
         Assert.Equal(
         [
-            "Program.Main() at IL_000a (callvirt): reflection (System.Type.GetMethods()) arrives later. ChipSharp's System.Type " +
+            "Program.Main() at IL_000a (call): reflection (System.Type.GetMethods()) arrives later. ChipSharp's System.Type " +
                 "has Name, FullName, Namespace, ToString, ==, Equals, GetHashCode, IsValueType, IsArray, IsEnum, IsClass, " +
                 "IsInterface, IsPrimitive and IsGenericType; for more, give the types a virtual method that says it, or " +
                 "switch on the object's type.",
-            "Program.Main() at IL_0021 (call): reflection (System.Activator.CreateInstance(System.Type)) arrives later. " +
+            "Program.Main() at IL_0020 (call): reflection (System.Activator.CreateInstance(System.Type)) arrives later. " +
                 "ChipSharp's System.Type has Name, FullName, Namespace, ToString, ==, Equals, GetHashCode, IsValueType, " +
                 "IsArray, IsEnum, IsClass, IsInterface, IsPrimitive and IsGenericType; for more, give the types a virtual " +
                 "method that says it, or switch on the object's type.",
-            "Program.Main() at IL_002b (ldtoken): typeof of an open generic type (typeof(List<>)) arrives later. For now, " +
+            "Program.Main() at IL_002d (ldtoken): typeof of an open generic type (typeof(List<>)) arrives later. For now, " +
                 "name an instance of it, such as typeof(List<int>).",
-            "Program.Main() at IL_0030 (call): typeof of an open generic type (typeof(List<>)) arrives later. For now, name " +
+            "Program.Main() at IL_0032 (call): typeof of an open generic type (typeof(List<>)) arrives later. For now, name " +
                 "an instance of it, such as typeof(List<int>).",
-            "Program.Main() at IL_0044 (callvirt): reflection (System.Type.BaseType) arrives later. ChipSharp's System.Type " +
+            "Program.Main() at IL_004b (callvirt): reflection (System.Type.BaseType) arrives later. ChipSharp's System.Type " +
                 "has Name, FullName, Namespace, ToString, ==, Equals, GetHashCode, IsValueType, IsArray, IsEnum, IsClass, " +
                 "IsInterface, IsPrimitive and IsGenericType; for more, give the types a virtual method that says it, or " +
                 "switch on the object's type.",
@@ -182,7 +182,7 @@ public sealed class RecordCheckTests : IDisposable
     [Fact]
     public void An_interpolation_appended_to_a_builder_appends_each_part_and_makes_no_string_of_the_whole()
     {
-        var module = Lowered.Module("""
+        var module = Lowered.Lower(WholeProgramPass.Analyze(IlAssembly.Load(CSharpCompiler.Compile("""
             using System;
             using System.Text;
 
@@ -196,11 +196,11 @@ public sealed class RecordCheckTests : IDisposable
                     Console.WriteLine(text);
                 }
             }
-            """);
+            """), "Test.dll")));
 
         var main = Assert.Single(module.Functions, function => function.Name == "Program.Main");
         var calls = main.Blocks.SelectMany(block => block.Instructions).OfType<TirCall>().Select(call => call.Callee.Name).ToList();
-        Assert.Equal(4, calls.Count(name => name == "ChipSharp.Library.StringBuilder.Append(string)"));
+        Assert.Equal(4, calls.Count(name => name == "ChipSharp.Library.StringBuilder.Append"));
         Assert.DoesNotContain("ChipSharp.Runtime.StringConcat", calls);
     }
 

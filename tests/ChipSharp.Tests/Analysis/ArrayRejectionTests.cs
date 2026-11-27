@@ -405,7 +405,7 @@ public sealed class ArrayRejectionTests : IDisposable
     }
 
     [Fact]
-    public void Checked_conversions_and_type_handles_are_still_rejected_outside_arrays()
+    public void Checked_conversions_are_still_rejected_outside_arrays_and_typeof_compiles()
     {
         var problems = Problems(Program("Console.WriteLine((long)Narrow(5) + Kind());", """
             static nint Narrow(long value) => checked((nint)value);
@@ -415,8 +415,7 @@ public sealed class ArrayRejectionTests : IDisposable
 
         Assert.Contains("Program.Narrow(long) at IL_0001 (conv.ovf.i): checked arithmetic arrives later. For now, "
             + "leave out checked: ChipSharp's arithmetic wraps around on overflow, like unchecked C#.", problems);
-        Assert.Contains("Program.Kind() at IL_0000 (ldtoken): typeof and type handles arrive later. For now, leave "
-            + "them out.", problems);
+        Assert.DoesNotContain(problems, problem => problem.StartsWith("Program.Kind()", StringComparison.Ordinal));
     }
 
     [Fact]

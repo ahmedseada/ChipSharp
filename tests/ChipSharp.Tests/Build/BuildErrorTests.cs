@@ -126,7 +126,9 @@ public sealed class BuildErrorTests : IDisposable
 
             class Program
             {
-                static void Main() => Console.WriteLine(new System.Text.StringBuilder("Hello").ToString());
+                static string Format() => "Hello {0}";
+
+                static void Main() => Console.WriteLine(new System.Text.StringBuilder().AppendFormat(Format(), 5).ToString());
             }
             """, Path.Combine(_scratch, "Hello.dll"));
         var output = Path.Combine(_scratch, "out");
@@ -137,7 +139,7 @@ public sealed class BuildErrorTests : IDisposable
         Assert.Equal(WholeProgramPass.Check(IlAssembly.Load(dll)).Summary, error.Message);
         Assert.StartsWith($"{dll} uses 1 C# feature that ChipSharp does not compile yet (1 place):\n  building text "
             + "($\"...\", +, ToString, string.Format and the other methods of string) arrives with M3 (the heap): "
-            + "1 place in Program.Main() (IL_0005).", error.Message);
+            + "1 place in Program.Main() (IL_0010).", error.Message);
         Assert.EndsWith($"\nFor every place, run: chipsharp check {ChipSharpCli.Quoted(dll)} --details", error.Message);
         Assert.False(Directory.Exists(output));
     }

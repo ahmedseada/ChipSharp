@@ -45,7 +45,11 @@ public static partial class WholeProgramPass
                     Operand: IlMethodOperand { Method: { Definition: null } callee } }
                 && IsReflection(callee.DeclaringType))
             {
-                verdicts[instruction] = Unsupported.Reflection(CSharpNames.Method(callee));
+                // a property by its name: System.Type.BaseType
+                verdicts[instruction] = Unsupported.Reflection(callee is { Name: ['g', 'e', 't', '_', .. var property],
+                    ParameterTypes.Count: 0 }
+                    ? $"{CSharpNames.Type(callee.DeclaringType)}.{property}"
+                    : CSharpNames.Method(callee));
             }
         }
 

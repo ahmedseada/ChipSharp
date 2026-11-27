@@ -100,11 +100,13 @@ internal sealed partial class VirtualDispatch
             return Box(boxed);
         }
 
-        // a constrained call on a value runs what its box would, on the value: a method of the struct, reached here
+        // a constrained call on a value runs what its box would, on the value: a method of the struct, reached here (its
+        // box's methods only for one the struct has not, ValueType's, which a box's run: a record struct's GetHashCode
+        // does not reach its ToString)
         if (assembly is not null && Boxing.ConstrainedAt(instructions, index, assembly) is var (value, target))
         {
             IlMethod[] called = target.Method is { } method && !Generics.Instantiations.IsGeneric(method) ? [method] : [];
-            return [.. called.Concat(value.Kind == BoxedKind.Struct ? Box(value) : []).Distinct()];
+            return [.. called.Concat(value.Kind == BoxedKind.Struct && called.Length == 0 ? Box(value) : []).Distinct()];
         }
 
         if (Boxing.IsObjectEquals(instructions[index]))

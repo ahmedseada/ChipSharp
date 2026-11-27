@@ -85,7 +85,7 @@ public sealed class TextCheckTests
         Assert.Equal([BuildingFeature], analysis.Groups.Select(group => group.Feature));
         Assert.Equal(
         [
-            $"Program.Main() at IL_008c (callvirt): {Building}. {BuildingHint}",
+            $"Program.Main() at IL_0086 (call): {Building}. {BuildingHint}",
         ], analysis.Problems.Select(problem => problem.Line));
     }
 

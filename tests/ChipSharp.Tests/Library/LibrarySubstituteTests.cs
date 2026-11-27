@@ -351,7 +351,7 @@ public sealed class LibrarySubstituteTests
                 "OverflowException: Negating the minimum value of a twos complement number is invalid.",
                 "ArgumentOutOfRangeException: Non-negative number required. (Parameter 'index')",
                 "ArgumentOutOfRangeException: Non-negative number required. (Parameter 'length')",
-                "OutOfMemoryException: Exception of type 'System.OutOfMemoryException' was thrown.",
+                "OutOfMemoryException: Insufficient memory to continue the execution of the program.",
                 "ArgumentOutOfRangeException: Index was out of range. Must be non-negative and less than the size of the " +
                     "collection. (Parameter 'startIndex')",
                 "ArgumentOutOfRangeException: Index was out of range. Must be non-negative and less than or equal to the " +

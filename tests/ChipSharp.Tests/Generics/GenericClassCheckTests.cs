@@ -172,7 +172,7 @@ public sealed class GenericClassCheckTests(ITestOutputHelper output) : IDisposab
                     Span<Point> points = stackalloc Point[2];
                     Console.WriteLine(points.IndexOf(new Point { X = 1 }));
                     var comparer = EqualityComparer<Point>.Default;
-                    Console.WriteLine(comparer.Equals(points[0], points[1]));
+                    Console.WriteLine(comparer.Equals(points[0], points[1]) == comparer.Equals(points[1], points[0]));
                 }
             }
             """);
@@ -236,7 +236,7 @@ public sealed class GenericClassCheckTests(ITestOutputHelper output) : IDisposab
                     }
 
                     var comparer = EqualityComparer<int>.Default;
-                    if (comparer.Equals(1, 2))
+                    if (comparer.Equals(1, 2) || comparer.Equals(3, 3))
                     {
                         count++;
                     }
@@ -246,7 +246,7 @@ public sealed class GenericClassCheckTests(ITestOutputHelper output) : IDisposab
 
         Assert.Equal(
         [
-            "Program.Main() at IL_002e (call): the default comparers EqualityComparer<T>.Default and " +
+            "Program.Main() at IL_002d (call): the default comparers EqualityComparer<T>.Default and " +
                 "Comparer<T>.Default (objects) need a heap, and the target 'tiny' (2 KB RAM) has no heap. " +
                 "Compare with Equals and CompareTo, through a constraint where the type is a T: static bool Same<T>(T a, " +
                 "T b) where T : IEquatable<T> => a.Equals(b);",
