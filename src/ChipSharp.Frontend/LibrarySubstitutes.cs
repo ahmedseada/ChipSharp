@@ -157,27 +157,37 @@ internal static class LibrarySubstitutes
             return false;
         }
 
-        // as for KnownExternals, a bool is passed and returned as an i32
+        // as for KnownExternals, a bool and a char are passed and returned as an i32, a string as a ref; a reference
+        // (ref char, of the chars of a string) as a ptr
         var parameters = new List<TirType>();
         foreach (var parameter in definition.Signature.ParameterTypes)
         {
-            if (!SupportedSubset.TryMapType(parameter, out var type))
+            if (RuntimeFunctionType(parameter) is not { } type)
             {
                 return false;
             }
 
-            parameters.Add(type == TirType.Bool ? TirType.I32 : type);
+            parameters.Add(type);
         }
 
-        if (!SupportedSubset.TryMapType(definition.ReturnType, out var returns))
+        if (RuntimeFunctionType(definition.ReturnType) is not { } returns)
         {
             return false;
         }
 
-        function = new ExternalFunction($"ChipSharp.Runtime.{definition.Name}",
-            returns == TirType.Bool ? TirType.I32 : returns, parameters, CSharpNames.Method(definition));
+        function = new ExternalFunction($"ChipSharp.Runtime.{definition.Name}", returns, parameters,
+            CSharpNames.Method(definition));
         return true;
     }
+
+    /// <summary>The TIR type a runtime function takes or returns for <paramref name="type"/>; null when it cannot.</summary>
+    private static TirType? RuntimeFunctionType(IlType type) => type switch
+    {
+        IlPrimitiveType { Kind: IlPrimitiveKind.Bool or IlPrimitiveKind.Char } => TirType.I32,
+        IlPrimitiveType { Kind: IlPrimitiveKind.String } => TirType.Ref,
+        IlByRefType reference when RuntimeFunctionType(reference.ElementType) is not null => TirType.Ptr,
+        _ => SupportedSubset.TryMapType(type, out var mapped) ? mapped : null,
+    };
 
     /// <summary>The members of <paramref name="type"/>, the substitute for <paramref name="library"/>: see Members.</summary>
     private static IEnumerable<string> MembersOf(IlTypeDefinition type, string library)

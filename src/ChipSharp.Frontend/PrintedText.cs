@@ -55,14 +55,15 @@ internal sealed class PrintedText
 {
     private PrintedText(IReadOnlyDictionary<IlInstruction, PrintedRole> roles,
         IReadOnlyDictionary<IlInstruction, Unsupported?> verdicts, IReadOnlyDictionary<IlInstruction, PrintSite> prints,
-        IReadOnlySet<int> handlerLocals)
+        IReadOnlySet<int> handlerLocals, IReadOnlyDictionary<IlInstruction, PrintSite>? builds = null)
     {
         Roles = roles;
         Verdicts = verdicts;
         Prints = prints;
+        Builds = builds ?? new Dictionary<IlInstruction, PrintSite>();
         HandlerLocals = handlerLocals;
         var saved = new Dictionary<(IlInstruction, int), PrintedPiece>();
-        foreach (var piece in prints.Values.SelectMany(site => site.Pieces).Where(piece => piece.Literal is null))
+        foreach (var piece in prints.Values.Concat(Builds.Values).SelectMany(site => site.Pieces).Where(piece => piece.Literal is null))
         {
             saved[(piece.Source, piece.Operand)] = piece;
         }
@@ -82,6 +83,12 @@ internal sealed class PrintedText
 
     /// <summary>Each Console.Write and Console.WriteLine of built text, with what it writes.</summary>
     public IReadOnlyDictionary<IlInstruction, PrintSite> Prints { get; }
+
+    /// <summary>
+    /// The built text that is kept (on a target with a heap): the instruction that finishes it (ToStringAndClear, a
+    /// Concat, a ToString), where the string is made from its parts, with them.
+    /// </summary>
+    public IReadOnlyDictionary<IlInstruction, PrintSite> Builds { get; }
 
     /// <summary>
     /// The values a print writes, by the instruction that takes them off the stack and their operand number there
@@ -105,7 +112,7 @@ internal sealed class PrintedText
         }
 
         var flow = new PrintedTextFlow(method, body, handlers).Run();
-        return new PrintedText(flow.Roles, flow.Verdicts, flow.Prints, handlers);
+        return new PrintedText(flow.Roles, flow.Verdicts, flow.Prints, handlers, flow.Builds);
     }
 
     /// <summary>True for an instruction printed text is about (see <see cref="Verdicts"/>).</summary>
@@ -120,7 +127,8 @@ internal sealed class PrintedText
     public static bool TryParseFormat(string? format, IlPrimitiveKind type, out PrintedFormat parsed)
     {
         parsed = default;
-        if (type is IlPrimitiveKind.Bool or IlPrimitiveKind.String || string.IsNullOrEmpty(format) || format == "G")
+        if (type is IlPrimitiveKind.Bool or IlPrimitiveKind.String or IlPrimitiveKind.Char || string.IsNullOrEmpty(format)
+            || format == "G")
         {
             return true;
         }
@@ -153,13 +161,13 @@ internal sealed class PrintedText
     }
 
     /// <summary>
-    /// The primitive kind of a hole's type when Console.Write prints it (bool, every whole number but nint and nuint,
-    /// float, double, string); false for any other type.
+    /// The primitive kind of a hole's type when Console.Write prints it (bool, char, every whole number but nint and
+    /// nuint, float, double, string); false for any other type.
     /// </summary>
     public static bool TryGetPrinted(IlType type, out IlPrimitiveKind kind)
     {
         kind = (ValueTypes.WithoutModifiers(type) as IlPrimitiveType)?.Kind ?? IlPrimitiveKind.Void;
-        return kind is IlPrimitiveKind.Bool or IlPrimitiveKind.String or IlPrimitiveKind.Float32
+        return kind is IlPrimitiveKind.Bool or IlPrimitiveKind.String or IlPrimitiveKind.Char or IlPrimitiveKind.Float32
             or IlPrimitiveKind.Float64 || IsWholeNumber(kind);
     }
 
@@ -250,6 +258,12 @@ internal enum PrintedRole
 
     /// <summary><c>brtrue</c> or <c>brfalse</c> on built text (C#'s <c>?? ""</c>), which is never null.</summary>
     NullTest,
+
+    /// <summary><c>constrained.</c> before an enum's ToString (<c>color.ToString()</c>): nothing of its own.</summary>
+    Prefix,
+
+    /// <summary><c>box</c> of a hole of a format (<c>Console.WriteLine(color)</c>, <c>string.Format("{0}", x)</c>): a part.</summary>
+    Box,
 }
 
 /// <summary>How a whole number is written: as Console.Write writes it, in decimal with at least n digits, or in hex.</summary>
@@ -275,7 +289,11 @@ internal sealed record PrintedPiece(
     IlPrimitiveType Type,
     string? Literal,
     int Alignment,
-    PrintedFormat Format);
+    PrintedFormat Format)
+{
+    /// <summary>For an enum's value, written by its name (see <see cref="Lowering.EnumNameFunctions"/>): the enum; <see cref="Type"/> is its underlying type.</summary>
+    public IlTypeDefinition? Enum { get; init; }
+}
 
 /// <summary>What a Console.Write or Console.WriteLine of built text writes: its parts, then the end of a line for WriteLine.</summary>
 internal sealed record PrintSite(IReadOnlyList<PrintedPiece> Pieces, bool Line);

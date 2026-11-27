@@ -111,6 +111,35 @@ public sealed class TirModule
     }
 
     /// <summary>
+    /// Adds a constant object, printed as <c>constant object string @&lt;text 0&gt; = 5, c"hello"</c>: an array object
+    /// of <paramref name="type"/> that is read-only data (flash on a chip), never on the heap, so the garbage collector never
+    /// marks it. Its header is the descriptor's address, its length field <paramref name="length"/>, and its elements
+    /// (from <see cref="TirLayout.ArrayDataOffset"/>, as on the heap) <paramref name="elements"/>. Its address
+    /// (<see cref="TirGlobalAddress"/>) is a ref, like any object's. C#'s string literals are such objects.
+    /// </summary>
+    /// <param name="name">A display name, unique within the module among all globals, e.g. "&lt;text 0&gt;".</param>
+    /// <param name="type">The array type of the object, a descriptor of this module.</param>
+    /// <param name="length">What its length field holds.</param>
+    /// <param name="elements">The bytes of its elements, none too.</param>
+    public TirGlobal AddConstantObject(string name, TirTypeDescriptor type, int length, IEnumerable<byte> elements)
+    {
+        CheckNewGlobal(name);
+        ArgumentNullException.ThrowIfNull(type);
+        ArgumentNullException.ThrowIfNull(elements);
+        if (type.Module != this || !type.IsArray)
+        {
+            throw new TirException($"Module '{Name}': constant object @{name} must be of an array type of this module, " +
+                $"not {type.Kind.ToString().ToLowerInvariant()} {type.Name}.");
+        }
+
+        byte[] bytes = [.. elements];
+        var global = new TirGlobal(this, _globals.Count, name, new TirArrayType(TirType.I8, Math.Max(bytes.Length, 1)), null,
+            bytes, objectType: type, objectLength: length);
+        _globals.Add(global);
+        return global;
+    }
+
+    /// <summary>
     /// Adds the descriptor of a class, printed as <c>type Program.Node = class Program.Node : System.Object</c>: its
     /// objects are laid out as <paramref name="objectType"/>, whose first field is the header and whose next fields are
     /// those of <paramref name="baseType"/>'s object type, in order (see <see cref="TirTypeDescriptor.ObjectStruct"/>).

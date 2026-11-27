@@ -74,6 +74,12 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
             // internal, like the defined functions: only this module uses it; read-only data is private (it needs no
             // symbol at all) and constant, so the linker puts it with the code (.rodata, in flash on a chip)
             var align = types.Alignment(global.Type).ToString(CultureInfo.InvariantCulture);
+            if (global.ObjectType is not null)
+            {
+                text.Append(LlvmHeap.ConstantObject(global, globalSymbols[global], typeSymbols, types)).Append('\n');
+                continue;
+            }
+
             if (global.Data is { } data)
             {
                 text.Append($"@{globalSymbols[global]} = private unnamed_addr constant {types.Of(global.Type)} " +

@@ -67,6 +67,12 @@ public sealed class TirFunction
     public TirType ReturnType { get; }
 
     /// <summary>
+    /// True for an external function that makes objects on the heap (the runtime's functions that make strings): a
+    /// module that calls one uses the heap, like one that has <c>newobject</c> or <c>newarray</c>.
+    /// </summary>
+    public bool MakesObjects { get; set; }
+
+    /// <summary>
     /// The symbol a defined function is exported under, so that the runtime can call it, e.g. <c>chipsharp_isr_irq1</c>
     /// for an interrupt handler the vector table names; it is printed as <c>export chipsharp_isr_irq1</c>. Null (the
     /// default) for a function only the program calls, whose symbol the code generator makes from <see cref="Name"/>.

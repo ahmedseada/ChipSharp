@@ -18,7 +18,7 @@ internal static class LibraryCalls
     private static readonly string[] Known =
     [
         .. KnownExternals.All.Select(function => function.LibraryMethod).Concat(LibrarySubstitutes.Members)
-            .Concat(Spans.Members)
+            .Concat(Spans.Members).Concat(StringMethods.Members)
             .OrderBy(method => method.StartsWith("ChipSharp.", StringComparison.Ordinal)),
     ];
 

@@ -95,7 +95,7 @@ public static class SupportedSubset
     }
 
     /// <summary>
-    /// The TIR type of a primitive type ChipSharp has: bool, the whole numbers of every width (TIR types carry no sign;
+    /// The TIR type of a primitive type ChipSharp has: bool, char, the whole numbers of every width (TIR types carry no sign;
     /// signed and unsigned share one), nint/nuint, float, double and void. The other types a program may use build on
     /// these: see <see cref="TryMapType(IlType, IlAssembly, out TirType?)"/>.
     /// </summary>
@@ -108,7 +108,8 @@ public static class SupportedSubset
                 IlPrimitiveKind.Void => TirType.Void,
                 IlPrimitiveKind.Bool => TirType.Bool,
                 IlPrimitiveKind.Int8 or IlPrimitiveKind.UInt8 => TirType.I8,
-                IlPrimitiveKind.Int16 or IlPrimitiveKind.UInt16 => TirType.I16,
+                // a char is its UTF-16 code unit, unsigned, like a ushort
+                IlPrimitiveKind.Int16 or IlPrimitiveKind.UInt16 or IlPrimitiveKind.Char => TirType.I16,
                 IlPrimitiveKind.Int32 or IlPrimitiveKind.UInt32 => TirType.I32,
                 IlPrimitiveKind.Int64 or IlPrimitiveKind.UInt64 => TirType.I64,
                 IlPrimitiveKind.NativeInt or IlPrimitiveKind.NativeUInt => TirType.NativeInt,

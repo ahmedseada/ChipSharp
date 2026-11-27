@@ -50,10 +50,13 @@ public sealed class TirSlotAddress : TirInstruction
     public override IReadOnlyList<TirValue> Operands => [];
 }
 
-/// <summary><c>%0 = addr @Program.counter</c>: the address of a global, a ptr.</summary>
+/// <summary>
+/// <c>%0 = addr @Program.counter</c>: the address of a global, a ptr; of a constant object
+/// (<see cref="TirModule.AddConstantObject"/>), a ref to the object.
+/// </summary>
 public sealed class TirGlobalAddress : TirInstruction
 {
-    public TirGlobalAddress(TirGlobal global) : base(TirType.Ptr)
+    public TirGlobalAddress(TirGlobal global) : base(global?.ObjectType is null ? TirType.Ptr : TirType.Ref)
     {
         ArgumentNullException.ThrowIfNull(global);
         Global = global;

@@ -155,3 +155,18 @@ __attribute__((noreturn)) void ChipSharp_Runtime_HeapInInterrupt(void)
         "Create what the handler needs before, e.g. in a static field.\r\n";
     fail(message, sizeof message - 1);
 }
+
+// Any other failure, its exception and message given (from chipsharp_string.c and chipsharp_string_heap.c), e.g.
+// "System.FormatException: The input string 'x' was not in a correct format.".
+__attribute__((noreturn)) void chipsharp_fail(const char *message)
+{
+    unsigned int count = 0;
+    while (message[count] != 0)
+    {
+        count++;
+    }
+
+    chipsharp_uart0_write(UNHANDLED, sizeof UNHANDLED - 1);
+    chipsharp_uart0_write(message, count);
+    fail("\r\n", 2);
+}

@@ -21,8 +21,8 @@ namespace ChipSharp.Frontend;
 /// one before it (C# allows a private field of the same name in a base class) is named after its class too, e.g.
 /// <c>Program.Derived.count</c>.</item>
 /// <item>A field is the TIR type of its C# type: a number, bool, struct or enum as <see cref="ValueTypes"/> maps it, a
-/// reference type as <see cref="TryMapType"/>, fixed text a ptr (<see cref="FixedText"/>: text is not on the heap
-/// yet, so the collector never follows it).</item>
+/// reference type as <see cref="TryMapType"/>, a string too (a ref, see <see cref="Strings"/>: the collector follows
+/// it, and never marks a literal, which is outside the heap).</item>
 /// <item>Each class has one type descriptor per module, made with its base's first; System.Object's has no base (see
 /// <c>ProgramFunctions.ClassDescriptor</c>).</item>
 /// </list>
@@ -50,7 +50,8 @@ internal static class ObjectTypes
     {
         ArgumentNullException.ThrowIfNull(type);
         ArgumentNullException.ThrowIfNull(assembly);
-        tirType = IsSystemObject(type) || Class(type, assembly) is not null ? TirType.Ref : null;
+        // a string is an object too (see Strings)
+        tirType = IsSystemObject(type) || Class(type, assembly) is not null || FixedText.IsText(type) ? TirType.Ref : null;
         return tirType is not null;
     }
 

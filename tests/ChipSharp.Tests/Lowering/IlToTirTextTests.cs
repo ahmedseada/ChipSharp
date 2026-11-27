@@ -138,17 +138,19 @@ public sealed class IlToTirTextTests
     }
 
     [Fact]
-    public void A_record_holds_the_length_as_dotnet_counts_it_the_number_of_UTF8_bytes_and_the_bytes()
+    public void A_literal_holds_one_byte_per_char_below_U0100_and_else_its_UTF16_code_units()
     {
-        // little-endian, then UTF-8 without a zero at the end: "caf\u00e9" is 4 UTF-16 code units and 5 bytes, a smiley 2
-        // code units (a surrogate pair) and 4 bytes; a lone surrogate, which UTF-8 cannot hold, is U+FFFD
-        Assert.Equal([4, 0, 0, 0, 5, 0, 0, 0, (byte)'c', (byte)'a', (byte)'f', 0xC3, 0xA9], FixedText.Record("caf\u00e9"));
-        Assert.Equal([2, 0, 0, 0, 4, 0, 0, 0, 0xF0, 0x9F, 0x99, 0x82], FixedText.Record("\U0001F642"));
-        Assert.Equal([1, 0, 0, 0, 3, 0, 0, 0, 0xEF, 0xBF, 0xBD], FixedText.Record("\uD800"));
-        Assert.Equal([1, 0, 0, 0, 1, 0, 0, 0, 0], FixedText.Record("\0"));
-        Assert.Equal(new byte[FixedText.HeaderSize], FixedText.Record(""));
-        var longText = new string('x', 300);
-        Assert.Equal([44, 1, 0, 0, 44, 1, 0, 0], FixedText.Record(longText)[..FixedText.HeaderSize]);
+        // "caf\u00e9" is Latin-1: 4 chars, a byte each; a smiley is 2 UTF-16 code units (a surrogate pair), little-endian,
+        // and so is a lone surrogate, as it is
+        Assert.True(Frontend.Strings.IsNarrow("caf\u00e9"));
+        Assert.Equal([(byte)'c', (byte)'a', (byte)'f', 0xE9], Frontend.Strings.Elements("caf\u00e9"));
+        Assert.False(Frontend.Strings.IsNarrow("\U0001F642"));
+        Assert.Equal([0x3D, 0xD8, 0x42, 0xDE], Frontend.Strings.Elements("\U0001F642"));
+        Assert.Equal([0x00, 0xD8], Frontend.Strings.Elements("\uD800"));
+        Assert.Equal([0xAC, 0x20, (byte)'5', 0], Frontend.Strings.Elements("\u20ac5"));
+        Assert.Equal([0], Frontend.Strings.Elements("\0"));
+        Assert.Empty(Frontend.Strings.Elements(""));
+        Assert.True(Frontend.Strings.IsNarrow(""));
     }
 
     [Fact]

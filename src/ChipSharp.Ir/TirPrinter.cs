@@ -200,6 +200,8 @@ public static class TirPrinter
     /// </summary>
     private static string GlobalText(TirGlobal global) => global switch
     {
+        { ObjectType: { } type, Data: { } bytes } =>
+            $"constant object {type.Name} {global} = {global.ObjectLength}, {BytesText(bytes)}",
         { Data: { } data } => $"constant {global.Type} {global} = {BytesText(data)}",
         { Elements: { } elements } => $"{(global.IsConstant ? "constant" : "global")} {global.Type} {global} = " +
             $"[{string.Join(", ", elements.Select(ConstantText))}]",
@@ -252,6 +254,11 @@ public static class TirPrinter
             default:
                 text.Append("interface");
                 break;
+        }
+
+        if (type.ExternalSymbol is { } symbol)
+        {
+            text.Append(" in the runtime as ").Append(symbol);
         }
 
         return text.ToString();

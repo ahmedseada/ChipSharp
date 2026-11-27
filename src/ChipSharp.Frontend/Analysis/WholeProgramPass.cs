@@ -200,9 +200,12 @@ public static partial class WholeProgramPass
         var spans = ForSpans(method);
         var generics = ForGenerics(method);
         var classes = ForClasses(method);
-        // after the arrays' and spans' verdicts: generics', classes', building text, the struct/reference rules, the rest
+        var strings = ForStrings(method);
+        // after the arrays' and spans' verdicts: strings', generics', classes', building text, the struct/reference rules,
+        // the rest
         Unsupported? Others(IlInstruction instruction) =>
-            generics.TryGetValue(instruction, out var generic) ? generic
+            strings.TryGetValue(instruction, out var forStrings) ? forStrings
+            : generics.TryGetValue(instruction, out var generic) ? generic
             : classes.TryGetValue(instruction, out var forClasses) ? forClasses
             : ForText(method, instruction) ?? ForStructOrReference(method, instruction)
                 ?? ForInstruction(instruction, argsArgument, interpolations);
@@ -219,7 +222,9 @@ public static partial class WholeProgramPass
                     ? array
                 : spans.TryGetValue(instruction, out var span) ? span
                 : Others(instruction);
-            if (unsupported is { IsHeapUse: true } && Others(instruction) is { IsHeapUse: false } other)
+            // (but printed text's own, built text that is kept, is the whole verdict on what printed text is about)
+            if (unsupported is { IsHeapUse: true } && !printed.Owns(instruction)
+                && Others(instruction) is { IsHeapUse: false } other)
             {
                 unsupported = other;
             }

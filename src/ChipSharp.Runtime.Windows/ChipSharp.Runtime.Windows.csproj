@@ -17,5 +17,8 @@
     <!-- objects, the allocator and the garbage collector, shared with the other runtimes; and what they need from Windows -->
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_heap.c" LogicalName="chipsharp_heap.c" />
     <EmbeddedResource Include="chipsharp_heap_windows.c" LogicalName="chipsharp_heap_windows.c" />
+    <!-- strings, shared with the other runtimes: what reads them, and what makes them (a target with a heap) -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_string.c" LogicalName="chipsharp_string.c" />
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_string_heap.c" LogicalName="chipsharp_string_heap.c" />
   </ItemGroup>
 </Project>

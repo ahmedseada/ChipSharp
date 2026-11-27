@@ -1,6 +1,4 @@
-using System.Buffers.Binary;
 using System.Diagnostics.CodeAnalysis;
-using System.Text;
 using ChipSharp.Frontend.Il;
 using ChipSharp.Ir;
 
@@ -9,72 +7,48 @@ namespace ChipSharp.Frontend;
 /// <summary>
 /// Fixed text without a heap: C#'s string literals (<c>"road : 1"</c>, and <c>string.Empty</c>), the text written in
 /// the program, which never changes, so it lives in read-only data (flash on a chip) and needs no heap. It may be
-/// printed (<c>Console.Write</c>, <c>Console.WriteLine</c>), kept in locals, parameters, return values and static
-/// fields (a <c>const</c> too, which C# puts in at each use), and compared with null. Text built while the program
-/// runs (<c>+</c>, <c>$"..."</c>, <c>ToString()</c>) and printed straight away is printed text (see
-/// <see cref="PrintedText"/>); kept, or built with <c>string.Format</c> and the other methods of string, it needs the
-/// heap: it arrives with M3, and the whole-program pass says so.
+/// printed (<c>Console.Write</c>, <c>Console.WriteLine</c>), kept anywhere a string may be, compared, measured and
+/// searched. Text built while the program runs (<c>+</c>, <c>$"..."</c>, <c>ToString()</c>) and printed straight away
+/// is printed text (see <see cref="PrintedText"/>), which needs no heap either; kept, or made by the methods of string
+/// that make new text (<c>Substring</c>, <c>Replace</c>, ...), it is a string on the heap.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The representation: a string value (on IL's evaluation stack, in a local, a parameter, a return value or a static
-/// field) is a ptr: null for C#'s null, else the address of the literal's record, a constant global
-/// (<see cref="TirModule.AddConstant"/>) of <see cref="HeaderSize"/> bytes and then the text:
-/// <code>
-/// offset 0   u32   the length as .NET counts it, in UTF-16 code units: "café".Length is 4
-/// offset 4   u32   how many bytes of UTF-8 follow: "café" takes 5
-/// offset 8         the text in UTF-8, without a zero at the end (a literal may hold "\0")
-/// </code>
-/// Both numbers are little-endian on every target, and the runtime reads them a byte at a time, so the record needs
-/// no alignment. Each distinct literal has one record, however many places use it: like .NET, which interns literals,
-/// two equal literals are the same reference. A string compares with null (and with another string, by reference,
-/// which for literals is what .NET gives too) as the ptr it is.
+/// The representation (see <see cref="Strings"/>): a string value is a ref, null for C#'s null, else the address of a
+/// string object; a literal's is a constant object (<see cref="TirModule.AddConstantObject"/>) in read-only data, its
+/// header the runtime's string descriptor, then its length in UTF-16 code units ("café".Length is 4) and its chars,
+/// 1 byte each when they are all below U+0100, else 2. Each distinct literal is one object, however many places use it:
+/// like .NET, which interns literals, two equal literals are the same reference. A string compares with null (and with
+/// another string, with <c>(object)a == b</c>, by reference) as the ref it is; <c>==</c> on strings compares their chars.
 /// </para>
 /// <para>
-/// Text is written as UTF-8, on every target: the bytes after the header, as they are. That is what .NET writes when
-/// the console's encoding is UTF-8 (on a chip, over the UART, a terminal shows it right). A lone surrogate
-/// ("\uD800"), which UTF-8 cannot hold, is U+FFFD (EF BF BD), as .NET's UTF-8 encoder writes it. A Windows console
-/// shows non-ASCII text right when its code page is UTF-8 (<c>chcp 65001</c>); .NET itself writes in the console's
-/// code page, so there, for non-ASCII text, the bytes differ.
+/// Text is written as UTF-8, on every target, as .NET writes it when the console's encoding is UTF-8 (on a chip, over
+/// the UART, a terminal shows it right), by the runtime (src/ChipSharp.Runtime.Shared/chipsharp_console.c). A lone
+/// surrogate ("\uD800"), which UTF-8 cannot hold, is U+FFFD (EF BF BD), as .NET's UTF-8 encoder writes it; a high
+/// surrogate at the end of one write and the low one at the start of the next are one character, as in .NET, whose
+/// console writer keeps the first half until the second comes. A Windows console shows non-ASCII text right when its
+/// code page is UTF-8 (<c>chcp 65001</c>); .NET itself writes in the console's code page, so there, for non-ASCII text,
+/// the bytes differ.
 /// </para>
 /// <para>
-/// Text is not kept in the fields of structs, in arrays or behind references (<c>ref string</c>) yet: those, like a
-/// null in place of an array, arrive with the heap.
+/// A reference to a string (<c>ref string</c>, <c>out string</c>) is not supported yet.
 /// </para>
 /// </remarks>
 internal static class FixedText
 {
-    /// <summary>The bytes of a record before its text: the UTF-16 length and the UTF-8 byte count, a u32 each.</summary>
-    public const int HeaderSize = 8;
-
     /// <summary>
-    /// The TIR type of a parameter, local, return type or static field of type <paramref name="type"/>: ptr for a
-    /// string (custom modifiers looked through).
+    /// The TIR type of a parameter, local, return type, field or element of type <paramref name="type"/>: ref for a
+    /// string (custom modifiers looked through), an object (see <see cref="Strings"/>).
     /// </summary>
     public static bool TryMapType(IlType type, [NotNullWhen(true)] out TirType? tirType)
     {
         ArgumentNullException.ThrowIfNull(type);
-        tirType = IsText(type) ? TirType.Ptr : null;
+        tirType = IsText(type) ? TirType.Ref : null;
         return tirType is not null;
     }
 
     /// <summary>True for <c>string</c>, custom modifiers looked through.</summary>
     public static bool IsText(IlType type) => ValueTypes.WithoutModifiers(type) == IlType.String;
-
-    /// <summary>
-    /// The record of <paramref name="text"/>, as described above: its UTF-16 length, its UTF-8 byte count (both
-    /// little-endian), then its UTF-8 bytes.
-    /// </summary>
-    public static byte[] Record(string text)
-    {
-        ArgumentNullException.ThrowIfNull(text);
-        var utf8 = Encoding.UTF8.GetBytes(text);
-        var record = new byte[HeaderSize + utf8.Length];
-        BinaryPrimitives.WriteUInt32LittleEndian(record, (uint)text.Length);
-        BinaryPrimitives.WriteUInt32LittleEndian(record.AsSpan(4), (uint)utf8.Length);
-        utf8.CopyTo(record, HeaderSize);
-        return record;
-    }
 
     /// <summary>
     /// True for <c>string.Empty</c>, the field <c>ldsfld</c> reads for it: it is the literal "", as in .NET.

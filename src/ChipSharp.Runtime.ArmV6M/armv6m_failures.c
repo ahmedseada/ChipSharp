@@ -44,3 +44,4 @@ __attribute__((weak, noreturn)) void ChipSharp_Runtime_ArgumentOutOfRange(void) 
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_LengthOutOfRange(void) { fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_DestinationTooShort(void) { fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_DataMisaligned(void) { fail(); }
+__attribute__((weak, noreturn)) void chipsharp_fail(const char *message) { (void)message; fail(); }

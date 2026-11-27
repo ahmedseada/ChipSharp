@@ -67,6 +67,14 @@ internal static class LlvmHeap
         var taken = new HashSet<string>(StringComparer.Ordinal);
         foreach (var type in module.TypeDescriptors)
         {
+            // a descriptor of the runtime's keeps its symbol, which the runtime's C defines
+            if (type.ExternalSymbol is { } external)
+            {
+                symbols[type] = external;
+                taken.Add(external);
+                continue;
+            }
+
             var wanted = "type." + LlvmText.Name(type.Name);
             var symbol = wanted;
             for (var n = 2; !taken.Add(symbol); n++)
@@ -91,6 +99,13 @@ internal static class LlvmHeap
         foreach (var type in module.TypeDescriptors)
         {
             var symbol = descriptors[type];
+            if (type.ExternalSymbol is not null)
+            {
+                // the runtime defines it (a string's, in chipsharp_string.c): the module only names it
+                text.Append($"@{symbol} = external constant i8, align {word}\n");
+                continue;
+            }
+
             var (size, elementSize, flags, references) = type.Kind switch
             {
                 TirTypeDescriptorKind.Class => (layout.SizeOf(type.ObjectType!), 0L, 0,
@@ -144,6 +159,36 @@ internal static class LlvmHeap
                 $"{(linked is null ? "ptr null" : $"ptr @{descriptors[linked]}")}, ptr @{symbol}.name, {interfacesValue}, " +
                 $"i32 {type.Interfaces.Count}, i32 {virtuals.Count}, {vtable} {vtableValue} }}, align {word}\n");
         }
+    }
+
+    /// <summary>
+    /// A constant object (<see cref="TirModule.AddConstantObject"/>), laid out as an array object on the heap: its header
+    /// (the descriptor's address), its length, zeros up to <see cref="TirLayout.ArrayDataOffset"/>, then its elements'
+    /// bytes, as a packed struct, aligned like a heap object's fields need. Private, unnamed_addr and constant: read-only
+    /// data, in flash on a chip, which the garbage collector never marks (it is outside the heap).
+    /// </summary>
+    public static string ConstantObject(TirGlobal global, string symbol,
+        IReadOnlyDictionary<TirTypeDescriptor, string> descriptors, LlvmTypes types)
+    {
+        var layout = types.Layout;
+        var padding = layout.ArrayDataOffset - layout.ArrayLengthOffset - 4;
+        var bytes = global.Data!;
+        var fieldTypes = new List<string> { "ptr", "i32" };
+        var fields = new List<string> { $"ptr @{descriptors[global.ObjectType!]}", $"i32 {global.ObjectLength}" };
+        if (padding > 0)
+        {
+            fieldTypes.Add($"[{padding} x i8]");
+            fields.Add($"[{padding} x i8] zeroinitializer");
+        }
+
+        if (bytes.Count > 0)
+        {
+            fieldTypes.Add($"[{bytes.Count} x i8]");
+            fields.Add($"[{bytes.Count} x i8] {LlvmText.Bytes(bytes)}");
+        }
+
+        return $"@{symbol} = private unnamed_addr constant <{{ {string.Join(", ", fieldTypes)} }}> " +
+            $"<{{ {string.Join(", ", fields)} }}>, align {Math.Max(layout.PointerSize, 4)}";
     }
 
     /// <summary>
@@ -209,5 +254,5 @@ internal static class LlvmHeap
 
     private static TirInstruction? FirstAllocation(TirModule module) => module.Functions
         .SelectMany(function => function.Blocks).SelectMany(block => block.Instructions)
-        .FirstOrDefault(instruction => instruction is TirNewObject or TirNewArray);
+        .FirstOrDefault(instruction => instruction is TirNewObject or TirNewArray or TirCall { Callee.MakesObjects: true });
 }

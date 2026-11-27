@@ -49,6 +49,15 @@ public sealed class ArmV6MRuntime : IArchRuntime
     /// <summary>Objects, the allocator and the garbage collector (src/ChipSharp.Runtime.Shared), for a target with a heap.</summary>
     public const string HeapFileName = "chipsharp_heap.c";
 
+    /// <summary>Strings (src/ChipSharp.Runtime.Shared): their descriptors, and what reads them and chars, for every target.</summary>
+    public const string StringFileName = "chipsharp_string.c";
+
+    /// <summary>What makes strings (src/ChipSharp.Runtime.Shared), for a target with a heap, with the text of floats.</summary>
+    public const string StringHeapFileName = "chipsharp_string_heap.c";
+
+    /// <summary>The text of floats and doubles (src/ChipSharp.Runtime.Shared), which strings on the heap need.</summary>
+    public const string FloatTextFileName = "chipsharp_float_text.c";
+
     /// <summary>What the heap needs from an ARMv6-M chip.</summary>
     public const string HeapChipFileName = "armv6m_heap.c";
 
@@ -61,8 +70,10 @@ public sealed class ArmV6MRuntime : IArchRuntime
         return new RuntimeSources(
         [
             Source(StartupFileName), Source(HelpersFileName), Source(DivModFileName), Source(FloatCompareFileName),
-            Source(FloatMathFileName), .. CompilerRt.Sources(), Source(FailuresFileName),
-            .. target.HasHeap ? [Source(HeapFileName), Source(HeapChipFileName)] : Array.Empty<GeneratedFile>(),
+            Source(FloatMathFileName), .. CompilerRt.Sources(), Source(FailuresFileName), Source(StringFileName),
+            .. target.HasHeap
+                ? [Source(HeapFileName), Source(HeapChipFileName), Source(StringHeapFileName), Source(FloatTextFileName)]
+                : Array.Empty<GeneratedFile>(),
         ]);
     }
 
