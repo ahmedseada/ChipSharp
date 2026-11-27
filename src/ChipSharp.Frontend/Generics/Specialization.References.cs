@@ -239,7 +239,7 @@ internal static partial class Specialization
     /// does not implement it, which the default comparer boxes). For <c>Equality.HashOf&lt;T&gt;</c> of an enum, that of
     /// its number; null for any other T, whose own GetHashCode it calls.
     /// </summary>
-    private static IlMethodReference? DefaultComparison(string name, IlType type, IlAssembly owner)
+    internal static IlMethodReference? DefaultComparison(string name, IlType type, IlAssembly owner)
     {
         var own = StackArrays.Primitive(ValueTypes.WithoutModifiers(type));
         var plain = ValueTypes.Underlying(own, owner);

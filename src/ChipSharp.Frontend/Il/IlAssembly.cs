@@ -184,7 +184,8 @@ public sealed partial class IlAssembly
             throw new ChipSharpException($"{FilePath}: {method}: cannot read the method body: {e.Message}", e);
         }
 
-        return IlBodyReader.Read(this, method, block);
+        // EqualityComparer<T>.Default.Equals(a, b) and GetHashCode(a), called at once, with no comparer object
+        return Generics.DefaultComparers.Fold(IlBodyReader.Read(this, method, block));
     }
 
     /// <summary>An error in a method body, at an offset.</summary>
