@@ -423,7 +423,7 @@ dotnet build -c Release
 dotnet test -c Release --no-build
 ```
 
-The 1,800 or so tests (about 2 minutes once the build cache is warm) check each stage on its own (reading IL, the whole-program pass, TIR, the LLVM code, linking, the `.uf2`),
+The 1,900 or so tests (about 2 minutes once the build cache is warm) check each stage on its own (reading IL, the whole-program pass, TIR, the LLVM code, linking, the `.uf2`),
 then compile C# programs and run them: on the PC, and on the simulated Pico, comparing what they print, byte for byte,
 with what .NET prints for the same program; the library code (collections, `StringBuilder`, sorting, `TimeSpan`)
 runs next to .NET's own on thousands of random operations. The PC tests need LLVM; the Pico tests also need Node.js
