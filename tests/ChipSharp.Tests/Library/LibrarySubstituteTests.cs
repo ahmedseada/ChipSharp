@@ -30,6 +30,7 @@ public sealed class LibrarySubstituteTests
                 "ChipSharp.Library.Adc for ChipSharp.Hardware.Adc",
                 "ChipSharp.Library.Array for System.Array",
                 "ChipSharp.Library.BinaryPrimitives for System.Buffers.Binary.BinaryPrimitives",
+                "ChipSharp.Library.Clock for ChipSharp.Hardware.Clock",
                 "ChipSharp.Library.Collections.CollectionExtensions for System.Collections.Generic.CollectionExtensions",
                 "ChipSharp.Library.Collections.CollectionsMarshal for System.Runtime.InteropServices.CollectionsMarshal",
                 "ChipSharp.Library.Collections.Dictionary`2 for System.Collections.Generic.Dictionary`2",
@@ -49,6 +50,10 @@ public sealed class LibrarySubstituteTests
                 "ChipSharp.Library.Collections.Stack`1+Enumerator for System.Collections.Generic.Stack`1+Enumerator",
                 "ChipSharp.Library.Comparer`1 for System.Collections.Generic.Comparer`1",
                 "ChipSharp.Library.Console for System.Console",
+                "ChipSharp.Library.DateOnly for System.DateOnly",
+                "ChipSharp.Library.DateTime for System.DateTime",
+                "ChipSharp.Library.DateTimeKind for System.DateTimeKind",
+                "ChipSharp.Library.DayOfWeek for System.DayOfWeek",
                 "ChipSharp.Library.Environment for System.Environment",
                 "ChipSharp.Library.EqualityComparer`1 for System.Collections.Generic.EqualityComparer`1",
                 "ChipSharp.Library.Exceptions.ApplicationException for System.ApplicationException",
@@ -81,7 +86,9 @@ public sealed class LibrarySubstituteTests
                 "ChipSharp.Library.Pwm for ChipSharp.Hardware.Pwm",
                 "ChipSharp.Library.RuntimeHelpers for System.Runtime.CompilerServices.RuntimeHelpers",
                 "ChipSharp.Library.Spi for ChipSharp.Hardware.Spi",
+                "ChipSharp.Library.Stopwatch for System.Diagnostics.Stopwatch",
                 "ChipSharp.Library.StringBuilder for System.Text.StringBuilder",
+                "ChipSharp.Library.TimeOnly for System.TimeOnly",
                 "ChipSharp.Library.TimeSpan for System.TimeSpan",
                 "ChipSharp.Library.Timing for ChipSharp.Hardware.Timing",
                 "ChipSharp.Library.Tuples.ValueTuple for System.ValueTuple",
@@ -323,10 +330,37 @@ public sealed class LibrarySubstituteTests
         var text = new WindowsX64Runtime().Startup(Targets.Load("host")).Files
             .Single(file => file.FileName == WindowsX64Runtime.StringHeapFileName).Content;
         static bool OfText(IlMethod method) => method.Parameters.Count > 0 && method.Name != "Unhandled"
-            && method.Parameters[0].Type == IlType.String;
+            && method.Parameters[0].Type == IlType.String && !method.Name.StartsWith("Throw", StringComparison.Ordinal);
 
-        Assert.Equal(34, functions.Count);
-        Assert.All(functions.Where(method => !OfText(method)), method =>
+        // the exceptions given as fixed text (DateTime's) are the shared runtime's, every target's
+        var exceptions = new WindowsX64Runtime().Startup(Targets.Load("host")).Files
+            .Single(file => file.FileName == WindowsX64Runtime.ExceptionsFileName).Content;
+        static bool Thrown(IlMethod method) => method.Name.StartsWith("Throw", StringComparison.Ordinal);
+
+        // the clock's are the PC's chipsharp_clock.c and the Pico's runtime; LocalUtcOffset a chip's is 0 (armv6m's);
+        // WriteChars the console's
+        var clock = new WindowsX64Runtime().Startup(Targets.Load("host")).Files
+            .Single(file => file.FileName == WindowsX64Runtime.ClockFileName).Content;
+        var picoClock = new Rp2040Runtime().Startup(Targets.Load("pico")).Files
+            .Single(file => file.FileName == Rp2040Runtime.SourceFileName).Content;
+        var console = new WindowsX64Runtime().Startup(Targets.Load("host")).Files
+            .Single(file => file.FileName == WindowsX64Runtime.ConsoleFileName).Content;
+        static bool Returns(IlMethod method) => method.Name.StartsWith("Clock", StringComparison.Ordinal)
+            || method.Name is "LocalUtcOffset" or "WriteChars";
+
+        Assert.Equal(46, functions.Count);
+        Assert.All(functions.Where(Thrown), method =>
+            Assert.Contains($"__attribute__((noreturn)) void {LlvmCodeGenerator.SymbolName($"ChipSharp.Runtime.{method.Name}")}(",
+                exceptions));
+        Assert.All(functions.Where(method => method.Name.StartsWith("Clock", StringComparison.Ordinal)), method =>
+        {
+            var symbol = LlvmCodeGenerator.SymbolName($"ChipSharp.Runtime.{method.Name}");
+            Assert.Contains($" {symbol}(", clock);
+            Assert.Contains($" {symbol}(", picoClock);
+        });
+        Assert.Contains("long long ChipSharp_Runtime_LocalUtcOffset(void)", clock);
+        Assert.Contains("void ChipSharp_Runtime_WriteChars(const unsigned short *chars, int count)", console);
+        Assert.All(functions.Where(method => !OfText(method) && !Thrown(method) && !Returns(method)), method =>
         {
             // Unhandled takes the text of an exception, a string object; Math's the numbers their messages say
             var symbol = LlvmCodeGenerator.SymbolName($"ChipSharp.Runtime.{method.Name}");
@@ -343,7 +377,10 @@ public sealed class LibrarySubstituteTests
     public void On_dotnet_each_runtime_function_throws_the_exception_dotnet_throws_there()
     {
         // (each given a parameter's name, a message and a value: "count", "a message", -1; and Math's numbers, see Argument)
+        // (but the clock's, the offset of local time and WriteChars, which give what .NET's do, and do not throw)
         var thrown = typeof(global::ChipSharp.Library.Runtime).GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Where(method => !(method.Name.StartsWith("Clock", StringComparison.Ordinal) && method.Name != "ClockStart")
+                && method.Name is not ("LocalUtcOffset" or "WriteChars"))
             .OrderBy(method => method.Name)
             .Select(method => Assert.Throws<TargetInvocationException>(() => method.Invoke(null,
                 [.. method.GetParameters().Select(Argument)])).InnerException!)
@@ -360,6 +397,8 @@ public sealed class LibrarySubstituteTests
                 "ArgumentOutOfRangeException: a message (Parameter 'count')",
                 "ArithmeticException: Function does not accept floating point Not-a-Number values.",
                 "ArgumentNullException: Value cannot be null. (Parameter 'array')",
+                "PlatformNotSupportedException: ChipSharp.Hardware.Clock.Start runs on a chip, not on .NET: build this " +
+                    "program with ChipSharp for a target such as 'pico' and run it there (or in the rp2040js simulator).",
                 "ArgumentNullException: Value cannot be null. (Parameter 'comparison')",
                 "ArgumentNullException: Value cannot be null. (Parameter 'converter')",
                 "ArgumentOutOfRangeException: Count must be positive and count must refer to a location within the " +
@@ -385,6 +424,9 @@ public sealed class LibrarySubstituteTests
                     "collection. (Parameter 'startIndex')",
                 "ArgumentOutOfRangeException: Index was out of range. Must be non-negative and less than or equal to the " +
                     "size of the collection. (Parameter 'startIndex')",
+                "InvalidOperationException: a message",
+                "InvalidOperationException: countxcount",
+                "ArgumentOutOfRangeException: a message (Parameter 'count')\nActual value was -1.",
                 "OverflowException: The duration cannot be returned for TimeSpan.MinValue because the absolute value of " +
                     "TimeSpan.MinValue exceeds the value of TimeSpan.MaxValue.",
                 "ArgumentException: TimeSpan does not accept floating point Not-a-Number values.",
@@ -466,7 +508,8 @@ public sealed class LibrarySubstituteTests
     /// </summary>
     private static object Argument(ParameterInfo parameter) => parameter.ParameterType switch
     {
-        var type when type == typeof(int) => -1,
+        var type when type == typeof(int) => parameter.Name == "length" ? 1 : -1,
+        var type when type == typeof(char).MakeByRefType() => 'x',
         var type when type == typeof(long) => -1L,
         var type when type == typeof(ulong) => 1UL,
         var type when type == typeof(double) => 2.5,

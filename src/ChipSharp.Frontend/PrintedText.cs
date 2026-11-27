@@ -332,6 +332,18 @@ internal sealed record PrintedPiece(
     public BoxedType? Value { get; init; }
 
     /// <summary>
+    /// For a value of a library struct written with a format (DateTime, DateOnly, TimeOnly; <see cref="Type"/> is
+    /// object): its substitute, whose Print writes it and whose Text makes its string (see <see cref="FormattedValues"/>).
+    /// </summary>
+    public IlTypeDefinition? Formatted { get; init; }
+
+    /// <summary>A formatted value's format, as the program gives it (<c>"HH:mm"</c>); null for none.</summary>
+    public string? TextFormat { get; init; }
+
+    /// <summary>True when the formatted value is its struct's ToString (else a hole, which .NET writes with TryFormat).</summary>
+    public bool ViaToString { get; init; }
+
+    /// <summary>
     /// For a nullable's value: the nullable's type (<c>int?</c>); the part is written as its value would be (the rest of
     /// the piece says how), and as nothing (aligned, as spaces) when it has none.
     /// </summary>
