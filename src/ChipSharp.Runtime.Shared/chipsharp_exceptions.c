@@ -1,13 +1,14 @@
-// ChipSharp runtime, shared by every runtime with a heap: C#'s throw (see ChipSharp.Library's Exceptions.Thrown).
+// ChipSharp runtime, shared by every runtime: the text of C#'s throw (see ChipSharp.Library's Exceptions.Thrown).
 //
 // Freestanding: no headers and no C library.
 //
 // ChipSharp has no exceptions to catch yet, so a thrown exception is one nothing catches, and the program stops the way
-// .NET stops it then: "Unhandled exception. " and the exception's ToString(), through chipsharp_fail (each runtime's
-// failures file: standard error and exit code 1 on a PC, UART0 and a breakpoint on a chip). The text is a string object
-// (see chipsharp_string.c), written as UTF-8, as the console writes text; at most TEXT_SIZE bytes of it.
+// .NET stops it then: "Unhandled exception. " and the exception's ToString(), through each runtime's failures file
+// (ChipSharp_Runtime_Unhandled: standard error and exit code 1 on a PC, UART0 and a breakpoint on a chip). The text is a
+// string object (see chipsharp_string.c), which this writes as UTF-8, as the console writes text; at most TEXT_SIZE
+// bytes of it.
 //
-//   ChipSharp_Runtime_Unhandled          throw: the exception's ToString() as text
+//   chipsharp_unhandled_text             the exception's ToString() as UTF-8 ending with a 0 byte
 
 #define DATA ((unsigned int)((sizeof(void *) + 4 + 7) / 8 * 8))
 #define TEXT_SIZE 900u
@@ -23,8 +24,6 @@ typedef struct string
     const chipsharp_type *type;
     int length;
 } string;
-
-__attribute__((noreturn)) void chipsharp_fail(const char *message);
 
 static char text[TEXT_SIZE + 1];
 
@@ -65,8 +64,9 @@ static int put(unsigned int *count, unsigned int c)
     return 1;
 }
 
-__attribute__((noreturn)) void ChipSharp_Runtime_Unhandled(const string *message)
+const char *chipsharp_unhandled_text(const void *object)
 {
+    const string *message = (const string *)object;
     unsigned int count = 0;
     if (message != 0)
     {
@@ -95,5 +95,5 @@ __attribute__((noreturn)) void ChipSharp_Runtime_Unhandled(const string *message
     }
 
     text[count] = 0;
-    chipsharp_fail(text);
+    return text;
 }

@@ -245,7 +245,7 @@ public sealed class GenericClassCheckTests(ITestOutputHelper output) : IDisposab
     }
 
     [Fact]
-    public void A_foreach_over_an_enumerator_that_is_disposed_arrives_with_the_collections()
+    public void A_foreach_over_an_enumerator_that_is_disposed_compiles_as_its_try_finally_does()
     {
         var problems = WholeProgram.Problems("""
             using System.Collections;
@@ -283,17 +283,12 @@ public sealed class GenericClassCheckTests(ITestOutputHelper output) : IDisposab
             }
             """);
 
-        Assert.Equal(
-        [
-            "Program.Main() at IL_000d: foreach over an enumerator that is disposed (one that implements IDisposable, as " +
-                "IEnumerator<T> does, and so a foreach over an IEnumerable<T>), which C# does in a try/finally arrives " +
-                "with M3 (collections). For now, give the collection a GetEnumerator() that returns a struct (or a sealed " +
-                "class) with MoveNext() and Current and no Dispose, and loop over the collection itself.",
-        ], problems);
+        // C#'s try/finally around the loop is plain branches (TryFinally)
+        Assert.Empty(problems);
     }
 
     [Fact]
-    public void An_array_used_as_an_interface_arrives_with_the_collections()
+    public void An_array_used_as_an_interface_compiles()
     {
         var problems = WholeProgram.Problems("""
             using System.Collections.Generic;
@@ -314,12 +309,8 @@ public sealed class GenericClassCheckTests(ITestOutputHelper output) : IDisposab
             }
             """);
 
-        // a parameter and a static field of an interface type given an array
-        const string Message = "arrays used as interfaces (an array as an IEnumerable<T>, ICollection<T>, IList<T> or " +
-            "IReadOnlyList<T>) arrive with M3 (collections). For now, take the array itself (T[]) or a span " +
-            "(ReadOnlySpan<T>), or wrap it in a class of your own that implements the interface.";
-        Assert.Equal([$"Program.Main() at IL_000e (call): {Message}", $"Program.Main() at IL_001e (stsfld): {Message}"],
-            problems);
+        // a parameter and a static field of an interface type given an array: its interfaces (ArrayInterfaces)
+        Assert.Empty(problems);
     }
 
     [Fact]

@@ -249,9 +249,9 @@ public sealed class StructCheckTests
     }
 
     [Fact]
-    public void Objects_compile_next_to_structs_but_references_to_them_do_not_yet()
+    public void Objects_and_references_to_them_compile_next_to_structs()
     {
-        // a class's field, constructor and methods compile; a reference to a string does not (text itself compiles)
+        // a class's field, constructor and methods compile, and so does a reference to a string (ObjectReferences)
         var problems = Problems("""
             using System;
 
@@ -277,13 +277,7 @@ public sealed class StructCheckTests
             }
             """);
 
-        Assert.Equal(
-        [
-            "Program.Clear(ref string), parameter 'text' (ref string): references to text (ref string, out string) "
-                + "arrive with M3 (the heap). For now, return the text instead.",
-            "Program.Clear(ref string) at IL_0002 (stind.ref): references to objects (ref, out and in of a class, object "
-                + "or string) arrive with M3 (the heap). For now, return the object, or keep it in a field.",
-        ], problems);
+        Assert.Empty(problems);
     }
 
     [Fact]

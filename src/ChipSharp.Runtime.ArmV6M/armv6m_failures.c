@@ -16,6 +16,8 @@
 //   ChipSharp_Runtime_ArgumentOutOfRange, LengthOutOfRange, DestinationTooShort, DataMisaligned
 //                                        a span's start or length outside it, too few bytes for MemoryMarshal.Read or
 //                                        Write, a CopyTo a shorter span, a MemoryMarshal.Cast this chip cannot read
+//   ChipSharp_Runtime_Unhandled          C#'s throw: an exception nothing catches, with its ToString() (as UTF-8, from
+//                                        chipsharp_exceptions.c), as .NET prints it
 //   ChipSharp_Runtime_InvalidCast        a cast to a type the object is not of (InvalidCastException)
 //   ChipSharp_Runtime_ArrayNull, ...     the arguments of the methods of System.Array (Array.Copy, Fill, IndexOf, ...):
 //                                        null, an index or a length outside the array, a destination too short
@@ -81,3 +83,4 @@ __attribute__((weak, noreturn)) void ChipSharp_Runtime_DelegateTypes(void) { fai
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_LengthBelowZero(int value) { (void)value; fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_SourceIndexBelowZero(int value) { (void)value; fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_DestinationIndexBelowZero(int value) { (void)value; fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_Unhandled(const void *text) { (void)text; fail(); }

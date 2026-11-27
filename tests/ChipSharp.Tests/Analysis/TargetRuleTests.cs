@@ -126,7 +126,7 @@ public sealed class TargetRuleTests : IDisposable
     }
 
     [Fact]
-    public void Features_that_arrive_with_M3_but_need_no_heap_arrive_on_a_target_without_one_too()
+    public void A_reference_to_text_needs_no_heap()
     {
         var problems = Problems("""
             class Program
@@ -146,10 +146,8 @@ public sealed class TargetRuleTests : IDisposable
             }
             """, Tiny);
 
-        Assert.Equal(
-            ["Program.Code(ref string), parameter 'text' (ref string): references to text (ref string, out string) " +
-                "arrive with M3 (the heap). For now, return the text instead."],
-            problems.Where(problem => problem.Contains("parameter", StringComparison.Ordinal)));
+        // an out string is the address of a variable that holds a string (ObjectReferences), on any target
+        Assert.Empty(problems);
     }
 
     [Fact]

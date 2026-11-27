@@ -90,10 +90,11 @@ public sealed class TextCheckTests
     }
 
     [Fact]
-    public void Text_in_the_fields_of_structs_and_in_arrays_compiles_and_a_reference_to_it_waits()
+    public void Text_in_the_fields_of_structs_in_arrays_and_a_reference_to_it_compile()
     {
         // a string is an object: in a struct's field and in an array it is a reference the collector follows; a reference
-        // to a string waits, as one to an object does; an array that is null is fine (see HeapArrayCheckTests)
+        // to a string is a reference to a variable that holds one (ObjectReferences); an array that is null is fine (see
+        // HeapArrayCheckTests)
         var problems = Problems("""
             using System;
 
@@ -125,13 +126,7 @@ public sealed class TextCheckTests
             }
             """);
 
-        Assert.Equal(
-        [
-            "Program.Clear(ref string), parameter 'text' (ref string): references to text (ref string, out string) "
-                + "arrive with M3 (the heap). For now, return the text instead.",
-            "Program.Clear(ref string) at IL_0006 (stind.ref): references to objects (ref, out and in of a class, object "
-                + "or string) arrive with M3 (the heap). For now, return the object, or keep it in a field.",
-        ], problems);
+        Assert.Empty(problems);
     }
 
     [Fact]

@@ -207,8 +207,6 @@ public sealed class HeapArrayCheckTests : IDisposable
                 + "M3 (the heap). For now, use the field itself: it always holds the same array.",
             "Program.Replace(ref int[]), parameter 'values' (ref int[]): references to arrays (ref int[], out int[]) "
                 + "arrive later. For now, return the array, or keep it in a field.",
-            "Program.Replace(ref int[]) at IL_0007 (stind.ref): references to objects (ref, out and in of a class, object "
-                + "or string) arrive with M3 (the heap). For now, return the object, or keep it in a field.",
             "Program.Get() at IL_0005 (ret): an array in a static field that needs no heap (a constant table, or a fixed "
                 + "array) kept outside its field: returned, stored in another field or array, or passed to a method that "
                 + "keeps it arrives later. For now, read it through its field where it is needed, or copy its elements "

@@ -257,12 +257,14 @@ public sealed class LibrarySubstituteTests
         var pico = new Rp2040Runtime().Startup(Targets.Load("pico")).Files
             .Single(file => file.FileName == Rp2040Runtime.FailuresFileName).Content;
 
-        Assert.Equal(19, functions.Count);
+        Assert.Equal(20, functions.Count);
         Assert.All(functions, method =>
         {
+            // Unhandled takes the text of an exception, a string object
             var symbol = LlvmCodeGenerator.SymbolName($"ChipSharp.Runtime.{method.Name}");
-            Assert.Contains($"__declspec(noreturn) void {symbol}(void)", windows);
-            Assert.Contains($"__attribute__((noreturn)) void {symbol}(void)", pico);
+            var parameters = method.Parameters.Count == 0 ? "void" : "const void *text";
+            Assert.Contains($"__declspec(noreturn) void {symbol}({parameters})", windows);
+            Assert.Contains($"__attribute__((noreturn)) void {symbol}({parameters})", pico);
         });
     }
 
@@ -271,7 +273,8 @@ public sealed class LibrarySubstituteTests
     {
         var thrown = typeof(global::ChipSharp.Library.Runtime).GetMethods(BindingFlags.Public | BindingFlags.Static)
             .OrderBy(method => method.Name)
-            .Select(method => Assert.Throws<TargetInvocationException>(() => method.Invoke(null, null)).InnerException!)
+            .Select(method => Assert.Throws<TargetInvocationException>(() => method.Invoke(null,
+                [.. method.GetParameters().Select(_ => (object?)"text")])).InnerException!)
             .Select(exception => $"{exception.GetType().Name}: {exception.Message}");
 
         Assert.Equal(
@@ -300,6 +303,7 @@ public sealed class LibrarySubstituteTests
                 "ArgumentException: TimeSpan does not accept floating point Not-a-Number values. (Parameter 'factor')",
                 "ArgumentOutOfRangeException: TimeSpan overflowed because the duration is too long.",
                 "OverflowException: TimeSpan overflowed because the duration is too long.",
+                "InvalidOperationException: Unhandled exception. text",
             ],
             thrown);
     }

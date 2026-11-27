@@ -209,19 +209,32 @@ internal static class LibrarySubstitutes
     /// <summary>The members of <paramref name="type"/>, the substitute for <paramref name="library"/>: see Members.</summary>
     private static IEnumerable<string> MembersOf(IlTypeDefinition type, string library)
     {
-        // a generic type as C# writes it: System.Collections.Generic.EqualityComparer<T>
-        if (library.IndexOf('`', StringComparison.Ordinal) is > 0 and var tick)
+        // a generic type as C# writes it: System.Collections.Generic.EqualityComparer<T>, and a type nested in one:
+        // System.Collections.Generic.Dictionary<TKey, TValue>.KeyCollection
+        var given = 0;
+        var segments = library.Split('+');
+        for (var s = 0; s < segments.Length; s++)
         {
-            library = $"{library[..tick]}<{string.Join(", ", type.GenericParameters)}>";
+            if (segments[s].IndexOf('`', StringComparison.Ordinal) is > 0 and var tick
+                && int.TryParse(segments[s][(tick + 1)..], out var arity))
+            {
+                segments[s] = $"{segments[s][..tick]}<{string.Join(", ", type.GenericParameters.Skip(given).Take(arity))}>";
+                given += arity;
+            }
         }
 
-        var name = library[(library.LastIndexOf('.') + 1)..];
+        library = string.Join(".", segments);
+        var name = segments[^1].Split('<')[0];
+        name = name[(name.LastIndexOf('.') + 1)..];
         foreach (var field in type.Fields.Where(field => IsPublic(field.Attributes)))
         {
             yield return $"{library}.{field.Name}";
         }
 
-        foreach (var method in type.Methods.Where(method => IsPublic(method.Attributes) && method.Name != ".cctor"))
+        // (a property's setter, the indexer's too, is the property's)
+        foreach (var method in type.Methods.Where(method => IsPublic(method.Attributes)
+            && method.Name != ".cctor" && !(method.Name.StartsWith("set_", StringComparison.Ordinal)
+                && (method.Attributes & MethodAttributes.SpecialName) != 0)))
         {
             var parameters = string.Join(", ", method.Parameters.Select(parameter => CSharpName(parameter.Type, method)));
             var special = (method.Attributes & MethodAttributes.SpecialName) != 0;
@@ -230,6 +243,7 @@ internal static class LibrarySubstitutes
                 ".ctor" => $"{library}.new {name}({parameters})",
                 ['g', 'e', 't', '_', .. var property] when special && method.Parameters.Count == 0 =>
                     $"{library}.{property}",
+                "get_Item" when special => $"{library}.Item", // the indexer, a property named Item
                 ['o', 'p', '_', .. var symbol] when special && Operators.TryGetValue(symbol, out var op) =>
                     $"{library}.operator {op}({parameters})",
                 _ => $"{library}.{method.Name}({parameters})",
@@ -326,7 +340,9 @@ internal static class LibrarySubstitutes
 
             Substituted = substituted;
             Substitutes = substitutes;
-            Members = new(() => [.. substituted.SelectMany(pair => MembersOf(pair.Key, pair.Value))]);
+            // a collection's struct enumerator is what its foreach uses, not a type a program names
+            Members = new(() => [.. substituted.Where(pair => !pair.Value.EndsWith("+Enumerator", StringComparison.Ordinal))
+                .SelectMany(pair => MembersOf(pair.Key, pair.Value))]);
         }
 
         public IlAssembly Assembly { get; }

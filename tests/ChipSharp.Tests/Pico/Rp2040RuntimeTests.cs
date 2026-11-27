@@ -45,6 +45,7 @@ public sealed class Rp2040RuntimeTests
         Assert.Equal(
             ["armv6m_startup.c", "armv6m_helpers.c", "armv6m_divmod.S", "armv6m_float_compare.c",
                 ArmV6MRuntime.FloatMathFileName, .. softFloat, ArmV6MRuntime.FailuresFileName, "chipsharp_string.c",
+                "chipsharp_exceptions.c",
                 "chipsharp_heap.c", "armv6m_heap.c", "chipsharp_string_heap.c", "chipsharp_float_text.c", "rp2040_boot2.S",
                 "rp2040_runtime.c", Rp2040Runtime.ConsoleFileName, "rp2040_failures.c"],
             files.Select(f => f.FileName));

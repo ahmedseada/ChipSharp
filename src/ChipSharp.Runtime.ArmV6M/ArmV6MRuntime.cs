@@ -61,7 +61,7 @@ public sealed class ArmV6MRuntime : IArchRuntime
     /// <summary>What the heap needs from an ARMv6-M chip.</summary>
     public const string HeapChipFileName = "armv6m_heap.c";
 
-    /// <summary>C#'s throw (src/ChipSharp.Runtime.Shared), for a target with a heap: an exception is an object.</summary>
+    /// <summary>The text of C#'s throw (src/ChipSharp.Runtime.Shared), which a chip's failures file prints.</summary>
     public const string ExceptionsFileName = "chipsharp_exceptions.c";
 
     public string Name => "armv6m";
@@ -74,9 +74,9 @@ public sealed class ArmV6MRuntime : IArchRuntime
         [
             Source(StartupFileName), Source(HelpersFileName), Source(DivModFileName), Source(FloatCompareFileName),
             Source(FloatMathFileName), .. CompilerRt.Sources(), Source(FailuresFileName), Source(StringFileName),
+            Source(ExceptionsFileName),
             .. target.HasHeap
-                ? [Source(HeapFileName), Source(HeapChipFileName), Source(StringHeapFileName), Source(FloatTextFileName),
-                    Source(ExceptionsFileName)]
+                ? [Source(HeapFileName), Source(HeapChipFileName), Source(StringHeapFileName), Source(FloatTextFileName)]
                 : Array.Empty<GeneratedFile>(),
         ]);
     }

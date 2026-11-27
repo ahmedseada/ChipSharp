@@ -24,6 +24,8 @@
 //   ChipSharp_Runtime_DestinationTooShort  a span's CopyTo a shorter one (ArgumentException)
 //   ChipSharp_Runtime_DataMisaligned     MemoryMarshal.Cast to elements this chip cannot read where the span starts
 //                                        (DataMisalignedException)
+//   ChipSharp_Runtime_Unhandled          C#'s throw: an exception nothing catches, with its ToString() (as UTF-8, from
+//                                        chipsharp_exceptions.c), as .NET prints it
 //   ChipSharp_Runtime_InvalidCast        a cast to a type the object is not of (InvalidCastException), with the names of
 //                                        both types as their descriptors hold them (.NET's, e.g. Program+Node)
 //   ChipSharp_Runtime_ArrayNull, ...     the arguments of the methods of System.Array (Array.Copy, Fill, IndexOf, ...):
@@ -377,4 +379,15 @@ __attribute__((noreturn)) void ChipSharp_Runtime_SourceIndexBelowZero(int value)
 __attribute__((noreturn)) void ChipSharp_Runtime_DestinationIndexBelowZero(int value)
 {
     fail_below_zero("destinationIndex", "must be greater than or equal to '0'.", value);
+}
+
+// ---- C#'s throw ---------------------------------------------------------------------------------------------------
+
+// In chipsharp_exceptions.c: a string object as UTF-8 ending with a 0 byte.
+const char *chipsharp_unhandled_text(const void *text);
+
+// An exception nothing catches (ChipSharp.Library's Exceptions.Thrown): "Unhandled exception. " and its ToString().
+__attribute__((noreturn)) void ChipSharp_Runtime_Unhandled(const void *text)
+{
+    chipsharp_fail(chipsharp_unhandled_text(text));
 }

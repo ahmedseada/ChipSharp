@@ -223,8 +223,10 @@ public sealed class RejectionTests
     }
 
     [Fact]
-    public void Exceptions_and_try_catch_finally()
+    public void Catching_exceptions_is_rejected_while_throw_and_try_finally_compile()
     {
+        // throw and try/finally compile (TryFinally, Exceptions); a method that catches keeps its regions, and each of
+        // its leaves and its rethrow is part of exceptions, which arrive later
         var problems = Problems("""
             using System;
 
@@ -237,7 +239,14 @@ public sealed class RejectionTests
                         throw new InvalidOperationException();
                     }
 
-                    return x;
+                    try
+                    {
+                        return x;
+                    }
+                    finally
+                    {
+                        Console.WriteLine();
+                    }
                 }
 
                 static void Main()
@@ -246,9 +255,9 @@ public sealed class RejectionTests
                     {
                         Console.WriteLine(Check(1));
                     }
-                    finally
+                    catch (InvalidOperationException)
                     {
-                        Console.WriteLine();
+                        throw;
                     }
                 }
             }
@@ -257,12 +266,10 @@ public sealed class RejectionTests
         const string Exceptions = "exceptions arrive later. For now, report failures through return values.";
         Assert.Equal(
         [
-            "Program.Main() at IL_0000: try/catch/finally arrive later. For now, report failures through return values; "
-                + "using, lock and foreach over a collection make a try/finally too.",
+            "Program.Main() at IL_0000: catching exceptions (try/catch) arrives later. For now, report failures through "
+                + "return values: a throw stops the program, as an exception nothing catches does.",
             $"Program.Main() at IL_000b (leave.s): {Exceptions}",
-            $"Program.Main() at IL_0012 (endfinally): {Exceptions}",
-            $"Program.Check(int) at IL_0004 (newobj): {Exceptions}",
-            $"Program.Check(int) at IL_0009 (throw): {Exceptions}",
+            $"Program.Main() at IL_000e (rethrow): {Exceptions}",
         ], problems);
     }
 
