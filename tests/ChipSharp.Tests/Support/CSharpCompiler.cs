@@ -1,3 +1,6 @@
+using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -13,6 +16,9 @@ namespace ChipSharp.Tests.Support;
 public static class CSharpCompiler
 {
     private static readonly Lazy<MetadataReference[]> References = new(LoadReferences);
+
+    /// <summary>Every assembly compiled so far, by a hash of what went into it.</summary>
+    private static readonly ConcurrentDictionary<string, Lazy<byte[]>> Compiled = new(StringComparer.Ordinal);
 
     /// <summary>Compiles one source file and returns the assembly's bytes (optimized like a Release build unless told otherwise).</summary>
     public static byte[] Compile(string source, string assemblyName = "Test", OutputKind? outputKind = null,
@@ -35,6 +41,20 @@ public static class CSharpCompiler
         ArgumentNullException.ThrowIfNull(sources);
         ArgumentException.ThrowIfNullOrWhiteSpace(assemblyName);
 
+        // the compilation is deterministic: the same source compiles once per test run (the tests of the PC and of the
+        // Pico, and the run on .NET, compile the same programs), and each caller gets its own copy of the bytes
+        string[] texts = [.. sources];
+        string[] paths = [.. references];
+        var key = string.Join('\0', [assemblyName, outputKind?.ToString() ?? "", optimization.ToString(),
+            .. paths.Select(path => $"{path}|{File.GetLastWriteTimeUtc(path).Ticks}"), .. texts]);
+        var compiled = Compiled.GetOrAdd(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(key))),
+            _ => new Lazy<byte[]>(() => CompileNow(texts, paths, assemblyName, outputKind, optimization))).Value;
+        return [.. compiled];
+    }
+
+    private static byte[] CompileNow(IReadOnlyList<string> sources, IReadOnlyList<string> references, string assemblyName,
+        OutputKind? outputKind, OptimizationLevel optimization)
+    {
         var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest);
         var trees = sources.Select((text, i) => CSharpSyntaxTree.ParseText(text, parseOptions, path: $"Source{i}.cs")).ToList();
         var options = new CSharpCompilationOptions(

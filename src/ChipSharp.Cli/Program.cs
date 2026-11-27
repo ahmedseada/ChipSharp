@@ -17,8 +17,12 @@
 //          --keep                 with build: also write the program's TIR and generated code (.ll) there
 //          --verify-heap          with build: check the whole heap after every garbage collection, and stop the
 //                                 program saying what is wrong when it is corrupted
+//          --no-cache             with build: compile everything, not taking what was compiled before from the build
+//                                 cache (%LOCALAPPDATA%\ChipSharp\cache, or $env:CHIPSHARP_CACHE), nor keeping it there
+//          --quiet-notes          with build and check: leave out the notes (where .NET's text depends on the PC's
+//                                 language settings and ChipSharp's does not), which are written to standard error
 //          --details              with check: every place ChipSharp cannot compile on a line of its own, not by
-//                                 feature, and every library method it can call, with its parameters
+//                                 feature, and every library method it can call, with its parameters; every note too
 //          --method <name>        with il and tir: only the methods with this display name, e.g. Program.Main
 //          --targets <folder>     (default: $env:CHIPSHARP_TARGETS, then the targets folder next to chipsharp.exe)
 
@@ -43,6 +47,8 @@ try
     var keep = TakeFlag(rest, "--keep");
     var verifyHeap = TakeFlag(rest, "--verify-heap");
     var details = TakeFlag(rest, "--details");
+    var noCache = TakeFlag(rest, "--no-cache");
+    var quietNotes = TakeFlag(rest, "--quiet-notes");
 
     switch (rest)
     {
@@ -55,7 +61,13 @@ try
                 OutputFolder = output,
                 KeepIntermediates = keep,
                 VerifyHeap = verifyHeap,
+                UseCache = !noCache,
             });
+            if (!quietNotes)
+            {
+                WriteNotes(result.NoteGroups.Select(group => group.Line));
+            }
+
             Console.WriteLine(result.OutputPath);
             foreach (var file in result.IntermediatePaths)
             {
@@ -143,6 +155,11 @@ try
                 Console.WriteLine($"  {CSharpNames.Method(method)}{handles}");
             }
 
+            if (!quietNotes)
+            {
+                WriteNotes(details ? analysis.Notes.Select(note => note.Line) : analysis.NoteGroups.Select(group => group.Line));
+            }
+
             return 0;
         }
 
@@ -151,7 +168,8 @@ try
             Console.WriteLine("""
                 usage:
                   chipsharp build <assembly.dll> [-t|--target <name>] [-o|--output <folder>] [--keep] [--verify-heap]
-                  chipsharp check <assembly.dll> [--details] [-t|--target <name>]
+                                  [--no-cache] [--quiet-notes]
+                  chipsharp check <assembly.dll> [--details] [-t|--target <name>] [--quiet-notes]
                   chipsharp tir <assembly.dll> [--method <name>] [-t|--target <name>]
                   chipsharp il <assembly.dll> [--method <name>]
                   chipsharp targets list
@@ -162,8 +180,12 @@ try
                   -o, --output <folder>   build: where to write the program (default: chipsharp-output\<target>)
                   --keep                  build: also write the program's TIR (.tir) and generated code (.ll) there
                   --verify-heap           build: check the whole heap after every garbage collection
+                  --no-cache              build: compile everything, without the build cache (%LOCALAPPDATA%\ChipSharp\cache,
+                                          or set CHIPSHARP_CACHE)
+                  --quiet-notes           build, check: leave out the notes on text that .NET reads, writes, compares
+                                          or cases by the PC's language settings, and ChipSharp the same everywhere
                   --details               check: list every place ChipSharp cannot compile, not one line per C#
-                                          feature, and every library method it can call
+                                          feature, and every library method it can call; every note too
                   --method <name>         tir, il: only the methods with this display name, e.g. Program.Main
                   --targets <folder>      where the target files are (or set CHIPSHARP_TARGETS)
                 build finds LLVM's clang in its install folder or on the PATH, or set CHIPSHARP_LLVM_BIN to its bin folder.
@@ -176,6 +198,15 @@ catch (ChipSharpException e)
 {
     Console.Error.WriteLine($"error: {e.Message}");
     return 1;
+}
+
+// Writes notes to standard error, as errors are: "note: " and the note, one a line. Notes do not stop anything.
+static void WriteNotes(IEnumerable<string> notes)
+{
+    foreach (var note in notes)
+    {
+        Console.Error.WriteLine($"note: {note}");
+    }
 }
 
 // Removes an option and its value from args; names are its spellings, e.g. --target and -t.

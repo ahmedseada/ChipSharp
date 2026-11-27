@@ -88,6 +88,7 @@ internal static class StringMethods
     private const string Bool = "Bool";
     private const string Chars = "Char[]";
     private const string Span = "System.ReadOnlySpan`1<Char>";
+    private const string Comparison = "System.StringComparison";
 
     private static readonly StringMethod[] Table =
     [
@@ -117,6 +118,17 @@ internal static class StringMethods
         Read(String, "StartsWith", [Char], Bool, "StringStartsWithChar"),
         Read(String, "EndsWith", [String], Bool, "StringEndsWith"),
         Read(String, "EndsWith", [Char], Bool, "StringEndsWithChar"),
+        // with a StringComparison: char by char for every value (the IgnoreCase ones compare the upper case of each
+        // char), as .NET compares in its invariant mode; Ordinal and OrdinalIgnoreCase give .NET's result everywhere
+        Static(String, "Compare", [String, String, Comparison], Int, "StringCompareUsing"),
+        Static(String, "Equals", [String, String, Comparison], Bool, "StringEqualsUsing"),
+        Read(String, "Equals", [String, Comparison], Bool, "StringEqualsUsing"),
+        Read(String, "StartsWith", [String, Comparison], Bool, "StringStartsWithUsing"),
+        Read(String, "EndsWith", [String, Comparison], Bool, "StringEndsWithUsing"),
+        Read(String, "IndexOf", [String, Comparison], Int, "StringIndexOfUsing"),
+        Read(String, "IndexOf", [String, Int, Comparison], Int, "StringIndexOfFromUsing"),
+        Read(String, "LastIndexOf", [String, Comparison], Int, "StringLastIndexOfUsing"),
+        Read(String, "Contains", [String, Comparison], Bool, "StringContainsUsing"),
         Read(String, "ToString", [], String, "", StringCallKind.Self),
         Make(String, "Substring", [Int], "StringSubstring"),
         Make(String, "Substring", [Int, Int], "StringSubstringOf"),
@@ -330,6 +342,7 @@ internal static class StringMethods
         "System.Span`1<Char>" => "Span<char>",
         "System.MemoryExtensions" => "MemoryExtensions",
         "System.StringSplitOptions" => "StringSplitOptions",
+        Comparison => "StringComparison",
         [.. var element, '[', ']'] => CSharpType(element) + "[]",
         [.. var element, '&'] => "out " + CSharpType(element),
         _ => key,

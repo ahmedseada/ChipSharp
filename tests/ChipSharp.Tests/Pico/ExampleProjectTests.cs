@@ -1,12 +1,12 @@
-using System.Diagnostics;
 using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Pico;
 
 /// <summary>
-/// Every example project in examples/pico-*, built the way the README says (dotnet build of the project, then
-/// <c>chipsharp build -t pico</c> of its .dll) and run for a while in the rp2040js simulator: it must not crash, and it
-/// must blink the LED on GPIO 25, each example in its own way (a delay loop, a timer interrupt, a button).
+/// Every example project in examples/pico-* that drives the Pico's LED (GPIO 25), built the way the README says (dotnet
+/// build of the project, then <c>chipsharp build -t pico</c> of its .dll) and run for a while in the rp2040js simulator:
+/// it must not crash, and it must blink the LED, each example in its own way (a delay loop, a timer interrupt, a
+/// button). The traffic lights have tests of their own (<see cref="TrafficLightExampleTests"/>).
 /// </summary>
 public sealed class ExampleProjectTests : IDisposable
 {
@@ -41,10 +41,11 @@ public sealed class ExampleProjectTests : IDisposable
 
     [SimulatorTheory]
     [MemberData(nameof(Examples))]
+    [RunsLong]
     public async Task Every_example_project_builds_for_the_pico_and_blinks_in_the_simulator(string example)
     {
-        var project = Directory.GetFiles(Path.Combine(Repository.Examples, example), "*.csproj").Single();
-        var dll = await DotnetBuildAsync(project);
+        var project = ExampleProjects.Project(example);
+        var dll = await ExampleProjects.DotnetBuildAsync(project, _scratch);
 
         var (exitCode, printed, error) = await ChipSharpCli.RunAsync("build", dll, "-t", "pico", "-o",
             Path.Combine(_scratch, "pico"));
@@ -74,48 +75,12 @@ public sealed class ExampleProjectTests : IDisposable
         }
     }
 
-    /// <summary>The example folders for the Pico, e.g. "pico-blink".</summary>
+    /// <summary>The example folders for the Pico whose program drives the LED on GPIO 25, e.g. "pico-blink".</summary>
     private static string[] ExampleNames() =>
     [
-        .. Directory.GetDirectories(Repository.Examples, "pico-*").Select(folder => Path.GetFileName(folder)).Order(),
+        .. Directory.GetDirectories(Repository.Examples, "pico-*")
+            .Where(folder => File.ReadAllText(Path.Combine(folder, "Program.cs")).Contains("Pin.Output(25)", StringComparison.Ordinal))
+            .Select(folder => Path.GetFileName(folder))
+            .Order(),
     ];
-
-    /// <summary>
-    /// Builds the project in Release as <c>dotnet build</c> does, with its bin and obj folders (and those of the
-    /// projects it references) under the scratch folder rather than in the repository, and returns the program's .dll.
-    /// </summary>
-    private async Task<string> DotnetBuildAsync(string project)
-    {
-        var artifacts = Path.Combine(_scratch, "artifacts");
-        var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet")
-        {
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-        foreach (var argument in new[]
-        {
-            "build", project, "-c", "Release", "--artifacts-path", artifacts, "--disable-build-servers", "-nologo",
-        })
-        {
-            start.ArgumentList.Add(argument);
-        }
-
-        // the test run's own MSBuild settings would point the build at the wrong SDK files
-        var msbuild = start.Environment.Keys.Where(key => key.StartsWith("MSBuild", StringComparison.OrdinalIgnoreCase));
-        foreach (var name in msbuild.ToList())
-        {
-            start.Environment.Remove(name);
-        }
-
-        using var process = Process.Start(start)!;
-        var output = process.StandardOutput.ReadToEndAsync();
-        var errors = process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
-        Assert.True(process.ExitCode == 0, $"dotnet build {project} failed:\n{await output}\n{await errors}");
-
-        return Directory.GetFiles(Path.Combine(artifacts, "bin"), Path.GetFileNameWithoutExtension(project) + ".dll",
-            SearchOption.AllDirectories).Single();
-    }
 }

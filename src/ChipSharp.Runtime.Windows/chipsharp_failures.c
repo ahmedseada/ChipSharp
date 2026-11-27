@@ -5,13 +5,15 @@
 // nothing catches (on standard error), and exits with exit code 1.
 //
 //   ChipSharp_Runtime_IndexOutOfRange    an array index outside the array (IndexOutOfRangeException)
+//   ChipSharp_Runtime_DivideByZero       a whole number divided by zero, x / 0 or x % 0 (DivideByZeroException)
 //   ChipSharp_Runtime_TimeSpan...        a TimeSpan too long, or NaN given to one (ChipSharp.Library's System.TimeSpan:
 //                                        OverflowException, ArgumentOutOfRangeException, ArgumentException)
 //   ChipSharp_Runtime_NegateOverflow     the negative of the smallest value, e.g. -TimeSpan.MinValue (OverflowException)
 //   ChipSharp_Runtime_NullReference      a field, element or method of null (NullReferenceException)
 //   ChipSharp_Runtime_OutOfMemory        an object that does not fit in the heap, even after a collection
 //                                        (OutOfMemoryException)
-//   ChipSharp_Runtime_Overflow           an array of a negative length, a span of more bytes than an int counts
+//   ChipSharp_Runtime_Overflow           an array of a negative length, a span of more bytes than an int counts, the
+//                                        smallest value divided by -1 (int.MinValue / -1)
 //                                        (OverflowException)
 //   ChipSharp_Runtime_ArgumentOutOfRange a span's start or length outside it (ArgumentOutOfRangeException)
 //   ChipSharp_Runtime_LengthOutOfRange   MemoryMarshal.Read and Write on too few bytes (ArgumentOutOfRangeException)
@@ -113,6 +115,12 @@ __declspec(noreturn) void ChipSharp_Runtime_IndexOutOfRange(void)
 {
     static const char message[] =
         "Unhandled exception. System.IndexOutOfRangeException: Index was outside the bounds of the array.\r\n";
+    fail(message, (DWORD)(sizeof message - 1));
+}
+
+__declspec(noreturn) void ChipSharp_Runtime_DivideByZero(void)
+{
+    static const char message[] = UNHANDLED "System.DivideByZeroException: Attempted to divide by zero.\r\n";
     fail(message, (DWORD)(sizeof message - 1));
 }
 

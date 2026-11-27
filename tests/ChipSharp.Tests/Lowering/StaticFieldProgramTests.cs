@@ -45,8 +45,9 @@ public sealed class StaticFieldProgramTests : IDisposable
     [HostFact]
     public async Task Every_program_compiled_in_Debug_prints_the_same()
     {
-        foreach (var (name, source) in StaticFieldPrograms.All)
+        await Concurrently.ForEachAsync(StaticFieldPrograms.All, async program =>
         {
+            var (name, source) = program;
             var dotnet = await HostRun.RunOnDotnetAsync(CSharpCompiler.Compile(source, "Program"), "Program",
                 Path.Combine(_scratch, name, "dotnet"));
             var module = Lowered.Lower(Lowered.Program(Lowered.CompileDebug(source, "Program")));
@@ -54,7 +55,7 @@ public sealed class StaticFieldProgramTests : IDisposable
             var chipSharp = await HostRun.BuildAndRunAsync(module, Path.Combine(_scratch, name, "chipsharp"));
 
             Assert.True(dotnet.Output.SequenceEqual(chipSharp.Output), $"{name}:\n{dotnet}\n{chipSharp}");
-        }
+        });
     }
 
     /// <summary>Compiles <paramref name="source"/>, runs it on .NET and as a ChipSharp program, and compares.</summary>

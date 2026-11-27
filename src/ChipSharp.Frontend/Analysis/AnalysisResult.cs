@@ -51,6 +51,17 @@ public sealed class AnalysisResult
     /// <summary>The problems by feature, in the order each feature first appears in <see cref="Problems"/>.</summary>
     public IReadOnlyList<ProblemGroup> Groups { get; }
 
+    /// <summary>
+    /// Every place whose result in .NET depends on the PC's language settings, where ChipSharp's is the same everywhere
+    /// (see <see cref="CultureNotes"/>), method by method in the order of <see cref="Methods"/>. Notes are no problems:
+    /// a program with notes compiles.
+    /// </summary>
+    public IReadOnlyList<Note> Notes { get; internal init; } = [];
+
+    /// <summary>The notes by difference (one for each library method), in the order each first appears in <see cref="Notes"/>.</summary>
+    public IReadOnlyList<NoteGroup> NoteGroups =>
+        [.. Notes.GroupBy(note => note.Difference).Select(group => new NoteGroup([.. group]))];
+
     /// <summary>True when ChipSharp compiles the program: there are no problems.</summary>
     public bool IsSupported => Problems.Count == 0;
 
@@ -60,7 +71,7 @@ public sealed class AnalysisResult
     /// <code>
     /// Demo.dll uses 2 C# features that ChipSharp does not compile yet (3 places):
     ///   the library method System.Math.Abs(int) is not available yet: 1 place in Program.Main() (IL_000e).
-    ///   building text ($"...", +, ...) arrives with M3 (the heap): 2 places in Program.Main() (IL_0001 and IL_0014). For now, ...
+    ///   checked arithmetic arrives later: 2 places in Program.Main() (IL_0001 and IL_0014). For now, ...
     /// ChipSharp can call these library methods (--details lists each one with its parameters):
     ///   Console.Write and Console.WriteLine of (nothing), text, int, uint, long, ulong, bool, float, double
     ///   ...

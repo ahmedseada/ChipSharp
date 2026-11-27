@@ -2,16 +2,16 @@ namespace ChipSharp.Frontend.Analysis;
 
 /// <summary>
 /// What of classes (see <see cref="ClassRules"/>) does not compile yet, in C# words. The features that come with the
-/// next pieces of M3 name the piece: stored strings (object's ToString) and generics over classes. Like
+/// later pieces of M3 name the piece: stored strings (object's ToString) and generics over classes. Like
 /// everything that makes objects, they need a heap.
 /// </summary>
 internal sealed partial record Unsupported
 {
     /// <summary>The <see cref="Arrival"/> of what returns or keeps a string: ToString.</summary>
-    private const string ArrivesWithStoredStrings = "with M3 (stored strings)";
+    private const string ArrivesWithStoredStrings = "with stored strings";
 
     /// <summary>The <see cref="Arrival"/> of generic classes.</summary>
-    private const string WithGenericClasses = "with M3 (generics over classes)";
+    private const string WithGenericClasses = "with generics over classes";
 
     /// <summary>
     /// An object's ToString (<c>node.ToString()</c>, and an object printed, which .NET prints as its ToString gives it):
@@ -45,7 +45,7 @@ internal sealed partial record Unsupported
     /// <summary>A <c>new</c> of a library type ChipSharp does not have, e.g. "System.Random".</summary>
     public static Unsupported LibraryType(string name) => new($"the library type {name}", false, "") { IsLibraryMethod = true };
 
-    /// <summary>True for a feature of classes that comes with a later piece of M3 than classes: it needs a heap too.</summary>
+    /// <summary>True for a feature of classes that came with a later piece of M3 than classes: it needs a heap too.</summary>
     private bool ComesWithLaterClasses => Arrival is ArrivesWithStoredStrings or WithGenericClasses;
 
     private static Unsupported Coming(string what, bool isPlural, string hint, string arrival) =>

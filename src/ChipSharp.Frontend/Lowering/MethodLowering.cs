@@ -365,7 +365,9 @@ internal sealed partial class MethodLowering
                 if (ArithmeticOp(instruction.OpCode) is { } arithmetic)
                 {
                     var (left, right) = PopOperands();
-                    Push(_ir.Binary(arithmetic, left, right));
+                    Push(DivisionFunctions.NeedsCheck(arithmetic, left, right)
+                        ? (TirValue)_ir.Call(_program.Divisions.For(arithmetic, left.Type), left, right)
+                        : _ir.Binary(arithmetic, left, right));
                 }
                 else if (CompareOp(instruction.OpCode) is { } comparison)
                 {

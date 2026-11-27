@@ -41,6 +41,12 @@ public sealed record BuildOptions
     /// </summary>
     public bool VerifyHeap { get; init; }
 
+    /// <summary>
+    /// Take what the toolchain compiled before from the build cache, and keep what it compiles there (the default; see
+    /// <see cref="ClangToolchainOptions.UseCache"/>). False (<c>chipsharp build --no-cache</c>) compiles everything.
+    /// </summary>
+    public bool UseCache { get; init; } = true;
+
     /// <summary>clang itself, for the toolchains that run it; see <see cref="ClangToolchainOptions.ClangPath"/>.</summary>
     public string? ClangPath { get; init; }
 

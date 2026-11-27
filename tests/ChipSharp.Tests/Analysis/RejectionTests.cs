@@ -296,7 +296,7 @@ public sealed class RejectionTests
 
         Assert.Equal(
         [
-            "Program.Main() at IL_0020 (box): boxing a System.TimeSpan (using it as an object) arrives with M3 (the heap). "
+            "Program.Main() at IL_0020 (box): boxing a System.TimeSpan (using it as an object) arrives later. "
                 + "For now, box the numbers, enums and structs of the program, or keep the value in its own type.",
         ], problems);
     }

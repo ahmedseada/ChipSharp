@@ -25,6 +25,7 @@ public sealed class TimeSpanProgramTests : IDisposable
     }
 
     [HostFact]
+    [RunsLong]
     public async Task Every_member_prints_what_dotnet_prints_for_the_edges_and_random_values()
     {
         var source = TimeSpanPrograms.Members(random: 60);
@@ -46,6 +47,7 @@ public sealed class TimeSpanProgramTests : IDisposable
     }
 
     [HostFact]
+    [RunsLong]
     public async Task Where_dotnet_throws_the_program_stops_with_dotnets_message_and_exit_code_1()
     {
         var index = 0;

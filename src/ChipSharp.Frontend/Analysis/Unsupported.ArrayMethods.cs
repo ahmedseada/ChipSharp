@@ -4,7 +4,7 @@ namespace ChipSharp.Frontend.Analysis;
 internal sealed partial record Unsupported
 {
     /// <summary>The <see cref="Arrival"/> of what needs delegates: Array.Exists, Find, ForEach, ...</summary>
-    private const string WithDelegates = "with M3 (delegates)";
+    private const string WithDelegates = "with delegates";
 
     public static readonly Unsupported ArrayMethodsWithDelegates = new(
         "the methods of System.Array that take a delegate (Array.Exists, Find, FindIndex, FindAll, TrueForAll, ForEach, " +

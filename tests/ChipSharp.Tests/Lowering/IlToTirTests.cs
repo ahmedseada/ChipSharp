@@ -75,7 +75,7 @@ public sealed class IlToTirTests
     }
 
     [Fact]
-    public void Arithmetic_maps_one_to_one()
+    public void Arithmetic_maps_one_to_one_and_a_division_by_a_variable_checks_the_divisor_first()
     {
         Assert.Equal("""
             function i32 C.Arithmetic(i32 %a, i32 %b)
@@ -83,8 +83,8 @@ public sealed class IlToTirTests
               %0 = add i32 %a, %b
               %1 = mul i32 %a, %b
               %2 = sub i32 %0, %1
-              %3 = div i32 %2, %b
-              %4 = rem i32 %3, %a
+              %3 = call i32 ChipSharp.Division.Div(%2, %b)
+              %4 = call i32 ChipSharp.Division.Rem(%3, %a)
               return %4
 
             """.ReplaceLineEndings("\n"), Lowered.Function("""
@@ -96,13 +96,13 @@ public sealed class IlToTirTests
     }
 
     [Fact]
-    public void Unsigned_division_remainder_and_shift_use_the_unsigned_operations()
+    public void Unsigned_division_remainder_and_shift_use_the_unsigned_operations_and_checks()
     {
         Assert.Equal("""
             function i32 C.Unsigned(i32 %a, i32 %b)
             IL_0000:
-              %0 = udiv i32 %a, %b
-              %1 = urem i32 %a, %b
+              %0 = call i32 ChipSharp.Division.DivUnsigned(%a, %b)
+              %1 = call i32 ChipSharp.Division.RemUnsigned(%a, %b)
               %2 = add i32 %0, %1
               %3 = const i32 3
               %4 = ushr i32 %a, %3
@@ -659,7 +659,7 @@ public sealed class IlToTirTests
             IL_0002:
               %0 = load i32 $a
               %1 = load i32 $b
-              %2 = rem i32 %0, %1
+              %2 = call i32 ChipSharp.Division.Rem(%0, %1)
               %3 = load i32 $b
               store $a, %3
               store $b, %2

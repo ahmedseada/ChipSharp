@@ -7,11 +7,12 @@
 // rp2040_failures.c, over UART0), and since these are weak, the linker takes the chip's.
 //
 //   ChipSharp_Runtime_IndexOutOfRange    an array index outside the array (IndexOutOfRangeException)
+//   ChipSharp_Runtime_DivideByZero       a whole number divided by zero, x / 0 or x % 0 (DivideByZeroException)
 //   ChipSharp_Runtime_TimeSpan...        a TimeSpan too long, or NaN given to one (ChipSharp.Library's System.TimeSpan)
 //   ChipSharp_Runtime_NegateOverflow     the negative of the smallest value, e.g. -TimeSpan.MinValue
 //   ChipSharp_Runtime_NullReference      a field, element or method of null (NullReferenceException)
 //   ChipSharp_Runtime_OutOfMemory        an object that does not fit in the heap (OutOfMemoryException)
-//   ChipSharp_Runtime_Overflow           an array of a negative length (OverflowException)
+//   ChipSharp_Runtime_Overflow           an array of a negative length, int.MinValue / -1 (OverflowException)
 //   ChipSharp_Runtime_HeapInInterrupt    an interrupt handler that makes an object, which it never may
 //   ChipSharp_Runtime_ArgumentOutOfRange, LengthOutOfRange, DestinationTooShort, DataMisaligned
 //                                        a span's start or length outside it, too few bytes for MemoryMarshal.Read or
@@ -36,6 +37,7 @@ __attribute__((noreturn)) static void fail(void)
 }
 
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_IndexOutOfRange(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_DivideByZero(void) { fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_TimeSpanOverflow(void) { fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_TimeSpanOutOfRange(void) { fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_TimeSpanNaN(void) { fail(); }

@@ -32,6 +32,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- twice as many tests at once as there are processors: the tests that build and run programs mostly wait on
+         clang, the programs, the simulator and the virus scanner, and leave half the processors idle with one each -->
+    <None Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- the real target files, so the tests check what ships -->
     <None Include="..\..\targets\**\*.json" LinkBase="targets" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

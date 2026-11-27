@@ -57,8 +57,9 @@ public sealed class StructProgramTests : IDisposable
     [HostFact]
     public async Task Every_program_compiled_in_Debug_prints_the_same()
     {
-        foreach (var (name, source) in StructPrograms.All)
+        await Concurrently.ForEachAsync(StructPrograms.All, async program =>
         {
+            var (name, source) = program;
             var dotnet = await HostRun.RunOnDotnetAsync(CSharpCompiler.Compile(source, "Program"), "Program",
                 Path.Combine(_scratch, name, "dotnet"));
             var module = Lowered.Lower(WholeProgramPass.Analyze(Lowered.CompileDebug(source, "Program")));
@@ -66,7 +67,7 @@ public sealed class StructProgramTests : IDisposable
             var chipSharp = await HostRun.BuildAndRunAsync(module, Path.Combine(_scratch, name, "chipsharp"));
 
             Assert.True(dotnet.Output.SequenceEqual(chipSharp.Output), $"{name}:\n{dotnet}\n{chipSharp}");
-        }
+        });
     }
 
     [Fact]

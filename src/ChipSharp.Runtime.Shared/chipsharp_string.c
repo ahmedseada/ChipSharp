@@ -14,10 +14,14 @@
 //   ChipSharp_Runtime_StringEquals        ==, Equals, string.Equals: char by char; null equals null only
 //   ChipSharp_Runtime_StringNotEquals     !=
 //   ChipSharp_Runtime_StringEqualsObject  Equals(object): another string with the same chars
-//   ChipSharp_Runtime_StringCompareOrdinal  string.CompareOrdinal: the difference of the first chars that differ, else
-//                                        of the lengths (null first)
-//   ChipSharp_Runtime_StringCompare       CompareTo and string.Compare: the same, ordinal, as .NET in its invariant mode
-//                                        (with a culture .NET puts "a" before "B" and gives -1, 0 or 1)
+//   ChipSharp_Runtime_StringCompare       CompareTo and string.Compare: the difference of the first chars that differ, else
+//                                        of the lengths (null first), ordinal, as .NET in its invariant mode (with a
+//                                        culture .NET puts "a" before "B" and gives -1, 0 or 1)
+//   ChipSharp_Runtime_StringCompareOrdinal  string.CompareOrdinal: the same, but where one string starts with the other,
+//                                        as .NET's ends (see compare_ordinal)
+//   ChipSharp_Runtime_String...Using      the methods with a StringComparison (Compare, Equals, StartsWith, EndsWith,
+//                                        IndexOf, LastIndexOf, Contains): char by char for every value, as .NET in its
+//                                        invariant mode, the IgnoreCase ones comparing the upper case of each char
 //   ChipSharp_Runtime_StringHash          GetHashCode: FNV-1a of the UTF-16 code units, the same in every run (.NET's
 //                                        is different in each process)
 //   ChipSharp_Runtime_StringIsNullOrEmpty, StringIsNullOrWhiteSpace
@@ -137,6 +141,56 @@ int ChipSharp_Runtime_StringEqualsObject(const string *s, const void *other)
     return other != 0 && is_string(other) && ChipSharp_Runtime_StringEquals(s, (const string *)other);
 }
 
+int ChipSharp_Runtime_CharToUpper(int c);
+
+// The char at i as a comparison reads it: its upper case when ignore_case is 1.
+static unsigned int char_as(const string *s, int i, int ignore_case)
+{
+    unsigned int c = at(s, i);
+    return ignore_case ? (unsigned int)ChipSharp_Runtime_CharToUpper((int)c) : c;
+}
+
+// The difference of the first chars that differ (the upper case of each when ignore_case is 1), else of the lengths:
+// how .NET compares in its invariant mode.
+static int compare_chars(const string *a, const string *b, int ignore_case)
+{
+    int count = a->length < b->length ? a->length : b->length;
+    for (int i = 0; i < count; i++)
+    {
+        int difference = (int)char_as(a, i, ignore_case) - (int)char_as(b, i, ignore_case);
+        if (difference != 0)
+        {
+            return difference;
+        }
+    }
+
+    return a->length - b->length;
+}
+
+// As compare_chars, but where one string starts with the other, as .NET's ordinal comparison ends: it compares two chars
+// at a time from the third, so where the shorter has fewer than two chars or an odd number of them it reads the 0 that
+// ends a string in .NET and gives the difference of the longer one's next char and 0 ("apple" and "app": 108, the 'l'),
+// else the difference of the lengths ("apple" and "ap": 3).
+static int compare_ordinal(const string *a, const string *b)
+{
+    int count = a->length < b->length ? a->length : b->length;
+    for (int i = 0; i < count; i++)
+    {
+        int difference = (int)at(a, i) - (int)at(b, i);
+        if (difference != 0)
+        {
+            return difference;
+        }
+    }
+
+    if (a->length != b->length && (count <= 1 || (count & 1) == 1))
+    {
+        return a->length > count ? (int)at(a, count) : -(int)at(b, count);
+    }
+
+    return a->length - b->length;
+}
+
 int ChipSharp_Runtime_StringCompareOrdinal(const string *a, const string *b)
 {
     if (a == b)
@@ -149,22 +203,22 @@ int ChipSharp_Runtime_StringCompareOrdinal(const string *a, const string *b)
         return a == 0 ? -1 : 1;
     }
 
-    int count = a->length < b->length ? a->length : b->length;
-    for (int i = 0; i < count; i++)
-    {
-        int difference = (int)at(a, i) - (int)at(b, i);
-        if (difference != 0)
-        {
-            return difference;
-        }
-    }
-
-    return a->length - b->length;
+    return compare_ordinal(a, b);
 }
 
 int ChipSharp_Runtime_StringCompare(const string *a, const string *b)
 {
-    return ChipSharp_Runtime_StringCompareOrdinal(a, b);
+    if (a == b)
+    {
+        return 0;
+    }
+
+    if (a == 0 || b == 0)
+    {
+        return a == 0 ? -1 : 1;
+    }
+
+    return compare_chars(a, b, 0);
 }
 
 int ChipSharp_Runtime_StringHash(const string *s)
@@ -417,6 +471,157 @@ int ChipSharp_Runtime_StringStartsWithChar(const string *s, int c)
 int ChipSharp_Runtime_StringEndsWithChar(const string *s, int c)
 {
     return s->length != 0 && at(s, s->length - 1) == ((unsigned int)c & 0xFFFF);
+}
+
+// ---- With a StringComparison -----------------------------------------------------------------------------------------
+
+// The overloads with a StringComparison compare char by char for every value, as .NET compares in its invariant mode:
+// CurrentCulture (0), InvariantCulture (2) and Ordinal (4) the chars themselves, their IgnoreCase forms (1, 3, 5) the
+// upper case of each char (ChipSharp_Runtime_CharToUpper), as OrdinalIgnoreCase does. Another value fails as in .NET.
+
+#define COMPARISON_TYPE "System.ArgumentException: The string comparison type passed in is currently not supported. " \
+    "(Parameter 'comparisonType')"
+
+// 1 when the comparison ignores case; fails for a value that is no StringComparison.
+static int ignores_case(int comparison)
+{
+    if ((unsigned int)comparison > 5)
+    {
+        chipsharp_fail(COMPARISON_TYPE);
+    }
+
+    return comparison & 1;
+}
+
+// Like same_chars, comparing the upper case of each char when ignore_case is 1.
+static int same_chars_as(const string *a, int start, const string *b, int count, int ignore_case)
+{
+    for (int i = 0; i < count; i++)
+    {
+        if (char_as(a, start + i, ignore_case) != char_as(b, i, ignore_case))
+        {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+// Like find, comparing the upper case of each char when ignore_case is 1.
+static int find_as(const string *s, const string *value, int start, int count, int ignore_case)
+{
+    for (int i = start; i + value->length <= start + count; i++)
+    {
+        if (same_chars_as(s, i, value, value->length, ignore_case))
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+// string.Compare(a, b, comparison): null first; Ordinal as string.CompareOrdinal, the others as CompareTo.
+int ChipSharp_Runtime_StringCompareUsing(const string *a, const string *b, int comparison)
+{
+    int ignore_case = ignores_case(comparison);
+    if (a == b)
+    {
+        return 0;
+    }
+
+    if (a == 0 || b == 0)
+    {
+        return a == 0 ? -1 : 1;
+    }
+
+    return comparison == 4 ? compare_ordinal(a, b) : compare_chars(a, b, ignore_case);
+}
+
+// string.Equals(a, b, comparison) and a.Equals(b, comparison): null equals null only.
+int ChipSharp_Runtime_StringEqualsUsing(const string *a, const string *b, int comparison)
+{
+    int ignore_case = ignores_case(comparison);
+    if (a == b)
+    {
+        return 1;
+    }
+
+    return a != 0 && b != 0 && a->length == b->length && same_chars_as(a, 0, b, a->length, ignore_case);
+}
+
+int ChipSharp_Runtime_StringStartsWithUsing(const string *s, const string *value, int comparison)
+{
+    if (value == 0)
+    {
+        null_value();
+    }
+
+    int ignore_case = ignores_case(comparison);
+    return value->length <= s->length && same_chars_as(s, 0, value, value->length, ignore_case);
+}
+
+int ChipSharp_Runtime_StringEndsWithUsing(const string *s, const string *value, int comparison)
+{
+    if (value == 0)
+    {
+        null_value();
+    }
+
+    int ignore_case = ignores_case(comparison);
+    return value->length <= s->length && same_chars_as(s, s->length - value->length, value, value->length, ignore_case);
+}
+
+// .NET looks at the comparison first here, and says a null value is null whatever it is.
+int ChipSharp_Runtime_StringIndexOfFromUsing(const string *s, const string *value, int start, int comparison)
+{
+    if (value == 0)
+    {
+        null_value();
+    }
+
+    int ignore_case = ignores_case(comparison);
+    if ((unsigned int)start > (unsigned int)s->length)
+    {
+        chipsharp_fail(OUT_OF_RANGE START_INDEX_LE);
+    }
+
+    return find_as(s, value, start, s->length - start, ignore_case);
+}
+
+int ChipSharp_Runtime_StringIndexOfUsing(const string *s, const string *value, int comparison)
+{
+    return ChipSharp_Runtime_StringIndexOfFromUsing(s, value, 0, comparison);
+}
+
+int ChipSharp_Runtime_StringContainsUsing(const string *s, const string *value, int comparison)
+{
+    return ChipSharp_Runtime_StringIndexOfUsing(s, value, comparison) >= 0;
+}
+
+// As .NET: an empty string, or an empty value, is found before the comparison is looked at; the empty value at the end.
+int ChipSharp_Runtime_StringLastIndexOfUsing(const string *s, const string *value, int comparison)
+{
+    if (value == 0)
+    {
+        null_value();
+    }
+
+    if (s->length == 0 || value->length == 0)
+    {
+        return value->length == 0 ? s->length : -1;
+    }
+
+    int ignore_case = ignores_case(comparison);
+    for (int i = s->length - value->length; i >= 0; i--)
+    {
+        if (same_chars_as(s, i, value, value->length, ignore_case))
+        {
+            return i;
+        }
+    }
+
+    return -1;
 }
 
 int ChipSharp_Runtime_StringIsNullOrEmpty(const string *s)
