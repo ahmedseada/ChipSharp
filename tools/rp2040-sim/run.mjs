@@ -11,11 +11,16 @@
 //     node tools/rp2040-sim/run.mjs <image.uf2> [--ms <simulated milliseconds, default 1000>]
 //                                              [--uart0 <file to write UART0's bytes to>]
 //                                              [--input <pin>=<high|low>[@<simulated milliseconds>ms]]...
+//                                              [--i2c <bus>:<address>=<device>]... [--spi <bus>=<device>[@<pin>]]...
 //
 // --input drives a pin from outside, as a button or another chip would; the program reads it with Pin.Read, and
 // Pin.Watch... sees it change. Without a time it is the level from the start; with one, e.g. --input 15=high@100ms,
 // the pin changes then (as a button pressed after 100 ms), and the change is printed. Give a pin several times to
 // change it several times. (rp2040js reads only these outside levels: a pin the program drives itself reads as low.)
+//
+// --i2c and --spi put simulated devices on the I2C and SPI buses (devices/buses.mjs): --i2c 0:0x68=mpu6050 an
+// MPU-6050 at address 0x68 on I2C0, --i2c 0:0x76=bmp280 a BMP280, --spi 0=74hc595@17 a 74HC595 shift register on
+// SPI0 with its latch on GPIO 17, --spi 0=loopback RX wired to TX. An I2C address without a device does not answer.
 //
 // Booting: the RP2040's boot ROM checks the CRC-32 of the first 256 bytes of flash (the second-stage
 // bootloader, boot2), copies them to the top of RAM (0x20041f00) and runs them with lr = 0; boot2 sets up the
@@ -31,6 +36,8 @@
 //     [    0.200 ms] UART0 baud 115200           the program set UART0's baud rate
 //     [    1.234 ms] UART0: Hello                a line written to UART0 (without its line ending)
 //     [  100.000 ms] input: GPIO15 high          an --input with a time changed the pin from outside
+//     [    2.000 ms] I2C0 0x68 write 75, read 68 a transfer on an I2C bus (devices/buses.mjs lists them all)
+//     [    3.000 ms] SPI0 74HC595 Q3 high        an output of a device on an SPI bus changed
 //     [ 1000.000 ms] stopped: <why>              the last line
 //
 // Exit code: 0 when the program ran (to its end or for the whole time), 1 when the image is not valid, 2 for
@@ -39,6 +46,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { ConsoleLogger, GPIOPinState, LogLevel, RP2040 } from 'rp2040js';
+import { attachBuses, parseBusOption, USAGE as BUS_USAGE } from './devices/buses.mjs';
 
 const UF2_MAGIC_START0 = 0x0a324655;
 const UF2_MAGIC_START1 = 0x9e5d5157;
@@ -61,7 +69,7 @@ const PIN_STATES = {
 function usage(message) {
   console.error(`run.mjs: ${message}`);
   console.error('Usage: node run.mjs <image.uf2> [--ms <simulated milliseconds>] [--uart0 <output file>] ' +
-    '[--input <pin>=<high|low>[@<milliseconds>ms]]...');
+    `[--input <pin>=<high|low>[@<milliseconds>ms]]... ${BUS_USAGE}`);
   process.exit(2);
 }
 
@@ -71,7 +79,7 @@ function fail(message) {
 }
 
 function parseArguments(args) {
-  const options = { image: null, ms: 1000, uart0: null, inputs: [] };
+  const options = { image: null, ms: 1000, uart0: null, inputs: [], buses: [] };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '--ms' || arg === '--uart0' || arg === '--input') {
@@ -97,6 +105,14 @@ function parseArguments(args) {
       } else {
         options.uart0 = value;
       }
+    } else if (arg === '--i2c' || arg === '--spi') {
+      // a simulated device on a bus (devices/buses.mjs)
+      const device = parseBusOption(arg, args[++i] ?? '');
+      if (device.error !== undefined) {
+        usage(device.error);
+      }
+
+      options.buses.push(device);
     } else if (arg.startsWith('--')) {
       usage(`unknown option '${arg}'.`);
     } else if (options.image === null) {
@@ -214,6 +230,9 @@ mcu.uart[0].onByte = (value) => {
   }
 };
 mcu.uart[0].onBaudRateChange = (baud) => console.log(`${milliseconds(clock.nanos)} UART0 baud ${baud}`);
+
+// the simulated devices on the I2C and SPI buses (--i2c, --spi), and what the buses do
+attachBuses(mcu, options.buses, (text) => console.log(`${milliseconds(clock.nanos)} ${text}`));
 
 // the levels from the start, then the changes at their times, as alarms of the simulated clock: a core asleep until
 // one of them wakes up for it, as the chip would

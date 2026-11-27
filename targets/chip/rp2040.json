@@ -29,6 +29,24 @@
     "romFloat": true,
     // the heap's budget: of the 264K of RAM, 8K is the stack (link.stack) and 32K is left for static fields
     "heap": "224K",
-    "console": true       // Console.Write and Console.WriteLine go to UART0 (GPIO 0, 115200 baud)
+    "console": true,      // Console.Write and Console.WriteLine go to UART0 (GPIO 0, 115200 baud)
+    "i2c": true,          // ChipSharp.Hardware.I2c: two I2C controllers ("i2c" below)
+    "spi": true           // ChipSharp.Hardware.Spi: two SPI controllers ("spi" below)
+  },
+  // the I2C and SPI controllers: the clocks they make, lowest and highest, in hertz, and the pins each (bus 0, bus 1)
+  // can use, GPIO function 3 for I2C and 1 for SPI; chipsharp check holds the constants of I2c.Open and Spi.Open to them
+  "i2c": {
+    "frequency": [2000, 1000000],
+    "buses": [
+      { "sda": [0, 4, 8, 12, 16, 20, 24, 28], "scl": [1, 5, 9, 13, 17, 21, 25, 29] },
+      { "sda": [2, 6, 10, 14, 18, 22, 26], "scl": [3, 7, 11, 15, 19, 23, 27] }
+    ]
+  },
+  "spi": {
+    "frequency": [2000, 62500000],
+    "buses": [
+      { "sck": [2, 6, 18, 22], "tx": [3, 7, 19, 23], "rx": [0, 4, 16, 20] },
+      { "sck": [10, 14, 26], "tx": [11, 15, 27], "rx": [8, 12, 24, 28] }
+    ]
   }
 }

@@ -29,7 +29,7 @@ internal static class LibraryCalls
     ///   Console.Write and Console.WriteLine of (nothing), text, int, uint, long, ulong, bool, float, double
     ///   Math and MathF: Abs, Min, Max, Sqrt
     ///   TimeSpan: FromTicks, FromDays, ..., Equals, its constructors, properties and operators
-    ///   ChipSharp.Hardware: Pin, Timing, Registers (see the README)
+    ///   ChipSharp.Hardware: Pin, Timing, Registers, I2c, Spi (see the README)
     /// </code>
     /// </summary>
     public static string Summary { get; } = Summarize(Known);

@@ -22,9 +22,9 @@ namespace ChipSharp.Frontend;
 /// <item>a member of T that the substitute does not have stays a library member, which the whole-program pass reports
 /// as not available.</item>
 /// </list>
-/// The substitutes reach the runtime through ChipSharp.Library.Runtime: a call to one of its methods is a call to the
-/// runtime function of the same name, e.g. ChipSharp.Runtime.TimeSpanOverflow (<see cref="TryMapRuntimeFunction"/>),
-/// whose .NET body is left out.
+/// The substitutes reach the runtime through ChipSharp.Library.Runtime (and ChipRuntime, the functions only a chip with
+/// the hardware has): a call to one of its methods is a call to the runtime function of the same name, e.g.
+/// ChipSharp.Runtime.TimeSpanOverflow (<see cref="TryMapRuntimeFunction"/>), whose .NET body is left out.
 /// </summary>
 /// <remarks>
 /// <see cref="IlAssembly"/> links every method and field reference it reads
@@ -42,6 +42,9 @@ internal static class LibrarySubstitutes
 
     /// <summary>The library's class of runtime functions.</summary>
     public const string RuntimeType = "ChipSharp.Library.Runtime";
+
+    /// <summary>The library's class of the runtime functions of a chip's hardware (ChipSharp.Hardware's buses).</summary>
+    public const string ChipRuntimeType = "ChipSharp.Library.ChipRuntime";
 
     /// <summary>The C# operators by the names of their methods (op_Addition is +).</summary>
     private static readonly Dictionary<string, string> Operators = new(StringComparer.Ordinal)
@@ -110,7 +113,7 @@ internal static class LibrarySubstitutes
 
         if (reference.Definition is { } definition)
         {
-            return definition.DeclaringType.FullName == RuntimeType && Defines(definition)
+            return definition.DeclaringType.FullName is RuntimeType or ChipRuntimeType && Defines(definition)
                 ? new IlMethodReference(reference.DeclaringType, reference.Name, reference.Signature,
                     reference.GenericArguments, null)
                 : reference;
@@ -163,7 +166,7 @@ internal static class LibrarySubstitutes
     }
 
     /// <summary>
-    /// The runtime function a call to a method of ChipSharp.Library.Runtime becomes, e.g.
+    /// The runtime function a call to a method of ChipSharp.Library.Runtime (or ChipRuntime) becomes, e.g.
     /// ChipSharp.Runtime.TimeSpanOverflow for Runtime.TimeSpanOverflow(); false for any other method.
     /// </summary>
     public static bool TryMapRuntimeFunction(IlMethodReference method, [NotNullWhen(true)] out ExternalFunction? function)
@@ -171,8 +174,11 @@ internal static class LibrarySubstitutes
         ArgumentNullException.ThrowIfNull(method);
         function = null;
         if (method is not { HasThis: false, Definition: null, GenericArguments.Count: 0 }
-            || method.DeclaringType is not IlNamedType { IsDefinedInThisAssembly: true, FullName: RuntimeType }
-            || Assembly.FindType(RuntimeType)?.Methods.FirstOrDefault(m => IsPublic(m.Attributes) && m.IsStatic
+            || method.DeclaringType is not IlNamedType
+            {
+                IsDefinedInThisAssembly: true, FullName: RuntimeType or ChipRuntimeType,
+            } runtime
+            || Assembly.FindType(runtime.FullName)?.Methods.FirstOrDefault(m => IsPublic(m.Attributes) && m.IsStatic
                 && m.Name == method.Name && m.Signature == method.Signature) is not { } definition)
         {
             return false;
