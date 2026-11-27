@@ -64,6 +64,9 @@ internal static class Equality
         return y != null ? -1 : 0;
     }
 
+    /// <summary>Two strings in order as string's CompareTo has them, null first: Comparer&lt;string&gt;.Default's Compare.</summary>
+    public static int CompareText(string? x, string? y) => string.Compare(x, y);
+
     /// <summary>The hash code of <paramref name="value"/>: its GetHashCode, 0 for null, as .NET's default comparer gives it.</summary>
     public static int HashOf<T>(T value) => value == null ? 0 : value.GetHashCode();
 }

@@ -33,7 +33,7 @@ internal static partial class VirtualMethods
         var type = instance.DeclaringType;
         if (type.IsInterface)
         {
-            return new DispatchSlot(DispatchSlotKind.Interface, ValueTypes.WithoutModifiers(callee.DeclaringType),
+            return new DispatchSlot(DispatchSlotKind.Interface, Canonical(callee.DeclaringType),
                 instance.Name, instance.Signature, instance);
         }
 
@@ -124,7 +124,7 @@ internal static partial class VirtualMethods
             var ofLister = new Substitution(lister.TypeArguments, []);
             foreach (var (body, declaration) in lister.Assembly.MethodImplementations(lister.GenericDefinition ?? lister))
             {
-                var declared = ValueTypes.WithoutModifiers(ofLister.Apply(declaration.DeclaringType));
+                var declared = Canonical(ofLister.Apply(declaration.DeclaringType));
                 if (declaration.Name == generic.Name && declared == slot.Owner
                     && body.GenericParameters.Count == generic.GenericParameters.Count
                     && Arguments(declared).Apply(declaration.Signature) == wanted)

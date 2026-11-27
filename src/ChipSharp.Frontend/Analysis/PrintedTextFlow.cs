@@ -45,7 +45,18 @@ internal sealed class PrintedTextFlow
     private readonly Dictionary<IlInstruction, PrintedRole> _roles = [];
     private readonly Dictionary<IlInstruction, Unsupported?> _verdicts = [];
     private readonly Dictionary<IlInstruction, PrintSite> _prints = [];
+
+    /// <summary>The instructions that finish built text that is kept: each makes a string (see <see cref="PrintedText.Builds"/>).</summary>
+    private readonly HashSet<IlInstruction> _kept = [];
+    private readonly Dictionary<IlInstruction, PrintSite> _builds = [];
+
+    /// <summary>The box instructions whose value goes anywhere but to a format (Console.WriteLine(object), string.Format).</summary>
+    private readonly HashSet<IlInstruction> _plainBoxes = [];
+
+    /// <summary>The instructions of an aligned enum name: a heap use each.</summary>
+    private readonly HashSet<IlInstruction> _alignedEnums = [];
     private bool _foundPlainArray;
+    private bool _foundKept;
     private bool _record;
 
     /// <summary>Where control goes after the block followed last when a null test cuts a way off; null otherwise.</summary>
@@ -74,13 +85,16 @@ internal sealed class PrintedTextFlow
 
     public IReadOnlyDictionary<IlInstruction, PrintSite> Prints => _prints;
 
+    public IReadOnlyDictionary<IlInstruction, PrintSite> Builds => _builds;
+
     public PrintedTextFlow Run()
     {
         while (true)
         {
             _foundPlainArray = false;
+            _foundKept = false;
             var entries = FindEntryStates();
-            if (_foundPlainArray)
+            if (_foundPlainArray || _foundKept)
             {
                 continue;
             }
@@ -88,6 +102,8 @@ internal sealed class PrintedTextFlow
             _roles.Clear();
             _verdicts.Clear();
             _prints.Clear();
+            _builds.Clear();
+            _alignedEnums.Clear();
             _record = true;
             for (var b = 0; b < _blocks.Count; b++)
             {
@@ -95,8 +111,14 @@ internal sealed class PrintedTextFlow
             }
 
             _record = false;
-            if (!_foundPlainArray)
+            if (!_foundPlainArray && !_foundKept)
             {
+                // an aligned enum name measures its name, which may be a string made for it
+                foreach (var aligned in _alignedEnums.Where(aligned => _verdicts.GetValueOrDefault(aligned) is null))
+                {
+                    _verdicts[aligned] = Unsupported.HeapUse(Unsupported.AlignedEnumNames);
+                }
+
                 return this;
             }
         }
@@ -260,8 +282,28 @@ internal sealed class PrintedTextFlow
                     : _blockOf[index] + 1;
                 return;
 
+            case IlOpCode.Box when instruction.Operand is IlTypeOperand { Type: var boxed }
+                && !_plainBoxes.Contains(instruction) && IsBoxedHole(boxed):
+                // a value turned into an object for a format: it waits as a part, like a hole
+                Pop(stack);
+                Own(instruction, PrintedRole.Box);
+                stack.Add(new Boxed(instruction, StackArrays.Primitive(boxed)));
+                return;
+
+            case IlOpCode.Newobj when IsCharSpan(instruction) && !_plainArrays.Contains(instruction) && stack.Count > 0:
+                // new ReadOnlySpan<char>(ref c), which C# concatenates a char with: the char, read through its address
+                Pop(stack);
+                Own(instruction, PrintedRole.CharSpan);
+                stack.Add(new SpanText(instruction,
+                    Parts.None.Then([new PrintedPiece(instruction, 0, IlType.Char, null, 0, default)])));
+                return;
+
             case IlOpCode.Call when instruction.Operand is IlMethodOperand { Method: var callee }
                 && Call(instruction, index, callee, state):
+                return;
+
+            case IlOpCode.Callvirt when EnumOfToString(index) is { } enumType:
+                EnumToString(instruction, enumType, stack);
                 return;
 
             case IlOpCode.Constrained:
@@ -286,8 +328,9 @@ internal sealed class PrintedTextFlow
     {
         switch (value)
         {
-            case Built or Mixed when !dropped:
-                Problem(instruction, Unsupported.KeepingBuiltText);
+            case Built built when !dropped:
+                // kept: its producer makes a string (the ways that meet as Mixed made theirs already)
+                MarkKept(built.Producer);
                 break;
 
             case Handler:
@@ -296,6 +339,14 @@ internal sealed class PrintedTextFlow
 
             case PartArray array:
                 MarkPlain(array.Newarr);
+                break;
+
+            case Boxed boxed:
+                MarkPlain(boxed.Box);
+                break;
+
+            case SpanText span:
+                MarkPlain(span.Source);
                 break;
         }
     }
@@ -324,10 +375,58 @@ internal sealed class PrintedTextFlow
             return Concat(instruction, index, callee, stack);
         }
 
+        if (PrintedText.IsSystem(callee, "String") && callee is { Name: "op_Implicit", ParameterTypes: [var from] }
+            && FixedText.IsText(from) && !_plainArrays.Contains(instruction) && stack.Count > 0)
+        {
+            // text as a ReadOnlySpan<char>, which C# concatenates with a char: the text's parts
+            var (parts, problem) = TextParts(Pop(stack), instruction, 0, 0);
+            if (problem is not null)
+            {
+                Problem(instruction, problem);
+                stack.Add(Unknown);
+            }
+            else
+            {
+                Own(instruction, PrintedRole.SpanText);
+                OwnLastText(index);
+                stack.Add(new SpanText(instruction, parts!));
+            }
+
+            return true;
+        }
+
         if (PrintedText.IsToString(callee, out var type))
         {
             ToStringCall(instruction, callee, type, stack);
             OwnLastText(index);
+            return true;
+        }
+
+        if (PrintedText.IsSystem(callee, "Console") && callee is { Name: "Write" or "WriteLine", HasThis: false }
+            && callee.ParameterTypes is [IlPrimitiveType { Kind: IlPrimitiveKind.Object }] && stack is [.., Boxed boxed])
+        {
+            // Console.WriteLine(object) of a number, a bool, a char or an enum: its text
+            Pop(stack);
+            var (parts, problem) = HoleParts(boxed.Type, boxed, boxed.Box, 0, 0, null);
+            if (problem is not null)
+            {
+                Problem(instruction, problem);
+            }
+            else
+            {
+                Own(instruction, PrintedRole.Print);
+                if (_record)
+                {
+                    _prints[instruction] = new PrintSite(Joined(parts!.Pieces), callee.Name == "WriteLine");
+                }
+            }
+
+            return true;
+        }
+
+        if (FormatOf(callee) is { } prints)
+        {
+            Format(instruction, index, callee, stack, prints);
             return true;
         }
 
@@ -342,16 +441,160 @@ internal sealed class PrintedTextFlow
                     _prints[instruction] = new PrintSite(Joined(built.Parts.Pieces), callee.Name == "WriteLine");
                 }
             }
-            else
-            {
-                Problem(instruction, Unsupported.KeepingBuiltText);
-            }
 
             return true;
         }
 
         return false;
     }
+
+    /// <summary>
+    /// For a call of string.Format of one to three values: false; for Console.Write or Console.WriteLine of a format
+    /// and one to three values: true; null for any other method.
+    /// </summary>
+    private static bool? FormatOf(IlMethodReference callee)
+    {
+        if (callee is not { HasThis: false, GenericArguments.Count: 0 } || callee.ParameterTypes is not
+            [IlPrimitiveType { Kind: IlPrimitiveKind.String }, _, ..] parameters || parameters.Count > 4
+            || parameters.Skip(1).Any(parameter => parameter is not IlPrimitiveType { Kind: IlPrimitiveKind.Object }))
+        {
+            return null;
+        }
+
+        return PrintedText.IsSystem(callee, "String") && callee.Name == "Format" ? false
+            : PrintedText.IsSystem(callee, "Console") && callee.Name is "Write" or "WriteLine" ? true
+            : null;
+    }
+
+    /// <summary>
+    /// <c>string.Format("...", a, b)</c> or <c>Console.WriteLine("...", a, b)</c> with a literal format: its literal
+    /// text and its holes (<c>{0}</c>, <c>{1,5}</c>, <c>{0:X4}</c>), as .NET reads the format, each value as a hole of
+    /// its type: a value boxed for it (a number, bool, char or enum), or text.
+    /// </summary>
+    private void Format(IlInstruction instruction, int index, IlMethodReference callee, List<Value> stack, bool prints)
+    {
+        var values = new Value[callee.ParameterTypes.Count - 1];
+        for (var i = values.Length - 1; i >= 0; i--)
+        {
+            values[i] = Pop(stack);
+        }
+
+        var format = Pop(stack);
+        var (parts, problem) = format is Literal { Text: { } text }
+            ? FormatParts(instruction, index, text, values)
+            : (null, Unsupported.BuildingText);
+        if (problem is not null)
+        {
+            Problem(instruction, problem);
+            if (!prints)
+            {
+                stack.Add(Unknown);
+            }
+
+            return;
+        }
+
+        if (prints)
+        {
+            Own(instruction, PrintedRole.Print);
+            if (_record)
+            {
+                _prints[instruction] = new PrintSite(Joined(parts!.Pieces), callee.Name == "WriteLine");
+            }
+
+            return;
+        }
+
+        Own(instruction, PrintedRole.Concat);
+        stack.Add(Produce(instruction, parts!));
+    }
+
+    /// <summary>The parts of a composite format with its values (see <see cref="Format"/>); a problem for a format .NET rejects.</summary>
+    private (Parts? Parts, Unsupported? Problem) FormatParts(IlInstruction instruction, int index, string format,
+        Value[] values)
+    {
+        var parts = Parts.None;
+        var literal = new System.Text.StringBuilder();
+        void Flush()
+        {
+            if (literal.Length > 0)
+            {
+                parts = parts.Then([new PrintedPiece(instruction, 0, IlType.String, literal.ToString(), 0, default)]);
+                literal.Clear();
+            }
+        }
+
+        for (var i = 0; i < format.Length; i++)
+        {
+            var c = format[i];
+            if (c is '{' or '}' && i + 1 < format.Length && format[i + 1] == c)
+            {
+                literal.Append(c);
+                i++;
+                continue;
+            }
+
+            if (c == '}')
+            {
+                return (null, Unsupported.Format(format));
+            }
+
+            if (c != '{')
+            {
+                literal.Append(c);
+                continue;
+            }
+
+            var end = format.IndexOf('}', i);
+            if (end < 0 || ParseHole(format[(i + 1)..end]) is not var (number, alignment, holeFormat) || number >= values.Length)
+            {
+                return (null, Unsupported.Format(format));
+            }
+
+            Flush();
+            var (more, problem) = values[number] is Boxed boxed
+                ? HoleParts(boxed.Type, boxed, boxed.Box, 0, alignment, holeFormat)
+                : values[number] is Literal or Built || StringMethods.IsStringOperand(_method, index, values.Length - 1 - number)
+                    ? TextParts(values[number], instruction, number + 1, alignment)
+                    : (null, Unsupported.ObjectMethods);
+            if (problem is not null)
+            {
+                return (null, problem);
+            }
+
+            parts = parts.Then(more!);
+            i = end;
+        }
+
+        Flush();
+        return (parts, null);
+    }
+
+    /// <summary>A hole of a composite format between its braces: the value's number, its alignment and its format; null when malformed.</summary>
+    private static (int Number, int Alignment, string? Format)? ParseHole(string hole)
+    {
+        var colon = hole.IndexOf(':');
+        var format = colon < 0 ? null : hole[(colon + 1)..];
+        var head = colon < 0 ? hole : hole[..colon];
+        var comma = head.IndexOf(',');
+        var number = (comma < 0 ? head : head[..comma]).Trim();
+        var alignment = comma < 0 ? "0" : head[(comma + 1)..].Trim();
+        return number.Length is > 0 and <= 6 && number.All(char.IsAsciiDigit)
+            && int.TryParse(alignment, System.Globalization.NumberStyles.AllowLeadingSign,
+                System.Globalization.CultureInfo.InvariantCulture, out var aligned)
+            ? (int.Parse(number, System.Globalization.CultureInfo.InvariantCulture), aligned, format)
+            : null;
+    }
+
+    /// <summary>True for <c>new ReadOnlySpan&lt;char&gt;(ref c)</c>.</summary>
+    private static bool IsCharSpan(IlInstruction instruction) => instruction.Operand is IlMethodOperand
+    {
+        Method: { Name: ".ctor", Definition: null, ParameterTypes: [IlByRefType] } constructor,
+    } && Spans.IsSpan(constructor.DeclaringType, out var element, out _) && element == IlType.Char;
+
+    /// <summary>True for a type a boxed value of is a hole: a number, bool or char that Console.Write prints, or an enum.</summary>
+    private bool IsBoxedHole(IlType type) => EnumOf(type) is not null
+        || (PrintedText.TryGetPrinted(StackArrays.Primitive(type), out var kind) && kind != IlPrimitiveKind.String);
 
     /// <summary>A call on the handler in local <paramref name="local"/>; false for a method of it that is not supported.</summary>
     private bool HandlerCall(IlInstruction instruction, int index, IlMethodReference callee, int local, State state)
@@ -391,7 +634,7 @@ internal sealed class PrintedTextFlow
                 if (state.Handlers.TryGetValue(local, out var parts) && !parts.IsBroken)
                 {
                     Own(instruction, PrintedRole.Finish);
-                    stack.Add(new Built(instruction, parts));
+                    stack.Add(Produce(instruction, parts));
                 }
                 else
                 {
@@ -489,6 +732,18 @@ internal sealed class PrintedTextFlow
             Pop(stack);
             parts = array.Elements.Aggregate(parts, (all, element) => all.Then(element));
         }
+        else if (parameters.Count is >= 2 and <= 4 && parameters.All(Spans.IsSpan) && stack.Count >= parameters.Count
+            && stack.Skip(stack.Count - parameters.Count).All(value => value is SpanText))
+        {
+            // string.Concat of spans of chars, which C# makes of text and chars
+            var values = new Value[parameters.Count];
+            for (var i = values.Length - 1; i >= 0; i--)
+            {
+                values[i] = Pop(stack);
+            }
+
+            parts = values.Cast<SpanText>().Aggregate(parts, (all, span) => all.Then(span.Parts));
+        }
         else
         {
             return false;
@@ -502,7 +757,7 @@ internal sealed class PrintedTextFlow
         else
         {
             Own(instruction, PrintedRole.Concat);
-            stack.Add(new Built(instruction, parts));
+            stack.Add(Produce(instruction, parts));
         }
 
         return true;
@@ -524,7 +779,73 @@ internal sealed class PrintedTextFlow
         else
         {
             Own(instruction, PrintedRole.ToString);
-            stack.Add(new Built(instruction, parts!));
+            stack.Add(Produce(instruction, parts!));
+        }
+    }
+
+    /// <summary>
+    /// <c>callvirt Object::ToString()</c> after <c>constrained.</c> of an enum (C#'s <c>color.ToString()</c>): a text of
+    /// one part, its name, the value read through its address.
+    /// </summary>
+    private void EnumToString(IlInstruction instruction, IlType enumType, List<Value> stack)
+    {
+        var receiver = Pop(stack);
+        var (parts, problem) = HoleParts(enumType, receiver, instruction, 0, 0, null);
+        if (problem is not null)
+        {
+            Problem(instruction, problem);
+            stack.Add(Unknown);
+            return;
+        }
+
+        Own(instruction, PrintedRole.ToString);
+        stack.Add(Produce(instruction, parts!));
+    }
+
+    /// <summary>The enum whose ToString the callvirt at <paramref name="index"/> calls after its <c>constrained.</c>; null for any other.</summary>
+    private IlType? EnumOfToString(int index) =>
+        index > 0 && _body.Instructions[index - 1] is { OpCode: IlOpCode.Constrained, Operand: IlTypeOperand { Type: var type } }
+        && _body.Instructions[index].Operand is IlMethodOperand
+        {
+            Method: { Name: "ToString", ParameterTypes.Count: 0, HasThis: true, Definition: null } callee,
+        }
+        && ObjectTypes.IsSystemObject(callee.DeclaringType) && EnumOf(type) is not null
+            ? type
+            : null;
+
+    /// <summary>The enum <paramref name="type"/> names, with its underlying type; null for any other type.</summary>
+    private (IlTypeDefinition Enum, IlPrimitiveType Underlying)? EnumOf(IlType type) =>
+        ValueTypes.Definition(ValueTypes.WithoutModifiers(type), _method.Assembly) is { } definition
+        && ValueTypes.IsEnum(definition) && ValueTypes.EnumType(definition) is IlPrimitiveType underlying
+        && PrintedText.IsWholeNumber(underlying.Kind)
+            ? (definition, underlying)
+            : null;
+
+    /// <summary>
+    /// The value of built text that <paramref name="producer"/> finishes: the text with its parts, or, when the text is
+    /// kept, a string the producer makes from them (any value, a heap use).
+    /// </summary>
+    private Value Produce(IlInstruction producer, Parts parts)
+    {
+        if (!_kept.Contains(producer))
+        {
+            return new Built(producer, parts);
+        }
+
+        if (_record)
+        {
+            _builds[producer] = new PrintSite(Joined(parts.Pieces), false);
+        }
+
+        Problem(producer, Unsupported.HeapUse(Unsupported.KeepingBuiltText));
+        return Unknown;
+    }
+
+    private void MarkKept(IlInstruction producer)
+    {
+        if (_kept.Add(producer))
+        {
+            _foundKept = true;
         }
     }
 
@@ -561,13 +882,19 @@ internal sealed class PrintedTextFlow
     /// </summary>
     private void ConstrainedToString(IlInstruction instruction, int index)
     {
+        if (EnumOfToString(index + 1) is not null)
+        {
+            Own(instruction, PrintedRole.Prefix);
+            return;
+        }
+
         if (instruction.Operand is IlTypeOperand { Type: var type } && index + 1 < _body.Instructions.Count
             && _body.Instructions[index + 1] is
             {
                 OpCode: IlOpCode.Callvirt,
                 Operand: IlMethodOperand { Method: { Name: "ToString", ParameterTypes.Count: 0, HasThis: true } },
             } call
-            && !PrintedText.TryGetPrinted(StackArrays.Primitive(type), out _))
+            && !PrintedText.TryGetPrinted(StackArrays.Primitive(type), out _) && StringMethods.Find(_method, index + 1) is null)
         {
             var problem = ForOtherValue(StackArrays.Primitive(type));
             Problem(instruction, problem);
@@ -582,6 +909,11 @@ internal sealed class PrintedTextFlow
     private (Parts? Parts, Unsupported? Problem) HoleParts(IlType type, Value value, IlInstruction instruction,
         int operand, int alignment, string? format)
     {
+        if (EnumOf(type) is var (enumType, underlying))
+        {
+            return EnumParts(enumType, underlying, instruction, operand, alignment, format);
+        }
+
         if (!PrintedText.TryGetPrinted(type, out var kind))
         {
             return (null, ForOtherValue(ValueTypes.WithoutModifiers(type)));
@@ -607,14 +939,54 @@ internal sealed class PrintedTextFlow
     }
 
     /// <summary>
+    /// The part of an enum's value written as a hole: its name (the formats G and F), or its number (D, and X: its hex
+    /// digits, two per byte of the underlying type).
+    /// </summary>
+    private (Parts? Parts, Unsupported? Problem) EnumParts(IlTypeDefinition enumType, IlPrimitiveType underlying,
+        IlInstruction instruction, int operand, int alignment, string? format)
+    {
+        if (format is null or "" or "G" or "g")
+        {
+            if (alignment != 0 && _record)
+            {
+                _alignedEnums.Add(instruction);
+            }
+
+            return (Parts.None.Then([new PrintedPiece(instruction, operand, underlying, null, alignment, default)
+            {
+                Enum = enumType,
+            }]), null);
+        }
+
+        // .NET takes no digits after an enum's format letter: D is the number, X its hex digits, two per byte
+        PrintedFormat parsed;
+        if (format is "X" or "x")
+        {
+            parsed = new PrintedFormat(PrintedFormatKind.UpperHex, PrintedText.Bits(underlying.Kind) / 4);
+        }
+        else if (format is "D" or "d")
+        {
+            parsed = new PrintedFormat(PrintedFormatKind.Decimal, 0);
+        }
+        else
+        {
+            return (null, Unsupported.Format(format));
+        }
+
+        return (Parts.None.Then([new PrintedPiece(instruction, operand, underlying, null, alignment, parsed)]), null);
+    }
+
+    /// <summary>
     /// The parts of text that <paramref name="instruction"/> takes as its operand <paramref name="operand"/>: a
     /// literal as it is (aligned already; null is nothing), built text's parts, or any other string as one part.
+    /// Built text that is aligned is kept: a string made for it.
     /// </summary>
-    private static (Parts? Parts, Unsupported? Problem) TextParts(Value value, IlInstruction instruction, int operand,
+    private (Parts? Parts, Unsupported? Problem) TextParts(Value value, IlInstruction instruction, int operand,
         int alignment) => value switch
     {
         Built built when alignment == 0 => (built.Parts, null),
-        Built or Mixed => (null, Unsupported.KeepingBuiltText),
+        Built built => (null, Keep(built)),
+        Mixed => (null, Unsupported.KeepingBuiltText),
         Handler or PartArray => (null, Unsupported.BuildingText),
         Literal literal => PrintedText.Align(literal.Text ?? "", alignment) is { Length: > 0 } text
             ? (Parts.None.Then([new PrintedPiece(instruction, operand, IlType.String, text, 0, default)]), null)
@@ -710,7 +1082,30 @@ internal sealed class PrintedTextFlow
             MarkPlain(array.Newarr);
         }
 
+        foreach (var boxed in new[] { a, b }.OfType<Boxed>())
+        {
+            MarkPlain(boxed.Box);
+        }
+
+        foreach (var span in new[] { a, b }.OfType<SpanText>())
+        {
+            MarkPlain(span.Source);
+        }
+
+        // built text that meets other text where ways join is kept: each way makes its string
+        foreach (var built in new[] { a, b }.OfType<Built>())
+        {
+            MarkKept(built.Producer);
+        }
+
         return a is Built or Mixed || b is Built or Mixed ? new Mixed() : Unknown;
+    }
+
+    /// <summary>Marks built text kept; what is not supported meanwhile (the analysis runs again).</summary>
+    private Unsupported Keep(Built built)
+    {
+        MarkKept(built.Producer);
+        return Unsupported.KeepingBuiltText;
     }
 
     /// <summary>The string locals of <paramref name="body"/> that one instruction writes and one reads, and none takes the address of.</summary>
@@ -733,7 +1128,7 @@ internal sealed class PrintedTextFlow
 
     private void MarkPlain(IlInstruction newarr)
     {
-        if (_plainArrays.Add(newarr))
+        if (newarr.OpCode == IlOpCode.Box ? _plainBoxes.Add(newarr) : _plainArrays.Add(newarr))
         {
             _foundPlainArray = true;
         }
@@ -809,6 +1204,12 @@ internal sealed class PrintedTextFlow
 
     /// <summary>Text built by <paramref name="Producer"/> (ToStringAndClear, Concat, ToString), with all its parts.</summary>
     private sealed record Built(IlInstruction Producer, Parts Parts) : Value;
+
+    /// <summary>Text or a char as a <c>ReadOnlySpan&lt;char&gt;</c> for a <c>string.Concat</c> of spans, made by <paramref name="Source"/>.</summary>
+    private sealed record SpanText(IlInstruction Source, Parts Parts) : Value;
+
+    /// <summary>A value of <paramref name="Type"/> boxed by <paramref name="Box"/>, for a format: a hole.</summary>
+    private sealed record Boxed(IlInstruction Box, IlType Type) : Value;
 
     /// <summary>Built text where ways join with other text, or with something else.</summary>
     private sealed record Mixed : Value;

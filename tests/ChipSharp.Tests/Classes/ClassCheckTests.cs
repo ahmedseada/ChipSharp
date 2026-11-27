@@ -155,7 +155,7 @@ public sealed class ClassCheckTests : IDisposable
     }
 
     [Fact]
-    public void Equals_and_GetHashCode_of_objects_compile_and_ToString_arrives_with_stored_strings()
+    public void Equals_GetHashCode_and_ToString_of_objects_compile_and_an_object_in_an_interpolated_hole_waits()
     {
         var analysis = WholeProgram.Check("""
             class Node
@@ -177,12 +177,11 @@ public sealed class ClassCheckTests : IDisposable
             }
             """);
 
-        // an object printed is printed as its ToString gives it
+        // an object printed is printed as its ToString gives it; in a hole of $"..." not yet
         Assert.Equal(
         [
-            "ToString of objects (and printing an object) arrives with M3 (stored strings): 2 places in Program.Main() " +
-                "(IL_0024 and IL_003a). For now, give the class a method that prints what it holds, such as Print(), " +
-                "and call that.",
+            "ToString of objects (and printing an object) arrives with M3 (stored strings): 1 place in Program.Main() " +
+                "(IL_003a). For now, give the class a method that prints what it holds, such as Print(), and call that.",
         ], analysis.Groups.Select(group => group.Line));
     }
 
@@ -216,7 +215,7 @@ public sealed class ClassCheckTests : IDisposable
 
             class Letter
             {
-                public char Code;
+                public decimal Code;
             }
 
             class Program
@@ -241,7 +240,7 @@ public sealed class ClassCheckTests : IDisposable
             "finalizers (~ClassName()) arrive later",
             "exceptions arrive later",
             "classes derived from the library class System.Collections.ArrayList arrive later",
-            "characters (char) in the field Letter.Code arrive with M3 (the heap)",
+            "the type decimal in the field Letter.Code arrives later",
         ], analysis.Groups.Select(group => group.Problems[0].Unsupported.Heading).Distinct());
     }
 

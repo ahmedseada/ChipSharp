@@ -11,13 +11,13 @@ namespace ChipSharp.Tests.Analysis;
 /// <summary>
 /// Printed text in the whole-program pass: text built with $"...", + and ToString and printed straight away compiles,
 /// in Release and in Debug, on any target with a console, a heap or not; text that is kept (in a variable or a field,
-/// returned, passed on, measured, chosen where ways join) needs the heap; and what a hole cannot be yet says what to
-/// write instead.
+/// returned, passed on, measured, chosen where ways join) is a string the instruction that finishes it makes, which
+/// needs a heap; and what a hole cannot be yet says what to write instead.
 /// </summary>
 public sealed class PrintedTextCheckTests : IDisposable
 {
-    private const string Kept = "keeping built text in a variable arrives with M3 (the heap). For now, print it straight "
-        + "away: Console.WriteLine($\"...\").";
+    private const string Kept = "keeping built text in a variable needs a heap, and the target 'pico-no-heap' (264 KB RAM) "
+        + "has no heap. Print it straight away: Console.WriteLine($\"...\").";
 
     private const string Formats = "For now, write whole numbers with D, D<n>, X or X<n> (x for lowercase hex digits), "
         + "or leave the format out.";
@@ -83,11 +83,12 @@ public sealed class PrintedTextCheckTests : IDisposable
     }
 
     [Fact]
-    public void Built_text_that_is_kept_needs_the_heap_where_it_is_kept()
+    public void Built_text_that_is_kept_is_a_string_made_where_the_text_is_finished()
     {
         // stored in a static field, passed to a method of the program, returned, measured, chosen where ways join,
-        // compared: only Console.Write and Console.WriteLine of it straight away print it
-        var problems = Problems("""
+        // compared: only Console.Write and Console.WriteLine of it straight away print it; the rest is a string, made by
+        // the instruction that finishes the text (ToStringAndClear, the Concat, the ToString), which needs a heap
+        const string Source = """
             using System;
 
             class Program
@@ -110,22 +111,23 @@ public sealed class PrintedTextCheckTests : IDisposable
                     Console.WriteLine(lane.ToString() == "2");
                 }
             }
-            """);
+            """;
 
+        Assert.True(WholeProgramPass.Check(Load(Source, OptimizationLevel.Release)).IsSupported);
         Assert.Equal(
         [
-            $"Program.Main() at IL_0017 (stsfld): {Kept}",
-            $"Program.Main() at IL_0040 (call): {Kept}",
-            $"Program.Main() at IL_0061 (callvirt): {Kept}",
-            $"Program.Main() at IL_0098 (call): {Kept}",
-            $"Program.Main() at IL_00a9 (call): {Kept}",
-            $"Program.Make(int) at IL_0024 (ret): {Kept}",
-        ], problems);
+            $"Program.Main() at IL_0012 (call): {Kept}",
+            $"Program.Main() at IL_003b (call): {Kept}",
+            $"Program.Main() at IL_005c (call): {Kept}",
+            $"Program.Main() at IL_0093 (call): {Kept}",
+            $"Program.Main() at IL_009f (call): {Kept}",
+            $"Program.Make(int) at IL_001f (call): {Kept}",
+        ], WholeProgramPass.Check(Load(Source, OptimizationLevel.Release), NoHeap).Problems.Select(problem => problem.Line));
     }
 
     [Theory]
-    [InlineData(OptimizationLevel.Release, "IL_0026 (stloc.1)")]
-    [InlineData(OptimizationLevel.Debug, "IL_0029 (stloc.1)")]
+    [InlineData(OptimizationLevel.Release, "IL_0021 (call)")]
+    [InlineData(OptimizationLevel.Debug, "IL_0024 (call)")]
     public void A_variable_read_more_than_once_keeps_the_text(OptimizationLevel optimization, string place)
     {
         // read once, the variable is a temporary like those C# makes (around a switch expression, and in Debug for
@@ -149,7 +151,7 @@ public sealed class PrintedTextCheckTests : IDisposable
                     }
                 }
             }
-            """, optimization));
+            """, optimization), NoHeap);
 
         Assert.Equal([$"Program.Main() at {place}: {Kept}"], analysis.Problems.Select(problem => problem.Line));
     }
@@ -157,8 +159,8 @@ public sealed class PrintedTextCheckTests : IDisposable
     [Fact]
     public void A_hole_that_cannot_be_printed_yet_says_what_to_write_instead()
     {
-        // an enum (.NET prints its name), a struct, a float with a format or an alignment, the formats of whole numbers
-        // that are not D, X or G, a char, a nint
+        // a struct, a float with a format or an alignment, the formats of whole numbers that are not D, X or G, a nint
+        // (an enum, by its name, and a char compile)
         var problems = Problems("""
             using System;
 
@@ -191,13 +193,8 @@ public sealed class PrintedTextCheckTests : IDisposable
             }
             """);
 
-        const string Enums = "enum names arrive with M3 (the heap). For now, print the number: "
-            + "Console.WriteLine($\"{(int)color}\").";
         Assert.Equal(
         [
-            $"Program.Main() at IL_002d (call): {Enums}",
-            $"Program.Main() at IL_0045 (constrained.): {Enums}",
-            $"Program.Main() at IL_004b (callvirt): {Enums}",
             "Program.Main() at IL_0066 (call): the text of a Point ($\"{value}\", value.ToString()) arrives with M3 (the "
                 + "heap). For now, print the numbers, bools and text it holds one after another.",
             $"Program.Main() at IL_0088 (call): the format \"F2\" in printed text arrives later. {Formats}",
@@ -206,7 +203,6 @@ public sealed class PrintedTextCheckTests : IDisposable
             $"Program.Main() at IL_00c0 (call): the format \"N0\" in printed text arrives later. {Formats}",
             $"Program.Main() at IL_00da (call): the format \"C\" in printed text arrives later. {Formats}",
             $"Program.Main() at IL_00f2 (call): the format \"E3\" in printed text arrives later. {Formats}",
-            "Program.Main() at IL_0109 (call): characters (char) arrive with M3 (the heap). For now, use whole numbers.",
             "Program.Main() at IL_0127 (call): the text of a nint or nuint ($\"{size}\") arrives later. For now, "
                 + "convert it: $\"{(long)size}\".",
         ], problems);
@@ -215,10 +211,8 @@ public sealed class PrintedTextCheckTests : IDisposable
     [Fact]
     public void On_a_target_without_a_heap_printed_text_compiles_and_kept_text_needs_a_heap()
     {
-        // printed text needs no heap, only a console; enum names need none either: they still arrive with M3
-        var targets = TargetFiles.WithShipped(Path.Combine(_scratch, "targets"),
-            ("pico-no-heap", """{ "inherits": "pico", "capabilities": { "heap": false } }"""));
-        var target = new TargetLoader(targets).Load("pico-no-heap");
+        // printed text needs no heap, only a console; enum names need none either: each is written by a function of its own
+        var target = NoHeap;
         Assert.True(WholeProgramPass.Check(Load(Printed, OptimizationLevel.Release), target).IsSupported);
 
         var analysis = WholeProgramPass.Check(Load("""
@@ -240,10 +234,7 @@ public sealed class PrintedTextCheckTests : IDisposable
 
         Assert.Equal(
         [
-            "Program.Main() at IL_0017 (call): enum names arrive with M3 (the heap). For now, print the number: "
-                + "Console.WriteLine($\"{(int)color}\").",
-            "Program.Make(int) at IL_0024 (ret): keeping built text in a variable needs a heap, and the target "
-                + "'pico-no-heap' (264 KB RAM) has no heap. Print it straight away: Console.WriteLine($\"...\").",
+            $"Program.Make(int) at IL_001f (call): {Kept}",
         ], analysis.Problems.Select(problem => problem.Line));
     }
 
@@ -271,6 +262,10 @@ public sealed class PrintedTextCheckTests : IDisposable
             + "ChipSharp.Hardware.Pin.",
             Assert.Single(analysis.Groups).Line);
     }
+
+    /// <summary>The Pico without its heap: printed text compiles there, kept text needs a heap.</summary>
+    private Abstractions.TargetDescription NoHeap => new TargetLoader(TargetFiles.WithShipped(Path.Combine(_scratch, "targets"),
+        ("pico-no-heap", """{ "inherits": "pico", "capabilities": { "heap": false } }"""))).Load("pico-no-heap");
 
     private static IlAssembly Load(string source, OptimizationLevel optimization) => IlAssembly.Load(
         CSharpCompiler.Compile(source, "Test", OutputKind.ConsoleApplication, optimization), "Test.dll");

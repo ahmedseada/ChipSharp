@@ -1,7 +1,7 @@
 namespace ChipSharp.Library;
 
 /// <summary>
-/// The methods of the numbers and of bool that generic code calls through an interface (<c>IComparable&lt;T&gt;</c>,
+/// The methods of the numbers, of bool and of char that generic code calls through an interface (<c>IComparable&lt;T&gt;</c>,
 /// <c>IEquatable&lt;T&gt;</c>) or object (<c>GetHashCode</c>): in an instance of generic code for a number, ChipSharp
 /// calls the one here for the number's own (<c>a.CompareTo(b)</c> with T = int is <c>CompareTo(ref a, b)</c>), which
 /// takes the number's address as the number's own takes it as <c>this</c>. Each gives what .NET's gives, written as
@@ -12,6 +12,8 @@ namespace ChipSharp.Library;
 internal static class Numbers
 {
     public static int CompareTo(ref bool value, bool other) => value == other ? 0 : !value ? -1 : 1;
+
+    public static int CompareTo(ref char value, char other) => value - other;
 
     public static int CompareTo(ref sbyte value, sbyte other) => value - other;
 
@@ -48,6 +50,8 @@ internal static class Numbers
 
     public static bool Equals(ref bool value, bool other) => value == other;
 
+    public static bool Equals(ref char value, char other) => value == other;
+
     public static bool Equals(ref sbyte value, sbyte other) => value == other;
 
     public static bool Equals(ref byte value, byte other) => value == other;
@@ -69,6 +73,8 @@ internal static class Numbers
     public static bool Equals(ref nuint value, nuint other) => value == other;
 
     public static int GetHashCode(ref bool value) => value ? 1 : 0;
+
+    public static int GetHashCode(ref char value) => value | (value << 16);
 
     public static int GetHashCode(ref sbyte value) => value;
 

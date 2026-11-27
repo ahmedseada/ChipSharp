@@ -99,7 +99,7 @@ public sealed class ArrayMethodCheckTests : IDisposable
         const string Sort = "Array.Sort and Array.BinarySearch of arrays of enums, structs that do not implement " +
             "IComparable<T>, text or objects arrive later. For now, sort an array of numbers (a key for each element) " +
             "or of structs that implement IComparable<T>, or write the loop.";
-        Assert.Equal([$"Program.Main() at IL_000a (call): {Sort}", $"Program.Main() at IL_0030 (call): {Sort}"],
+        Assert.Equal([$"Program.Main() at IL_000a (call): {Sort}", $"Program.Main() at IL_002e (call): {Sort}"],
             problems);
     }
 

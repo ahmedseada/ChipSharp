@@ -235,7 +235,7 @@ public sealed class VirtualCheckTests : IDisposable
     }
 
     [Fact]
-    public void What_still_needs_stored_strings_or_the_library_is_rejected_and_generic_virtual_methods_compile()
+    public void What_still_needs_the_library_is_rejected_and_generic_virtual_methods_compile()
     {
         var problems = WholeProgram.Problems("""
             using System;
@@ -264,13 +264,9 @@ public sealed class VirtualCheckTests : IDisposable
         // Pick<int>, an instance of a generic virtual method, has a slot of its own (VirtualMethods.Generic.cs)
         Assert.Equal(
         [
-            "Program.Main() at IL_0018 (callvirt): ToString of objects (and printing an object) arrives with M3 (stored " +
-                "strings). For now, give the class a method that prints what it holds, such as Print(), and call that.",
             "Program.Main() at IL_0026 (callvirt): typeof and type handles arrive later. For now, leave them out.",
             "Program.Main() at IL_002c (call): the library method System.Type.op_Equality(System.Type, System.Type) is " +
                 "not available yet.",
-            "Program.Main() at IL_0037 (isinst): type tests and casts to string (is, as, (T)x) arrive with M3 (the heap). " +
-                "For now, test objects against the program's own classes and interfaces.",
             "Program.Main() at IL_0045 (isinst): type tests and casts to System.Random (is, as, (T)x) arrive with M3 (the " +
                 "heap). For now, test objects against the program's own classes and interfaces.",
             "Program.Main() at IL_0053 (unbox.any): boxing (using a value as an object) arrives with M3 (the heap). For " +
@@ -281,7 +277,7 @@ public sealed class VirtualCheckTests : IDisposable
     }
 
     [Fact]
-    public void Printing_an_object_is_its_ToString_which_arrives_with_stored_strings()
+    public void Printing_an_object_is_its_ToString_and_one_in_an_interpolated_hole_waits()
     {
         var problems = WholeProgram.Problems("""
             using System;
@@ -311,8 +307,6 @@ public sealed class VirtualCheckTests : IDisposable
             "give the class a method that prints what it holds, such as Print(), and call that.";
         Assert.Equal(
         [
-            $"Program.Main() at IL_0008 (call): {ToText}",
-            $"Program.Main() at IL_000d (call): {ToText}",
             $"Program.Main() at IL_001e (call): {ToText}",
         ], problems);
     }

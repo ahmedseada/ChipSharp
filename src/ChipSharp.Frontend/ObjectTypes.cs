@@ -21,12 +21,13 @@ namespace ChipSharp.Frontend;
 /// one before it (C# allows a private field of the same name in a base class) is named after its class too, e.g.
 /// <c>Program.Derived.count</c>.</item>
 /// <item>A field is the TIR type of its C# type: a number, bool, struct or enum as <see cref="ValueTypes"/> maps it, a
-/// reference type as <see cref="TryMapType"/>, fixed text a ptr (<see cref="FixedText"/>: text is not on the heap
-/// yet, so the collector never follows it).</item>
+/// reference type as <see cref="TryMapType"/>, a string too (a ref, see <see cref="Strings"/>: the collector follows
+/// it, and never marks a literal, which is outside the heap).</item>
 /// <item>Each class has one type descriptor per module, made with its base's first; System.Object's has no base (see
 /// <c>ProgramFunctions.ClassDescriptor</c>).</item>
 /// </list>
-/// It knows System.Object, the program's own classes that are not generic and the interfaces they may implement (see
+/// It knows System.Object, the program's own classes (and the instances of its generic classes, each a class of its own,
+/// see <see cref="Generics.ReferenceArguments"/>) and the interfaces they may implement (see
 /// <see cref="VirtualMethods.IsInterface"/>). A parameter, local, return value, static
 /// field or struct field may be of any of them (<see cref="SupportedSubset.TryMapType(IlType, IlAssembly, out TirType?)"/>
 /// asks this mapping); what keeps a class from compiling (<see cref="ClassRules"/>) is reported where the program
@@ -52,7 +53,9 @@ internal static class ObjectTypes
     {
         ArgumentNullException.ThrowIfNull(type);
         ArgumentNullException.ThrowIfNull(assembly);
+        // a string is an object too (see Strings)
         tirType = IsSystemObject(type) || Class(type, assembly) is not null || VirtualMethods.IsInterface(type, assembly)
+            || FixedText.IsText(type)
             ? TirType.Ref
             : null;
         return tirType is not null;

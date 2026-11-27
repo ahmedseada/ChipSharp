@@ -104,14 +104,45 @@ public static partial class WholeProgramPass
         _ => Unsupported.ForSpan(call.Element, assembly),
     };
 
+    /// <summary>The first field of a struct (or of a struct in it) that holds a reference: a string or an object; null for none.</summary>
+    private static (IlTypeDefinition Owner, IlField Field)? ReferenceField(IlType type, IlAssembly assembly)
+    {
+        if (ValueTypes.Definition(type, assembly) is not { } definition || !ValueTypes.IsStruct(definition))
+        {
+            return null;
+        }
+
+        foreach (var field in ValueTypes.InstanceFields(definition))
+        {
+            if (ObjectTypes.TryMapType(field.Type, assembly, out _) || HeapArrays.ElementType(field.Type) is not null)
+            {
+                return (definition, field);
+            }
+
+            if (ReferenceField(field.Type, assembly) is { } inner)
+            {
+                return inner;
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Why a value of <paramref name="type"/> cannot be read or written as bytes (MemoryMarshal): it is not a number, a
-    /// bool, an enum or a struct of them; null when it is.
+    /// bool, an enum or a struct of them (no string or object in it); null when it is.
     /// </summary>
     private static Unsupported? ForPlainData(IlType type, IlAssembly assembly)
     {
         if (StackArrays.TryMapElementType(type, assembly, out _))
         {
+            // a reference (a string, an object) is no bytes to read
+            if (ReferenceField(type, assembly) is var (owner, field))
+            {
+                return Unsupported.MemoryMarshalOf(CSharpNames.Type(type),
+                    $"the field {CSharpNames.Type(owner.Type)}.{field.Name} has type {CSharpNames.Type(field.Type)}");
+            }
+
             // its bytes are what .NET reads only when it is laid out as C# lays out a struct by default
             return CustomLayout(type, assembly, 0) is { } custom
                 ? Unsupported.MemoryMarshalOf(CSharpNames.Type(type), $"{custom} has a [StructLayout] with Pack or Size, " +

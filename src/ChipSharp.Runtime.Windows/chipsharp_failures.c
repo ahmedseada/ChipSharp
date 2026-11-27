@@ -197,6 +197,27 @@ __declspec(noreturn) void ChipSharp_Runtime_DestinationTooShort(void)
     fail(message, (DWORD)(sizeof message - 1));
 }
 
+// Any other failure, its exception and message given (from chipsharp_string.c and chipsharp_string_heap.c), e.g.
+// "System.FormatException: The input string 'x' was not in a correct format."; at most 900 bytes of it are written.
+__declspec(noreturn) void chipsharp_fail(const char *message)
+{
+    static char text[sizeof UNHANDLED + 900 + 2];
+    DWORD count = 0;
+    for (const char *from = UNHANDLED; *from != 0; from++)
+    {
+        text[count++] = *from;
+    }
+
+    for (; *message != 0 && count < sizeof UNHANDLED - 1 + 900; message++)
+    {
+        text[count++] = *message;
+    }
+
+    text[count++] = '\r';
+    text[count++] = '\n';
+    fail(text, count);
+}
+
 // A PC reads values at any address, so MemoryMarshal.Cast never calls this there ("unalignedAccess": true); it is here
 // for every runtime to have each failure function.
 __declspec(noreturn) void ChipSharp_Runtime_DataMisaligned(void)

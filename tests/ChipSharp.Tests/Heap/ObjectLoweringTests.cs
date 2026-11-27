@@ -112,7 +112,7 @@ public sealed class ObjectLoweringTests : IDisposable
     }
 
     [Fact]
-    public void Null_is_still_a_null_ptr_where_text_is_wanted()
+    public void Null_is_a_null_ref_where_text_is_wanted_as_text_is_an_object()
     {
         const string Source = """
             static class C
@@ -121,7 +121,7 @@ public sealed class ObjectLoweringTests : IDisposable
             }
             """;
 
-        Assert.Contains("%0 = zero ptr\n  return %0", Lowered.Function(Source, "C.Pick"));
+        Assert.Contains("%0 = zero ref\n  return %0", Lowered.Function(Source, "C.Pick"));
     }
 
     [Fact]
@@ -141,7 +141,7 @@ public sealed class ObjectLoweringTests : IDisposable
         Assert.False(ObjectTypes.IsClass(assembly.FindType("Spot")!));
         Assert.False(ObjectTypes.IsClass(assembly.FindType("IPet")!));
         Assert.Equal("struct Animal { ptr <type>, i32 Legs, ref Friend, i32 count }", StructText(ObjectTypes.ObjectType(animal)));
-        Assert.Equal("struct Dog { ptr <type>, i32 Legs, ref Friend, i32 count, i64 Born, i32 Dog.count, ptr Name }",
+        Assert.Equal("struct Dog { ptr <type>, i32 Legs, ref Friend, i32 count, i64 Born, i32 Dog.count, ref Name }",
             StructText(ObjectTypes.ObjectType(dog)));
         Assert.Same(ObjectTypes.ObjectType(dog), ObjectTypes.ObjectType(dog));
         Assert.Equal((ObjectTypes.ObjectType(animal), 2), ObjectTypes.FieldOf(animal.Fields.Single(f => f.Name == "Friend")));
@@ -160,7 +160,7 @@ public sealed class ObjectLoweringTests : IDisposable
         Assert.Same(functions.ObjectDescriptor, dogType.Base.Base);
         var layout = new TirLayout(4);
         Assert.Equal((16, 32), (layout.SizeOf(dogType.Base.ObjectType!), layout.SizeOf(dogType.ObjectType!)));
-        Assert.Equal([8L], layout.ReferenceOffsets(dogType.ObjectType!));
+        Assert.Equal([8L, 28L], layout.ReferenceOffsets(dogType.ObjectType!));
         Assert.Same(functions.ArrayDescriptor("Dog[]", TirType.Ref, dogType), functions.ArrayDescriptor("Dog[]", TirType.Ref));
     }
 

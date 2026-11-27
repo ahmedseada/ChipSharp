@@ -258,7 +258,7 @@ public sealed class GenericCheckTests : IDisposable
             {
                 static void Main()
                 {
-                    var pair = new Pair<string[]>();
+                    var pair = new Pair<int[,]>();
                     System.Console.WriteLine(pair.First == null);
                     Box<int>.Made++;
                     System.Console.WriteLine(Box<int>.Made);
@@ -266,14 +266,15 @@ public sealed class GenericCheckTests : IDisposable
             }
             """);
 
-        // an array as a type argument is what arrays of its elements need: strings on the heap (Box<int> compiles)
-        const string Strings = "arrays of strings arrive with M3 (the heap). For now, keep each string in a variable or " +
-            "a static field of its own, or pick it with a switch.";
+        // an array as a type argument is what arrays of its kind need: a multi-dimensional one arrives later (Box<int>
+        // compiles)
+        const string Arrays = "multi-dimensional arrays (int[,]) arrive later. For now, use a one-dimensional array and " +
+            "compute the index: row * width + column.";
         Assert.Equal(
         [
-            $"Program.Main(), local variable V_0 (Pair<string[]>): {Strings}",
-            $"Program.Main() at IL_0002 (initobj): {Strings}",
-            $"Program.Main() at IL_0009 (ldfld): {Strings}",
+            $"Program.Main(), local variable V_0 (Pair<int[,]>): {Arrays}",
+            $"Program.Main() at IL_0002 (initobj): {Arrays}",
+            $"Program.Main() at IL_0009 (ldfld): {Arrays}",
         ], problems);
     }
 

@@ -597,7 +597,7 @@ public sealed class IlToTirStructTests
         const string Source = """
             struct Person
             {
-                public string Name;
+                public System.Random Name;
                 public int Age;
 
                 public int Older(int years) => Age + years;
@@ -610,8 +610,8 @@ public sealed class IlToTirStructTests
             """;
 
         Assert.Equal("Test.dll: C.Age(Person): parameter 'person' has type Person, which is not supported yet (the field " +
-            "Person.Name has type string).", Error(Source, "C.Age").Message);
-        Assert.Equal("Test.dll: Person.Older(int32): the field Person.Name has type string, which is not supported yet.",
+            "Person.Name has type System.Random).", Error(Source, "C.Age").Message);
+        Assert.Equal("Test.dll: Person.Older(int32): the field Person.Name has type System.Random, which is not supported yet.",
             Error(Source, "Person.Older").Message);
     }
 

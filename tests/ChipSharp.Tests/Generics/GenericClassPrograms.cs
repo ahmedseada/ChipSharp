@@ -14,7 +14,7 @@ internal static class GenericClassPrograms
     /// <summary>
     /// Generic classes over classes and over int: a box, a linked list and a stack of nodes of T, a class nested in a
     /// generic class, inheritance among generic classes (Derived&lt;T&gt; : Base&lt;T&gt;, IntBox : Base&lt;int&gt;) with
-    /// virtual methods, static fields of each instance, new T[n] that grows, default(T), and casts, is and as to T.
+    /// virtual methods, static fields of each instance (over text too), new T[n] that grows, default(T), and casts, is and as to T.
     /// </summary>
     public const string Containers = """
         using System;
@@ -140,7 +140,9 @@ internal static class GenericClassPrograms
                 var lane = new Box<Lane>(new Lane(3));
                 Console.WriteLine(number.Get() + lane.Get().Number);
                 Console.WriteLine(lane.Swap(new Lane(4)).Number * 10 + lane.Value.Number);
-                Console.WriteLine($"{Box<int>.Made} {Box<Lane>.Made} {Box<object>.Made}");
+                var named = new Box<string>("road");
+                Console.WriteLine(named.Swap("rail") + named.Get().Length);
+                Console.WriteLine($"{Box<int>.Made} {Box<Lane>.Made} {Box<object>.Made} {Box<string>.Made}");
 
                 var lanes = new Stack<Lane>();
                 for (var i = 0; i < 5; i++)
@@ -504,7 +506,7 @@ internal static class GenericClassPrograms
     /// The default comparers: EqualityComparer&lt;T&gt;.Default over numbers (NaN equals NaN), an enum, a struct and a
     /// class that implement IEquatable&lt;T&gt;, a class with its own Equals(object) and one without; their hash codes;
     /// Comparer&lt;T&gt;.Default over numbers and IComparable&lt;T&gt; types, null first; a comparer kept in a field and
-    /// called through IEqualityComparer&lt;T&gt;; a collection of the program's that finds its elements with it, and
+    /// called through IEqualityComparer&lt;T&gt;; text (ordinal Equals, string's CompareTo); a collection of the program's that finds its elements with it, and
     /// is looped over with foreach through a struct enumerator (no try/finally).
     /// </summary>
     public const string Comparers = """
@@ -630,6 +632,9 @@ internal static class GenericClassPrograms
                 Console.WriteLine($"{Hash(5)} {Hash(new Point(1, 2))} {Hash(new Name(7))} {Hash<Name>(null)} {Hash(-3L)} {Hash(new Key(23))} {Hash(Color.Blue)}");
                 Console.WriteLine($"{Compare(1, 2)} {Compare(5, 5)} {Compare((byte)200, (byte)3)} {Compare(2.5, 1.0)} {Compare(new Point(1, 1), new Point(0, 5))}");
                 Console.WriteLine($"{Compare(new Key(5), new Key(2))} {Compare(null, new Key(1))} {Compare(new Key(1), null)} {Compare<Key>(null, null)}");
+                var built = "ro" + 4.ToString();
+                Console.WriteLine($"{Same("ro4", built)} {Same("a", "b")} {Same<string>(null, null)} {Hash("road") == Hash("ro" + "ad")} {Hash<string>(null)}");
+                Console.WriteLine($"{Compare("a", "b") < 0} {Compare("b", "a") > 0} {Compare("b", "b")} {Compare<string>(null, "a")}");
                 Console.WriteLine($"{EqualityComparer<int>.Default.Equals(3, 3)} {Comparer<long>.Default.Compare(4, 3)}");
                 IEqualityComparer<Name> names = EqualityComparer<Name>.Default;
                 IComparer<int> ints = Comparer<int>.Default;

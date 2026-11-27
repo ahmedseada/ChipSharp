@@ -249,9 +249,18 @@ internal static partial class Specialization
             return null;
         }
 
+        // text is compared as string compares it (its Equals(object) is string's own)
+        if (name == "Compare" && FixedText.IsText(plain)
+            && LibrarySubstitutes.Assembly.FindType(EqualityType)?.Methods.FirstOrDefault(method => method.Name == "CompareText")
+                is { } text)
+        {
+            return new IlMethodReference(new IlNamedType("ChipSharp.Library", "Equality", null, "ChipSharp.Library"),
+                text.Name, text.Signature, [], text);
+        }
+
         // an enum's hash code is its number's
         var through = generic is null ? "HashOf"
-            : plain is IlPrimitiveType { Kind: >= IlPrimitiveKind.Bool and <= IlPrimitiveKind.Float64 }
+            : plain is IlPrimitiveType { Kind: >= IlPrimitiveKind.Bool and <= IlPrimitiveKind.NativeUInt }
             || Implements(plain, new IlGenericInstanceType(new IlNamedType("System", generic[7..], null, "System.Runtime"),
                 [plain]), owner)
             ? name == "AreEqual" ? "OfEquatable" : "OfComparable"

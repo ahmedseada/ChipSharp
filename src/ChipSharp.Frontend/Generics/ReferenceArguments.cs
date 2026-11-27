@@ -10,8 +10,10 @@ namespace ChipSharp.Frontend.Generics;
 /// array whose elements an array on the heap may hold are type arguments like a number is: the generic code gets an
 /// instance of its own for each, with the type in place of T, so <c>Box&lt;Lane&gt;</c> is a class of its own, whose
 /// descriptor names it as .NET does (<c>Box`1[Program+Lane]</c>), with its own static fields, and whose code casts to
-/// T, makes a T[] and tests against T exactly as code written for Lane would. Copies that come out the same machine
-/// code (a getter, a method that only moves T along) are folded by the linker, so they take the flash of one.
+/// T, makes a T[] and tests against T exactly as code written for Lane would. One copy shared by every reference type
+/// would need the type at run time wherever the code makes a Node&lt;T&gt; or a T[], casts or tests, and would save
+/// little: in the whole program LLVM inlines an instance's methods where they are called, so on the Pico an instance
+/// costs about its descriptor and name, some 100 bytes (README, Generics; GenericClassCheckTests).
 /// </summary>
 /// <remarks>
 /// An instance over a reference type works on objects, so on a target without a heap every place that uses one is a

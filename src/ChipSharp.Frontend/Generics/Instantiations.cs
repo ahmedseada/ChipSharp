@@ -5,8 +5,8 @@ using ChipSharp.Frontend.Il;
 namespace ChipSharp.Frontend.Generics;
 
 /// <summary>
-/// Generics without a heap: a generic method or a generic type of the program is compiled once for each list of type
-/// arguments the program uses it with, like C++ templates or .NET's generics over structs. Each such instance is a
+/// Generics, without a heap over values: a generic method or a generic type of the program is compiled once for each list
+/// of type arguments the program uses it with, like C++ templates or .NET's generics over structs. Each such instance is a
 /// method (<see cref="IlMethod"/>) or a type (<see cref="IlTypeDefinition"/>) of its own, whose signature, fields,
 /// locals and IL have the type arguments in place of the type parameters (<see cref="Specialization"/>), so everything
 /// after the IL reader takes it for code written for those types: no boxing, no heap, no code shared between types.
@@ -27,10 +27,16 @@ namespace ChipSharp.Frontend.Generics;
 /// <c>Program_Max_int_</c>.
 /// </para>
 /// <para>
-/// The type arguments must be values: numbers, bools, enums, structs (generic ones too) and fixed text (string). A
-/// class, an interface, object or an array as a type argument is not linked, so the whole-program pass reports it where
-/// it is used (<see cref="Refusal"/>), and so is a type argument nested deeper than <see cref="MostNesting"/> generic
-/// types, which only a generic method or type that uses itself with a bigger type argument each time makes.
+/// The type arguments are values (numbers, bools, enums, structs, generic ones too, and text) and reference types
+/// (<see cref="ReferenceArguments"/>: object, classes, interfaces, arrays; generics over classes, which need a heap).
+/// One that cannot be compiled is not linked, so the whole-program pass reports it where it is used
+/// (<see cref="Refusal"/>), and so is a type argument nested deeper than <see cref="MostNesting"/> generic types, which
+/// only a generic method or type that uses itself with a bigger type argument each time makes.
+/// </para>
+/// <para>
+/// An instance of ChipSharp.Library's generic code over the program's types is made in the program (see
+/// <see cref="Home"/>), and only for type arguments that meet the library method's constraints
+/// (<see cref="LibraryConstraints"/>).
 /// </para>
 /// </remarks>
 internal static class Instantiations

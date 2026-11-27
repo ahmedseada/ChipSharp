@@ -7,13 +7,14 @@ namespace ChipSharp.Frontend.Lowering;
 /// each added to the module when first needed. They write with the runtime's Console.Write functions and fixed text
 /// only (a space, a zero, a minus sign, the hex digits), never building a string:
 /// <code>
-/// function void ChipSharp.Text.Repeat(ptr %text, i32 %count)                  the text count times; none when count &lt;= 0
-/// function i32 ChipSharp.Text.Length(ptr %text)                               its length as .NET counts it; 0 for null
-/// function void ChipSharp.Text.WriteAligned(ptr %text, i32 %alignment)
+/// function void ChipSharp.Text.Repeat(ref %text, i32 %count)                  the text count times; none when count &lt;= 0
+/// function i32 ChipSharp.Text.Length(ref %text)                               its length as .NET counts it; 0 for null
+/// function void ChipSharp.Text.WriteAligned(ref %text, i32 %alignment)
+/// function void ChipSharp.Text.WriteChar(i32 %value, i32 %alignment)
 /// function void ChipSharp.Text.WriteBool(i32 %value, i32 %alignment)
 /// function void ChipSharp.Text.WriteSigned(i64 %value, i32 %precision, i32 %alignment)
 /// function void ChipSharp.Text.WriteDecimal(i64 %magnitude, i32 %negative, i32 %precision, i32 %alignment)
-/// function void ChipSharp.Text.WriteHex(i64 %bits, ptr %digits, i32 %precision, i32 %alignment)
+/// function void ChipSharp.Text.WriteHex(i64 %bits, i32 %upper, i32 %precision, i32 %alignment)
 /// function i32 ChipSharp.Text.Digits(i64 %magnitude)                          its decimal digits, read as unsigned
 /// function i32 ChipSharp.Text.HexDigits(i64 %bits)                            its hex digits, read as unsigned
 /// </code>
@@ -34,9 +35,13 @@ internal sealed class PrintedTextFunctions(TirModule module, ProgramFunctions pr
     private TirFunction? _writeHex;
     private TirFunction? _digits;
     private TirFunction? _hexDigits;
+    private TirFunction? _writeChar;
 
     /// <summary>Writes text (or nothing, for null) aligned.</summary>
     public TirFunction WriteAligned => _writeAligned ??= DefineWriteAligned();
+
+    /// <summary>Writes a char (an i32) aligned.</summary>
+    public TirFunction WriteChar => _writeChar ??= DefineWriteChar();
 
     /// <summary>Writes a bool (an i32, 0 or not) aligned: True or False.</summary>
     public TirFunction WriteBool => _writeBool ??= DefineWriteBool();
@@ -47,7 +52,7 @@ internal sealed class PrintedTextFunctions(TirModule module, ProgramFunctions pr
     /// <summary>Writes a magnitude in decimal after a minus sign when negative is 1, with at least precision digits, aligned.</summary>
     public TirFunction WriteDecimal => _writeDecimal ??= DefineWriteDecimal();
 
-    /// <summary>Writes bits in hex with the digits given (<see cref="ProgramFunctions.HexDigits"/>), at least precision of them, aligned.</summary>
+    /// <summary>Writes bits in hex, upper case when upper is 1, at least precision digits, aligned.</summary>
     public TirFunction WriteHex => _writeHex ??= DefineWriteHex();
 
     private TirFunction Repeat => _repeat ??= DefineRepeat();
@@ -60,7 +65,7 @@ internal sealed class PrintedTextFunctions(TirModule module, ProgramFunctions pr
 
     private TirFunction DefineRepeat()
     {
-        var function = module.AddFunction("ChipSharp.Text.Repeat", TirType.Void, ("text", TirType.Ptr), ("count", TirType.I32));
+        var function = module.AddFunction("ChipSharp.Text.Repeat", TirType.Void, ("text", TirType.Ref), ("count", TirType.I32));
         var (text, count) = (function.Parameters[0], function.Parameters[1]);
         var left = function.AddSlot("left", TirType.I32);
         var ir = new TirBuilder(function.AddBlock("entry"));
@@ -83,36 +88,28 @@ internal sealed class PrintedTextFunctions(TirModule module, ProgramFunctions pr
         return function;
     }
 
-    /// <summary>The UTF-16 length at the start of a record (see <see cref="FixedText"/>), read a byte at a time.</summary>
+    /// <summary>The UTF-16 length of a string (see <see cref="Strings"/>): its length field.</summary>
     private TirFunction DefineLength()
     {
-        var function = module.AddFunction("ChipSharp.Text.Length", TirType.I32, ("text", TirType.Ptr));
+        var function = module.AddFunction("ChipSharp.Text.Length", TirType.I32, ("text", TirType.Ref));
         var text = function.Parameters[0];
         var ir = new TirBuilder(function.AddBlock("entry"));
         var none = function.AddBlock("null");
-        var record = function.AddBlock("record");
-        ir.Branch(ir.Compare(TirCompareOp.Eq, text, ir.Zero(TirType.Ptr)), none, record);
+        var length = function.AddBlock("length");
+        ir.Branch(ir.Compare(TirCompareOp.Eq, text, ir.Zero(TirType.Ref)), none, length);
 
         ir.Block = none;
         ir.Return(I32(ir, 0));
 
-        ir.Block = record;
-        TirValue length = I32(ir, 0);
-        for (var i = 0; i < 4; i++)
-        {
-            var part = ir.Convert(ir.Load(TirType.I8, ir.ElementAddress(text, TirType.I8, I32(ir, i))), TirType.I32,
-                unsigned: true);
-            length = ir.Binary(TirBinaryOp.Or, length, ir.Binary(TirBinaryOp.Shl, part, I32(ir, 8 * i)));
-        }
-
-        ir.Return(length);
+        ir.Block = length;
+        ir.Return(ir.ArrayLength(text));
         return function;
     }
 
     private TirFunction DefineWriteAligned()
     {
         var function = module.AddFunction("ChipSharp.Text.WriteAligned", TirType.Void,
-            ("text", TirType.Ptr), ("alignment", TirType.I32));
+            ("text", TirType.Ref), ("alignment", TirType.I32));
         var (text, alignment) = (function.Parameters[0], function.Parameters[1]);
         var ir = new TirBuilder(function.AddBlock("entry"));
         var width = ir.Call(Length, text);
@@ -186,43 +183,39 @@ internal sealed class PrintedTextFunctions(TirModule module, ProgramFunctions pr
         return function;
     }
 
-    /// <summary>The digits from the highest one down: digit i is bits 4i to 4i + 3, written as its record in the table.</summary>
+    /// <summary>The digits from the highest one down, written by the runtime (ChipSharp.Runtime.WriteHexDigits).</summary>
     private TirFunction DefineWriteHex()
     {
         var function = module.AddFunction("ChipSharp.Text.WriteHex", TirType.Void, ("bits", TirType.I64),
-            ("digits", TirType.Ptr), ("precision", TirType.I32), ("alignment", TirType.I32));
-        var (bits, table, precision, alignment) =
+            ("upper", TirType.I32), ("precision", TirType.I32), ("alignment", TirType.I32));
+        var (bits, upper, precision, alignment) =
             (function.Parameters[0], function.Parameters[1], function.Parameters[2], function.Parameters[3]);
         var digits = function.AddSlot("digits", TirType.I32);
         var width = function.AddSlot("width", TirType.I32);
-        var next = function.AddSlot("next", TirType.I32);
         var ir = new TirBuilder(function.AddBlock("entry"));
         var pad = function.AddBlock("pad");
-        var loop = function.AddBlock("loop");
-        var digit = function.AddBlock("digit");
-        var done = function.AddBlock("done");
 
         WidthOf(ir, ir.Call(HexDigits, bits), precision, digits, width, pad);
         ir.Block = pad;
         PadBefore(ir, alignment, ir.Load(width));
         ir.Call(Repeat, ir.AddressOf(program.Text("0")), ir.Binary(TirBinaryOp.Sub, precision, ir.Load(digits)));
-        ir.Store(next, ir.Load(digits));
-        ir.Jump(loop);
-
-        ir.Block = loop;
-        ir.Branch(ir.Compare(TirCompareOp.Gt, ir.Load(next), I32(ir, 0)), digit, done);
-
-        ir.Block = digit;
-        var index = ir.Binary(TirBinaryOp.Sub, ir.Load(next), I32(ir, 1));
-        ir.Store(next, index);
-        var shift = ir.Binary(TirBinaryOp.Shl, ir.Convert(index, TirType.I64, unsigned: true), ir.Const(TirType.I64, 2));
-        var value = ir.Binary(TirBinaryOp.And, ir.Binary(TirBinaryOp.ShrUnsigned, bits, shift), ir.Const(TirType.I64, 15));
-        var offset = ir.Binary(TirBinaryOp.Mul, ir.Convert(value, TirType.I32), I32(ir, FixedText.HeaderSize + 1));
-        ir.Call(program.Runtime("WriteString"), ir.ElementAddress(table, TirType.I8, offset));
-        ir.Jump(loop);
-
-        ir.Block = done;
+        ir.Call(program.RuntimeFunction("WriteHexDigits", TirType.Void, TirType.I64, TirType.I32, TirType.I32), bits,
+            ir.Load(digits), upper);
         PadAfter(ir, alignment, ir.Load(width));
+        ir.Return();
+        return function;
+    }
+
+    /// <summary>A char (an i32 holding its UTF-16 code unit), one character wide, aligned.</summary>
+    private TirFunction DefineWriteChar()
+    {
+        var function = module.AddFunction("ChipSharp.Text.WriteChar", TirType.Void,
+            ("value", TirType.I32), ("alignment", TirType.I32));
+        var (value, alignment) = (function.Parameters[0], function.Parameters[1]);
+        var ir = new TirBuilder(function.AddBlock("entry"));
+        PadBefore(ir, alignment, I32(ir, 1));
+        ir.Call(program.Runtime("WriteChar"), value);
+        PadAfter(ir, alignment, I32(ir, 1));
         ir.Return();
         return function;
     }

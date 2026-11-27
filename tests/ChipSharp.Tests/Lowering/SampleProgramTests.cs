@@ -57,6 +57,9 @@ public sealed class SampleProgramTests : IDisposable
     public Task Gcd() => PrintsWhatDotnetPrints();
 
     [HostFact]
+    public Task GenericClasses() => PrintsWhatDotnetPrints();
+
+    [HostFact]
     public Task Generics() => PrintsWhatDotnetPrints();
 
     [HostFact]
@@ -97,6 +100,9 @@ public sealed class SampleProgramTests : IDisposable
 
     [HostFact]
     public Task Structs() => PrintsWhatDotnetPrints();
+
+    [HostFact]
+    public Task Text() => PrintsWhatDotnetPrints();
 
     [HostFact]
     public Task TimeSpans() => PrintsWhatDotnetPrints();

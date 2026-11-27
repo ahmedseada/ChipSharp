@@ -95,6 +95,7 @@ internal static partial class VirtualMethods
         instructions[index] is { OpCode: IlOpCode.Callvirt, Operand: IlMethodOperand { Method: var callee } }
             && (index == 0 || instructions[index - 1].OpCode != IlOpCode.Constrained)
             ? SlotCalled(callee)
+            : StringMethods.IsConsoleWriteOfObject(instructions[index]) ? ObjectSlot("ToString", ToStringSignature)
             : null;
 
     /// <summary>The slot a callvirt of <paramref name="callee"/> goes through (see <see cref="CalledSlot"/>), or null.</summary>
@@ -218,7 +219,7 @@ internal static partial class VirtualMethods
     /// <summary>True when the class <paramref name="type"/> (or a base class of it) implements <paramref name="interfaceType"/>.</summary>
     public static bool Implements(IlTypeDefinition type, IlType interfaceType)
     {
-        var plain = ValueTypes.WithoutModifiers(interfaceType);
+        var plain = Canonical(interfaceType);
         for (IlTypeDefinition? current = type; current is not null; current = BaseOf(current))
         {
             if (InterfacesOf(current).Contains(plain))
@@ -373,9 +374,9 @@ internal static partial class VirtualMethods
     /// <summary>The interfaces the metadata says <paramref name="type"/> implements, without modifiers.</summary>
     private static IReadOnlyList<IlType> InterfacesOf(IlTypeDefinition type) => InterfaceLists.GetValue(type, own =>
         own.GenericDefinition is null
-            ? [.. own.Assembly.Interfaces(own).Select(ValueTypes.WithoutModifiers)]
+            ? [.. own.Assembly.Interfaces(own).Select(Canonical)]
             : [.. own.Assembly.Interfaces(own.GenericDefinition)
-                .Select(i => ValueTypes.WithoutModifiers(new Substitution(own.TypeArguments, []).Apply(i)))]);
+                .Select(i => Canonical(new Substitution(own.TypeArguments, []).Apply(i)))]);
 
     private static DispatchSlot FindSlot(IlMethod method)
     {
@@ -439,15 +440,15 @@ internal static partial class VirtualMethods
     };
 
     /// <summary>
-    /// <paramref name="slot"/>, but null for ToString's: it makes a string, so a call of it waits for stored strings (M3),
-    /// which give it its slot here; until then the whole-program pass rejects it, and no override of it is reached.
+    /// <paramref name="slot"/>: ToString's too, now that strings are objects (object's own gives the type's name, see
+    /// ProgramFunctions.Strings.cs).
     /// </summary>
-    private static DispatchSlot? Callable(DispatchSlot? slot) => slot is { Kind: DispatchSlotKind.Object, Name: "ToString" } ? null : slot;
+    private static DispatchSlot? Callable(DispatchSlot? slot) => slot;
 
     /// <summary>The slot of a method of an interface, with the interface's type arguments in its signature.</summary>
     private static DispatchSlot InterfaceSlot(IlMethodReference callee)
     {
-        var owner = ValueTypes.WithoutModifiers(callee.DeclaringType);
+        var owner = Canonical(callee.DeclaringType);
         return new DispatchSlot(DispatchSlotKind.Interface, owner, callee.Name, Arguments(owner).Apply(callee.Signature));
     }
 
@@ -547,7 +548,7 @@ internal static partial class VirtualMethods
     /// </summary>
     private static bool Implements(IlMethodReference declaration, DispatchSlot slot, IlTypeDefinition implementer)
     {
-        var owner = ValueTypes.WithoutModifiers(new Substitution(implementer.TypeArguments, []).Apply(declaration.DeclaringType));
+        var owner = Canonical(new Substitution(implementer.TypeArguments, []).Apply(declaration.DeclaringType));
         return owner == slot.Owner && declaration.Name == slot.Name
             && Arguments(owner).Apply(declaration.Signature) == slot.Signature;
     }

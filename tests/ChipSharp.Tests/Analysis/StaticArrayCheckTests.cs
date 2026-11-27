@@ -364,7 +364,7 @@ public sealed class StaticArrayCheckTests : IDisposable
     public void A_static_array_keeps_the_rules_of_arrays_on_the_stack_otherwise()
     {
         // compared with null it is never null; kept outside its field it is not (it has no object around it, see
-        // HeapArrays), and an array of strings waits for strings on the heap
+        // HeapArrays); an array of strings is an array of objects, which compiles
         var problems = Problems(Program("""
             Console.WriteLine(Table == null);
             Console.WriteLine(Get().Length + Names.Length);
@@ -375,13 +375,8 @@ public sealed class StaticArrayCheckTests : IDisposable
             static int[] Get() => Table;
             """));
 
-        const string Strings = "arrays of strings arrive with M3 (the heap). For now, keep each string in a variable or "
-            + "a static field of its own, or pick it with a switch.";
         Assert.Equal(
         [
-            $"Program.Main() at IL_0014 (ldsfld): {Strings}",
-            $"Program..cctor() at IL_0017 (newarr): {Strings}",
-            $"Program..cctor() at IL_0024 (stsfld): {Strings}",
             "Program.Get() at IL_0005 (ret): an array in a static field that needs no heap (a constant table, or a fixed "
                 + "array) kept outside its field: returned, stored in another field or array, or passed to a method that "
                 + "keeps it arrives later. For now, read it through its field where it is needed, or copy its elements "

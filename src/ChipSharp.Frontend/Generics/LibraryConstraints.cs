@@ -43,7 +43,7 @@ internal static class LibraryConstraints
             foreach (var type in types.Select(substitution.Apply))
             {
                 if (type is IlGenericInstanceType { Definition: IlNamedType { IsDefinedInThisAssembly: false } } wanted
-                    && !(argument is IlPrimitiveType { Kind: >= IlPrimitiveKind.Bool and <= IlPrimitiveKind.Float64 }
+                    && !(argument is IlPrimitiveType { Kind: >= IlPrimitiveKind.Bool and <= IlPrimitiveKind.NativeUInt }
                         && wanted.Arguments.SequenceEqual([argument]))
                     && !Specialization.Implements(argument, wanted, owner))
                 {

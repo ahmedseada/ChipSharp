@@ -81,7 +81,9 @@ internal sealed partial class MethodLowering
 
         var returnType = MapType(signature.ReturnType, $"the result of {name}");
         var targets = _program.VirtualTables.Dispatch.Targets(slot, receiverType);
-        TirValue? result = targets.Count switch
+        TirValue? result = slot.Kind == DispatchSlotKind.Object && StringMethods.MayBeString(receiverType)
+            ? ObjectCallOrString(slot, targets, arguments)
+            : targets.Count switch
         {
             // no object that could be there is ever made: it is null, which the null check stops at
             0 => returnType == TirType.Void ? null : _ir.Zero(returnType),
@@ -122,6 +124,12 @@ internal sealed partial class MethodLowering
     /// </summary>
     private void TypeTest(IlType target, bool cast)
     {
+        if (FixedText.IsText(StackArrays.Primitive(target)))
+        {
+            StringTypeTest(cast);
+            return;
+        }
+
         var known = StackType(0);
         var reference = ObjectFromStack(PopValue(), _instruction.Name);
         var assembly = _method.Assembly;

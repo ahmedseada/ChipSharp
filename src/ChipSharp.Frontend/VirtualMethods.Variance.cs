@@ -134,6 +134,28 @@ internal static partial class VirtualMethods
             _ => null,
         };
 
+    /// <summary>
+    /// <paramref name="type"/> (modifiers looked through) as interfaces and slots compare it: a type of .NET's own is the
+    /// same whichever of its assemblies names it (System.Runtime in a program compiled against the reference assemblies,
+    /// System.Private.CoreLib against the implementation, netstandard), so the library's code, compiled against one, and
+    /// the program's, against another, call through the same interfaces.
+    /// </summary>
+    public static IlType Canonical(IlType type) => ValueTypes.WithoutModifiers(type) switch
+    {
+        IlNamedType named => CanonicalNamed(named),
+        IlGenericInstanceType instance => new IlGenericInstanceType(Canonical(instance.Definition),
+            [.. instance.Arguments.Select(Canonical)]),
+        IlArrayType array => new IlArrayType(Canonical(array.ElementType)),
+        var other => other,
+    };
+
+    private static IlNamedType CanonicalNamed(IlNamedType type) => type with
+    {
+        Assembly = type.Assembly is { } assembly && (assembly is "mscorlib" or "netstandard" or "System"
+            || assembly.StartsWith("System.", StringComparison.Ordinal)) ? "System.Runtime" : type.Assembly,
+        DeclaringType = type.DeclaringType is { } declaring ? CanonicalNamed(declaring) : null,
+    };
+
     /// <summary><paramref name="type"/> with each of <paramref name="from"/> (and in what it is made of) replaced by the one of <paramref name="to"/> in its place.</summary>
     private static IlType Replace(IlType type, IReadOnlyList<IlType> from, IReadOnlyList<IlType> to)
     {
