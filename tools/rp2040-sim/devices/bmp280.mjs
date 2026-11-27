@@ -3,10 +3,11 @@
 // config (0xF5); the calibration words dig_T1 to dig_P9, little-endian, from 0x88; the raw pressure (0xF7 to 0xF9)
 // and temperature (0xFA to 0xFC), 20 bits each, most significant byte first.
 //
-// Its calibration and its measurements are the datasheet's own example (section 8.2): adc_T = 519888 and
-// adc_P = 415148, which its compensation formulas turn into 25.08 degrees Celsius and 100653 Pa (100653.27 with the
-// 64-bit one). A measurement it has not made (in sleep mode, as after a reset, or one skipped by its oversampling of 0)
-// reads 0x80000, as on the chip.
+// Its calibration and its measurements are the datasheet's own example (section 3.12): adc_T = 519888 and
+// adc_P = 415148, 25.08 degrees Celsius and 100653.27 Pa by its floating-point formulas. Its integer ones (section 8.2)
+// give t_fine = 128422 and T = 2508 (hundredths of a degree), and a pressure of 100656 Pa (32-bit) and 25767233 / 256
+// = 100653.25 Pa (64-bit). A measurement it has not made (in sleep mode, as after a reset, or one skipped by an
+// oversampling of 0) reads 0x80000, as on the chip.
 
 import { RegisterDevice, setLittleEndian } from './registers.mjs';
 

@@ -9,10 +9,13 @@ using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Pico;
 
-/// <summary>ChipSharp.Hardware: every method is a library call ChipSharp compiles, and none runs on .NET.</summary>
+/// <summary>
+/// ChipSharp.Hardware's pins, timing and registers: every method is a library call ChipSharp compiles, and none runs on
+/// .NET. (The buses, I2c and Spi, have tests of their own: <see cref="BusLibraryTests"/>.)
+/// </summary>
 public sealed class HardwareLibraryTests
 {
-    private static IEnumerable<MethodInfo> HardwareMethods => typeof(Pin).Assembly.GetExportedTypes()
+    private static IEnumerable<MethodInfo> HardwareMethods => new[] { typeof(Pin), typeof(Timing), typeof(Registers) }
         .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly));
 
     [Fact]
