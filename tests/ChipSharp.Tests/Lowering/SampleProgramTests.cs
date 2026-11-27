@@ -42,6 +42,9 @@ public sealed class SampleProgramTests : IDisposable
     public Task Comparisons() => PrintsWhatDotnetPrints();
 
     [HostFact]
+    public Task Delegates() => PrintsWhatDotnetPrints();
+
+    [HostFact]
     public Task FactorialLong() => PrintsWhatDotnetPrints();
 
     [HostFact]

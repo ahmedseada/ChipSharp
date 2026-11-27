@@ -58,6 +58,8 @@ internal sealed partial class ProgramFunctions
             "Equals" => ObjectFunctions.ObjectEquals,
             "GetHashCode" => ObjectFunctions.ObjectHashCode,
             "ToString" => ObjectToString,
+            { } name when name.StartsWith(Delegates.DelegatePrefix, StringComparison.Ordinal) =>
+                DelegateFunctions.ObjectMethod(name[Delegates.DelegatePrefix.Length..]),
             var other => throw new ChipSharpException($"System.Object.{other} is not compiled yet."),
         };
     }

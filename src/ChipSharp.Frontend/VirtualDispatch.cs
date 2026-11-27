@@ -21,6 +21,9 @@ internal sealed class VirtualDispatch
     private readonly HashSet<DispatchSlot> _isCalled = [];
     private readonly Dictionary<(IlTypeDefinition, DispatchSlot), DispatchTarget?> _resolved = [];
 
+    /// <summary>The program's assembly, as a delegate of one of its own delegate types names it; null until one is made.</summary>
+    private IlAssembly? _delegates;
+
     /// <summary>The classes of the program whose objects it makes, in the order first made.</summary>
     public IReadOnlyList<IlTypeDefinition> Created => _created;
 
@@ -32,6 +35,12 @@ internal sealed class VirtualDispatch
     /// run object's own Equals and GetHashCode.
     /// </summary>
     public bool CreatesArrays { get; private set; }
+
+    /// <summary>
+    /// True when the program makes delegates (see <see cref="Delegates"/>), which are objects too: they run the
+    /// delegates' Equals and GetHashCode, and object's own ToString.
+    /// </summary>
+    public bool CreatesDelegates { get; private set; }
 
     /// <summary>The slots the program calls through, in the order first called.</summary>
     public IReadOnlyList<DispatchSlot> Called => _called;
@@ -58,9 +67,17 @@ internal sealed class VirtualDispatch
     /// </summary>
     public IReadOnlyList<IlMethod> Follow(IReadOnlyList<IlInstruction> instructions, int index)
     {
-        if (VirtualMethods.CalledSlot(instructions, index) is { } slot)
+        // a delegate of a virtual method (ldvirtftn) runs what a call through its slot runs
+        if ((VirtualMethods.CalledSlot(instructions, index) ?? Delegates.LoadedSlot(instructions, index)) is { } slot)
         {
             return _isCalled.Add(slot) ? Reached(Call(slot)) : [];
+        }
+
+        if (Delegates.Allocates(instructions[index]))
+        {
+            CreatesDelegates = true;
+            _delegates ??= (instructions[index].Operand as IlMethodOperand)?.Method.Definition?.Assembly;
+            return [];
         }
 
         if (instructions[index] is { OpCode: IlOpCode.Newarr }
@@ -94,8 +111,10 @@ internal sealed class VirtualDispatch
     {
         // a variable of an array type holds an array, which runs object's own Equals and GetHashCode
         var array = receiver is not null && ValueTypes.WithoutModifiers(receiver) is IlArrayType;
+        var ofDelegates = CreatesDelegates && receiver is not null && IsDelegate(receiver); // a delegate, no class's object
         var targets = new List<DispatchTarget>();
-        foreach (var type in _created.Where(type => !array && VirtualMethods.Has(type, slot) && VirtualMethods.Fits(type, receiver)))
+        foreach (var type in _created.Where(type => !array && !ofDelegates && VirtualMethods.Has(type, slot)
+            && VirtualMethods.Fits(type, receiver)))
         {
             if (Resolve(type, slot) is { } target && !targets.Contains(target))
             {
@@ -110,8 +129,25 @@ internal sealed class VirtualDispatch
             targets.Add(own);
         }
 
+        // a delegate, in a variable of object or of a delegate type (whose Equals is object's slot), runs the delegates'
+        if (slot.Kind == DispatchSlotKind.Object && CreatesDelegates && !array
+            && (receiver is null || ObjectTypes.IsSystemObject(receiver) || ofDelegates)
+            && DelegateTarget(slot) is var forDelegates && !targets.Contains(forDelegates))
+        {
+            targets.Add(forDelegates);
+        }
+
         return targets;
     }
+
+    /// <summary>
+    /// What object's <paramref name="slot"/> runs on a delegate: the delegates' own Equals and GetHashCode
+    /// (<c>Delegate.Equals</c>, see Lowering/DelegateFunctions.cs), object's own ToString (the type's .NET name).
+    /// </summary>
+    public static DispatchTarget DelegateTarget(DispatchSlot slot) =>
+        new(null, slot.Name is "Equals" or "GetHashCode" ? $"{Delegates.DelegatePrefix}{slot.Name}" : slot.Name);
+
+    private bool IsDelegate(IlType type) => Delegates.IsDelegateType(type, _delegates ?? LibrarySubstitutes.Assembly);
 
     /// <summary>What <paramref name="slot"/> runs on an object of <paramref name="type"/> (see <see cref="VirtualMethods.Resolve"/>).</summary>
     public DispatchTarget? Resolve(IlTypeDefinition type, DispatchSlot slot)

@@ -38,15 +38,18 @@ internal sealed class VirtualTables
             for (var i = 0; i < instructions.Count; i++)
             {
                 // the receiver as the translation sees it, so that each call with two targets or more has its slot
-                if (VirtualMethods.CalledSlot(instructions, i) is not { } slot || _live.Contains(slot))
+                if ((VirtualMethods.CalledSlot(instructions, i) ?? Delegates.LoadedSlot(instructions, i)) is not { } slot
+                    || _live.Contains(slot))
                 {
                     continue;
                 }
 
-                // Console.WriteLine(object) calls the ToString of its one argument, on top of the stack
+                // Console.WriteLine(object) calls the ToString of its one argument, on top of the stack, and a delegate of
+                // a virtual method (ldvirtftn) loads the method of the object there
                 var callee = ((IlMethodOperand)instructions[i].Operand!).Method;
                 var printed = StringMethods.IsConsoleWriteOfObject(instructions[i]);
-                var receiver = VirtualMethods.StackType(method, i, printed ? 0 : callee.ParameterTypes.Count)
+                var loaded = instructions[i].OpCode == IlOpCode.Ldvirtftn;
+                var receiver = VirtualMethods.StackType(method, i, printed || loaded ? 0 : callee.ParameterTypes.Count)
                     ?? (printed ? callee.ParameterTypes[0] : callee.DeclaringType);
                 if (Dispatch.Targets(slot, receiver).Count < 2)
                 {
