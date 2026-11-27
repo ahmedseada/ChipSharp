@@ -12,5 +12,9 @@
   },
   "pins": {
     "LED": 13
-  }
+  },
+  // chipsharp flash -t uno: avrdude, through the USB port to optiboot, which speaks STK500 version 1 ("arduino") at
+  // 115200 baud; the chip is the "mmcu"
+  "flasher": "avrdude",
+  "avrdude": { "programmer": "arduino", "baud": 115200 }
 }

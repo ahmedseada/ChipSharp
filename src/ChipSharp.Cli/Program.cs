@@ -2,6 +2,10 @@
 //
 //   chipsharp build <assembly.dll>   compiles the program for a target; prints the file it wrote (.exe, .uf2, ...)
 //                                    and how much of the chip's flash and RAM the program takes
+//   chipsharp flash <assembly.dll | image>
+//                                    puts the program onto a board with its target's flasher (the Uno: avrdude, through
+//                                    its USB port; the Pico: a copy to its RPI-RP2 drive); a .dll is built first, as
+//                                    build does, an image (.hex, .uf2) is flashed as it is
 //   chipsharp check <assembly.dll>   whether ChipSharp can compile the program, and the methods it uses; if it
 //                                    cannot, the C# features it uses that ChipSharp does not have yet, each with
 //                                    where, when it is planned and what to do for now
@@ -10,10 +14,12 @@
 //   chipsharp targets list           every target
 //   chipsharp targets show <name>    one target, with everything it inherits merged in
 //
-// Options: -t, --target <name>    with build: the target to build for (default: host); with check and tir: check the
-//                                program for it: what it has (a heap, a console) and its interrupts (with tir, put
-//                                the handlers in them)
-//          -o, --output <folder>  with build: where to write the program (default: chipsharp-output\<target>)
+// Options: -t, --target <name>    with build: the target to build for (default: host); with flash: the board (needed);
+//                                with check and tir: check the program for it: what it has (a heap, a console) and its
+//                                interrupts (with tir, put the handlers in them)
+//          --port <port>          with flash: where the board is, a serial port (COM5) for avrdude, the boot loader's
+//                                 drive (E:\) for uf2-copy (default: the one there is that looks like the board's)
+//          -o, --output <folder>  with build and flash: where to write the program (default: chipsharp-output\<target>)
 //          --keep                 with build: also write the program's TIR and generated code (.ll) there
 //          --verify-heap          with build: check the whole heap after every garbage collection, and stop the
 //                                 program saying what is wrong when it is corrupted
@@ -49,32 +55,59 @@ try
     var details = TakeFlag(rest, "--details");
     var noCache = TakeFlag(rest, "--no-cache");
     var quietNotes = TakeFlag(rest, "--quiet-notes");
+    var port = TakeOption(rest, "--port");
+
+    // build, and flash of a .dll: builds the program for the target, prints the file it wrote (and those kept) and how
+    // much of the chip it takes; returns the file
+    string Build(string path, string targetName)
+    {
+        var result = ChipSharpBuilder.Build(path, new BuildOptions
+        {
+            Target = targetName,
+            TargetsFolder = folder,
+            OutputFolder = output,
+            KeepIntermediates = keep,
+            VerifyHeap = verifyHeap,
+            UseCache = !noCache,
+        });
+        if (!quietNotes)
+        {
+            WriteNotes(result.NoteGroups.Select(group => group.Line));
+        }
+
+        Console.WriteLine(result.OutputPath);
+        foreach (var file in result.IntermediatePaths)
+        {
+            Console.WriteLine(file);
+        }
+
+        Console.WriteLine(result.Memory.Text);
+        return result.OutputPath;
+    }
 
     switch (rest)
     {
         case ["build", var path]:
         {
-            var result = ChipSharpBuilder.Build(path, new BuildOptions
+            Build(path, target ?? BuildOptions.DefaultTarget);
+            return 0;
+        }
+
+        case ["flash", var path]:
+        {
+            // the board first: a target with no flasher fails before anything is built
+            var targets = new TargetLoader(folder);
+            if (target is null)
             {
-                Target = target ?? BuildOptions.DefaultTarget,
-                TargetsFolder = folder,
-                OutputFolder = output,
-                KeepIntermediates = keep,
-                VerifyHeap = verifyHeap,
-                UseCache = !noCache,
-            });
-            if (!quietNotes)
-            {
-                WriteNotes(result.NoteGroups.Select(group => group.Line));
+                throw new ChipSharpException(
+                    $"chipsharp flash needs the board to flash, with -t (e.g. -t uno): {ChipSharpFlasher.Boards(targets)}.");
             }
 
-            Console.WriteLine(result.OutputPath);
-            foreach (var file in result.IntermediatePaths)
-            {
-                Console.WriteLine(file);
-            }
-
-            Console.WriteLine(result.Memory.Text);
+            var board = ChipSharpFlasher.LoadTarget(targets, target);
+            var image = string.Equals(Path.GetExtension(path), ".dll", StringComparison.OrdinalIgnoreCase)
+                ? Build(path, board.Name)
+                : path;
+            await ChipSharpFlasher.FlashAsync(image, board, new FlashOptions(port), new LinesProgress());
             return 0;
         }
 
@@ -169,15 +202,19 @@ try
                 usage:
                   chipsharp build <assembly.dll> [-t|--target <name>] [-o|--output <folder>] [--keep] [--verify-heap]
                                   [--no-cache] [--quiet-notes]
+                  chipsharp flash <assembly.dll | image.hex | image.uf2> -t|--target <board> [--port <port>]
+                                  [build's options, for a .dll]
                   chipsharp check <assembly.dll> [--details] [-t|--target <name>] [--quiet-notes]
                   chipsharp tir <assembly.dll> [--method <name>] [-t|--target <name>]
                   chipsharp il <assembly.dll> [--method <name>]
                   chipsharp targets list
                   chipsharp targets show <name>
                 options:
-                  -t, --target <name>     build: the target to build for (default: host); check, tir: the target
-                                          to check the program for: its heap, console and interrupts
-                  -o, --output <folder>   build: where to write the program (default: chipsharp-output\<target>)
+                  -t, --target <name>     build: the target to build for (default: host); flash: the board; check,
+                                          tir: the target to check the program for: its heap, console and interrupts
+                  --port <port>           flash: the board's serial port (avrdude: COM5) or boot drive (uf2-copy:
+                                          E:\); by default the one there is that looks like the board's
+                  -o, --output <folder>   build, flash: where to write the program (default: chipsharp-output\<target>)
                   --keep                  build: also write the program's TIR (.tir) and generated code (.ll) there
                   --verify-heap           build: check the whole heap after every garbage collection
                   --no-cache              build: compile everything, without the build cache (%LOCALAPPDATA%\ChipSharp\cache,
@@ -190,6 +227,7 @@ try
                   --targets <folder>      where the target files are (or set CHIPSHARP_TARGETS)
                 build finds LLVM's clang in its install folder or on the PATH, or set CHIPSHARP_LLVM_BIN to its bin folder.
                 For an AVR (the Arduino Uno: -t uno) it runs the clang inside Zig: set CHIPSHARP_ZIG to zig.exe.
+                flash -t uno runs avrdude: from the PATH, the Arduino IDE's, or set CHIPSHARP_AVRDUDE to avrdude.exe.
                 """);
             return 2;
         }
@@ -275,4 +313,10 @@ static void Print(TargetDescription t)
     Row("incomplete", t.IsComplete
         ? null
         : $"{string.Join(", ", t.MissingValues)} (a target that inherits this one must set it; build a board instead)");
+}
+
+/// <summary>Writes each stage of a flash on a line of its own, as it comes (what runs, then what happened).</summary>
+internal sealed class LinesProgress : IProgress<FlashProgress>
+{
+    public void Report(FlashProgress value) => Console.WriteLine(value.Stage);
 }

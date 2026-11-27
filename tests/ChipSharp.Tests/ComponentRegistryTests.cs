@@ -65,7 +65,7 @@ public sealed class ComponentRegistryTests
         public string Name { get; } = name;
         public LinkedBinary Build(GeneratedCode code, TargetDescription target) => new("program.elf");
 
-        public Task FlashAsync(string imagePath, FlashOptions options, IProgress<FlashProgress>? progress,
-            CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task FlashAsync(string imagePath, TargetDescription target, FlashOptions options,
+            IProgress<FlashProgress>? progress, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }
