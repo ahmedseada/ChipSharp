@@ -738,7 +738,8 @@ functions it calls; on the Pico, beyond the soft-float routines, and the cycles 
 | `Math.Sqrt`, `Math.FusedMultiplyAdd` | in the float math, 2.0 KB | 1,700 (`Sqrt`) |
 
 Licenses: musl's functions are MIT (with the notices of Sun's fdlibm, Arm's optimized routines and, for `fmaf`,
-David Schultz's BSD license), AMD's are BSD-3-Clause; each file has its notices.
+David Schultz's BSD license), AMD's are BSD-3-Clause; each file has its notices, and [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt)
+lists every third-party piece ChipSharp ships (compiler-rt, the Pico SDK's boot2, musl, AMD's library, .NET's code).
 
 ### Generics
 

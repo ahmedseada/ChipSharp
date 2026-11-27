@@ -21,5 +21,7 @@
   <ItemGroup>
     <!-- ship the target files next to chipsharp.exe -->
     <None Include="..\..\targets\**\*.json" LinkBase="targets" CopyToOutputDirectory="PreserveNewest" />
+    <!-- the licenses of the third-party code the runtime compiles into every program -->
+    <None Include="..\..\THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="\" />
   </ItemGroup>
 </Project>

@@ -35,7 +35,8 @@
 // Much of the math library code (src/math/*) is Copyright (c) 1993,2004 Sun Microsystems or Copyright (c) 2003-2011
 // David Schultz or Copyright (c) 2003-2009 Steven G. Kargl or Copyright (c) 2003-2009 Bruce D. Evans or Copyright (c)
 // 2008 Stephen L. Moshier or Copyright (c) 2017-2018 Arm Limited and labelled as such in comments in the individual
-// source files (kept below). All have been licensed under extremely permissive terms.
+// source files (kept below, each with its notice). All have been licensed under extremely permissive terms. The list
+// of every third-party piece ChipSharp ships, with its license, is THIRD-PARTY-NOTICES.txt at the repository's root.
 
 #pragma STDC FP_CONTRACT OFF
 #pragma clang diagnostic ignored "-Wshift-op-parentheses"
