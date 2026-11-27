@@ -271,8 +271,8 @@ internal static class ArrayMethodPrograms
         """;
 
     /// <summary>
-    /// Sort and BinarySearch of every number type and of bools, long enough for each part of .NET's introsort (insertion
-    /// sort, median-of-three partitions, the heapsort past the depth limit), with NaN, -0.0 and 0.0 where .NET puts them.
+    /// Sort and BinarySearch of every number type and of bools, long enough for .NET's introsort to partition (and short
+    /// enough for its insertion sort), with NaN, -0.0 and 0.0 where .NET puts them.
     /// </summary>
     public const string Sorting = """
         using System;
@@ -322,7 +322,7 @@ internal static class ArrayMethodPrograms
                 Array.Sort(seventeen, 3, 0);
                 Array.Sort(new int[0]);
 
-                // already sorted, reversed, all equal: the heapsort past the depth limit for some
+                // in an organ pipe and reversed
                 int[] organ = new int[200];
                 for (int i = 0; i < organ.Length; i++) organ[i] = i < 100 ? i : 199 - i;
                 Array.Sort(organ);
@@ -353,10 +353,13 @@ internal static class ArrayMethodPrograms
                 Array.Sort(uints);
                 foreach (var u in uints) Console.Write(u + " ");
                 Console.WriteLine(Array.BinarySearch(uints, 3u));
-                long[] longs = { long.MaxValue, long.MinValue, 0, -1 };
+                // not long.MaxValue against long.MinValue: the simulator the Pico tests run in (rp2040js 1.4.1) gets
+                // the overflow flag of SBCS wrong when the borrow takes the subtrahend to 0x80000000, which a chip
+                // does not (the PC tests sort them: Extremes)
+                long[] longs = { long.MaxValue / 3, long.MinValue / 3, 0, -1, 1L << 40 };
                 Array.Sort(longs);
                 foreach (var l in longs) Console.Write(l + " ");
-                Console.WriteLine(Array.BinarySearch(longs, long.MinValue));
+                Console.WriteLine(Array.BinarySearch(longs, long.MinValue / 3));
                 ulong[] ulongs = { ulong.MaxValue, 0, 1UL << 63 };
                 Array.Sort(ulongs);
                 foreach (var u in ulongs) Console.Write(u + " ");
@@ -396,6 +399,34 @@ internal static class ArrayMethodPrograms
                 Zeros(part);
                 Console.WriteLine(Array.BinarySearch(part, 0.0));
                 Console.WriteLine(Array.BinarySearch(part, 1, 3, -1.0));
+            }
+        }
+        """;
+
+    /// <summary>
+    /// The smallest and largest numbers sorted, searched and compared: for the PC only, as the simulator the Pico tests
+    /// run in compares long.MinValue with long.MaxValue wrong (see <see cref="Sorting"/>).
+    /// </summary>
+    public const string Extremes = """
+        using System;
+
+        class Program
+        {
+            static void Main()
+            {
+                long[] longs = { long.MaxValue, long.MinValue, 0, -1, long.MinValue + 1, long.MaxValue - 1 };
+                Array.Sort(longs);
+                foreach (var l in longs) Console.WriteLine(l);
+                Console.WriteLine(Array.BinarySearch(longs, long.MinValue));
+                Console.WriteLine(Array.BinarySearch(longs, long.MaxValue));
+                Console.WriteLine(Array.IndexOf(longs, long.MaxValue) + Array.LastIndexOf(longs, long.MinValue));
+                int[] ints = { int.MaxValue, int.MinValue, 0, -1, int.MinValue + 1 };
+                Array.Sort(ints, 1, 4);
+                foreach (var i in ints) Console.WriteLine(i);
+                Console.WriteLine(Array.BinarySearch(ints, 1, 4, int.MinValue));
+                sbyte[] small = { sbyte.MaxValue, sbyte.MinValue, 0 };
+                Array.Sort(small);
+                Console.WriteLine(small[0] + small[2]);
             }
         }
         """;
@@ -549,6 +580,7 @@ internal static class ArrayMethodPrograms
         {
             static readonly byte[] Table = { 9, 3, 7, 1, 5 };
             static readonly int[] Readings = new int[6];
+            static readonly int[] Nothing = { };
 
             static void Line(int[] a) { foreach (var x in a) { Console.Write(x); Console.Write(" "); } Console.WriteLine(); }
 
@@ -576,6 +608,9 @@ internal static class ArrayMethodPrograms
                 Span<int> view = buffer;
                 Array.Clear(buffer);
                 Console.WriteLine(view[0] + view[5]);
+                Array.Sort(Nothing);
+                Array.Reverse(Nothing);
+                Console.WriteLine(Array.IndexOf(Nothing, 3) + Nothing.Length + Array.BinarySearch(Nothing, 1));
             }
         }
         """;

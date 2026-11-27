@@ -144,9 +144,9 @@ internal sealed partial class MethodLowering
 
         // an array and an object (ReferenceEquals(o, array)): the array's object and the other, as references
         var (second, first) = (PopValue(), PopValue());
-        var (left, right) = first.IsObject || second.IsObject
-            ? (ObjectFromStack(first, _instruction.Name), ObjectFromStack(second, _instruction.Name))
-            : (ElementsOf(first), ElementsOf(second));
+        var asObjects = first.IsObject || second.IsObject;
+        var right = asObjects ? ObjectFromStack(second, _instruction.Name) : ElementsOf(second);
+        var left = asObjects ? ObjectFromStack(first, _instruction.Name) : ElementsOf(first);
         var op = _instruction.OpCode switch
         {
             IlOpCode.Ceq or IlOpCode.Beq or IlOpCode.Beq_S => TirCompareOp.Eq,

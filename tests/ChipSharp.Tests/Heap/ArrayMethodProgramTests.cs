@@ -48,6 +48,10 @@ public sealed class ArrayMethodProgramTests(ITestOutputHelper output) : IDisposa
         PrintsWhatDotnetPrints(ArrayMethodPrograms.Sorting, "host");
 
     [HostFact]
+    public Task The_smallest_and_largest_numbers_sort_and_compare_as_dotnet_says() =>
+        PrintsWhatDotnetPrints(ArrayMethodPrograms.Extremes, "host");
+
+    [HostFact]
     public Task Resize_and_Clone_keep_every_element_through_hundreds_of_collections_in_a_small_heap() =>
         PrintsWhatDotnetPrints(ArrayMethodPrograms.NewArrays(3000), "host-16K");
 
