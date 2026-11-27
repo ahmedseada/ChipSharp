@@ -230,6 +230,11 @@ internal sealed class LlvmFunctionWriter
                 _values[address] = Descriptor(address.TypeDescriptor);
                 break;
 
+            case TirFunctionAddress address:
+                // a function's symbol is its address
+                _values[address] = "@" + _symbols[address.Function];
+                break;
+
             case TirCall call:
                 // TODO: no signext/zeroext on arguments yet. Calls between ChipSharp functions do not need them,
                 // and the runtime's functions take i32 and i64 only; a C function taking a bool, i8 or i16 would.

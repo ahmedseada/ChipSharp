@@ -12,7 +12,7 @@ namespace ChipSharp.Library;
 /// ..."), on standard error on a PC, which then exits with exit code 1, and on UART0 on a chip, which then stops at a
 /// breakpoint. On .NET they throw that very exception. Each needs a function in every runtime's failures file.
 /// </remarks>
-internal static class Runtime
+internal static partial class Runtime
 {
     private const string TimeSpanTooLong = "TimeSpan overflowed because the duration is too long.";
     private const string TimeSpanNotANumber = "TimeSpan does not accept floating point Not-a-Number values.";

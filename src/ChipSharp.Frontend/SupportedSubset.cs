@@ -76,6 +76,9 @@ public static class SupportedSubset
         // method table or interface map says (VirtualMethods); newobj and the field instructions above make objects and
         // reach their fields; isinst and castclass test them against classes and interfaces
         IlOpCode.Callvirt, IlOpCode.Isinst, IlOpCode.Castclass,
+
+        // delegates (Delegates): the address of the method a new delegate calls, a virtual one's from the object's tables
+        IlOpCode.Ldftn, IlOpCode.Ldvirtftn,
     }.ToFrozenSet();
 
     /// <summary>

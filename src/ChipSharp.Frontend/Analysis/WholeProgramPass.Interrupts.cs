@@ -160,6 +160,7 @@ public static partial class WholeProgramPass
         var reached = new HashSet<IlMethod>();
         var pending = new Stack<IlMethod>(roots);
         VirtualDispatch? dispatch = null;
+        Dictionary<string, HashSet<IlMethod>>? delegateTargets = null;
         while (pending.TryPop(out var method))
         {
             if (!reached.Add(method))
@@ -183,6 +184,22 @@ public static partial class WholeProgramPass
                         if (target.Method is { } overrider && program.Contains(overrider))
                         {
                             pending.Push(overrider);
+                        }
+                    }
+                }
+
+                // a delegate invoked runs what a delegate of its type may call (see Delegates)
+                if (instructions[i] is { Operand: IlMethodOperand { Method: var invoked } }
+                    && Delegates.IsInvoke(invoked, method.Assembly))
+                {
+                    dispatch ??= VirtualDispatch.Of(program);
+                    delegateTargets ??= Delegates.TargetsByType(program, dispatch);
+                    foreach (var target in delegateTargets.GetValueOrDefault(Delegates.Family(invoked.DeclaringType,
+                        method.Assembly)) ?? [])
+                    {
+                        if (program.Contains(target))
+                        {
+                            pending.Push(target);
                         }
                     }
                 }

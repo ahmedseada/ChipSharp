@@ -468,6 +468,15 @@ public static class TirVerifier
                 return $"calls '{call.Callee.Name}', which is not a function of module '{module.Name}'.";
             }
 
+            if (instruction is TirFunctionAddress { Function: var addressed }
+                && (addressed.Module != module || addressed.Kind != TirFunctionKind.Defined))
+            {
+                return addressed.Module != module
+                    ? $"takes the address of '{addressed.Name}', which is not a function of module '{module.Name}'."
+                    : $"takes the address of '{addressed.Name}', an external function; only a defined function's " +
+                      "address can be taken (call the external from one).";
+            }
+
             if (instruction is TirTerminator terminator &&
                 terminator.Targets.FirstOrDefault(t => t.Function != function) is { } foreign)
             {

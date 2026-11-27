@@ -70,8 +70,9 @@ internal sealed partial record Unsupported(string What, bool IsPlural, string Hi
     public static readonly Unsupported ExplicitLayout = new("structs with an explicit layout (LayoutKind.Explicit)", true,
         "For now, leave out [StructLayout(LayoutKind.Explicit)] and [FieldOffset].");
     public static readonly Unsupported RefFields = new("ref fields", true, "For now, keep references in parameters and locals.");
-    public static readonly Unsupported Delegates = new("delegates, lambdas and function pointers", true,
-        "For now, call methods directly.");
+    // delegates and lambdas compile (see Delegates): what is left of this is function pointers
+    public static readonly Unsupported Delegates = new("function pointers (delegate*, &Method)", true,
+        "For now, use a delegate (Func<int, int>, Action), or call the method directly.");
     public static readonly Unsupported TypeHandles = new("typeof and type handles", true, "For now, leave them out.");
     public static readonly Unsupported Arguments = new("using the command-line arguments (args)", false,
         "For now, leave args unused: Main may take string[] args only if it never uses them.");

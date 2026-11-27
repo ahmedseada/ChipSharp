@@ -67,10 +67,11 @@ internal static class ClassRules
     public static bool Allocates(IlInstruction instruction)
     {
         ArgumentNullException.ThrowIfNull(instruction);
-        return instruction is { OpCode: IlOpCode.Newobj, Operand: IlMethodOperand { Method: var constructor } }
+        return (instruction is { OpCode: IlOpCode.Newobj, Operand: IlMethodOperand { Method: var constructor } }
             && (constructor.Definition is { } definition
                 ? ObjectTypes.IsClass(definition.DeclaringType)
-                : ObjectTypes.IsSystemObject(constructor.DeclaringType));
+                : ObjectTypes.IsSystemObject(constructor.DeclaringType)))
+            || Delegates.Allocates(instruction); // a delegate, and what +, - and GetInvocationList make
     }
 
     /// <summary>

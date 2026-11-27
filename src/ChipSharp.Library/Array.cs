@@ -16,7 +16,7 @@ namespace ChipSharp.Library;
 /// null array is told apart from an empty one by its span: null's has no elements' address, and every array has one.
 /// </remarks>
 [Substitute(typeof(System.Array))]
-internal static class Array
+internal static partial class Array
 {
     /// <summary>.NET's Array.IntrosortSizeThreshold: a partition this small is sorted by insertion.</summary>
     private const int IntrosortSizeThreshold = 16;
