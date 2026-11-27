@@ -4,11 +4,13 @@ namespace ChipSharp.Ir;
 
 /// <summary>
 /// Where things are in memory on one target: the size and alignment of every TIR type and the offset of every
-/// struct field, worked out from the target's pointer size (4 or 8 bytes). Everything is naturally aligned, as C
-/// lays it out on the targets ChipSharp supports (x86-64, ARM's AAPCS, RISC-V):
+/// struct field, worked out from the target's pointer size (2, 4 or 8 bytes) and the most alignment it asks for.
+/// Everything is naturally aligned, as C lays it out on the targets ChipSharp supports (x86-64, ARM's AAPCS, RISC-V),
+/// up to that most alignment: on an 8-bit AVR (2-byte pointers) it is 1, so nothing is aligned and a struct has no
+/// padding, as avr-gcc and LLVM lay it out there:
 /// <list type="bullet">
 /// <item>bool and i8 take 1 byte, i16 2, i32 and f32 4, i64 and f64 8, nint, ptr and ref the pointer size; each is
-/// aligned to its size.</item>
+/// aligned to its size (or to the most alignment, when that is less).</item>
 /// <item>A struct puts each field, in order, at the first offset its alignment allows; it is aligned like its most
 /// aligned field, and its size is rounded up to that alignment (so the fields of an array of it stay aligned).</item>
 /// <item>An array is its elements one after another: count times the element's size, aligned like the element.</item>
@@ -19,35 +21,48 @@ namespace ChipSharp.Ir;
 /// An object on the heap is laid out as its class's object type says (see <see cref="TirTypeDescriptor"/>): a struct
 /// whose first field is the header, the address of the type descriptor. An array object is the header, its length
 /// (an i32) at <see cref="ArrayLengthOffset"/>, then its elements from <see cref="ArrayDataOffset"/> on: 8 bytes in
-/// with 4-byte pointers, 16 with 8-byte ones, so that the elements of every type are aligned (the heap gives every
-/// object an address that is a multiple of 8).
+/// with 2-byte and 4-byte pointers, 16 with 8-byte ones, so that the elements of every type are aligned (the heap gives
+/// every object an address that is a multiple of 8).
 /// </para>
 /// </summary>
 public sealed class TirLayout
 {
     private readonly ConcurrentDictionary<TirStructType, StructLayout> _structs = new();
 
-    /// <param name="pointerSize">The target's pointer size in bytes: 4 or 8.</param>
-    public TirLayout(int pointerSize)
+    /// <param name="pointerSize">The target's pointer size in bytes: 2, 4 or 8.</param>
+    /// <param name="maxAlignment">
+    /// The most alignment the target asks for, 1, 2, 4 or 8 (1 on an AVR); null for none: every type aligned to its size.
+    /// </param>
+    public TirLayout(int pointerSize, int? maxAlignment = null)
     {
-        if (pointerSize is not (4 or 8))
+        if (pointerSize is not (2 or 4 or 8))
         {
             throw new ArgumentOutOfRangeException(nameof(pointerSize), pointerSize,
-                "TIR lays out memory for 4-byte and 8-byte pointers only.");
+                "TIR lays out memory for 2-byte, 4-byte and 8-byte pointers only.");
+        }
+
+        if (maxAlignment is not (null or 1 or 2 or 4 or 8))
+        {
+            throw new ArgumentOutOfRangeException(nameof(maxAlignment), maxAlignment,
+                "The most alignment is 1, 2, 4 or 8 bytes.");
         }
 
         PointerSize = pointerSize;
+        MaxAlignment = maxAlignment;
     }
 
     /// <summary>The size of a pointer, an nint, a ptr and a ref, in bytes.</summary>
     public int PointerSize { get; }
 
+    /// <summary>The most alignment of any type, e.g. 1 on an AVR; null when every type is aligned to its size.</summary>
+    public int? MaxAlignment { get; }
+
     /// <summary>Where the length (an i32) of an array object is: right after its header, at the pointer size.</summary>
     public int ArrayLengthOffset => PointerSize;
 
     /// <summary>
-    /// Where element 0 of an array object is: after its header and its length, rounded up to 8 (8 with 4-byte pointers,
-    /// 16 with 8-byte ones), whatever the element type.
+    /// Where element 0 of an array object is: after its header and its length, rounded up to 8 (8 with 2-byte and 4-byte
+    /// pointers, 16 with 8-byte ones), whatever the element type.
     /// </summary>
     public int ArrayDataOffset => (PointerSize + 4 + 7) / 8 * 8;
 
@@ -71,7 +86,7 @@ public sealed class TirLayout
         {
             TirStructType structType => Of(structType).Alignment,
             TirArrayType array => AlignmentOf(array.Element),
-            _ => ScalarSize(type),
+            _ => Math.Min(ScalarSize(type), MaxAlignment ?? int.MaxValue),
         };
     }
 

@@ -12,6 +12,11 @@ namespace ChipSharp.Backend.Llvm;
 /// A <c>nullcheck</c> ends an LLVM block in the middle of a TIR block: it branches to <c>null_reference</c>, one block at
 /// the end of the function that calls the runtime's <see cref="LlvmHeap.NullReferenceSymbol"/>, or goes on in a block
 /// of its own, <c>not_null</c>, <c>not_null_2</c>, ...
+/// <para>
+/// On an AVR (see <see cref="LlvmFlash"/>) an address of flash data is written twice: as the program's value (bit 15
+/// set) and as a <c>ptr addrspace(1)</c> in flash, which the loads that read it take; a load through an address that
+/// may be either calls the module's reader for its type.
+/// </para>
 /// </summary>
 internal sealed class LlvmFunctionWriter
 {
@@ -30,6 +35,12 @@ internal sealed class LlvmFunctionWriter
 
     /// <summary>How each parameter and temporary is written as an operand, e.g. "%p.n", "%t3" or "42".</summary>
     private readonly Dictionary<TirValue, string> _values = [];
+
+    /// <summary>
+    /// How each address of flash data (on an AVR) is written as a flash address, a <c>ptr addrspace(1)</c>, e.g.
+    /// "%t4" or "addrspacecast (ptr @Program_Digits to ptr addrspace(1))".
+    /// </summary>
+    private readonly Dictionary<TirValue, string> _flash = [];
 
     private readonly Dictionary<TirSlot, string> _slots = [];
     private readonly Dictionary<TirBlock, string> _labels = [];
@@ -56,6 +67,9 @@ internal sealed class LlvmFunctionWriter
 
     /// <summary>The line that clears the callee-saved registers before a call that collects (<see cref="LlvmCollectCalls"/>).</summary>
     public string? ForgetRegisters { get; init; }
+
+    /// <summary>Where constant data is on the target: in a flash of its own on an AVR; null as on a target without.</summary>
+    public LlvmFlash? Flash { get; init; }
 
     public void Write()
     {
@@ -192,13 +206,23 @@ internal sealed class LlvmFunctionWriter
                 break;
 
             case TirGlobalAddress address:
-                _values[address] = "@" + _globals[address.Global];
+                var global = _globals[address.Global];
+                if (Memory(address) == TirMemory.Constants)
+                {
+                    _flash[address] = LlvmFlash.FlashAddress(global);
+                    _values[address] = Flash!.Tagged("@" + global);
+                }
+                else
+                {
+                    _values[address] = "@" + global;
+                }
+
                 break;
 
             case TirPointerLoad load:
                 // unaligned: align 1, which LLVM reads so that no chip faults (byte by byte on a Cortex-M0+)
-                Define(load, $"load {Volatile(load.IsVolatile)}{_types.Of(load.Type)}, " +
-                    $"{Typed(load.Address)}, align {(load.IsUnaligned ? 1 : _types.Alignment(load.Type))}");
+                Define(load, Load(load.Type, load.Address, Value(load.Address), FlashValue(load.Address),
+                    load.IsUnaligned ? 1 : _types.Alignment(load.Type), load.IsVolatile));
                 break;
 
             case TirPointerStore store:
@@ -210,11 +234,15 @@ internal sealed class LlvmFunctionWriter
                 // no inbounds: TIR does not promise that the address is that of a struct LLVM knows about
                 Define(field, $"getelementptr {_types.Of(field.StructType)}, {Typed(field.Address)}, i32 0, " +
                     $"i32 {field.FieldIndex}");
+                DefineInFlash(field, field.Address, address => $"getelementptr {_types.Of(field.StructType)}, " +
+                    $"ptr addrspace(1) {address}, i32 0, i32 {field.FieldIndex}");
                 break;
 
             case TirElementAddress element:
                 Define(element, $"getelementptr {_types.Of(element.ElementType)}, {Typed(element.Address)}, " +
                     $"{Typed(element.Index)}");
+                DefineInFlash(element, element.Address, address => $"getelementptr {_types.Of(element.ElementType)}, " +
+                    $"ptr addrspace(1) {address}, {Typed(element.Index)}");
                 break;
 
             case TirPtrToInt toInteger:
@@ -241,30 +269,50 @@ internal sealed class LlvmFunctionWriter
                 break;
 
             case TirArrayLength length:
+                var lengthOffset = _types.Layout.ArrayLengthOffset;
                 var lengthAddress = Temporary();
-                Line($"{lengthAddress} = getelementptr i8, {Typed(length.Array)}, i32 {_types.Layout.ArrayLengthOffset}");
-                Define(length, $"load i32, ptr {lengthAddress}, align 4");
+                Line($"{lengthAddress} = getelementptr i8, {Typed(length.Array)}, i32 {lengthOffset}");
+                string? lengthInFlash = null;
+                if (Memory(length.Array) == TirMemory.Constants)
+                {
+                    lengthInFlash = Temporary();
+                    Line($"{lengthInFlash} = getelementptr i8, ptr addrspace(1) {_flash[length.Array]}, i32 {lengthOffset}");
+                }
+
+                Define(length, Load(TirType.I32, length.Array, lengthAddress, lengthInFlash,
+                    _types.Alignment(TirType.I32), isVolatile: false));
                 break;
 
             case TirArrayData data:
                 Define(data, $"getelementptr i8, {Typed(data.Array)}, i32 {_types.Layout.ArrayDataOffset}");
+                DefineInFlash(data, data.Array,
+                    address => $"getelementptr i8, ptr addrspace(1) {address}, i32 {_types.Layout.ArrayDataOffset}");
                 break;
 
             case TirArrayObject arrayObject:
                 Define(arrayObject, $"getelementptr i8, {Typed(arrayObject.Data)}, i32 -{_types.Layout.ArrayDataOffset}");
+                DefineInFlash(arrayObject, arrayObject.Data,
+                    address => $"getelementptr i8, ptr addrspace(1) {address}, i32 -{_types.Layout.ArrayDataOffset}");
                 break;
 
             case TirTypeOf typeOf:
-                Define(typeOf, $"load ptr, {Typed(typeOf.Reference)}, align {_types.Layout.PointerSize}");
+                // the header: the descriptor's address, as the program has it
+                Define(typeOf, Load(TirType.Ptr, typeOf.Reference, Value(typeOf.Reference), FlashValue(typeOf.Reference),
+                    _types.Alignment(TirType.Ptr), isVolatile: false));
                 break;
 
             case TirTypeAddress address:
                 _values[address] = Descriptor(address.TypeDescriptor);
+                if (Memory(address) == TirMemory.Constants)
+                {
+                    _flash[address] = LlvmFlash.FlashAddress(_typeDescriptors[address.TypeDescriptor]);
+                }
+
                 break;
 
             case TirFunctionAddress address:
-                // a function's symbol is its address
-                _values[address] = "@" + _symbols[address.Function];
+                // a function's symbol is its address (a ptr addrspace(1) on an AVR, the same bits as a ptr)
+                _values[address] = _types.FunctionAddress(_symbols[address.Function]);
                 break;
 
             case TirCall call:
@@ -290,8 +338,17 @@ internal sealed class LlvmFunctionWriter
                 break;
 
             case TirCallIndirect call:
-                // the address is a defined function's, from a method table: the same convention as a direct call
-                var indirectText = $"call {_types.Of(call.Type)} {Value(call.Callee)}" +
+                // the address is a defined function's, from a method table: the same convention as a direct call; on an
+                // AVR, the call goes through flash's address space, where the functions are
+                var callee = Value(call.Callee);
+                if (_types.ProgramAddressSpace != 0)
+                {
+                    var function = Temporary();
+                    Line($"{function} = addrspacecast ptr {callee} to {_types.FunctionPointer}");
+                    callee = function;
+                }
+
+                var indirectText = $"call {_types.Of(call.Type)} {callee}" +
                     $"({string.Join(", ", call.Arguments.Select(Typed))})";
                 if (call.HasResult)
                 {
@@ -373,8 +430,54 @@ internal sealed class LlvmFunctionWriter
     /// <summary>The next temporary's name, %tN, for a value that is not a TIR instruction's.</summary>
     private string Temporary() => "%" + Unique("t" + _nextTemporary++.ToString(CultureInfo.InvariantCulture));
 
-    /// <summary>A type descriptor's address as an operand, e.g. <c>@type.Program_Node</c>.</summary>
-    private string Descriptor(TirTypeDescriptor type) => "@" + _typeDescriptors[type];
+    /// <summary>
+    /// A type descriptor's address as an operand, e.g. <c>@type.Program_Node</c> (with bit 15 set on an AVR, where the
+    /// descriptor is in flash).
+    /// </summary>
+    private string Descriptor(TirTypeDescriptor type) =>
+        Flash is { } flash ? flash.Address(_typeDescriptors[type], flash.InFlash(type)) : "@" + _typeDescriptors[type];
+
+    /// <summary>Where <paramref name="address"/> points, for a load through it: see <see cref="LlvmFlash.MemoryOf"/>.</summary>
+    private TirMemory Memory(TirValue address) => Flash?.MemoryOf(address) ?? TirMemory.Variables;
+
+    /// <summary>The flash address of <paramref name="address"/> when it points to flash data; null when it does not.</summary>
+    private string? FlashValue(TirValue address) => Memory(address) == TirMemory.Constants ? _flash[address] : null;
+
+    /// <summary>
+    /// For an address of flash data, its flash address too: <paramref name="body"/> (a getelementptr on a ptr
+    /// addrspace(1)) of the flash address of <paramref name="from"/>, the address it is made from.
+    /// </summary>
+    private void DefineInFlash(TirValue address, TirValue from, Func<string, string> body)
+    {
+        if (Memory(address) == TirMemory.Constants)
+        {
+            var name = Temporary();
+            _flash[address] = name;
+            Line($"{name} = {body(_flash[from])}");
+        }
+    }
+
+    /// <summary>
+    /// What reads a <paramref name="type"/> at <paramref name="address"/>: <c>load i32, ptr %t3, align 4</c>; on an AVR,
+    /// from flash (<c>load i32, ptr addrspace(1) %t4, align 1</c>) for flash data, and through the module's reader for
+    /// an address that may be either (<c>call i32 @chipsharp.read.i32(ptr %t3)</c>); as on any target for RAM.
+    /// </summary>
+    /// <param name="type">What to read.</param>
+    /// <param name="address">The TIR value that says where it points (the address, or the object a field is in).</param>
+    /// <param name="value">The address read, as the program has it.</param>
+    /// <param name="inFlash">The address read in flash, when it points to flash data.</param>
+    /// <param name="align">The alignment the load may count on.</param>
+    /// <param name="isVolatile">True for a read that must happen exactly as written.</param>
+    private string Load(TirType type, TirValue address, string value, string? inFlash, int align, bool isVolatile)
+    {
+        var typeText = _types.Of(type);
+        return Memory(address) switch
+        {
+            TirMemory.Constants => $"load {Volatile(isVolatile)}{typeText}, ptr addrspace(1) {inFlash}, align {align}",
+            TirMemory.Unknown when Flash!.MayBeFlash(address) => $"call {typeText} @{Flash.Read(type, isVolatile)}(ptr {value})",
+            _ => $"load {Volatile(isVolatile)}{typeText}, ptr {value}, align {align}",
+        };
+    }
 
     /// <summary>
     /// nullcheck: a branch to the function's <c>null_reference</c> block when the ref is null, else on into a block of its

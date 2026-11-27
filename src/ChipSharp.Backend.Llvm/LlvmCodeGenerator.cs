@@ -20,7 +20,8 @@ namespace ChipSharp.Backend.Llvm;
 /// returns its int result (0 when it returns nothing); the runtime's startup code calls it. Objects on the heap (type
 /// descriptors, newobject, nullcheck, the static roots) are written as <see cref="LlvmHeap"/> says; a module that
 /// makes objects can only be generated for a target with a heap. On a chip, the functions through which the stack can
-/// grow without end check it when they start (see <see cref="LlvmStackChecks"/>).
+/// grow without end check it when they start (see <see cref="LlvmStackChecks"/>). On an AVR the module says its data
+/// layout (see <see cref="LlvmTypes"/>), and constant data stays in flash (see <see cref="LlvmFlash"/>).
 /// </summary>
 public sealed class LlvmCodeGenerator : ICodeGenerator
 {
@@ -41,6 +42,10 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
         LlvmHeap.CheckTarget(module, target);
 
         var types = LlvmTypes.For(target);
+        var flash = LlvmFlash.For(target, types);
+        flash.CheckTarget(module, target);
+        flash.Follow(module);
+        CheckSizes(module, types);
         var (symbols, globalSymbols) = AssignSymbols(module);
         var typeSymbols = LlvmHeap.AssignSymbols(module);
         var roots = LlvmHeap.RootTable(module, types, globalSymbols, out var rootCount);
@@ -49,6 +54,12 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
 
         var text = new StringBuilder();
         text.Append("source_filename = ").Append(LlvmText.Quoted(module.Name)).Append('\n');
+        if (types.DataLayout is { } dataLayout)
+        {
+            // before the functions: LLVM puts each in the address space the layout's P names
+            text.Append("target datalayout = ").Append(LlvmText.Quoted(dataLayout)).Append('\n');
+        }
+
         if (!string.IsNullOrEmpty(target.Triple))
         {
             text.Append("target triple = ").Append(LlvmText.Quoted(target.Triple)).Append('\n');
@@ -73,36 +84,39 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
         foreach (var global in module.Globals)
         {
             // internal, like the defined functions: only this module uses it; read-only data is private (it needs no
-            // symbol at all) and constant, so the linker puts it with the code (.rodata, in flash on a chip)
+            // symbol at all) and constant, so the linker puts it with the code (.rodata, in flash on a chip; in the
+            // flash section on an AVR, see LlvmFlash)
             var align = types.Alignment(global.Type).ToString(CultureInfo.InvariantCulture);
+            var section = LlvmFlash.SectionOf(flash.InFlash(global));
             if (global.ObjectType is not null)
             {
-                text.Append(LlvmHeap.ConstantObject(global, globalSymbols[global], typeSymbols, types)).Append('\n');
+                text.Append(LlvmHeap.ConstantObject(global, globalSymbols[global], typeSymbols, types, flash)).Append('\n');
                 continue;
             }
 
             if (global.Data is { } data)
             {
                 text.Append($"@{globalSymbols[global]} = private unnamed_addr constant {types.Of(global.Type)} " +
-                    $"{LlvmText.Bytes(data)}, align {align}\n");
+                    $"{LlvmText.Bytes(data)}{section}, align {align}\n");
                 continue;
             }
 
             // a constant array (a table) keeps its symbol, internal, and is read-only data too; so does a constant
             // object (an empty array), whose header is the address of its type descriptor
             var value = global.Header is { } header
-                ? ObjectValue((TirStructType)global.Type, typeSymbols[header], global.FieldValues, globalSymbols, typeSymbols, types)
+                ? ObjectValue((TirStructType)global.Type, header, global.FieldValues, globalSymbols, typeSymbols, types, flash)
                 : global.Elements is { } elements ? Elements((TirArrayType)global.Type, elements, types)
                 : global.InitialValue is { } initial ? LlvmText.Constant(initial)
                 : LlvmText.Zero(global.Type);
             var kind = global.IsConstant ? "unnamed_addr constant" : "global";
-            text.Append($"@{globalSymbols[global]} = internal {kind} {types.Of(global.Type)} {value}, align {align}\n");
+            text.Append($"@{globalSymbols[global]} = internal {kind} {types.Of(global.Type)} {value}{section}, " +
+                $"align {align}\n");
         }
 
         if (module.TypeDescriptors.Count > 0 || (roots is not null && heapStart is not null))
         {
             text.Append('\n');
-            LlvmHeap.WriteDescriptors(text, module, types, typeSymbols, symbols);
+            LlvmHeap.WriteDescriptors(text, module, types, typeSymbols, symbols, flash);
             if (heapStart is not null)
             {
                 text.Append(roots);
@@ -129,6 +143,7 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
             text.Append('\n');
             new LlvmFunctionWriter(function, types, symbols, globalSymbols, typeSymbols, text, intrinsics)
             {
+                Flash = flash,
                 ChecksStack = stackChecks.Contains(function),
                 ForgetRegisters = forgetRegisters,
             }.Write();
@@ -146,6 +161,12 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
         if (entry is not null)
         {
             text.Append('\n').Append(entry);
+        }
+
+        // on an AVR: the functions that read at an address in RAM or in flash
+        foreach (var definition in flash.Definitions)
+        {
+            text.Append('\n').Append(definition).Append('\n');
         }
 
         // the LLVM intrinsics the functions call, e.g. llvm.fptosi.sat.i32.f64
@@ -262,19 +283,66 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
         return $"define i32 @{EntrySymbol}() nounwind {{\nentry:\n{heapStart}{call}}}\n";
     }
 
-    /// <summary>The elements a global array starts with, as an LLVM constant: <c>[i32 1, i32 2]</c>.</summary>
-    /// <summary>A constant object: <c>{ ptr @type.int__, i32 0, ptr null }</c>, its header and then zeros.</summary>
-    /// <summary>A constant object's value: its header, then each field's (zero, a constant, an address).</summary>
-    private static string ObjectValue(TirStructType type, string header, IReadOnlyList<TirValue?>? values,
+    /// <summary>
+    /// A constant object's value: its header, then each field's (zero, a constant, an address), e.g.
+    /// <c>{ ptr @type.int__, i32 0, ptr null }</c>. The addresses are those of the program (see
+    /// <see cref="LlvmFlash.Address"/>).
+    /// </summary>
+    private static string ObjectValue(TirStructType type, TirTypeDescriptor header, IReadOnlyList<TirValue?>? values,
         IReadOnlyDictionary<TirGlobal, string> globalSymbols, IReadOnlyDictionary<TirTypeDescriptor, string> typeSymbols,
-        LlvmTypes types) =>
-        $"{{ ptr @{header}{string.Concat(type.Fields.Skip(1).Select((field, i) => (values?[i]) switch
+        LlvmTypes types, LlvmFlash flash)
+    {
+        string Type(TirTypeDescriptor descriptor) => flash.Address(typeSymbols[descriptor], flash.InFlash(descriptor));
+        string Global(TirGlobal global) => flash.Address(globalSymbols[global], flash.InFlash(global));
+
+        return $"{{ ptr {Type(header)}{string.Concat(type.Fields.Skip(1).Select((field, i) => (values?[i]) switch
         {
             TirConst constant => $", {types.Of(field.Type)} {LlvmText.Constant(constant)}",
-            TirGlobalAddress address => $", ptr @{globalSymbols[address.Global]}",
-            TirTypeAddress address => $", ptr @{typeSymbols[address.TypeDescriptor]}",
+            TirGlobalAddress address => $", ptr {Global(address.Global)}",
+            TirTypeAddress address => $", ptr {Type(address.TypeDescriptor)}",
             _ => $", {types.Of(field.Type)} {LlvmText.Zero(field.Type)}",
         }))} }}";
+    }
+
+    /// <summary>
+    /// Throws when a global or a slot is too large for the target's addresses: on an AVR (16-bit addresses, which reach
+    /// at most 32767 bytes into anything), 32 KB or more. Nothing is on a target with 32-bit or 64-bit addresses.
+    /// </summary>
+    private static void CheckSizes(TirModule module, LlvmTypes types)
+    {
+        var bits = types.Bits(TirType.Ptr);
+        if (bits >= 32)
+        {
+            return;
+        }
+
+        var limit = 1L << (bits - 1);
+        void Check(string what, long size)
+        {
+            if (size >= limit)
+            {
+                throw new ChipSharpException($"{what} takes {size} bytes, more than the {limit - 1} that {bits}-bit " +
+                    "addresses reach on the target. Make it smaller.");
+            }
+        }
+
+        foreach (var global in module.Globals)
+        {
+            Check($"The global {global.Name}", global.ObjectType is null
+                ? types.Layout.SizeOf(global.Type)
+                : types.Layout.ArrayDataOffset + global.Data!.Count);
+        }
+
+        foreach (var function in module.Functions)
+        {
+            foreach (var slot in function.Slots)
+            {
+                Check($"The local {slot.Name} of {function.Name}", types.Layout.SizeOf(slot.Type));
+            }
+        }
+    }
+
+    /// <summary>The elements a global array starts with, as an LLVM constant: <c>[i32 1, i32 2]</c>.</summary>
 
     private static string Elements(TirArrayType array, IReadOnlyList<TirConst> elements, LlvmTypes types)
     {
