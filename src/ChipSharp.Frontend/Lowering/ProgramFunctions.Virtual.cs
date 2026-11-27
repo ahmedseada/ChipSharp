@@ -76,6 +76,7 @@ internal sealed partial class ProgramFunctions
             descriptor.RuntimeName = VirtualMethods.RuntimeName(Generics.Instantiations.Reference(type));
         }
 
+        FillArrayInterfaces(); // see ProgramFunctions.ArrayInterfaces.cs
         if (_classes.Count == 0 && _systemObject is null)
         {
             return;

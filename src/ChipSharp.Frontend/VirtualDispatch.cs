@@ -13,7 +13,7 @@ namespace ChipSharp.Frontend;
 /// <item>The translation sees the same, from the methods the pass found (<see cref="Of"/>).</item>
 /// </list>
 /// </summary>
-internal sealed class VirtualDispatch
+internal sealed partial class VirtualDispatch
 {
     private readonly List<IlTypeDefinition> _created = [];
     private readonly HashSet<IlTypeDefinition> _isCreated = [];
@@ -55,6 +55,7 @@ internal sealed class VirtualDispatch
             for (var i = 0; i < instructions.Count; i++)
             {
                 dispatch.Follow(instructions, i);
+                dispatch.FollowArrays(method, i); // see VirtualDispatch.Arrays.cs
             }
         }
 
@@ -109,6 +110,12 @@ internal sealed class VirtualDispatch
     /// </summary>
     public IReadOnlyList<DispatchTarget> Targets(DispatchSlot slot, IlType? receiver)
     {
+        // an array as an interface runs its class of interfaces' method (VirtualDispatch.Arrays.cs)
+        if (ArrayTargets(slot, receiver) is { } forArray)
+        {
+            return forArray;
+        }
+
         // a variable of an array type holds an array, which runs object's own Equals and GetHashCode
         var array = receiver is not null && ValueTypes.WithoutModifiers(receiver) is IlArrayType;
         var ofDelegates = CreatesDelegates && receiver is not null && IsDelegate(receiver); // a delegate, no class's object

@@ -84,10 +84,11 @@ public static class TirVerifier
                 errors.Add($"{where}: its method table names '{foreign!.Name}', a function of module '{foreign.Module.Name}'.");
             }
 
-            if (type.Kind != TirTypeDescriptorKind.Class && (type.VirtualMethods.Count > 0 || type.Interfaces.Count > 0))
+            // an array type may implement interfaces (the collections' interfaces of arrays), but has no virtual methods
+            if (type.Kind != TirTypeDescriptorKind.Class && (type.VirtualMethods.Count > 0 || (type.Interfaces.Count > 0 && !type.IsArray)))
             {
-                errors.Add($"{where}: only a class has virtual methods and interfaces, and this is " +
-                    $"{(type.IsArray ? "an array type" : "an interface")}.");
+                errors.Add($"{where}: only a class has virtual methods and interfaces (and an array type interfaces), " +
+                    $"and this is {(type.IsArray ? "an array type" : "an interface")}.");
             }
 
             foreach (var entry in type.Interfaces)

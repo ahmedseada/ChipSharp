@@ -342,7 +342,9 @@ internal static partial class VirtualMethods
             : argument == 0 ? method.DeclaringType.Type
             : Parameter(method, argument - 1),
         { OpCode: IlOpCode.Ldfld or IlOpCode.Ldsfld, Operand: IlFieldOperand { Field: var field } } => field.FieldType,
-        { OpCode: IlOpCode.Call or IlOpCode.Callvirt, Operand: IlMethodOperand { Method: var callee } } => callee.ReturnType,
+        // (a library generic type's method names its result in terms of !0: IEnumerator<object>.Current is an object)
+        { OpCode: IlOpCode.Call or IlOpCode.Callvirt, Operand: IlMethodOperand { Method: var callee } } =>
+            Arguments(callee.DeclaringType).Apply(callee.ReturnType),
         { OpCode: IlOpCode.Newobj, Operand: IlMethodOperand { Method: var constructor } } => constructor.DeclaringType,
         { OpCode: IlOpCode.Isinst or IlOpCode.Castclass, Operand: IlTypeOperand { Type: var type } } => type,
         { OpCode: IlOpCode.Newarr, Operand: IlTypeOperand { Type: var element } } => new IlArrayType(StackArrays.Primitive(element)),

@@ -111,6 +111,7 @@ public static partial class WholeProgramPass
                 }
 
                 methods.AddRange(dispatch.Follow(instructions, j).Where(found.Add));
+                methods.AddRange(dispatch.FollowArrays(methods[i], j).Where(found.Add)); // arrays as interfaces
 
                 // a throw calls the library's Thrown.Unhandled (see Exceptions)
                 if (Exceptions.Reached(instructions[j]) is { } thrower && found.Add(thrower))
