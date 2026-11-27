@@ -245,11 +245,14 @@ internal static class LlvmHeap
         _ => throw new ArgumentOutOfRangeException(nameof(symbol), symbol, "Not a runtime function for objects."),
     };
 
-    /// <summary>The symbol a <c>declare</c> line declares: what comes between @ and (.</summary>
+    /// <summary>
+    /// The symbol a <c>declare</c> line declares: what comes between @ and (; or an external global's
+    /// (<c>@name = external global i8</c>): what comes between @ and the space.
+    /// </summary>
     public static string DeclaredSymbol(string declaration)
     {
         var at = declaration.IndexOf('@', StringComparison.Ordinal) + 1;
-        return declaration[at..declaration.IndexOf('(', at)];
+        return declaration[at..declaration.IndexOfAny(['(', ' '], at)];
     }
 
     private static TirInstruction? FirstAllocation(TirModule module) => module.Functions

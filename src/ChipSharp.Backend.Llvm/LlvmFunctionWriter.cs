@@ -51,6 +51,9 @@ internal sealed class LlvmFunctionWriter
         _declarations = declarations;
     }
 
+    /// <summary>True when the function checks the stack where it starts (see <see cref="LlvmStackChecks"/>).</summary>
+    public bool ChecksStack { get; init; }
+
     public void Write()
     {
         var allocas = Unique("allocas");
@@ -89,7 +92,25 @@ internal sealed class LlvmFunctionWriter
             Line($"store {_types.Of(slot.Type)} {LlvmText.Zero(slot.Type)}, {Address(slot)}");
         }
 
-        Line($"br {Label(_function.EntryBlock!)}");
+        string? stackOverflow = null;
+        if (ChecksStack)
+        {
+            stackOverflow = Unique("stack_overflow");
+            foreach (var line in LlvmStackChecks.Check("%" + Unique("stack.pointer"), "%" + Unique("stack.low"),
+                stackOverflow, _labels[_function.EntryBlock!]))
+            {
+                Line(line);
+            }
+
+            foreach (var declaration in LlvmStackChecks.Declarations)
+            {
+                _declarations.Add(declaration);
+            }
+        }
+        else
+        {
+            Line($"br {Label(_function.EntryBlock!)}");
+        }
 
         foreach (var block in _function.Blocks)
         {
@@ -104,6 +125,13 @@ internal sealed class LlvmFunctionWriter
         {
             _text.Append('\n').Append(_nullReference).Append(":\n");
             Line($"call void @{LlvmHeap.NullReferenceSymbol}()");
+            Line("unreachable");
+        }
+
+        if (stackOverflow is not null)
+        {
+            _text.Append('\n').Append(stackOverflow).Append(":\n");
+            Line($"call void @{LlvmStackChecks.OverflowSymbol}()");
             Line("unreachable");
         }
 

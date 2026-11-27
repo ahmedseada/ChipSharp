@@ -378,3 +378,21 @@ __attribute__((noreturn)) void ChipSharp_Runtime_DestinationIndexBelowZero(int v
 {
     fail_below_zero("destinationIndex", "must be greater than or equal to '0'.", value);
 }
+
+// ---- What .NET does not throw an exception for --------------------------------------------------------------------
+
+// The stack ran low (chipsharp_stack_overflow, armv6m_failures.c, calls this on a stack of its own, with interrupts
+// off): what .NET writes on standard error, its first line (.NET goes on with the methods that were running).
+__attribute__((noreturn)) void ChipSharp_Runtime_StackOverflow(void)
+{
+    static const char message[] = "Stack overflow.\r\n";
+    fail(message, sizeof message - 1);
+}
+
+// A fatal error, the whole line given: the heap verifier's (chipsharp build --verify-heap, chipsharp_heap.c), e.g.
+// "Fatal error. The heap is corrupted: ...".
+__attribute__((noreturn)) void chipsharp_fatal(const char *message)
+{
+    chipsharp_uart0_write(message, length(message));
+    fail("\r\n", 2);
+}

@@ -286,7 +286,8 @@ public sealed class HeapArrayCheckTests : IDisposable
         // the pins are on the stack; the samples, of a size known only when the program runs, would be on the heap
         Assert.Equal(["Program.Tick() at IL_0042 (newarr): an interrupt handler cannot create objects (new ...). The heap "
             + "may be in the middle of an allocation or a collection when the interrupt comes: create what the handler "
-            + "needs before, e.g. in a static field."], analysis.Problems.Select(problem => problem.Line));
+            + "needs before, e.g. in a static field.", $"Program.Tick() at IL_0049 (stsfld): {Memory.InterruptStoreRuleTests.Rule}"],
+            analysis.Problems.Select(problem => problem.Line));
     }
 
     /// <summary>"Program.Passes: heap, stack": where each newarr of each method makes its array, in their order.</summary>

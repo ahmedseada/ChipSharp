@@ -174,6 +174,7 @@ internal sealed partial class ProgramFunctions(TirModule module)
             function = module.Functions.FirstOrDefault(f => f.Kind == TirFunctionKind.External
                     && f.Name == external.DisplayName)
                 ?? module.AddExternalFunction(external.DisplayName, external.ReturnType, parameters);
+            function.MakesObjects |= KnownExternals.UsesHeap(external); // System.GC's: a program that calls them uses the heap
             _externals.Add(external.DisplayName, function);
         }
 

@@ -67,8 +67,9 @@ public sealed class TirFunction
     public TirType ReturnType { get; }
 
     /// <summary>
-    /// True for an external function that makes objects on the heap (the runtime's functions that make strings): a
-    /// module that calls one uses the heap, like one that has <c>newobject</c> or <c>newarray</c>.
+    /// True for an external function that makes objects on the heap (the runtime's functions that make strings), or
+    /// that works on it (System.GC's methods): a module that calls one uses the heap, like one that has
+    /// <c>newobject</c> or <c>newarray</c>.
     /// </summary>
     public bool MakesObjects { get; set; }
 

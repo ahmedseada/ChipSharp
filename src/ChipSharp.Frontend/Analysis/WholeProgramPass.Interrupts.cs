@@ -67,8 +67,9 @@ public static partial class WholeProgramPass
     /// <summary>
     /// Adds a problem for every place in <paramref name="methods"/> (the program, with <paramref name="entryPoint"/>
     /// first) that breaks a rule of the <paramref name="handlers"/>: a call that starts an event no method is marked to
-    /// handle, a wait or a new object (or an array on the heap, <paramref name="heapArrays"/>) in what a handler runs,
-    /// and every use of a static field that a handler and the rest of the program share (one of them writing it) when it
+    /// handle, a wait or a new object (or an array on the heap, <paramref name="heapArrays"/>) in what a handler runs, a
+    /// reference other than null stored where the collector reads references (<see cref="HandlerStores"/>), and every
+    /// use of a static field that a handler and the rest of the program share (one of them writing it) when it
     /// is not volatile. The type initializers run before Main, before any interrupt can come, so what they alone do
     /// does not count.
     /// </summary>
@@ -113,10 +114,20 @@ public static partial class WholeProgramPass
 
         var shared = mainFields.Where(field => handlerFields.Contains(field) && written.Contains(field) && !IsVolatile(field))
             .ToHashSet();
+        HashSet<IlMethod>? storing = null;
 
         // the places are in the program's own methods: a library substitute's calls count where the program calls it
         foreach (var method in methods.Where(method => !LibrarySubstitutes.Defines(method)))
         {
+            // the collector runs with interrupts on: what a handler runs stores no reference but null (HandlerStores);
+            // a library substitute's stores count where the program calls it
+            var stores = new HashSet<IlInstruction>();
+            if (inHandlers.Contains(method))
+            {
+                storing ??= Storing(methods);
+                stores.UnionWith(HandlerStores.Find(method).Concat(SubstituteStores(method, storing)));
+            }
+
             foreach (var instruction in method.Body?.Instructions ?? [])
             {
                 foreach (var external in RuntimeCalls(instruction))
@@ -137,6 +148,11 @@ public static partial class WholeProgramPass
                 if (inHandlers.Contains(method) && (ClassRules.Allocates(instruction) || heapArrays.Contains(instruction)))
                 {
                     problems.Add(Problem.At(method, instruction, Unsupported.AllocationInHandler));
+                }
+
+                if (stores.Contains(instruction))
+                {
+                    problems.Add(Problem.At(method, instruction, Unsupported.ReferenceStoreInHandler));
                 }
             }
 
@@ -208,6 +224,35 @@ public static partial class WholeProgramPass
 
         return reached;
     }
+
+    /// <summary>The library substitutes among <paramref name="methods"/> that store references (themselves, or through the substitutes they call).</summary>
+    private static HashSet<IlMethod> Storing(IReadOnlyList<IlMethod> methods)
+    {
+        var substitutes = methods.Where(LibrarySubstitutes.Defines).ToHashSet();
+        var storing = substitutes.Where(method => HandlerStores.Find(method).Any()).ToHashSet();
+        for (var grown = true; grown;)
+        {
+            grown = false;
+            foreach (var method in substitutes.Where(method => !storing.Contains(method)))
+            {
+                if ((method.Body?.Instructions ?? []).Any(instruction =>
+                    ValueTypes.CalledMethod(instruction) is { } callee && storing.Contains(callee)))
+                {
+                    storing.Add(method);
+                    grown = true;
+                }
+            }
+        }
+
+        return storing;
+    }
+
+    /// <summary>The calls in <paramref name="method"/>, a method of the program, of a library substitute in <paramref name="storing"/>.</summary>
+    private static IEnumerable<IlInstruction> SubstituteStores(IlMethod method, HashSet<IlMethod> storing) =>
+        LibrarySubstitutes.Defines(method)
+            ? []
+            : (method.Body?.Instructions ?? []).Where(instruction =>
+                ValueTypes.CalledMethod(instruction) is { } callee && storing.Contains(callee));
 
     /// <summary>
     /// The static fields of the program's own types that <paramref name="method"/> reads (ldsfld), writes (stsfld) or

@@ -44,6 +44,17 @@ internal static class TargetRules
             }
 
             found |= AddObjectsWithoutHeap(target, ram, methods, problems);
+
+            // System.GC's methods work on a heap (see KnownExternals.UsesHeap)
+            var gc = Unsupported.WithoutHeap(Unsupported.GcMethods, target.Name, ram);
+            foreach (var method in methods.Where(method => !LibrarySubstitutes.Defines(method)))
+            {
+                foreach (var instruction in (method.Body?.Instructions ?? []).Where(IsGcCall))
+                {
+                    problems.Add(Problem.At(method, instruction, gc));
+                    found = true;
+                }
+            }
         }
 
         if (!target.HasConsole)
@@ -116,6 +127,13 @@ internal static class TargetRules
     /// </summary>
     private static MemoryRegion? DataMemory(TargetDescription target) =>
         target.Memory.TryGetValue(target.Setting("link.data") ?? "ram", out var region) ? region : null;
+
+    /// <summary>A call of a method of System.GC that ChipSharp compiles (see <see cref="KnownExternals.UsesHeap"/>).</summary>
+    private static bool IsGcCall(IlInstruction instruction) => instruction is
+    {
+        OpCode: IlOpCode.Call,
+        Operand: IlMethodOperand { Method: { Definition: null, DeclaringType: IlNamedType { FullName: "System.GC" } } callee },
+    } && KnownExternals.TryMap(callee, out var function) && KnownExternals.UsesHeap(function);
 
     /// <summary>A call of Console.Write or Console.WriteLine that ChipSharp compiles (see <see cref="KnownExternals"/>).</summary>
     private static bool IsConsoleWrite(IlInstruction instruction) => instruction is

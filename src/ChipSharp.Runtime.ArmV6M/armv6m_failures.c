@@ -81,3 +81,27 @@ __attribute__((weak, noreturn)) void ChipSharp_Runtime_DelegateTypes(void) { fai
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_LengthBelowZero(int value) { (void)value; fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_SourceIndexBelowZero(int value) { (void)value; fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_DestinationIndexBelowZero(int value) { (void)value; fail(); }
+
+// ---- The stack, and fatal errors ----------------------------------------------------------------------------------
+//
+//   chipsharp_stack_overflow           a function that checks the stack found it below __chipsharp_stack_limit (the
+//                                      code generator's check, LlvmStackChecks): it would soon run into the variables
+//                                      or the heap. The stack pointer may be below the stack already, so this turns
+//                                      interrupts off (nothing of the program runs again), puts the stack pointer back
+//                                      at the top of the stack, and calls ChipSharp_Runtime_StackOverflow there
+//   ChipSharp_Runtime_StackOverflow    says so ("Stack overflow.", .NET's words, on a chip with a console) and stops
+//   chipsharp_fatal                    a fatal error, the whole line given (the heap verifier's, chipsharp_heap.c)
+
+__attribute__((naked, noreturn)) void chipsharp_stack_overflow(void)
+{
+    __asm__ volatile(
+        "cpsid i\n\t"
+        "ldr r0, 1f\n\t"
+        "mov sp, r0\n\t"
+        "bl ChipSharp_Runtime_StackOverflow\n\t"
+        ".balign 4\n"
+        "1: .word __chipsharp_stack_top");
+}
+
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_StackOverflow(void) { fail(); }
+__attribute__((weak, noreturn)) void chipsharp_fatal(const char *message) { (void)message; fail(); }

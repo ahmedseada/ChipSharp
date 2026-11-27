@@ -73,6 +73,47 @@ public sealed class TargetDescription
 
     public bool IsComplete => MissingValues.Count == 0;
 
+    /// <summary>
+    /// This target as one without a heap: what a program that never makes an object is built for, so that it keeps no
+    /// memory for a heap and links none of the heap's code (no heap region on a chip, which the stack can use instead;
+    /// no memory taken from the operating system on a PC). The copy's capability "heap" is false; the target itself if
+    /// it has no heap.
+    /// </summary>
+    public TargetDescription WithoutHeap()
+    {
+        if (!HasHeap)
+        {
+            return this;
+        }
+
+        var settings = Settings.DeepClone().AsObject();
+        if (settings["capabilities"] is JsonObject capabilities)
+        {
+            capabilities["heap"] = false;
+        }
+
+        return new TargetDescription
+        {
+            Name = Name,
+            InheritanceChain = InheritanceChain,
+            Backend = Backend,
+            Toolchain = Toolchain,
+            Runtime = Runtime,
+            Triple = Triple,
+            Cpu = Cpu,
+            PointerSize = PointerSize,
+            Endian = Endian,
+            Image = Image,
+            Flasher = Flasher,
+            Memory = Memory,
+            Pins = Pins,
+            Capabilities = new Dictionary<string, string>(Capabilities, StringComparer.OrdinalIgnoreCase) { ["heap"] = "false" },
+            HeapSize = null,
+            Settings = settings,
+            MissingValues = MissingValues,
+        };
+    }
+
     /// <summary>True when the capability is set to true, e.g. <c>HasCapability("fpu")</c>.</summary>
     public bool HasCapability(string name) =>
         Capabilities.TryGetValue(name, out var value) && string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);

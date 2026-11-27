@@ -165,7 +165,10 @@ public sealed class DelegateCheckTests : IDisposable
         Assert.Equal(
         [
             $"Program.Tick() at IL_0014 (newobj): {AllocationRule}",
+            $"Program.Tick() at IL_001a (stsfld): {Memory.InterruptStoreRuleTests.Rule}",
+            $"Program.Tick() at IL_0021 (stsfld): {Memory.InterruptStoreRuleTests.Rule}",
             $"Program.Tick() at IL_0034 (call): {AllocationRule}",
+            $"Program.Tick() at IL_0040 (stsfld): {Memory.InterruptStoreRuleTests.Rule}",
             $"Program+<>c.<Main>b__3_0() at IL_0000 (newobj): {AllocationRule}",
         ], problems);
     }

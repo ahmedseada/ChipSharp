@@ -64,7 +64,11 @@ public static class ChipSharpBuilder
             kept.Add(WriteText(outputFolder, programName + ".tir", TirPrinter.Print(module)));
         }
 
-        var code = Generate(parts.CodeGenerator, module, target);
+        // a program that never uses the heap (no object, no string made, nothing of System.GC: the whole program,
+        // the library substitutes and the runtime functions it calls) is built as for the target without one: no RAM
+        // kept for a heap (the stack may use it), no memory taken from the operating system, no collector linked in
+        var linked = module.UsesHeap ? target : target.WithoutHeap();
+        var code = Generate(parts.CodeGenerator, module, linked);
         if (options.KeepIntermediates)
         {
             kept.AddRange(code.Files.Select(file => WriteText(outputFolder, file.FileName, file.Content)));
@@ -73,11 +77,11 @@ public static class ChipSharpBuilder
         var binary = parts.Toolchain.Build(new GeneratedCode(
         [
             .. code.Files,
-            .. parts.Runtime.Startup(target).Files,
-            .. parts.Runtime.InterruptEntry(target).Files,
-            .. parts.Runtime.Atomics(target).Files,
-        ]), target);
-        var memory = MemoryReport.Read(binary, target);
+            .. parts.Runtime.Startup(linked).Files,
+            .. parts.Runtime.InterruptEntry(linked).Files,
+            .. parts.Runtime.Atomics(linked).Files,
+        ]), linked);
+        var memory = MemoryReport.Read(binary, linked);
 
         string output;
         if (parts.Image is null)
