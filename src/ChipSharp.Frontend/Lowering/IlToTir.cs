@@ -90,8 +90,9 @@ public static class IlToTir
         functions.AddInterruptEntries(program);
         module.EntryPoint = functions.Start(program);
 
-        // on an 8-bit chip, arithmetic in 8 or 16 bits where the values fit (Ir.Optimizations.TirNarrowing)
-        if (program.Narrowing is { } narrowing)
+        // on an 8-bit chip, arithmetic in 8 or 16 bits where the values fit (Ir.Optimizations.TirNarrowing); for a
+        // program of no target, only when CHIPSHARP_NARROWING says so
+        if ((program.Narrowing ?? TargetNarrowing.For(null)) is { } narrowing)
         {
             TirNarrowing.Run(module, narrowing);
         }

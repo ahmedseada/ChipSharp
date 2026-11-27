@@ -40,6 +40,26 @@ public readonly record struct TirRange
     /// <summary>Every value of a <paramref name="bits"/>-bit integer, read as signed: [-2^(bits-1), 2^(bits-1) - 1].</summary>
     public static TirRange Signed(int bits) => new(SignedMin(bits), SignedMax(bits));
 
+    /// <summary>
+    /// The width of an integer type whose ranges are followed: 8, 16, 32 or 64 for i8 to i64; 0 for any other type, nint
+    /// too, whose width only the target knows.
+    /// </summary>
+    public static int BitsOf(TirType type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        return type.Kind switch
+        {
+            TirTypeKind.I8 => 8,
+            TirTypeKind.I16 => 16,
+            TirTypeKind.I32 => 32,
+            TirTypeKind.I64 => 64,
+            _ => 0,
+        };
+    }
+
+    /// <summary>Every value of <paramref name="type"/> (<see cref="BitsOf"/>); every 64-bit value for a type not followed.</summary>
+    public static TirRange Any(TirType type) => Signed(BitsOf(type) is > 0 and var bits ? bits : 64);
+
     /// <summary>[0, 2^bits - 1]: every value of an unsigned integer of fewer than 64 bits.</summary>
     public static TirRange Unsigned(int bits) => bits < 64
         ? new TirRange(0, (1L << bits) - 1)

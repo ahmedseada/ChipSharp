@@ -59,7 +59,7 @@ public static class TirNarrowing
         {
             if (ranges.IsTracked(slot) && slot.Type.Kind is TirTypeKind.I16 or TirTypeKind.I32 or TirTypeKind.I64
                 && !comparedWithCut.Contains(slot)
-                && Narrower(ranges.RangeOf(slot), options.Bits(slot.Type), options) is { } type)
+                && Narrower(ranges.RangeOf(slot), TirRange.BitsOf(slot.Type), options) is { } type)
             {
                 slots[slot] = function.ReplaceSlot(slot, type);
             }
@@ -211,7 +211,7 @@ public static class TirNarrowing
                     _same[compare] = Emit(new TirCompare(op, LowBits(compare.Left, type), LowBits(compare.Right, type)));
                     return;
 
-                case TirConvert { Type.IsInteger: true, Value.Type.IsInteger: true } convert:
+                case TirConvert convert when Bits(convert.Type) > 0 && Bits(convert.Value.Type) > 0:
                     RewriteConvert(convert);
                     return;
 
@@ -484,7 +484,7 @@ public static class TirNarrowing
 
         private TirRange Range(TirValue value) => ranges.RangeOf(value);
 
-        private int Bits(TirType type) => options.Bits(type);
+        private static int Bits(TirType type) => TirRange.BitsOf(type);
 
         private static bool Fits(TirRange range, int bits) => range.FitsUnsigned(bits) || range.FitsSigned(bits);
 

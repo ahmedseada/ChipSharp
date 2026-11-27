@@ -46,13 +46,13 @@ public sealed class TirRangeAnalysis
 
         var defined = module.Functions.Where(f => f is { Kind: TirFunctionKind.Defined, EntryBlock: not null }).ToList();
         var open = OpenFunctions(module);
-        var summaries = Summaries.Any(defined, options);
+        var summaries = Summaries.Any(defined);
         List<FunctionResult> results;
         for (var round = 1; ; round++)
         {
             var assumed = summaries;
             results = [.. defined.Select(function => new FunctionAnalysis(function, options, assumed).Run())];
-            var next = Summaries.From(results, defined, open, options);
+            var next = Summaries.From(results, defined, open);
             if (next.SameAs(summaries) || round == MaxRounds)
             {
                 break;
@@ -64,7 +64,7 @@ public sealed class TirRangeAnalysis
         var analysis = new TirRangeAnalysis(options);
         foreach (var result in results)
         {
-            foreach (var parameter in result.Function.Parameters.Where(p => p.Type.IsInteger))
+            foreach (var parameter in result.Function.Parameters.Where(p => TirRange.BitsOf(p.Type) > 0))
             {
                 analysis._values[parameter] = summaries.Parameter(parameter);
             }
@@ -92,14 +92,14 @@ public sealed class TirRangeAnalysis
     public TirRange RangeOf(TirValue value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        return _values.TryGetValue(value, out var range) ? range : TirRange.Signed(Math.Max(_options.Bits(value.Type), 1));
+        return _values.TryGetValue(value, out var range) ? range : TirRange.Any(value.Type);
     }
 
     /// <summary>Every value a tracked slot (<see cref="IsTracked"/>) ever holds, its starting 0 included; every value of its type for another.</summary>
     public TirRange RangeOf(TirSlot slot)
     {
         ArgumentNullException.ThrowIfNull(slot);
-        return _slots.TryGetValue(slot, out var range) ? range : TirRange.Signed(Math.Max(_options.Bits(slot.Type), 1));
+        return _slots.TryGetValue(slot, out var range) ? range : TirRange.Any(slot.Type);
     }
 
     /// <summary>True for an integer slot whose address is never taken: only its loads and stores reach it, and the analysis follows them.</summary>
@@ -144,20 +144,17 @@ public sealed class TirRangeAnalysis
     /// <summary>What a round assumes of each function: the ranges of its parameters and of what it returns.</summary>
     private sealed class Summaries
     {
-        private readonly TirNarrowingOptions _options;
         private readonly Dictionary<TirFunction, TirRange[]> _parameters = [];
         private readonly Dictionary<TirFunction, TirRange> _returns = [];
 
-        private Summaries(TirNarrowingOptions options) => _options = options;
-
         /// <summary>Nothing known: every value of each type.</summary>
-        public static Summaries Any(IEnumerable<TirFunction> functions, TirNarrowingOptions options)
+        public static Summaries Any(IEnumerable<TirFunction> functions)
         {
-            var summaries = new Summaries(options);
+            var summaries = new Summaries();
             foreach (var function in functions)
             {
-                summaries._parameters[function] = [.. function.Parameters.Select(p => summaries.Full(p.Type))];
-                summaries._returns[function] = summaries.Full(function.ReturnType);
+                summaries._parameters[function] = [.. function.Parameters.Select(p => Full(p.Type))];
+                summaries._returns[function] = Full(function.ReturnType);
             }
 
             return summaries;
@@ -165,9 +162,9 @@ public sealed class TirRangeAnalysis
 
         /// <summary>What the results of a round prove: an open function's parameters may still be anything.</summary>
         public static Summaries From(IReadOnlyList<FunctionResult> results, IEnumerable<TirFunction> functions,
-            HashSet<TirFunction> open, TirNarrowingOptions options)
+            HashSet<TirFunction> open)
         {
-            var summaries = new Summaries(options);
+            var summaries = new Summaries();
             var passed = new Dictionary<TirFunction, TirRange[]>();
             foreach (var (callee, arguments) in results.SelectMany(result => result.Calls))
             {
@@ -188,7 +185,7 @@ public sealed class TirRangeAnalysis
             {
                 summaries._parameters[function] = !open.Contains(function) && passed.TryGetValue(function, out var ranges)
                     ? ranges
-                    : [.. function.Parameters.Select(p => summaries.Full(p.Type))];
+                    : [.. function.Parameters.Select(p => Full(p.Type))];
             }
 
             foreach (var result in results)
@@ -210,7 +207,7 @@ public sealed class TirRangeAnalysis
             && _parameters.All(pair => other._parameters.TryGetValue(pair.Key, out var ranges) && ranges.SequenceEqual(pair.Value))
             && _returns.All(pair => other._returns.TryGetValue(pair.Key, out var range) && range == pair.Value);
 
-        private TirRange Full(TirType type) => TirRange.Signed(Math.Max(_options.Bits(type), 1));
+        private static TirRange Full(TirType type) => TirRange.Any(type);
     }
 
     /// <summary>The analysis of one function, under what a round assumes of the others.</summary>
@@ -246,8 +243,8 @@ public sealed class TirRangeAnalysis
             var addressed = instructions.OfType<TirSlotAddress>().Select(address => address.Slot).ToHashSet();
             _bits =
             [
-                .. function.Slots.Select(slot => addressed.Contains(slot) ? 0 : options.Bits(slot.Type)),
-                .. function.Parameters.Select(parameter => options.Bits(parameter.Type)),
+                .. function.Slots.Select(slot => addressed.Contains(slot) ? 0 : TirRange.BitsOf(slot.Type)),
+                .. function.Parameters.Select(parameter => TirRange.BitsOf(parameter.Type)),
             ];
             _thresholds = Thresholds(instructions, options);
             _order = ReversePostorder(function.EntryBlock!);
@@ -422,12 +419,12 @@ public sealed class TirRangeAnalysis
                         break;
 
                     case TirCall call when calls is not null:
-                        calls.Add((call.Callee, [.. call.Arguments.Select(argument => argument.Type.IsInteger
+                        calls.Add((call.Callee, [.. call.Arguments.Select(argument => TirRange.BitsOf(argument.Type) > 0
                             ? Range(argument, state, values)
-                            : TirRange.Of(0))]));
+                            : TirRange.Any(argument.Type))]));
                         break;
 
-                    case TirReturn { Value: { Type.IsInteger: true } value }:
+                    case TirReturn { Value: { } value } when TirRange.BitsOf(value.Type) > 0:
                         returned = Range(value, state, values);
                         break;
 
@@ -449,7 +446,7 @@ public sealed class TirRangeAnalysis
                         break;
                 }
 
-                if (instruction.Type.IsInteger)
+                if (TirRange.BitsOf(instruction.Type) > 0)
                 {
                     values[instruction] = Compute(instruction, state, values);
                 }
@@ -461,7 +458,7 @@ public sealed class TirRangeAnalysis
         /// <summary>The range of the result of an integer instruction, in the state just before it.</summary>
         private TirRange Compute(TirInstruction instruction, TirRange[] state, Dictionary<TirValue, TirRange> values)
         {
-            var bits = _options.Bits(instruction.Type);
+            var bits = TirRange.BitsOf(instruction.Type);
             switch (instruction)
             {
                 case TirConst constant:
@@ -474,8 +471,8 @@ public sealed class TirRangeAnalysis
                     return TirRange.Binary(binary.Op, Range(binary.Left, state, values), Range(binary.Right, state, values), bits);
 
                 case TirConvert { Value.Type: var from } convert:
-                    return from.IsInteger
-                        ? TirRange.Convert(Range(convert.Value, state, values), _options.Bits(from), bits, convert.IsUnsigned)
+                    return TirRange.BitsOf(from) > 0
+                        ? TirRange.Convert(Range(convert.Value, state, values), TirRange.BitsOf(from), bits, convert.IsUnsigned)
                         : from == TirType.Bool ? TirRange.Of(0, 1) : TirRange.Signed(bits);
 
                 case TirLoad load when IsFollowed(load.Slot.Index):
@@ -508,7 +505,7 @@ public sealed class TirRangeAnalysis
 
             if (load.Address is TirFieldAddress field && _options.LengthFields.Contains((field.StructType, field.FieldIndex)))
             {
-                return TirRange.Of(0, Math.Min(_options.MaxLength, (1L << (_options.Bits(load.Type) - 1)) - 1));
+                return TirRange.Of(0, Math.Min(_options.MaxLength, (1L << (TirRange.BitsOf(load.Type) - 1)) - 1));
             }
 
             if (load.Address is TirElementAddress
@@ -527,7 +524,7 @@ public sealed class TirRangeAnalysis
         {
             TirParameter parameter when IsFollowed(_slotCount + parameter.Index) => state[_slotCount + parameter.Index],
             _ when values.TryGetValue(value, out var range) => range,
-            _ => TirRange.Signed(Math.Max(_options.Bits(value.Type), 1)),
+            _ => TirRange.Any(value.Type),
         };
 
         /// <summary>
@@ -543,7 +540,7 @@ public sealed class TirRangeAnalysis
                 case TirConst { Type.Kind: TirTypeKind.Bool } constant:
                     return (constant.IntegerValue != 0) == truth ? state : null;
 
-                case TirCompare { Left.Type.IsInteger: true } compare when compare.Block == block:
+                case TirCompare compare when compare.Block == block && TirRange.BitsOf(compare.Left.Type) > 0:
                     var op = truth ? compare.Op : Negate(compare.Op);
                     var (left, right) = Refine(op, Range(compare.Left, state, values), Range(compare.Right, state, values));
                     if (left.IsEmpty || right.IsEmpty)
@@ -586,7 +583,7 @@ public sealed class TirRangeAnalysis
             }
 
             if (value is TirConvert { Value.Type.IsInteger: true } convert
-                && _options.Bits(convert.Value.Type) is var from && from < _options.Bits(convert.Type))
+                && TirRange.BitsOf(convert.Value.Type) is var from && from > 0 && from < TirRange.BitsOf(convert.Type))
             {
                 var source = convert.IsUnsigned ? BeforeZeroExtension(range, from) : range.Intersect(TirRange.Signed(from));
                 return !source.IsEmpty && Narrow(state, convert.Value, source, block);
