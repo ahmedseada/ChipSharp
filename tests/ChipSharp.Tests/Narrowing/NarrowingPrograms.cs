@@ -298,9 +298,9 @@ internal static class NarrowingPrograms
                 6 => $"({left} {Pick("<<", ">>")} {random.Next(30, 70)})",
                 7 => $"({Dividend(counters)} {Pick("/", "%")} ({right} | 1))",
                 8 => $"(int)((uint)({left}) {Pick("/", "%")} ((uint)({right}) | 1u))",
-                9 => $"({Pick("byte", "sbyte", "short", "ushort", "char")})({left})",
-                10 => $"({Condition(depth - 1, counters)} ? {left} : {right})",
-                _ => $"({Pick("-", "~")}{left})",
+                9 => $"(int)({Pick("byte", "sbyte", "short", "ushort", "char")})({left})",
+                10 => $"({Condition(depth - 1, counters)} ? (int)({left}) : (int)({right}))",
+                _ => $"({Pick("-", "~")}(int)({left}))",
             };
         }
 

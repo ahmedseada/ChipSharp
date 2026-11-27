@@ -85,6 +85,65 @@ public sealed class NarrowingProgramTests(ITestOutputHelper output) : IDisposabl
         Assert.Equal(DotnetResult(source, name), BitConverter.ToInt32(cpu.Data, program.Address("chipsharp_exit_code")));
     }
 
+    /// <summary>
+    /// One operation on 400 pseudo-random pairs on the Uno, hashed: of ints, and of bytes, sbytes, shorts and ushorts,
+    /// which narrowing divides in 8 and 16 bits (the 8- and 16-bit helpers, signed and unsigned), as .NET does.
+    /// </summary>
+    [AvrTheory]
+    [InlineData("a / b", "int")]
+    [InlineData("a % b", "int")]
+    [InlineData("a * b", "int")]
+    [InlineData("a << (b & 31)", "int")]
+    [InlineData("a >> (b & 31)", "int")]
+    [InlineData("a >>> (b & 31)", "int")]
+    [InlineData("(int)((uint)a / (uint)b)", "int")]
+    [InlineData("(int)((uint)a % (uint)b)", "int")]
+    [InlineData("(short)a / (short)b", "short")]
+    [InlineData("(short)a % (short)b", "short")]
+    [InlineData("(sbyte)a / (sbyte)b", "sbyte")]
+    [InlineData("(sbyte)a % (sbyte)b", "sbyte")]
+    [InlineData("(ushort)a / (ushort)b", "ushort")]
+    [InlineData("(byte)a % (byte)b", "byte")]
+    public void On_the_Uno_each_operation_of_each_width_gives_what_dotnet_gives(string expression, string type)
+    {
+        var source = $$"""
+            using System;
+
+            class Program
+            {
+                static volatile int input = 1;
+
+                public static int Result()
+                {
+                    unchecked
+                    {
+                        uint x = (uint)input * 2463534242u;
+                        int hash = 0;
+                        for (int k = 0; k < 400; k++)
+                        {
+                            x ^= x << 13; x ^= x >> 17; x ^= x << 5;
+                            int a = (int)x;
+                            x ^= x << 13; x ^= x >> 17; x ^= x << 5;
+                            int b = (int)(x >> (int)(x & 31));
+                            if (({{type}})b == 0 || (({{type}})b == -1 && ({{type}})a == {{type}}.MinValue)) continue;
+                            hash = hash * 31 + ({{expression}});
+                        }
+
+                        return hash;
+                    }
+                }
+
+                static int Main() => Result();
+            }
+            """;
+        var name = "Arithmetic" + string.Concat(expression.Where(char.IsAsciiLetterOrDigit));
+        var (_, elf, _) = BuildForUno(name, source);
+        var program = AvrCoreProgram.FromElf(elf);
+        var cpu = program.Load();
+        Assert.Equal(AvrCpu.StopReason.Sleep, cpu.Run(400_000_000));
+        Assert.Equal(DotnetResult(source, name), BitConverter.ToInt32(cpu.Data, program.Address("chipsharp_exit_code")));
+    }
+
     [AvrSimulatorFact]
     public async Task In_the_avr_simulator_the_narrowed_edges_finish_as_on_the_AVR_core()
     {
