@@ -53,11 +53,12 @@ internal sealed partial record Unsupported
     /// a span of strings or objects holds references); null when its elements are fine.
     /// </summary>
     public static Unsupported? ForSpan(IlType element, IlAssembly assembly) =>
-        StackArrays.TryMapElementType(element, assembly, out _)
-            ? null
-            : WholeProgramPass.ForArrayElement(element, assembly) is var unsupported && unsupported == ArraysOfReferences
-                ? SpansOfReferences
-                : unsupported;
+        StackArrays.TryMapElementType(element, assembly, out _) ? null
+        // a span of references views an array on the heap (or a list's), on a target with one
+        : HeapArrays.IsReferenceElement(element, assembly) ? HeapUse(SpansOfReferences)
+        : WholeProgramPass.ForArrayElement(element, assembly) is var unsupported && unsupported == ArraysOfReferences
+            ? SpansOfReferences
+            : unsupported;
 
     /// <summary>
     /// True for the types and methods C# makes a collection expression into a span with: the InlineArray structs of

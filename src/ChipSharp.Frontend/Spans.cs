@@ -122,7 +122,7 @@ internal static class Spans
     /// </summary>
     public static bool TryMapType(IlType type, IlAssembly assembly, [NotNullWhen(true)] out TirType? tirType)
     {
-        tirType = IsSpan(type, out var element, out _) && StackArrays.TryMapElementType(element, assembly, out _)
+        tirType = IsSpan(type, out var element, out _) && HeapArrays.TryMapElementType(element, assembly, out _)
             ? StackArrays.ArrayType
             : null;
         return tirType is not null;

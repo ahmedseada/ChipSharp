@@ -138,9 +138,10 @@ public static partial class WholeProgramPass
                 return ForAnyType(type, assembly, method);
 
             case { OpCode: IlOpCode.Newobj, Operand: IlMethodOperand { Method: var constructor } }:
-                // the objects of classes have their verdicts already (ForClasses)
+                // the objects of classes have their verdicts already (ForClasses), a span's constructor spans' (ForSpans)
                 return constructor.Definition is { } definition
                     ? ValueTypes.IsStruct(definition.DeclaringType) ? ForStruct(definition.DeclaringType) : Unsupported.CreatingObjects
+                    : Spans.Call(constructor) is not null ? null
                     : ForLibraryNew(constructor);
 
             case { OpCode: IlOpCode.Ldind_Ref or IlOpCode.Stind_Ref }:
