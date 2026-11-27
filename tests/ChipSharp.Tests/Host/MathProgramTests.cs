@@ -25,15 +25,23 @@ public sealed class MathProgramTests(ITestOutputHelper output) : IDisposable
         }
     }
 
-    /// <summary>The program the PC test runs; the Pico test runs a part of it (see PicoMathTests).</summary>
-    internal static MathProgram Program(int random) => new MathProgram()
-        .Doubles(FloatMathProgram.SpecialDoubles.Zip(FloatMathProgram.SpecialDoubles.Reverse()))
-        .Doubles(MathProgram.RandomDoubles(random, 41).Zip(MathProgram.RandomDoubles(random, 42)))
-        .Floats(FloatMathProgram.SpecialFloats.Zip(FloatMathProgram.SpecialFloats.Reverse()))
-        .Floats(MathProgram.RandomFloats(random, 43).Zip(MathProgram.RandomFloats(random, 44)))
-        .Rounding([.. MathProgram.RoundingValues, .. MathProgram.RandomDoubles(random / 5, 45)])
-        .Integers(FloatMathProgram.SpecialInt64s.Zip(FloatMathProgram.SpecialInt64s.Reverse()))
-        .Integers(FloatMathProgram.RandomInt64s(random, 46).Zip(FloatMathProgram.RandomInt64s(random, 47)));
+    /// <summary>
+    /// The program the PC test runs with <paramref name="random"/> random values of each kind; the Pico test runs it with
+    /// fewer, and whole numbers below 2^62 only (the simulator's SBCS fault, see the README's Tests).
+    /// </summary>
+    internal static MathProgram Program(int random, bool pico = false)
+    {
+        long[] integers = [.. FloatMathProgram.SpecialInt64s.Where(value => !pico || (value > -(1L << 62) && value < 1L << 62))];
+        return new MathProgram()
+            .Doubles(FloatMathProgram.SpecialDoubles.Zip(FloatMathProgram.SpecialDoubles.Reverse()))
+            .Doubles(MathProgram.RandomDoubles(random, 41).Zip(MathProgram.RandomDoubles(random, 42)))
+            .Floats(FloatMathProgram.SpecialFloats.Zip(FloatMathProgram.SpecialFloats.Reverse()))
+            .Floats(MathProgram.RandomFloats(random, 43).Zip(MathProgram.RandomFloats(random, 44)))
+            .Rounding([.. MathProgram.RoundingValues, .. MathProgram.RandomDoubles(random / 5, 45)])
+            .Integers(integers.Zip(integers.Reverse()))
+            .Integers(FloatMathProgram.RandomInt64s(random, 46).Zip(FloatMathProgram.RandomInt64s(random, 47))
+                .Select(pair => pico ? (pair.First >> 2, pair.Second >> 2) : pair));
+    }
 
     [HostFact]
     [RunsLong]
