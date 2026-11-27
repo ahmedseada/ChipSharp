@@ -7,16 +7,17 @@
 // .NET does not compute these itself: on Windows it calls the C runtime (UCRT), whose x64 functions come from AMD's
 // math library, some in C and some in assembly that uses the processor's fused multiply-add; on Linux it calls glibc.
 // Their results are not always correctly rounded, so no implementation gives .NET's results bit for bit unless it
-// computes as they do. What each function here is, measured against .NET 10 on Windows x64 (the tests keep the
-// numbers, see FloatMathAccuracyTests):
+// computes as they do. What each function here is, measured against .NET 10 on Windows x64 (MathAccuracyTests keeps
+// the numbers, the README lists them):
 //
 //   - AMD's reference C (chipsharp_math_amd.c), which the UCRT has: Asin, Acos, Atan, Atan2, Sinh, Cosh, Tanh, and of
-//     MathF also Tan. Without the fused multiply-add the UCRT's build uses here and there, they give .NET's result
-//     for 98 to 100 % of the values;
-//   - the formulas the UCRT computes Asinh, Acosh and Atanh with, over Log1p and Log (found by measuring);
+//     MathF also Tan. Without the fused multiply-adds the UCRT's build of them has, they give .NET's result for 98
+//     to 100 % of the values (Math.Cosh: 97.9 %);
+//   - the formulas the UCRT computes Asinh, Acosh and Atanh with, over Log1p and Log (found by measuring), whose
+//     results follow musl's Log1p: .NET's for 88 to 94 % of the values;
 //   - musl's (chipsharp_math_musl.c) where .NET runs assembly: Sin, Cos, Tan, Exp, Log, Log2, Log10, Pow, Cbrt,
 //     Log1p, and their MathF twins but Tan. musl's are within 1 ulp of the exact result, like .NET's, so the two
-//     agree for 97 to 99.9 % of the values (Cbrt: 70 %).
+//     agree for 96.9 to 100 % of the values (Cbrt: 70 %).
 //
 // Every one computes with + - * / and integer operations only, each rounded as IEEE 754 says (none contracted into a
 // fused multiply-add), so a program gets the same bits on the PC (SSE2) and on a chip without float hardware

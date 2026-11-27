@@ -8,7 +8,8 @@ namespace ChipSharp.Runtime.Windows;
 /// goes (<c>chipsharp_console_write</c>: standard output) in <see cref="SourceFileName"/>, and, shared with the other
 /// runtimes, Console.Write and Console.WriteLine (<c>ChipSharp_Runtime_Write...</c>, <c>ChipSharp_Runtime_WriteLine...</c>)
 /// in <see cref="ConsoleFileName"/>, the text of floats and doubles in <see cref="FloatTextFileName"/> and fmod and the
-/// Math methods in <see cref="FloatMathFileName"/> (the float arithmetic itself is the PC's). It needs no C runtime, only kernel32. A PC has no interrupts to enter and its
+/// Math methods in <see cref="FloatMathFileName"/> and <see cref="MathFileNames"/> (the float arithmetic itself is the
+/// PC's). It needs no C runtime, only kernel32. A PC has no interrupts to enter and its
 /// atomics are plain instructions, so those parts are empty. Next to it: what the program does where .NET would throw
 /// (<see cref="FailuresFileName"/>), and what a C runtime would give the code LLVM writes (<see cref="MemoryFileName"/>,
 /// <see cref="StackProbeFileName"/>). For a target with a heap, objects and their garbage collector, shared with the

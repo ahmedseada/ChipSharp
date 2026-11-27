@@ -14,8 +14,8 @@ namespace ChipSharp.Runtime.ArmV6M;
 /// 32-bit operations only.</item>
 /// <item>Float math in software, as ARMv6-M has no float hardware: <see cref="CompilerRt"/> for the arithmetic and
 /// conversions LLVM calls (__aeabi_fadd, __aeabi_dmul, __aeabi_d2iz, ...), <see cref="FloatCompareFileName"/> for its
-/// comparisons, and <see cref="FloatMathFileName"/> (shared with the other runtimes) for fmod and the Math methods
-/// programs call.</item>
+/// comparisons, and <see cref="FloatMathFileName"/> and <see cref="MathFileNames"/> (shared with the other runtimes)
+/// for fmod and the Math methods programs call.</item>
 /// <item><see cref="FailuresFileName"/>: what an index outside an array (and the other failures .NET throws an
 /// exception for) does on a chip whose runtime says nothing: stop at a breakpoint. Weak, so a chip runtime with a
 /// console replaces them.</item>
