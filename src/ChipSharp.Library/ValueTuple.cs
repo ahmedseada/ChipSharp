@@ -3,64 +3,65 @@ namespace ChipSharp.Library.Tuples;
 
 /// <summary>
 /// ChipSharp's <see cref="System.ValueTuple"/>: what C# makes of <c>(1, "a")</c>, a struct of its elements in public
-/// fields <c>Item1</c> to <c>Item7</c> and, past seven, a tuple of the rest in <c>Rest</c>, laid out as .NET's, so a tuple
-/// needs no heap: C# reads and writes the fields itself (named elements, deconstruction, <c>==</c> element by element).
-/// The members are .NET's (System.Private.CoreLib's ValueTuple.cs): <c>Equals</c> compares the elements as
+/// fields <c>Item1</c> to <c>Item7</c> and, past seven, a tuple of the rest in <c>Rest</c>, laid out as .NET's, so a
+/// tuple needs no heap: C# reads and writes the fields itself (named elements, deconstruction, <c>==</c> element by
+/// element). The members are .NET's (System.Private.CoreLib's ValueTuple.cs): <c>Equals</c> compares the elements as
 /// <c>EqualityComparer&lt;T&gt;.Default</c> does and <c>CompareTo</c> as <c>Comparer&lt;T&gt;.Default</c> does (with no
 /// comparer object, see <see cref="Equality"/>), <c>ToString</c> writes <c>(1, a)</c> (nothing for null), which needs a
-/// heap, as text kept does.
+/// heap, as text kept does. The signatures name .NET's tuple, which these stand for, as the program's IL does.
 /// </summary>
 /// <remarks>
-/// .NET's <c>GetHashCode</c> combines the elements' hash codes with <c>HashCode.Combine</c>, which mixes in a number that
-/// changes from one run to the next; ChipSharp's combines them the same way from a seed of 0 (<see cref="TupleHash"/>),
-/// so equal tuples have equal hash codes, the same in every run and on every target. A tuple of one element has its
-/// element's, as in .NET. <c>ITuple</c>, <c>IStructuralEquatable</c>, <c>IStructuralComparable</c> and the
-/// non-generic <c>IComparable</c> are not here yet.
+/// .NET's <c>GetHashCode</c> combines the elements' hash codes with <c>HashCode.Combine</c>, which mixes in a number
+/// that changes from one run to the next; ChipSharp's combines them the same way from a seed of 0
+/// (<see cref="TupleHash"/>), so equal tuples have equal hash codes, the same in every run and on every target. A tuple
+/// of one element has its element's, as in .NET. <c>ITuple</c>, <c>IStructuralEquatable</c>,
+/// <c>IStructuralComparable</c> and the non-generic <c>IComparable</c> are not here yet.
 /// </remarks>
 [Substitute(typeof(System.ValueTuple))]
 public readonly struct ValueTuple
 {
-    public static ValueTuple<T1> Create<T1>(T1 item1) => new(item1);
+    public static System.ValueTuple<T1> Create<T1>(T1 item1) => new(item1);
 
-    public static ValueTuple<T1, T2> Create<T1, T2>(T1 item1, T2 item2) => new(item1, item2);
+    public static System.ValueTuple<T1, T2> Create<T1, T2>(T1 item1, T2 item2) => new(item1, item2);
 
-    public static ValueTuple<T1, T2, T3> Create<T1, T2, T3>(T1 item1, T2 item2, T3 item3) => new(item1, item2, item3);
+    public static System.ValueTuple<T1, T2, T3> Create<T1, T2, T3>(T1 item1, T2 item2, T3 item3) =>
+        new(item1, item2, item3);
 
-    public static ValueTuple<T1, T2, T3, T4> Create<T1, T2, T3, T4>(T1 item1, T2 item2, T3 item3, T4 item4) =>
+    public static System.ValueTuple<T1, T2, T3, T4> Create<T1, T2, T3, T4>(T1 item1, T2 item2, T3 item3, T4 item4) =>
         new(item1, item2, item3, item4);
 
-    public static ValueTuple<T1, T2, T3, T4, T5> Create<T1, T2, T3, T4, T5>(T1 item1, T2 item2, T3 item3, T4 item4,
-        T5 item5) => new(item1, item2, item3, item4, item5);
+    public static System.ValueTuple<T1, T2, T3, T4, T5> Create<T1, T2, T3, T4, T5>(T1 item1, T2 item2, T3 item3,
+        T4 item4, T5 item5) => new(item1, item2, item3, item4, item5);
 
-    public static ValueTuple<T1, T2, T3, T4, T5, T6> Create<T1, T2, T3, T4, T5, T6>(T1 item1, T2 item2, T3 item3,
+    public static System.ValueTuple<T1, T2, T3, T4, T5, T6> Create<T1, T2, T3, T4, T5, T6>(T1 item1, T2 item2, T3 item3,
         T4 item4, T5 item5, T6 item6) => new(item1, item2, item3, item4, item5, item6);
 
-    public static ValueTuple<T1, T2, T3, T4, T5, T6, T7> Create<T1, T2, T3, T4, T5, T6, T7>(T1 item1, T2 item2,
+    public static System.ValueTuple<T1, T2, T3, T4, T5, T6, T7> Create<T1, T2, T3, T4, T5, T6, T7>(T1 item1, T2 item2,
         T3 item3, T4 item4, T5 item5, T6 item6, T7 item7) => new(item1, item2, item3, item4, item5, item6, item7);
 
-    public static ValueTuple<T1, T2, T3, T4, T5, T6, T7, ValueTuple<T8>> Create<T1, T2, T3, T4, T5, T6, T7, T8>(T1 item1,
-        T2 item2, T3 item3, T4 item4, T5 item5, T6 item6, T7 item7, T8 item8) =>
-        new(item1, item2, item3, item4, item5, item6, item7, new ValueTuple<T8>(item8));
+    public static System.ValueTuple<T1, T2, T3, T4, T5, T6, T7, System.ValueTuple<T8>> Create<T1, T2, T3, T4, T5, T6, T7,
+        T8>(T1 item1, T2 item2, T3 item3, T4 item4, T5 item5, T6 item6, T7 item7, T8 item8) =>
+        new(item1, item2, item3, item4, item5, item6, item7, new System.ValueTuple<T8>(item8));
 }
 
-/// <summary>What a tuple is to the tuple that holds it as its <c>Rest</c>: .NET's IValueTupleInternal, for its text.</summary>
+/// <summary>A tuple, to the tuple that holds it as its <c>Rest</c> (.NET's IValueTupleInternal): for its text.</summary>
 internal interface ITupleRest
 {
 }
 
 /// <summary>ChipSharp's <see cref="System.ValueTuple{T1}"/> (see <see cref="ValueTuple"/>).</summary>
 [Substitute(typeof(System.ValueTuple<>))]
-public struct ValueTuple<T1> : IEquatable<ValueTuple<T1>>, IComparable<ValueTuple<T1>>, ITupleRest
+public struct ValueTuple<T1> : IEquatable<System.ValueTuple<T1>>, IComparable<System.ValueTuple<T1>>, ITupleRest
 {
     public T1 Item1;
 
     public ValueTuple(T1 item1) => Item1 = item1;
 
-    public override bool Equals(object? obj) => obj is ValueTuple<T1> tuple && Equals(tuple);
+    public override bool Equals(object? obj) => obj is System.ValueTuple<T1> tuple && Equals(tuple);
 
-    public bool Equals(ValueTuple<T1> other) => Equality.AreEqual(Item1, other.Item1);
+    public bool Equals(System.ValueTuple<T1> other) => Equality.AreEqual(Item1, other.Item1);
 
-    public int CompareTo(ValueTuple<T1> other) => Equality.Compare(Item1, other.Item1);
+    public int CompareTo(System.ValueTuple<T1> other) => Equality.Compare(Item1, other.Item1);
 
     public override int GetHashCode() => Equality.HashOf(Item1);
 
@@ -69,7 +70,8 @@ public struct ValueTuple<T1> : IEquatable<ValueTuple<T1>>, IComparable<ValueTupl
 
 /// <summary>ChipSharp's <see cref="System.ValueTuple{T1, T2}"/> (see <see cref="ValueTuple"/>).</summary>
 [Substitute(typeof(System.ValueTuple<,>))]
-public struct ValueTuple<T1, T2> : IEquatable<ValueTuple<T1, T2>>, IComparable<ValueTuple<T1, T2>>, ITupleRest
+public struct ValueTuple<T1, T2>
+    : IEquatable<System.ValueTuple<T1, T2>>, IComparable<System.ValueTuple<T1, T2>>, ITupleRest
 {
     public T1 Item1;
     public T2 Item2;
@@ -80,12 +82,12 @@ public struct ValueTuple<T1, T2> : IEquatable<ValueTuple<T1, T2>>, IComparable<V
         Item2 = item2;
     }
 
-    public override bool Equals(object? obj) => obj is ValueTuple<T1, T2> tuple && Equals(tuple);
+    public override bool Equals(object? obj) => obj is System.ValueTuple<T1, T2> tuple && Equals(tuple);
 
-    public bool Equals(ValueTuple<T1, T2> other) =>
+    public bool Equals(System.ValueTuple<T1, T2> other) =>
         Equality.AreEqual(Item1, other.Item1) && Equality.AreEqual(Item2, other.Item2);
 
-    public int CompareTo(ValueTuple<T1, T2> other)
+    public int CompareTo(System.ValueTuple<T1, T2> other)
     {
         var c = Equality.Compare(Item1, other.Item1);
         return c != 0 ? c : Equality.Compare(Item2, other.Item2);
@@ -98,7 +100,8 @@ public struct ValueTuple<T1, T2> : IEquatable<ValueTuple<T1, T2>>, IComparable<V
 
 /// <summary>ChipSharp's <see cref="System.ValueTuple{T1, T2, T3}"/> (see <see cref="ValueTuple"/>).</summary>
 [Substitute(typeof(System.ValueTuple<,,>))]
-public struct ValueTuple<T1, T2, T3> : IEquatable<ValueTuple<T1, T2, T3>>, IComparable<ValueTuple<T1, T2, T3>>, ITupleRest
+public struct ValueTuple<T1, T2, T3>
+    : IEquatable<System.ValueTuple<T1, T2, T3>>, IComparable<System.ValueTuple<T1, T2, T3>>, ITupleRest
 {
     public T1 Item1;
     public T2 Item2;
@@ -111,13 +114,13 @@ public struct ValueTuple<T1, T2, T3> : IEquatable<ValueTuple<T1, T2, T3>>, IComp
         Item3 = item3;
     }
 
-    public override bool Equals(object? obj) => obj is ValueTuple<T1, T2, T3> tuple && Equals(tuple);
+    public override bool Equals(object? obj) => obj is System.ValueTuple<T1, T2, T3> tuple && Equals(tuple);
 
-    public bool Equals(ValueTuple<T1, T2, T3> other) =>
+    public bool Equals(System.ValueTuple<T1, T2, T3> other) =>
         Equality.AreEqual(Item1, other.Item1) && Equality.AreEqual(Item2, other.Item2)
         && Equality.AreEqual(Item3, other.Item3);
 
-    public int CompareTo(ValueTuple<T1, T2, T3> other)
+    public int CompareTo(System.ValueTuple<T1, T2, T3> other)
     {
         var c = Equality.Compare(Item1, other.Item1);
         if (c != 0)
@@ -139,7 +142,7 @@ public struct ValueTuple<T1, T2, T3> : IEquatable<ValueTuple<T1, T2, T3>>, IComp
 /// <summary>ChipSharp's <see cref="System.ValueTuple{T1, T2, T3, T4}"/> (see <see cref="ValueTuple"/>).</summary>
 [Substitute(typeof(System.ValueTuple<,,,>))]
 public struct ValueTuple<T1, T2, T3, T4>
-    : IEquatable<ValueTuple<T1, T2, T3, T4>>, IComparable<ValueTuple<T1, T2, T3, T4>>, ITupleRest
+    : IEquatable<System.ValueTuple<T1, T2, T3, T4>>, IComparable<System.ValueTuple<T1, T2, T3, T4>>, ITupleRest
 {
     public T1 Item1;
     public T2 Item2;
@@ -154,13 +157,13 @@ public struct ValueTuple<T1, T2, T3, T4>
         Item4 = item4;
     }
 
-    public override bool Equals(object? obj) => obj is ValueTuple<T1, T2, T3, T4> tuple && Equals(tuple);
+    public override bool Equals(object? obj) => obj is System.ValueTuple<T1, T2, T3, T4> tuple && Equals(tuple);
 
-    public bool Equals(ValueTuple<T1, T2, T3, T4> other) =>
+    public bool Equals(System.ValueTuple<T1, T2, T3, T4> other) =>
         Equality.AreEqual(Item1, other.Item1) && Equality.AreEqual(Item2, other.Item2)
         && Equality.AreEqual(Item3, other.Item3) && Equality.AreEqual(Item4, other.Item4);
 
-    public int CompareTo(ValueTuple<T1, T2, T3, T4> other)
+    public int CompareTo(System.ValueTuple<T1, T2, T3, T4> other)
     {
         var c = Equality.Compare(Item1, other.Item1);
         if (c != 0)
@@ -188,7 +191,7 @@ public struct ValueTuple<T1, T2, T3, T4>
 /// <summary>ChipSharp's <see cref="System.ValueTuple{T1, T2, T3, T4, T5}"/> (see <see cref="ValueTuple"/>).</summary>
 [Substitute(typeof(System.ValueTuple<,,,,>))]
 public struct ValueTuple<T1, T2, T3, T4, T5>
-    : IEquatable<ValueTuple<T1, T2, T3, T4, T5>>, IComparable<ValueTuple<T1, T2, T3, T4, T5>>, ITupleRest
+    : IEquatable<System.ValueTuple<T1, T2, T3, T4, T5>>, IComparable<System.ValueTuple<T1, T2, T3, T4, T5>>, ITupleRest
 {
     public T1 Item1;
     public T2 Item2;
@@ -205,14 +208,14 @@ public struct ValueTuple<T1, T2, T3, T4, T5>
         Item5 = item5;
     }
 
-    public override bool Equals(object? obj) => obj is ValueTuple<T1, T2, T3, T4, T5> tuple && Equals(tuple);
+    public override bool Equals(object? obj) => obj is System.ValueTuple<T1, T2, T3, T4, T5> tuple && Equals(tuple);
 
-    public bool Equals(ValueTuple<T1, T2, T3, T4, T5> other) =>
+    public bool Equals(System.ValueTuple<T1, T2, T3, T4, T5> other) =>
         Equality.AreEqual(Item1, other.Item1) && Equality.AreEqual(Item2, other.Item2)
         && Equality.AreEqual(Item3, other.Item3) && Equality.AreEqual(Item4, other.Item4)
         && Equality.AreEqual(Item5, other.Item5);
 
-    public int CompareTo(ValueTuple<T1, T2, T3, T4, T5> other)
+    public int CompareTo(System.ValueTuple<T1, T2, T3, T4, T5> other)
     {
         var c = Equality.Compare(Item1, other.Item1);
         if (c != 0)
@@ -243,10 +246,13 @@ public struct ValueTuple<T1, T2, T3, T4, T5>
         + TupleText.Of(Item3) + ", " + TupleText.Of(Item4) + ", " + TupleText.Of(Item5) + ")";
 }
 
-/// <summary>ChipSharp's <see cref="System.ValueTuple{T1, T2, T3, T4, T5, T6}"/> (see <see cref="ValueTuple"/>).</summary>
+/// <summary>
+/// ChipSharp's <see cref="System.ValueTuple{T1, T2, T3, T4, T5, T6}"/> (see <see cref="ValueTuple"/>).
+/// </summary>
 [Substitute(typeof(System.ValueTuple<,,,,,>))]
 public struct ValueTuple<T1, T2, T3, T4, T5, T6>
-    : IEquatable<ValueTuple<T1, T2, T3, T4, T5, T6>>, IComparable<ValueTuple<T1, T2, T3, T4, T5, T6>>, ITupleRest
+    : IEquatable<System.ValueTuple<T1, T2, T3, T4, T5, T6>>,
+        IComparable<System.ValueTuple<T1, T2, T3, T4, T5, T6>>, ITupleRest
 {
     public T1 Item1;
     public T2 Item2;
@@ -265,14 +271,15 @@ public struct ValueTuple<T1, T2, T3, T4, T5, T6>
         Item6 = item6;
     }
 
-    public override bool Equals(object? obj) => obj is ValueTuple<T1, T2, T3, T4, T5, T6> tuple && Equals(tuple);
+    public override bool Equals(object? obj) =>
+        obj is System.ValueTuple<T1, T2, T3, T4, T5, T6> tuple && Equals(tuple);
 
-    public bool Equals(ValueTuple<T1, T2, T3, T4, T5, T6> other) =>
+    public bool Equals(System.ValueTuple<T1, T2, T3, T4, T5, T6> other) =>
         Equality.AreEqual(Item1, other.Item1) && Equality.AreEqual(Item2, other.Item2)
         && Equality.AreEqual(Item3, other.Item3) && Equality.AreEqual(Item4, other.Item4)
         && Equality.AreEqual(Item5, other.Item5) && Equality.AreEqual(Item6, other.Item6);
 
-    public int CompareTo(ValueTuple<T1, T2, T3, T4, T5, T6> other)
+    public int CompareTo(System.ValueTuple<T1, T2, T3, T4, T5, T6> other)
     {
         var c = Equality.Compare(Item1, other.Item1);
         if (c != 0)
@@ -310,10 +317,13 @@ public struct ValueTuple<T1, T2, T3, T4, T5, T6>
         + ")";
 }
 
-/// <summary>ChipSharp's <see cref="System.ValueTuple{T1, T2, T3, T4, T5, T6, T7}"/> (see <see cref="ValueTuple"/>).</summary>
+/// <summary>
+/// ChipSharp's <see cref="System.ValueTuple{T1, T2, T3, T4, T5, T6, T7}"/> (see <see cref="ValueTuple"/>).
+/// </summary>
 [Substitute(typeof(System.ValueTuple<,,,,,,>))]
 public struct ValueTuple<T1, T2, T3, T4, T5, T6, T7>
-    : IEquatable<ValueTuple<T1, T2, T3, T4, T5, T6, T7>>, IComparable<ValueTuple<T1, T2, T3, T4, T5, T6, T7>>, ITupleRest
+    : IEquatable<System.ValueTuple<T1, T2, T3, T4, T5, T6, T7>>,
+        IComparable<System.ValueTuple<T1, T2, T3, T4, T5, T6, T7>>, ITupleRest
 {
     public T1 Item1;
     public T2 Item2;
@@ -334,15 +344,16 @@ public struct ValueTuple<T1, T2, T3, T4, T5, T6, T7>
         Item7 = item7;
     }
 
-    public override bool Equals(object? obj) => obj is ValueTuple<T1, T2, T3, T4, T5, T6, T7> tuple && Equals(tuple);
+    public override bool Equals(object? obj) =>
+        obj is System.ValueTuple<T1, T2, T3, T4, T5, T6, T7> tuple && Equals(tuple);
 
-    public bool Equals(ValueTuple<T1, T2, T3, T4, T5, T6, T7> other) =>
+    public bool Equals(System.ValueTuple<T1, T2, T3, T4, T5, T6, T7> other) =>
         Equality.AreEqual(Item1, other.Item1) && Equality.AreEqual(Item2, other.Item2)
         && Equality.AreEqual(Item3, other.Item3) && Equality.AreEqual(Item4, other.Item4)
         && Equality.AreEqual(Item5, other.Item5) && Equality.AreEqual(Item6, other.Item6)
         && Equality.AreEqual(Item7, other.Item7);
 
-    public int CompareTo(ValueTuple<T1, T2, T3, T4, T5, T6, T7> other)
+    public int CompareTo(System.ValueTuple<T1, T2, T3, T4, T5, T6, T7> other)
     {
         var c = Equality.Compare(Item1, other.Item1);
         if (c != 0)
@@ -394,8 +405,8 @@ public struct ValueTuple<T1, T2, T3, T4, T5, T6, T7>
 /// </summary>
 [Substitute(typeof(System.ValueTuple<,,,,,,,>))]
 public struct ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>
-    : IEquatable<ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>>,
-        IComparable<ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>>, ITupleRest
+    : IEquatable<System.ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>>,
+        IComparable<System.ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>>, ITupleRest
     where TRest : struct
 {
     public T1 Item1;
@@ -420,15 +431,15 @@ public struct ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>
     }
 
     public override bool Equals(object? obj) =>
-        obj is ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest> tuple && Equals(tuple);
+        obj is System.ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest> tuple && Equals(tuple);
 
-    public bool Equals(ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest> other) =>
+    public bool Equals(System.ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest> other) =>
         Equality.AreEqual(Item1, other.Item1) && Equality.AreEqual(Item2, other.Item2)
         && Equality.AreEqual(Item3, other.Item3) && Equality.AreEqual(Item4, other.Item4)
         && Equality.AreEqual(Item5, other.Item5) && Equality.AreEqual(Item6, other.Item6)
         && Equality.AreEqual(Item7, other.Item7) && Equality.AreEqual(Rest, other.Rest);
 
-    public int CompareTo(ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest> other)
+    public int CompareTo(System.ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest> other)
     {
         var c = Equality.Compare(Item1, other.Item1);
         if (c != 0)
@@ -474,7 +485,7 @@ public struct ValueTuple<T1, T2, T3, T4, T5, T6, T7, TRest>
         Equality.HashOf(Item3), Equality.HashOf(Item4), Equality.HashOf(Item5), Equality.HashOf(Item6),
         Equality.HashOf(Item7), Equality.HashOf(Rest));
 
-    /// <summary>The seven elements, then the rest's: its text without its "(" (another struct's text, and ")").</summary>
+    /// <summary>The seven elements, then the rest's: its text without its "(" (another struct's, and ")").</summary>
     public override string ToString()
     {
         var start = "(" + TupleText.Of(Item1) + ", " + TupleText.Of(Item2) + ", " + TupleText.Of(Item3) + ", "

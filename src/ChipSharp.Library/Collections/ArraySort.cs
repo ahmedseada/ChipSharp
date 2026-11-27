@@ -35,7 +35,8 @@ internal static class ArraySort<T>
             }
         }
 
-        IntrospectiveSort(keys, index, length, comparer ?? Comparer<T>.Default, null);
+        // (the default comparer is Equality's CompareInSort: see Compare)
+        IntrospectiveSort(keys, index, length, comparer == Comparer<T>.Default ? null : comparer, null);
     }
 
     public static void Sort(T[] keys, int index, int length, Comparison<T> comparison) =>
@@ -48,7 +49,8 @@ internal static class ArraySort<T>
         while (lo <= hi)
         {
             var i = lo + ((hi - lo) >> 1);
-            var order = comparer.Compare(array[i], value);
+            var order = comparer == Comparer<T>.Default ? Equality.CompareInSort(array[i], value)
+                : comparer.Compare(array[i], value);
             if (order == 0)
             {
                 return i;
@@ -76,8 +78,14 @@ internal static class ArraySort<T>
         }
     }
 
+    /// <summary>
+    /// Two elements compared with <paramref name="comparer"/>, else <paramref name="comparison"/>, else (neither: the
+    /// default comparer) as the default comparer compares them, failing as .NET's sort does where it fails.
+    /// </summary>
     private static int Compare(T x, T y, IComparer<T>? comparer, Comparison<T>? comparison) =>
-        comparer != null ? comparer.Compare(x, y) : comparison!(x, y);
+        comparer != null ? comparer.Compare(x, y)
+        : comparison != null ? comparison(x, y)
+        : Equality.CompareInSort(x, y);
 
     /// <summary>BitOperations.Log2: the index of the highest bit set (0 for 0).</summary>
     private static int Log2(uint value)

@@ -123,6 +123,9 @@ public sealed class SampleProgramTests : IDisposable
     public Task TrafficLights() => PrintsWhatDotnetPrints();
 
     [HostFact]
+    public Task Tuples() => PrintsWhatDotnetPrints();
+
+    [HostFact]
     public Task Unsigned() => PrintsWhatDotnetPrints();
 
     [HostFact]
