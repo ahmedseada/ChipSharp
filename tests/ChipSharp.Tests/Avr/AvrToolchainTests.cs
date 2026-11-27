@@ -33,15 +33,15 @@ public sealed class AvrToolchainTests : IDisposable
 
         Assert.Equal(["uno", "atmega328p", "avr"], uno.InheritanceChain);
         Assert.True(uno.IsComplete);
-        Assert.Equal(("llvm", "zig", "avr", "avr", "hex"), (uno.Backend, uno.Toolchain, uno.Runtime, uno.Triple, uno.Image));
+        Assert.Equal(("llvm", "zig", "atmega328p", "avr", "hex"), (uno.Backend, uno.Toolchain, uno.Runtime, uno.Triple, uno.Image));
         Assert.Equal(2, uno.PointerSize);
         Assert.Equal(Endianness.Little, uno.Endian);
         // the Uno leaves the last 512 bytes of the chip's 32 KB to its bootloader (optiboot)
         Assert.Equal(new MemoryRegion(0, (32 << 10) - 512), uno.Memory["flash"]);
         Assert.Equal(new MemoryRegion(0x100, 2 << 10), uno.Memory["ram"]);
         Assert.False(uno.HasHeap);
-        Assert.False(uno.HasConsole); // until the runtime "avr" has USART0
-        Assert.False(uno.HasCapability("clock")); // and a timer for DateTime.Now and Stopwatch
+        Assert.True(uno.HasConsole); // USART0, the chip's runtime's
+        Assert.True(uno.HasCapability("clock")); // and Timer1 for DateTime.Now and Stopwatch
         Assert.Equal("16000000", uno.Setting("clockHz"));
         Assert.Equal("13", uno.Pins["LED"]);
 

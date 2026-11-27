@@ -34,7 +34,7 @@ public sealed class UnoProgramTests : IDisposable
         var check = UnoBuild.Check(assembly, file);
         if (!check.IsSupported)
         {
-            Assert.All(check.Groups, group => Assert.Matches("needs? a heap, and the target 'uno-console' " +
+            Assert.All(check.Groups, group => Assert.Matches("needs? a heap, and the target 'uno' " +
                 @"\(2 KB RAM\) has no heap", group.Line));
             Assert.DoesNotContain(name, UnoPrograms.TooLarge);
             return;
@@ -43,7 +43,7 @@ public sealed class UnoProgramTests : IDisposable
         if (UnoPrograms.TooLarge.Contains(name))
         {
             var error = Assert.Throws<ChipSharpException>(() => UnoBuild.Build(assembly, file, Path.Combine(_scratch, "uno")));
-            Assert.Matches(@"^\S+ does not fit in target 'uno-console': its code, constants and the starting values " +
+            Assert.Matches(@"^\S+ does not fit in target 'uno': its code, constants and the starting values " +
                 @"of its variables need [0-9.]+ KB of flash, [0-9.]+ KB more than the target's 31\.5 KB|" +
                 @"takes \d+ bytes, more than the 32767 that 16-bit addresses reach on the target", error.Message);
             return;

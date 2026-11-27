@@ -45,7 +45,12 @@ public sealed class UnoMathTests : IDisposable
     /// compiler-rt's double add, multiply and divide (3 to 4 KB each on an AVR) and the text of floats need more than
     /// its 31.5 KB. They give the PC's bits on an AVR all the same (<see cref="AvrMathTests"/>, on a larger core).
     /// </summary>
-    private static readonly HashSet<string> TooLarge = ["Sin", "Cos", "Tan", "Atan2", "Asinh", "Acosh", "Log", "Log2", "Pow"];
+    private static readonly HashSet<string> TooLarge =
+    [
+        .. new[] { "Sin", "Cos", "Tan", "Atan2", "Asinh", "Acosh", "Log", "Log2", "Pow" }
+            .SelectMany(name => new[] { "Math." + name, "MathF." + name }),
+        "MathF.Exp",
+    ];
 
     [AvrSimulatorTheory]
     [MemberData(nameof(Functions))]
@@ -53,10 +58,10 @@ public sealed class UnoMathTests : IDisposable
     {
         var name = function.Replace('.', '_');
         var assembly = CSharpCompiler.Compile(Program(function), name);
-        if (TooLarge.Contains(function[(function.IndexOf('.', StringComparison.Ordinal) + 1)..]))
+        if (TooLarge.Contains(function))
         {
             var error = Assert.Throws<ChipSharpException>(() => UnoBuild.Build(assembly, name, Path.Combine(_scratch, "uno")));
-            Assert.Matches(@"does not fit in target 'uno-console': its code, constants and the starting values of its " +
+            Assert.Matches(@"does not fit in target 'uno': its code, constants and the starting values of its " +
                 @"variables need [0-9.]+ KB of flash, [0-9.]+ (KB|bytes) more than the target's 31\.5 KB", error.Message);
             return;
         }

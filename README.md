@@ -155,6 +155,7 @@ The `"capabilities"` decide what a program may use on the chip:
 | `uart`, `adc`, `pwm` | How many serial ports, analog inputs and PWM outputs `ChipSharp.Hardware` can use (see [Hardware](#hardware)); `"pinFunctions"` lists their pins | 2, 4, 16 | none | none |
 | `unalignedAccess` | Whether a word may be read at any address; without it `MemoryMarshal.Read` reads byte by byte and `MemoryMarshal.Cast` checks alignment | no | yes | no |
 | `stackCheck` | The functions that can recurse check the stack, so a stack overflow says `Stack overflow.` instead of locking the core up | yes | (Windows' guard page) | yes |
+| `narrowing` | Arithmetic in 8 or 16 bits where the values provably fit and the result is C#'s (see [Narrowing](#narrowing)); when not given, on for a chip with 2-byte pointers (the AVR) only | no | no | no |
 | `i2c`, `spi` | Whether `I2c` and `Spi` have buses (see [Hardware](#hardware)); the file's `"i2c"` and `"spi"` give each bus's pins and clocks | 2 each | none | none |
 | `hwMultiply`, `hwDivide`, `fpu`, `atomics`, `romFloat` | Describe the chip; the code itself follows the file's `triple`, `cpu` and `clang` flags (soft float on `armv6m`) | | | |
 
@@ -166,9 +167,36 @@ code generator supports yet (the ESP32-C5's RISC-V, next) also needs a runtime f
 
 ### Arduino Uno (in progress)
 
-Milestone M7 adds the Uno's ATmega328P, an 8-bit AVR. The toolchain, the `.hex` image and a simulator are in; the AVR
-runtime (start-up, 8-bit math helpers, float in software) is not yet, so `chipsharp build -t uno` stops at "Architecture
-runtime 'avr' is not registered".
+Milestone M7 adds the Uno's ATmega328P, an 8-bit AVR: `chipsharp build -t uno` builds a `.hex`. The runtime is two, as
+the Pico's: `avr` for any AVR chip (start-up, the vector table, 8-bit math helpers, float in software, the failure
+stop) and `atmega328p` for the chip at 16 MHz (pins, the clock, the events, USART0, where Console.Write and WriteLine
+go).
+
+- **Pins** go by the Uno's (Arduino's) numbers: 0-13 are D0-D13, 14-19 are A0-A5; the LED "L" is 13. `Pin.Input` is
+  high impedance, as on the Pico, without the AVR's pull-up: a button between a pin and GND (the usual Arduino wiring,
+  `INPUT_PULLUP`) needs the pull-up turned on after `Pin.Input`, through `Registers.Write` of PORTB, PORTC or PORTD
+  (0x25, 0x28, 0x2B: one byte; `Registers` reads and writes bytes on the Uno), or a resistor to 5 V; a button to 5 V
+  needs one to GND. D0 and D1 are the console's while it runs.
+- **Interrupts**: `Pin.Watch...` on D2 and D3 uses INT0 and INT1, whose edges the chip keeps; on every other pin the
+  pin change interrupt of its port, whose handler compares the levels and runs the `[Interrupt(Event.Pin)]` method for
+  the edges watched (a pulse shorter than a few microseconds may pass unseen). Each event's interrupt comes through the
+  runtime, which checks that the event happened and then calls the method, within some 50 microseconds
+  (`"interrupts"` in `atmega328p.json`: numbers past the chip's vectors, as the Pico's uart event).
+- **Timers**: Timer1 counts half microseconds (16 MHz / 8) for the clock, the delays and the timer event (its compare
+  B), so the three keep the same time: `Timing.EveryMilliseconds(40)` comes every 40 ms to the microsecond, and a delay
+  takes what it is given and a few microseconds more for the call. Timer0 and Timer2 are left free.
+- **The clock**: Timer1 and the count of its rounds make 48 bits of half microseconds since start-up (they go round
+  after 4.4 years): `Stopwatch` (1 MHz, as on the Pico), `Environment.TickCount` and `DateTime.Now` (from 1 January 2000,
+  or the date `Clock.Start` gives) read it.
+- **The console** is USART0 on D1 (TX) and D0 (RX) at 115200 baud: 117647 really, 2.1% fast, with U2X as the Arduino
+  core's `Serial.begin(115200)` has it, which the Arduino IDE's serial monitor and the USB chip take. A byte goes out
+  when the one before has (no send buffer, no RAM taken); `Console.Read` and `Uart.Open(0, 1, 0, baud)` (489 to 2000000
+  baud) receive into a buffer of 64 bytes, filled by the receive interrupt, as the Arduino core's. `Console.ReadLine`
+  makes a string, so it needs a heap, which the Uno has none of. A failure prints .NET's message there, then stops.
+- **What it takes**: a blink (`Pin.Output`, `Pin.Toggle`, `Timing.DelayMilliseconds`) is 1.2 KB of flash and 15 bytes
+  of RAM; one that writes a few chars to the console 1.4 KB and 30 bytes; a serial echo (`Uart.Open`, `Console.Read`,
+  `Uart.WriteByte`) 2.9 KB and 90 bytes, the receive buffer's 64 among them. `chipsharp check -t uno` refuses what the
+  Uno has not yet (analog inputs, PWM, I2C, SPI) and a second serial port.
 
 - **Zig**: LLVM's release builds for Windows have no AVR, so the target's toolchain `zig` runs the clang and ld.lld
   inside [Zig](https://ziglang.org/download/) (0.17 or later: unpack the zip anywhere). ChipSharp finds it through
@@ -196,6 +224,11 @@ runtime 'avr' is not registered".
   takes C#'s `int`, `char` and `bool` as 32 bits (C's `int` has 16 on an AVR) and keeps its own text and tables in
   flash, `Math`'s tables (22 KB) too. Flash and RAM: `Square` 1.3 KB and 6 bytes, `Structs` 2.0 KB and 18 bytes,
   `Spans` 4.8 KB, `TrafficLights` 7.8 KB and 52 bytes, `PrintedText` 14.6 KB, `FloatMath` 16.7 KB, `TimeSpans` 21.6 KB.
+- **8-bit arithmetic**: an `int` takes four of the AVR's registers and four instructions for every addition, and C#
+  makes nearly everything an `int`, loop counters and bytes on IL's stack included; so on the AVR ChipSharp does the
+  arithmetic in 8 or 16 bits wherever it proves the values fit and the result is C#'s ([narrowing](#narrowing)). The
+  samples' code takes 5% less flash, loops of counters and small numbers up to half less (ForLoops: 310 bytes instead
+  of 588).
 - **The `.hex`** is Intel HEX, what `llvm-objcopy -O ihex` writes: the flash's contents, the starting values of the
   variables included. The memory report reads like `flash 417 bytes of 32 KB (1.3%), RAM 12 bytes of 2 KB (stack 512
   bytes reserved)`. Uploading through the Uno's USB port (avrdude, the Arduino IDE) goes through its bootloader, which
@@ -808,6 +841,7 @@ period differs from the one before, rather than edge by edge:
 | `CHIPSHARP_CLANG` | clang itself |
 | `CHIPSHARP_TARGETS` | Another folder of target files (or `--targets <folder>`) |
 | `CHIPSHARP_CACHE` | Where the build cache lives (default: `%LOCALAPPDATA%\ChipSharp\cache`) |
+| `CHIPSHARP_NARROWING` | `on` or `off`: [narrowing](#narrowing) for every target, whatever its file says (to compare a program's results with and without it) |
 
 **Notes.** `build` and `check` write a note on standard error (`note: ...`) where a program uses one of .NET's
 culture-sensitive text methods (`CompareTo`, `string.Compare(a, b)`, `StartsWith(string)`, `ToUpper()`, `Parse`,
@@ -906,11 +940,11 @@ the PC tests.
 | Folder | What it holds |
 |---|---|
 | `src/ChipSharp.Frontend` | Reads the IL of a compiled C# `.dll`, finds every method the program uses (the whole-program pass), checks it against what ChipSharp compiles (`chipsharp check`), and translates it into TIR |
-| `src/ChipSharp.Ir` | TIR (Typed Intermediate Representation), which every code generator reads: its verifier, printer and builder |
+| `src/ChipSharp.Ir` | TIR (Typed Intermediate Representation), which every code generator reads: its verifier, printer and builder, and in `Optimizations` the value-range analysis and narrowing |
 | `src/ChipSharp.Library` | ChipSharp's own C# for library types (`TimeSpan`, `List<T>`, `StringBuilder`, the exceptions, ...), compiled together with the programs that use them |
 | `src/ChipSharp.Backend.Llvm` | The `llvm` code generator: TIR in, LLVM IR text out |
 | `src/ChipSharp.Toolchain.Clang` | The `clang` toolchain: LLVM IR and runtime sources in, a linked program out; as the `zig` toolchain, the same with the clang and ld.lld inside Zig (AVR) |
-| `src/ChipSharp.Runtime.*` | The runtimes, in C: `Shared` (console, text, floats, heap and collector), `Windows` (the PC), `ArmV6M` and `Rp2040` (start-up, UART0, timers, pins, interrupts), `Avr` (any AVR chip's start-up, multiply and divide helpers, soft float) |
+| `src/ChipSharp.Runtime.*` | The runtimes, in C: `Shared` (console, text, floats, heap and collector), `Windows` (the PC), `ArmV6M` and `Rp2040` (start-up, UART0, timers, pins, interrupts), `Avr` (any AVR chip's start-up, multiply and divide helpers, soft float) and `Atmega328p` (the Uno's pins, Timer1's clock and delays, the pin and timer events, USART0) |
 | `src/ChipSharp.Image.Uf2`, `src/ChipSharp.Image.Hex`, `src/ChipSharp.Build`, `src/ChipSharp.Cli` | The `.uf2` and `.hex` images, the build pipeline, and the `chipsharp` command |
 | `src/ChipSharp.Hardware` | The library programs reference for pins, timing, the clock, registers, interrupts, serial ports, analog inputs, PWM and the I2C and SPI buses |
 | `src/ChipSharp.Components` | Drivers of parts connected to a chip (the character LCD, the 7-segment display, the DS1307 real-time clock), plain C# that ChipSharp compiles with the program |
@@ -1009,6 +1043,38 @@ functions it calls; on the Pico, beyond the soft-float routines, and the cycles 
 Licenses: musl's functions are MIT (with the notices of Sun's fdlibm, Arm's optimized routines and, for `fmaf`,
 David Schultz's BSD license), AMD's are BSD-3-Clause; each file has its notices, and [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt)
 lists every third-party piece ChipSharp ships (compiler-rt, the Pico SDK's boot2, musl, AMD's library, .NET's code).
+
+### Narrowing
+
+On an 8-bit AVR an `int` operation takes four registers and four instructions, and the IL C# compiles to widens every
+byte and short to an int32. ChipSharp puts the arithmetic back in 8 or 16 bits where that gives C#'s result exactly
+(`src/ChipSharp.Ir/Optimizations`), once the IL is translated to TIR, for the targets whose `narrowing` capability is on
+(by default those with 2-byte pointers): the code for the Pico and the PC is what it was.
+
+**Value ranges.** `TirRangeAnalysis` proves an interval for every integer: from constants, the small types loads and
+conversions make (a `byte` is 0 to 255), masks, shifts, divisions, the elements of constant tables, the length of an
+array or span (no more than the target's largest memory has bytes: 32,256 on the Uno) and the branches taken (where
+`i < 7` is true, i is at most 6). Loops are followed until nothing changes, a range that keeps growing jumping to the
+function's next constant, and two more passes take back what the jumps gave away; a function only the program calls
+gets the ranges its callers pass, and they get the range it returns. `nint`, whose width only the target knows, has no
+range, so a module narrows alike for every target.
+
+**The rules** (`TirNarrowing`). A variable whose every value fits 8 or 16 bits becomes that wide. `+ - * & | ^` and `<<`
+are done in N bits when their result fits: their low bits depend only on the operands' low bits, so they wrap alike.
+`>>`, division and remainder need the operands to fit too, and never the smallest value divided by -1; a signed division
+of values that are never negative is the unsigned one. A comparison is done in N bits when both sides fit, read the same
+way: two bytes compared as signed are compared unsigned, an sbyte compared with `200u` takes 16 bits. Where the full value
+is needed (a call, memory, an index, a return) it is extended back, exactly. Where narrowing would cost more than it
+saves it is not done: an operation narrows narrow operands only (but a multiplication, division or shift, which the AVR
+calls helpers or loops for), and a comparison with a value cut from a wider one, such as an array's length, stays wide,
+so that LLVM still sees that the check of that index against that length always passes.
+
+**What it gives.** On the Uno the samples' code takes 5% less flash (22,300 bytes instead of 23,550), and none more:
+ForLoops 310 bytes instead of 588, Primes 460 instead of 554, LookupTables 1,876 instead of 2,270. On the Pico it would
+save 0.6% in all but make some programs larger (the traffic lights by 140 bytes), so it stays off there. The tests run
+programs with every small type and operator, written by hand and generated, narrowed on the PC, the simulated Pico and
+the Uno, and compare them with .NET; `CHIPSHARP_NARROWING=on` runs the whole suite narrowed (only the tests that compare
+TIR text then differ).
 
 ### Generics
 
