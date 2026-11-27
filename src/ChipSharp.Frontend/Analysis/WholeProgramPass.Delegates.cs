@@ -103,7 +103,16 @@ public static partial class WholeProgramPass
             : null;
         if (invoke is null)
         {
-            return Unsupported.Delegates; // what is left of it: a function pointer
+            // a delegate of a library type ChipSharp does not know is that type's problem (at its newobj); else what is
+            // left of Unsupported.Delegates, a function pointer
+            return index + 1 < instructions.Count && instructions[index + 1] is
+            {
+                OpCode: IlOpCode.Newobj,
+                Operand: IlMethodOperand { Method.ParameterTypes: [IlPrimitiveType { Kind: IlPrimitiveKind.Object },
+                    IlPrimitiveType { Kind: IlPrimitiveKind.NativeInt }] },
+            }
+                ? null
+                : Unsupported.Delegates;
         }
 
         if (instructions[index].OpCode == IlOpCode.Ldvirtftn && VirtualMethods.IsGenericVirtual(target))

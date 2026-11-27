@@ -5,7 +5,7 @@ using ChipSharp.Tests.Lowering;
 using ChipSharp.Tests.Support;
 using Xunit.Abstractions;
 
-namespace ChipSharp.Tests.Delegates;
+namespace ChipSharp.Tests.Lambdas;
 
 /// <summary>
 /// The programs of <see cref="DelegatePrograms"/>, checked by the whole-program pass, compiled by ChipSharp for the PC and

@@ -10,7 +10,7 @@ public sealed partial class IlToTirOpCodeTests
         /// <summary>
         /// A class Counter { int Count; } with a constructor that calls object's and an instance method, made with newobj
         /// and called with callvirt, as C# calls every instance method of a class; tested against its class with isinst
-        /// and castclass.
+        /// and castclass; its methods made into delegates with ldftn and (a virtual one) ldvirtftn.
         /// </summary>
         private void AddClasses()
         {
@@ -63,6 +63,33 @@ public sealed partial class IlToTirOpCodeTests
                 il.Emit(OpCodes.Ldfld, count);
                 il.Emit(OpCodes.Ret);
             }, [7]);
+
+            // a virtual Get, then Func<int, int> of Add (ldftn) and Func<int> of Get (ldvirtftn), each invoked
+            var get = counter.DefineMethod("Get", MethodAttributes.Public | MethodAttributes.Virtual |
+                MethodAttributes.NewSlot | MethodAttributes.HideBySig, typeof(int), []);
+            body = get.GetILGenerator();
+            body.Emit(OpCodes.Ldarg_0);
+            body.Emit(OpCodes.Ldfld, count);
+            body.Emit(OpCodes.Ret);
+            Add("Delegates", typeof(int), [typeof(int), typeof(int)], il =>
+            {
+                il.DeclareLocal(counter);
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Newobj, constructor);
+                il.Emit(OpCodes.Stloc_0);
+                il.Emit(OpCodes.Ldloc_0);
+                il.Emit(OpCodes.Ldftn, add);
+                il.Emit(OpCodes.Newobj, typeof(Func<int, int>).GetConstructors()[0]);
+                il.Emit(OpCodes.Ldarg_1);
+                il.Emit(OpCodes.Callvirt, typeof(Func<int, int>).GetMethod("Invoke")!);
+                il.Emit(OpCodes.Pop);
+                il.Emit(OpCodes.Ldloc_0);
+                il.Emit(OpCodes.Dup);
+                il.Emit(OpCodes.Ldvirtftn, get);
+                il.Emit(OpCodes.Newobj, typeof(Func<int>).GetConstructors()[0]);
+                il.Emit(OpCodes.Callvirt, typeof(Func<int>).GetMethod("Invoke")!);
+                il.Emit(OpCodes.Ret);
+            }, [5, 3], [-2, 7]);
         }
     }
 }

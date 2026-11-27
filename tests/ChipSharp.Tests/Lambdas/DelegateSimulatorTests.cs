@@ -7,7 +7,7 @@ using ChipSharp.Tests.Pico;
 using ChipSharp.Tests.Support;
 using Xunit.Abstractions;
 
-namespace ChipSharp.Tests.Delegates;
+namespace ChipSharp.Tests.Lambdas;
 
 /// <summary>
 /// The programs of <see cref="DelegatePrograms"/>, built for the Pico (4-byte pointers: a delegate is 16 bytes of the
@@ -62,6 +62,63 @@ public sealed class DelegateSimulatorTests(ITestOutputHelper output) : IDisposab
 
         Assert.True(run.ExitCode == 0, run.ToString());
         Assert.Equal(dotnet.Text.ReplaceLineEndings("\r\n"), result.Raw);
+    }
+
+    /// <summary>
+    /// On a Pico without a heap, local functions that C# calls directly keep the variables they capture in a struct of
+    /// the method that declares them, passed by reference: no object, so they run as on .NET, in a struct's method too.
+    /// </summary>
+    [SimulatorFact]
+    public async Task Local_functions_capture_variables_without_a_heap()
+    {
+        var target = new ChipSharp.Targets.TargetLoader(ChipSharp.Tests.Build.TargetFiles.WithShipped(Path.Combine(_scratch, "targets"),
+            ("pico-no-heap", """{ "inherits": "pico", "capabilities": { "heap": false } }"""))).Load("pico-no-heap");
+        var source = """
+            using System;
+
+            struct Meter
+            {
+                public int Scale;
+
+                public int Read(int raw)
+                {
+                    var offset = 3;
+                    var scale = Scale;
+                    int Scaled(int x) => x * scale + offset;
+                    offset = 4;
+                    return Scaled(raw) + Scaled(1);
+                }
+            }
+
+            static class Program
+            {
+                static void Main()
+                {
+                    var total = 0;
+                    var step = 2;
+                    void Add(int x) => total += x * step;
+                    int Twice(int x) => Add2(x) + Add2(x);
+                    int Add2(int x) => x + step;
+                    for (var i = 0; i < 5; i++)
+                    {
+                        Add(i);
+                        step++;
+                    }
+
+                    Console.WriteLine(total);
+                    Console.WriteLine(Twice(10));
+                    Console.WriteLine(new Meter { Scale = 5 }.Read(2));
+                }
+            }
+            """;
+        var dotnet = await HostRun.RunOnDotnetAsync(CSharpCompiler.Compile(source, "Locals"), "Locals",
+            Path.Combine(_scratch, "dotnet"));
+        var program = PicoBuild.Build(source, "Locals", Path.Combine(_scratch, "pico"), target);
+
+        var run = await Rp2040Simulator.RunAsync(program.Uf2, 1000);
+
+        Assert.True(run.ExitCode == 0, run.ToString());
+        Assert.Equal(dotnet.Text.ReplaceLineEndings("\r\n"), Encoding.ASCII.GetString(run.Uart0));
     }
 
     /// <summary>

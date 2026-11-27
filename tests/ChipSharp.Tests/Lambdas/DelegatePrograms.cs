@@ -2,7 +2,7 @@ using ChipSharp.Frontend.Il;
 using ChipSharp.Tests.Support;
 using Microsoft.CodeAnalysis;
 
-namespace ChipSharp.Tests.Delegates;
+namespace ChipSharp.Tests.Lambdas;
 
 /// <summary>
 /// C# programs with delegates, lambdas, closures and events, for the PC and the Pico tests: each prints what it computes,
@@ -107,6 +107,10 @@ internal static class DelegatePrograms
             }
 
             static Func<int, Func<int, int>> Adder() => a => b => a + b;
+
+            static Func<T> Keep<T>(T value) => () => value;
+
+            static Func<T, bool> Is<T>(T wanted) where T : IEquatable<T> => x => x.Equals(wanted);
 
             static void Main()
             {
@@ -241,6 +245,16 @@ internal static class DelegatePrograms
                 Console.WriteLine(eight(1, 1, 1, 1, 1, 1, 1, 1));
                 report("answer", 4200000000L);
                 Console.WriteLine(maker()());
+
+                // lambdas in generic methods, and generic delegates over classes and text
+                Console.WriteLine(Keep(5)() + Keep("five")().Length);
+                Console.WriteLine(Is(3)(3));
+                Console.WriteLine(Is("x")("y"));
+                Func<Counter, int> nextOf = c => c.Next();
+                Func<string, string> sameText = Same<string>;
+                Func<int, Counter> make = start => new Counter(start);
+                Console.WriteLine(nextOf(make(41)));
+                Console.WriteLine(sameText("same"));
             }
         }
         """;
@@ -354,7 +368,20 @@ internal static class DelegatePrograms
                 Console.WriteLine(a.GetHashCode() == ((Action)A).GetHashCode());
                 Console.WriteLine((a + b).GetHashCode() == (a + b).GetHashCode());
 
-                // instance methods of two objects, removed by equality, not by being the same delegate
+                // a delegate as an object: its type's name, Equals and GetHashCode through object, type tests
+                Console.WriteLine(a);
+                Console.WriteLine(numbers.ToString());
+                object boxed = show;
+                Console.WriteLine(boxed.Equals(again));
+                Console.WriteLine(boxed.GetHashCode() == again.GetHashCode());
+                Console.WriteLine(boxed is Action);
+                Console.WriteLine(boxed is Func<int>);
+                Console.WriteLine(boxed as Delegate != null);
+                Console.WriteLine(boxed);
+                Delegate both = a + b;
+                Console.WriteLine(both.GetInvocationList().Length);
+                Console.WriteLine((Action)both == a + b);
+
                 Action shows = show + elsewhere + new Action(box.Show);
                 Run("shows", shows);
                 shows -= again;
@@ -471,6 +498,13 @@ internal static class DelegatePrograms
     public const string ArrayDelegates = """
         using System;
 
+        class Node
+        {
+            public int Value;
+
+            public Node(int value) => Value = value;
+        }
+
         struct Item
         {
             public int Key;
@@ -572,6 +606,16 @@ internal static class DelegatePrograms
                 Console.WriteLine(Array.FindAll(words, w => w.Length == 4).Length);
                 Console.WriteLine(string.Join("|", Array.ConvertAll(words, w => w.ToUpperInvariant())));
                 Console.WriteLine(Array.FindIndex(words, w => w == "kiwi"));
+
+                // objects
+                Node[] nodes = { new Node(3), new Node(1), new Node(2), new Node(1) };
+                Array.Sort(nodes, (x, y) => x.Value - y.Value);
+                Console.WriteLine(nodes[0].Value * 1000 + nodes[1].Value * 100 + nodes[2].Value * 10 + nodes[3].Value);
+                Console.WriteLine(Array.Find(nodes, n => n.Value > 1).Value);
+                Console.WriteLine(Array.FindLast(nodes, n => n.Value == 1) == nodes[1]);
+                Console.WriteLine(Array.FindAll(nodes, n => n.Value > 1).Length);
+                Console.WriteLine(Array.ConvertAll(nodes, n => n.Value)[3]);
+                Console.WriteLine(Array.Find(nodes, n => n.Value > 5) == null);
             }
         }
         """;
