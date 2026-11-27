@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The runtime parts every AVR chip (ATmega, ATtiny, AVR Dx) shares: reset handler, vector table, multiply and divide
+       helpers, float math in software, memory functions, and how a program stops -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+    <!-- compiler-rt's float arithmetic (CompilerRt) and EmbeddedText, which the ARMv6-M runtime ships and this one shares -->
+    <ProjectReference Include="..\ChipSharp.Runtime.ArmV6M\ChipSharp.Runtime.ArmV6M.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="avr_startup.S" LogicalName="avr_startup.S" />
+    <EmbeddedResource Include="avr_runtime.c" LogicalName="avr_runtime.c" />
+    <EmbeddedResource Include="avr_multiply.S" LogicalName="avr_multiply.S" />
+    <EmbeddedResource Include="avr_divide.S" LogicalName="avr_divide.S" />
+    <EmbeddedResource Include="avr_memory.S" LogicalName="avr_memory.S" />
+    <EmbeddedResource Include="avr_failures.c" LogicalName="avr_failures.c" />
+  </ItemGroup>
+</Project>
