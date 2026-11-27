@@ -56,4 +56,10 @@ internal static class Runtime
         "index to the end of the source collection.");
 
     private const string NonNegative = "Non-negative number required.";
+
+    /// <summary>
+    /// A thrown exception nothing catches (see Exceptions.Thrown): prints "Unhandled exception. " and
+    /// <paramref name="text"/>, the exception's ToString(), and stops the program.
+    /// </summary>
+    public static void Unhandled(string text) => throw new InvalidOperationException("Unhandled exception. " + text);
 }

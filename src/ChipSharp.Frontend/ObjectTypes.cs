@@ -72,6 +72,9 @@ internal static class ObjectTypes
         {
             IlNamedType { IsDefinedInThisAssembly: true } named => assembly.FindType(named.FullName),
 
+            // a library class with a substitute (System.InvalidOperationException, see Exceptions)
+            IlNamedType named => LibrarySubstitutes.FindType(named),
+
             // an instance of a generic class (generics over classes), of the program's or a library substitute's
             IlGenericInstanceType instance => Generics.Instantiations.Type(instance, assembly),
             _ => null,

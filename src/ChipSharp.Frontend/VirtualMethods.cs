@@ -286,7 +286,7 @@ internal static partial class VirtualMethods
             IlPrimitiveKind.NativeUInt => "UIntPtr",
             _ => kind.ToString(),
         },
-        IlNamedType named => named.FullName,
+        IlNamedType named => LibrarySubstitutes.SubstitutedName(named) ?? named.FullName,
         IlGenericInstanceType instance =>
             $"{RuntimeName(instance.Definition)}[{string.Join(",", instance.Arguments.Select(RuntimeName))}]",
         IlArrayType array => RuntimeName(array.ElementType) + "[]",

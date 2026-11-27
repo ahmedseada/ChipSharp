@@ -75,6 +75,20 @@ internal static class LibrarySubstitutes
     }
 
     /// <summary>
+    /// The full name of the library type that <paramref name="type"/>, a substitute as ChipSharp.Library's IL names it
+    /// (<c>ChipSharp.Library.List`1</c>), stands for (<c>System.Collections.Generic.List`1</c>); null for any other type.
+    /// What a descriptor of a substitute's class says its name is, as .NET's.
+    /// </summary>
+    public static string? SubstitutedName(IlNamedType type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        return type.IsDefinedInThisAssembly && type.FullName.StartsWith("ChipSharp.Library.", StringComparison.Ordinal)
+            && Assembly.FindType(type.FullName) is { } definition && Substituted.TryGetValue(definition, out var name)
+            ? name
+            : null;
+    }
+
+    /// <summary>
     /// True for a method of the library: a substitute's member, or what it uses, also an instance of its generic code over
     /// the program's types (made in the program, see Generics.Instantiations).
     /// </summary>
