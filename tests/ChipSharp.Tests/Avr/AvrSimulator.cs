@@ -8,10 +8,35 @@ namespace ChipSharp.Tests.Avr;
 /// <summary>A pin change the simulator saw: when (simulated milliseconds), which Uno pin (D13, A0, ...), its new state.</summary>
 internal sealed record AvrPinChange(double Milliseconds, string Pin, string State);
 
+/// <summary>
+/// A PWM output's period as the simulator measured it from its edges: when, which Uno pin, its frequency, its duty
+/// cycle in percent, and how long it was high, in microseconds.
+/// </summary>
+internal sealed record AvrPwmPeriod(double Milliseconds, string Pin, double Hertz, double Duty, double HighMicroseconds);
+
 /// <summary>What one run of tools/avr-sim/run.mjs printed, and the bytes the program wrote to USART0.</summary>
 internal sealed partial record AvrSimulatorRun(int ExitCode, string Output, string Errors, byte[] Usart0)
 {
-    /// <summary>Every pin change, in order (not those an --input made).</summary>
+    /// <summary>Every PWM period printed, in order (each one that differs from the one before).</summary>
+    public IReadOnlyList<AvrPwmPeriod> Pwm =>
+    [
+        .. Lines.Select(line => PwmLine().Match(line)).Where(m => m.Success).Select(m => new AvrPwmPeriod(
+            Number(m.Groups[1].Value), m.Groups[2].Value, Number(m.Groups[3].Value), Number(m.Groups[4].Value),
+            Number(m.Groups[5].Value))),
+    ];
+
+    /// <summary>The lines printed that start with <paramref name="prefix"/> after their time, without the time.</summary>
+    public IReadOnlyList<string> After(string prefix) =>
+    [
+        .. Lines.Where(line => line.Length > 16 && line[0] == '[' && line[16..].StartsWith(prefix, StringComparison.Ordinal))
+            .Select(line => line[16..]),
+    ];
+
+    /// <summary>The time, in simulated milliseconds, of the first line that starts with <paramref name="prefix"/> after its time.</summary>
+    public double Time(string prefix) =>
+        Number(Lines.First(line => line.Length > 16 && line[16..].StartsWith(prefix, StringComparison.Ordinal))[1..11]);
+
+    /// <summary>Every pin change, in order (not those an --input made, nor a PWM output's edges).</summary>
     public IReadOnlyList<AvrPinChange> Pins =>
     [
         .. Lines.Select(line => PinLine().Match(line)).Where(m => m.Success).Select(m => new AvrPinChange(
@@ -37,8 +62,13 @@ internal sealed partial record AvrSimulatorRun(int ExitCode, string Output, stri
 
     public override string ToString() => $"exit code {ExitCode}\n{Output}\n{Errors}";
 
-    [GeneratedRegex(@"^\[\s*([0-9.]+) ms\] ([DA]\d+|P[BCD]\d) (.+)$")]
+    private static double Number(string text) => double.Parse(text, CultureInfo.InvariantCulture);
+
+    [GeneratedRegex(@"^\[\s*([0-9.]+) ms\] ([DA]\d+|P[BCD]\d) (?!PWM )(.+)$")]
     private static partial Regex PinLine();
+
+    [GeneratedRegex(@"^\[\s*([0-9.]+) ms\] (D\d+) PWM ([0-9.]+) Hz, duty ([0-9.]+)% \(([0-9.]+) us high\)$")]
+    private static partial Regex PwmLine();
 
     [GeneratedRegex(@"^\[\s*[0-9.]+ ms\] USART0: (.*)$")]
     private static partial Regex SerialLine();

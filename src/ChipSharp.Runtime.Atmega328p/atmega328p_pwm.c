@@ -177,7 +177,8 @@ static const __flash u8 timer2_shifts[8] = {0, 0, 3, 5, 6, 7, 8, 10};
 
 static u8 settings[2]; // Timer2's, Timer0's (as the outputs go): its setting while it runs, else 0
 static i32 asked[2];   // the frequency each was asked for, for the messages
-static u8 in_use;      // bit n: output n is a PWM output; bit D9: D9
+// bit n: output n is a PWM output; bit D9: D9 (atmega328p_spi.c reads bit 1, D11's)
+u8 chipsharp_pwm_outputs;
 
 static u8 interrupts_off(void)
 {
@@ -236,7 +237,7 @@ static u8 check_pin(i32 pin)
 static u8 pwm_output(i32 pin)
 {
     u8 output = check_pin(pin);
-    if ((in_use & (1u << output)) == 0)
+    if ((chipsharp_pwm_outputs & (1u << output)) == 0)
     {
         chipsharp_hardware_failure(FLASH("System.InvalidOperationException: Pin {0} is not a PWM output: call "
             "Pwm.Output({0}, frequency) first."), pin, 0, 0, 0);
@@ -373,7 +374,7 @@ static void timer_output(i32 pin, u8 output, i32 frequency)
     }
 
     u8 other = output ^ 1u;
-    u8 shared = (in_use & (1u << other)) != 0;
+    u8 shared = (chipsharp_pwm_outputs & (1u << other)) != 0;
     if (shared && settings[index] != setting)
     {
         chipsharp_hardware_failure(FLASH("System.InvalidOperationException: Pin {0} shares Timer{1} with pin {2}, which "
@@ -396,7 +397,7 @@ static void timer_output(i32 pin, u8 output, i32 frequency)
     const __flash struct output *o = &outputs[output];
     set_high(output, 0);
     REG(o->port + DDR_REGISTER) |= o->mask;
-    in_use |= (u8)(1u << output);
+    chipsharp_pwm_outputs |= (u8)(1u << output);
     interrupts_back(sreg);
 }
 
@@ -423,8 +424,8 @@ static void timer_stop(u8 output)
     REG(timer) &= (u8)~(o->compare | o->compare >> 1);
     REG(o->port + DDR_REGISTER) &= (u8)~o->mask;
     REG(o->port + PORT_REGISTER) &= (u8)~o->mask;
-    in_use &= (u8)~(1u << output);
-    if ((in_use & (1u << (output ^ 1u))) == 0)
+    chipsharp_pwm_outputs &= (u8)~(1u << output);
+    if ((chipsharp_pwm_outputs & (1u << (output ^ 1u))) == 0)
     {
         REG(timer + TCCRB) = 0;
         REG(timer) = 0;
@@ -564,7 +565,7 @@ static void d9_output(i32 frequency)
     d9_force(0);
     REG(PORT_B + PORT_REGISTER) &= (u8)~D9_BIT;
     REG(PORT_B + DDR_REGISTER) |= D9_BIT;
-    in_use |= 1u << D9;
+    chipsharp_pwm_outputs |= 1u << D9;
     interrupts_back(sreg);
 }
 
@@ -576,7 +577,7 @@ static void d9_stop(void)
     REG(TCCR1A) = 0; // D9 is its port's again
     REG(PORT_B + DDR_REGISTER) &= (u8)~D9_BIT;
     REG(PORT_B + PORT_REGISTER) &= (u8)~D9_BIT;
-    in_use &= (u8)~(1u << D9);
+    chipsharp_pwm_outputs &= (u8)~(1u << D9);
     interrupts_back(sreg);
 }
 
@@ -629,7 +630,7 @@ void ChipSharp_Runtime_PwmPulse(i32 pin, i32 microseconds)
 void ChipSharp_Runtime_PwmStop(i32 pin)
 {
     u8 output = check_pin(pin);
-    if ((in_use & (1u << output)) == 0)
+    if ((chipsharp_pwm_outputs & (1u << output)) == 0)
     {
         return;
     }

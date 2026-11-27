@@ -1,5 +1,6 @@
 // The simulated devices on the RP2040's I2C and SPI buses, for run.mjs's --i2c and --spi options, through rp2040js's
-// own hooks (RPI2C's onStart, onConnect, onWriteByte, onReadByte and onStop; RPSPI's onTransmit).
+// own hooks (RPI2C's onStart, onConnect, onWriteByte, onReadByte and onStop; RPSPI's onTransmit). The devices, the
+// options and what an I2C bus prints are catalog.mjs's, which tools/avr-sim shares:
 //
 //     --i2c <bus>:<address>=<device>     a device at an address (0x68 or 104) on I2C0 or I2C1:
 //                                          mpu6050   accelerometer and gyroscope (mpu6050.mjs)
@@ -28,123 +29,43 @@
 //     LCD 0x27 backlight on              (lcd1602.mjs lists them all)
 
 import { GPIOPinState, I2CMode } from 'rp2040js';
-import { Bmp280 } from './bmp280.mjs';
-import { Ds1307, parseStart } from './ds1307.mjs';
-import { Lcd } from './lcd1602.mjs';
-import { Mpu6050 } from './mpu6050.mjs';
-import { Loopback, ShiftRegister } from './shift-register.mjs';
+import { busUsage, I2cBus, makeI2cDevices, makeSpiDevices, parseI2cOption, parseSpiOption } from './catalog.mjs';
 
-export const USAGE = '[--i2c <bus>:<address>=<mpu6050|bmp280|lcd1602|lcd2004|stuck|ds1307[@<date>]>]... ' +
-  '[--spi <bus>=<74hc595@<pin>|loopback[@<pin>]>]...';
+const BUSES = [0, 1];
 
-// A device that answers its address, then never lets the clock go: every transfer on its bus waits for it from then on.
-class Stuck {
-  constructor() {
-    this.name = 'stuck';
-    this.holdsClock = true;
-  }
-}
-
-// Each device made for its address, with the simulation's clock and the log (the LCDs print what they show), and
-// what the option says after '@' (the DS1307's date).
-const I2C_DEVICES = {
-  mpu6050: () => new Mpu6050(),
-  bmp280: () => new Bmp280(),
-  lcd1602: (address, clock, log) => new Lcd(address, 16, 2, clock, log),
-  lcd2004: (address, clock, log) => new Lcd(address, 20, 4, clock, log),
-  stuck: () => new Stuck(),
-  ds1307: (address, clock, log, at) => new Ds1307(address, clock, log, at),
-};
+export const USAGE = busUsage(BUSES);
 
 // The device an --i2c or --spi value names, e.g. "0:0x68=mpu6050" or "0=74hc595@17"; a message when it is not valid.
 export function parseBusOption(option, value) {
   if (option === '--i2c') {
-    const match = /^([01]):(0x[0-9a-fA-F]+|\d+)=([a-z0-9]+)(?:@([0-9a-zA-Z:-]+))?$/.exec(value);
-    const address = match === null ? NaN : Number(match[2]);
-    if (match === null || !(address >= 0 && address <= 0x7f) || !(match[3] in I2C_DEVICES)) {
-      return { error: `--i2c takes a bus (0 or 1), an address from 0 to 0x7f and a device ` +
-        `(${Object.keys(I2C_DEVICES).join(', ')}), e.g. 0:0x68=mpu6050, not '${value}'.` };
-    }
-
-    if (match[4] !== undefined && (match[3] !== 'ds1307' || parseStart(match[4]) === null)) {
-      return { error: `--i2c takes a date after '@' only for a ds1307, from 2000 to 2099 (2026-11-27T18:00:00, or ` +
-        `halted), not '${value}'.` };
-    }
-
-    return { kind: 'i2c', bus: Number(match[1]), address, device: match[3], at: match[4] ?? null };
+    return parseI2cOption(value, BUSES);
   }
 
-  const match = /^([01])=(74hc595|loopback)(?:@(\d+))?$/.exec(value);
-  const pin = match === null || match[3] === undefined ? null : Number(match[3]);
-  if (match === null || (pin !== null && pin > 29) || (match[2] === '74hc595' && pin === null)) {
-    return { error: `--spi takes a bus (0 or 1) and a device: 74hc595@<its latch pin> or loopback, maybe ` +
-      `@<its chip select pin>, e.g. 0=74hc595@17, not '${value}'.` };
-  }
-
-  return { kind: 'spi', bus: Number(match[1]), device: match[2], pin };
-}
-
-function hex(value) {
-  return value.toString(16).padStart(2, '0');
+  return parseSpiOption(value, BUSES, (text) => (/^\d+$/.test(text) && Number(text) <= 29 ? Number(text) : null), 17);
 }
 
 // Answers I2C<bus>'s transfers with the devices at their addresses, and prints each transfer.
 function attachI2c(mcu, bus, devices, log) {
   const controller = mcu.i2c[bus];
-  let parts = null;    // the transfer so far: each part from a (repeated) start
-  let address = 0;
-  let device = null;
-  let frequency = null;
+  const i2c = new I2cBus(`I2C${bus}`, devices, log);
 
   controller.onStart = () => {
-    parts ??= [];
+    i2c.start();
     controller.completeStart();
   };
 
   controller.onConnect = (target, mode) => {
     const hertz = Math.round(mcu.clkSys / (controller.sclHighPeriod + controller.sclLowPeriod));
-    if (hertz !== frequency) {
-      log(`I2C${bus} ${hertz} Hz`);
-      frequency = hertz;
+    const answered = i2c.connect(target, mode === I2CMode.Read, hertz);
+    if (answered !== null) {
+      controller.completeConnect(answered);
     }
-
-    const read = mode === I2CMode.Read;
-    address = target;
-    device = devices.get(target) ?? null;
-    if (device?.holdsClock) {
-      log(`I2C${bus} 0x${hex(target)} ${read ? 'read' : 'write'}: the ${device.name} device holds the clock low`);
-      return; // and never lets go
-    }
-
-    const answered = device !== null && device.start(read);
-    parts.push({ read, answered, bytes: [], refused: false });
-    controller.completeConnect(answered);
   };
 
-  controller.onWriteByte = (value) => {
-    const part = parts.at(-1);
-    const taken = device.write(value);
-    part.bytes.push(value);
-    part.refused = !taken;
-    controller.completeWrite(taken);
-  };
-
-  controller.onReadByte = () => {
-    const value = device.read() & 0xff;
-    parts.at(-1).bytes.push(value);
-    controller.completeRead(value);
-  };
-
+  controller.onWriteByte = (value) => controller.completeWrite(i2c.write(value));
+  controller.onReadByte = () => controller.completeRead(i2c.read());
   controller.onStop = () => {
-    device?.stop?.();
-    if (parts !== null && parts.length > 0) {
-      const text = parts.map((part) => (part.read ? 'read' : 'write') + (!part.answered ? ': no answer'
-        : part.bytes.map((value) => ' ' + hex(value)).join('') + (part.refused ? ' (refused)' : '')));
-      log(`I2C${bus} 0x${hex(address)} ${text.join(', ')}`);
-    }
-
-    parts = null;
-    device = null;
+    i2c.stop();
     controller.completeStop();
   };
 }
@@ -179,32 +100,18 @@ function attachSpi(mcu, bus, devices, log) {
 // when the run ends: the devices print what they have not printed yet (an LCD that has not settled).
 export function attachBuses(mcu, options, log) {
   const all = [];
-  for (const bus of [0, 1]) {
-    const devices = new Map();
-    for (const option of options.filter((o) => o.kind === 'i2c' && o.bus === bus)) {
-      const device = I2C_DEVICES[option.device](option.address, mcu.clock, log, option.at);
-      devices.set(option.address, device);
-      all.push(device);
-    }
-
+  for (const bus of BUSES) {
+    const devices = makeI2cDevices(options, bus, mcu.clock, log);
+    all.push(...devices.values());
     attachI2c(mcu, bus, devices, log);
 
-    const spiDevices = [];
-    for (const option of options.filter((o) => o.kind === 'spi' && o.bus === bus)) {
-      if (option.device === 'loopback') {
-        spiDevices.push({ device: new Loopback(), select: option.pin });
-      } else {
-        // the shift register takes every byte; its latch pin shows them
-        const register = new ShiftRegister(option.pin, (text) => log(`SPI${bus} ${text}`));
-        mcu.gpio[option.pin].addListener((state, previous) => {
-          if (state === GPIOPinState.High && previous !== GPIOPinState.High) {
-            register.latched();
-          }
-        });
-        spiDevices.push({ device: register, select: null });
-      }
-    }
-
+    const spiDevices = makeSpiDevices(options, bus, (text) => log(`SPI${bus} ${text}`), (pin, latched) => {
+      mcu.gpio[pin].addListener((state, previous) => {
+        if (state === GPIOPinState.High && previous !== GPIOPinState.High) {
+          latched();
+        }
+      });
+    });
     attachSpi(mcu, bus, spiDevices, log);
   }
 

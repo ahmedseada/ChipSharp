@@ -103,12 +103,22 @@ internal static class UnoProgram
         return new AvrProgram(binary.Path, hex, MemoryReport.Read(binary, uno));
     }
 
-    /// <summary>The C# program <paramref name="source"/> built for the Uno by the build pipeline, as chipsharp build -t uno does.</summary>
-    public static AvrProgram BuildCSharp(string folder, string name, string source)
+    /// <summary>
+    /// The C# program <paramref name="source"/> built for the Uno by the build pipeline, as chipsharp build -t uno does,
+    /// with the class libraries at <paramref name="libraries"/> (e.g. ChipSharp.Components.dll) referenced: copied next
+    /// to the program, where the build finds them, as a project's output folder has them.
+    /// </summary>
+    public static AvrProgram BuildCSharp(string folder, string name, string source, params string[] libraries)
     {
         Directory.CreateDirectory(folder);
         var dll = Path.Combine(folder, name + ".dll");
-        File.WriteAllBytes(dll, CSharpCompiler.Compile([source], [typeof(ChipSharp.Hardware.Pin).Assembly.Location], name));
+        File.WriteAllBytes(dll,
+            CSharpCompiler.Compile([source], [typeof(ChipSharp.Hardware.Pin).Assembly.Location, .. libraries], name));
+        foreach (var library in libraries)
+        {
+            File.Copy(library, Path.Combine(folder, Path.GetFileName(library)), overwrite: true);
+        }
+
         var result = ChipSharpBuilder.Build(dll, new BuildOptions
         {
             Target = "uno",

@@ -39,8 +39,7 @@ typedef unsigned long u32;
 #define PIN_MOSI 0x08u // PB3, D11
 #define PIN_SCK 0x20u  // PB5, D13
 
-#define TCCR2A 0xb0
-#define COM2A_MASK 0xc0u // D11's PWM (atmega328p_pwm.c)
+#define PWM_D11 0x02u // in chipsharp_pwm_outputs
 
 #define SPCR 0x4c
 #define SPSR 0x4d
@@ -70,8 +69,9 @@ typedef const __flash char flash_char;
         flash_text;                                                                                                    \
     }))
 
-// In atmega328p_failures.c.
+// In atmega328p_failures.c and atmega328p_pwm.c (the PWM outputs, a bit each).
 __attribute__((noreturn)) void chipsharp_hardware_failure(flash_char *text, i32 n0, i32 n1, i32 n2, i32 n3);
+extern u8 chipsharp_pwm_outputs;
 
 static u8 is_open;
 
@@ -141,7 +141,7 @@ void ChipSharp_Runtime_SpiOpen(i32 bus, i32 sck, i32 tx, i32 rx, i32 hertz, i32 
             "(Parameter 'mode')"), mode, 0, 0, 0);
     }
 
-    if ((REG(TCCR2A) & COM2A_MASK) != 0)
+    if ((chipsharp_pwm_outputs & PWM_D11) != 0)
     {
         chipsharp_hardware_failure(FLASH("System.InvalidOperationException: Pin 11 (D11) is a PWM output, and while SPI0 is "
             "open it is the bus's TX (MOSI). Stop it first (Pwm.Stop(11)), or use another PWM pin: 3, 5, 6 or 9."),
