@@ -87,6 +87,7 @@ public sealed class IlToTirErrorTests
             "System.Math.Min(float, float), System.Math.Max(double, double), System.Math.Max(float, float), " +
             "System.Math.Sqrt(double), System.MathF.Abs(float), System.MathF.Min(float, float), " +
             "System.MathF.Max(float, float), System.MathF.Sqrt(float), " +
+            "System.GC.Collect(), System.GC.GetTotalMemory(bool), System.GC.KeepAlive(object), " +
             "ChipSharp.Hardware.Pin.Output(int), ChipSharp.Hardware.Pin.Input(int), " +
             "ChipSharp.Hardware.Pin.Write(int, bool), ChipSharp.Hardware.Pin.Toggle(int), ChipSharp.Hardware.Pin.Read(int), " +
             "ChipSharp.Hardware.Timing.DelayMilliseconds(int), ChipSharp.Hardware.Timing.DelayMicroseconds(int), " +

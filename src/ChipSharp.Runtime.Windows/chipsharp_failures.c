@@ -417,3 +417,13 @@ __declspec(noreturn) void ChipSharp_Runtime_Unhandled(const void *text)
 {
     chipsharp_fail(chipsharp_unhandled_text(text));
 }
+
+// A fatal error, the whole line given: the heap verifier's (chipsharp build --verify-heap, chipsharp_heap.c), e.g.
+// "Fatal error. The heap is corrupted: ...". .NET ends such a program with exit code 0x80131506
+// (COR_E_EXECUTIONENGINE, its "Internal CLR error").
+__declspec(noreturn) void chipsharp_fatal(const char *message)
+{
+    write_error(message, length(message));
+    write_error("\r\n", 2);
+    ExitProcess(0x80131506u);
+}

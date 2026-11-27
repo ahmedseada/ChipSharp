@@ -19,7 +19,8 @@ namespace ChipSharp.Backend.Llvm;
 /// alignment comes from <see cref="TirLayout"/>. <see cref="EntrySymbol"/> calls the module's entry point and
 /// returns its int result (0 when it returns nothing); the runtime's startup code calls it. Objects on the heap (type
 /// descriptors, newobject, nullcheck, the static roots) are written as <see cref="LlvmHeap"/> says; a module that
-/// makes objects can only be generated for a target with a heap.
+/// makes objects can only be generated for a target with a heap. On a chip, the functions through which the stack can
+/// grow without end check it when they start (see <see cref="LlvmStackChecks"/>).
 /// </summary>
 public sealed class LlvmCodeGenerator : ICodeGenerator
 {
@@ -120,10 +121,16 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
         }
 
         var intrinsics = new SortedSet<string>(StringComparer.Ordinal);
+        var stackChecks = LlvmStackChecks.Find(module, target, types.Layout);
+        var forgetRegisters = LlvmCollectCalls.ForgetRegisters(target);
         foreach (var function in module.Functions.Where(f => f.Kind == TirFunctionKind.Defined))
         {
             text.Append('\n');
-            new LlvmFunctionWriter(function, types, symbols, globalSymbols, typeSymbols, text, intrinsics).Write();
+            new LlvmFunctionWriter(function, types, symbols, globalSymbols, typeSymbols, text, intrinsics)
+            {
+                ChecksStack = stackChecks.Contains(function),
+                ForgetRegisters = forgetRegisters,
+            }.Write();
         }
 
         if (heapStart is not null)

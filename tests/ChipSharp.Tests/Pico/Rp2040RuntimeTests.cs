@@ -103,16 +103,19 @@ public sealed class Rp2040RuntimeTests
         var source = files.Single(f => f.FileName == Rp2040Runtime.SourceFileName).Content;
         var console = files.Single(f => f.FileName == Rp2040Runtime.ConsoleFileName).Content;
         var floatMath = files.Single(f => f.FileName == ArmV6MRuntime.FloatMathFileName).Content;
+        var heap = files.Single(f => f.FileName == ArmV6MRuntime.HeapFileName).Content;
         var interrupts = runtime.InterruptEntry(pico).Files
             .Single(f => f.FileName == Rp2040Runtime.InterruptsFileName).Content;
 
-        // the Math methods are in the float math every runtime shares, and Console's in the console output every
-        // runtime shares, which writes through the chip's own chipsharp_console_write; the rest is the chip's own
+        // the Math methods are in the float math every runtime shares, Console's in the console output every runtime
+        // shares, which writes through the chip's own chipsharp_console_write, and GC's in the heap every runtime with
+        // one shares; the rest is the chip's own
         Assert.All(KnownExternals.All, function =>
         {
             var symbol = LlvmCodeGenerator.SymbolName(function.DisplayName);
             var file = function.LibraryMethod.StartsWith("System.Math", StringComparison.Ordinal) ? floatMath
                 : function.LibraryMethod.StartsWith("System.Console", StringComparison.Ordinal) ? console
+                : function.LibraryMethod.StartsWith("System.GC", StringComparison.Ordinal) ? heap
                 : source + interrupts;
             Assert.Contains($" {symbol}(", file);
         });

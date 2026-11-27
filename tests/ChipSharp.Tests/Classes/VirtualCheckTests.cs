@@ -347,6 +347,7 @@ public sealed class VirtualCheckTests : IDisposable
             "Growing.Grow() at IL_0001 (newobj): an interrupt handler cannot create objects (new ...). The heap may be in " +
                 "the middle of an allocation or a collection when the interrupt comes: create what the handler needs " +
                 "before, e.g. in a static field.",
+            $"Growing.Grow() at IL_0006 (stfld): {Memory.InterruptStoreRuleTests.Rule}",
         ], analysis.Problems.Select(problem => problem.Line));
     }
 }

@@ -45,7 +45,7 @@ internal static class HostRun
     /// <summary>
     /// Runs a compiled C# program on .NET (the version the tests run on), from <paramref name="folder"/>, the way
     /// samples/update-expected.ps1 makes the expected outputs: in the invariant culture (1.5 and Infinity, whatever
-    /// the PC's regional settings).
+    /// the PC's regional settings). A program that <paramref name="fails"/> may write to standard error.
     /// </summary>
     public static async Task<ProgramRun> RunOnDotnetAsync(byte[] assembly, string name, string folder) =>
         await RunOnDotnetAsync(assembly, name, folder, failing: false);

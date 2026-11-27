@@ -85,18 +85,17 @@ public sealed class ClassSimulatorTests(ITestOutputHelper output) : IDisposable
 
             class Program
             {
-                static volatile Step current;
+                static volatile Step first;
                 static volatile int ticks;
 
                 static void Main()
                 {
                     var last = new Step(4, null);
-                    var first = new Step(2, new Step(3, last));
+                    first = new Step(2, new Step(3, last));
                     last.Next = first;
                     Pin.Output(2);
                     Pin.Output(3);
                     Pin.Output(4);
-                    current = first;
                     Timing.EveryMilliseconds(10);
                     while (ticks < 6)
                     {
@@ -104,14 +103,26 @@ public sealed class ClassSimulatorTests(ITestOutputHelper output) : IDisposable
 
                     Timing.Stop();
                     Console.WriteLine(ticks);
-                    Console.WriteLine(current.Pin);
+                    Console.WriteLine(At(ticks).Pin);
+                }
+
+                // the step the ring is at after so many ticks: read from Main's objects, never stored (the collector
+                // runs with interrupts on, so a handler stores no object)
+                static Step At(int count)
+                {
+                    Step step = first;
+                    for (int i = 0; i < count % 3; i++)
+                    {
+                        step = step.Next;
+                    }
+
+                    return step;
                 }
 
                 [Interrupt(Event.Timer)]
                 static void Tick()
                 {
-                    Pin.Toggle(current.Pin);
-                    current = current.Next;
+                    Pin.Toggle(At(ticks).Pin);
                     ticks++;
                 }
             }

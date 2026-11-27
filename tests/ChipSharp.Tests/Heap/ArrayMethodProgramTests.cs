@@ -71,7 +71,8 @@ public sealed class ArrayMethodProgramTests(ITestOutputHelper output) : IDisposa
     [HostFact]
     public async Task Where_dotnet_throws_the_program_stops_with_the_message_dotnet_writes_and_exit_code_1()
     {
-        // each failure is a program of its own: built and run a few at a time
+        // each failure is a program of its own: built and run a few at a time, with the target files written once first
+        _ = Targets;
         using var gate = new SemaphoreSlim(Math.Max(2, Environment.ProcessorCount / 2));
         var results = await Task.WhenAll(ArrayMethodPrograms.Failures.Select(async failure =>
         {

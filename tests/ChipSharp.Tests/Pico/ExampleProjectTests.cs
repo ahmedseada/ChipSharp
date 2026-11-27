@@ -54,7 +54,7 @@ public sealed class ExampleProjectTests : IDisposable
         var uf2 = lines[0];
         Assert.Equal(Path.GetFileNameWithoutExtension(project) + ".uf2", Path.GetFileName(uf2));
         Assert.Matches(
-            @"^flash \d+(\.\d)? KB of 2048 KB \(\d+\.\d%\), RAM \d+(\.\d)? (bytes?|KB) \+ heap 224 KB of 264 KB " +
+            @"^flash \d+(\.\d)? KB of 2048 KB \(\d+\.\d%\), RAM \d+(\.\d)? (bytes?|KB) of 264 KB " +
             @"\(stack 8 KB reserved\)$",
             lines[1]);
         Assert.Equal(2, lines.Length);

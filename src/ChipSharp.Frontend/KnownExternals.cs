@@ -29,6 +29,7 @@ public static class KnownExternals
     private const string Registers = "ChipSharp.Hardware.Registers";
     private const string Math = "System.Math";
     private const string MathF = "System.MathF";
+    private const string Gc = "System.GC";
 
     private static readonly (string Type, string Name, IlType[] Parameters, IlType Returns, ExternalFunction Function)[] Table =
     [
@@ -52,6 +53,15 @@ public static class KnownExternals
         FloatMath(MathF, "Min", IlType.Float32, 2),
         FloatMath(MathF, "Max", IlType.Float32, 2),
         FloatMath(MathF, "Sqrt", IlType.Float32, 1),
+
+        // System.GC (chipsharp_heap.c): a collection now, the bytes of the objects not known to be garbage (after a
+        // collection when asked), and an object kept alive until the call; a program that calls them uses the heap
+        (Gc, "Collect", [], IlType.Void,
+            new("ChipSharp.Runtime.GcCollect", TirType.Void, [], $"{Gc}.Collect()")),
+        (Gc, "GetTotalMemory", [IlType.Bool], IlType.Int64,
+            new("ChipSharp.Runtime.GcGetTotalMemory", TirType.I64, [TirType.I32], $"{Gc}.GetTotalMemory(bool)")),
+        (Gc, "KeepAlive", [IlType.Object], IlType.Void,
+            new("ChipSharp.Runtime.GcKeepAlive", TirType.Void, [TirType.Ref], $"{Gc}.KeepAlive(object)")),
 
         // ChipSharp.Hardware: the chip's pins, timing and registers; only a chip's runtime implements these
         (Pin, "Output", [IlType.Int32], IlType.Void,
@@ -103,6 +113,16 @@ public static class KnownExternals
 
     /// <summary>Every runtime function a library call can become.</summary>
     public static IReadOnlyList<ExternalFunction> All { get; } = [.. Table.Select(entry => entry.Function)];
+
+    /// <summary>
+    /// True for the runtime function of a method of System.GC: it works on the heap, so a program that calls one uses
+    /// the heap (<see cref="TirFunction.MakesObjects"/>), and a target without a heap has none to work on.
+    /// </summary>
+    public static bool UsesHeap(ExternalFunction function)
+    {
+        ArgumentNullException.ThrowIfNull(function);
+        return function.LibraryMethod.StartsWith(Gc + ".", StringComparison.Ordinal);
+    }
 
     /// <summary>
     /// The runtime function a call to <paramref name="method"/> becomes, if the library method is supported; a call to
