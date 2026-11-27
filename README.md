@@ -46,7 +46,7 @@ that ChipSharp does not compile yet, where, when it is planned, and what to writ
 on a line of its own, and every library method ChipSharp can call). `tir` shows the program in TIR. `build` compiles
 it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` also keeps the `.tir` and `.ll` files.
 
-`dotnet test` runs 1468 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
+`dotnet test` runs 1521 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
 `CHIPSHARP_LLVM_BIN`); the Pico tests also need the simulator (see below), and are skipped, saying why, without it.
 
 ## What C# compiles today
@@ -77,7 +77,7 @@ it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` 
 | Not yet | When |
 |---|---|
 | Records, `StringBuilder`, a `params` span of text (`string.Join(", ", a, b, c)`: give an array), the other formats (`F2`, `N0`), a format of an object or a struct (`$"{o:X2}"`) and `string.Format` of a format known only when the program runs or of an `object[]`, culture-aware comparisons and the case of letters past U+00FF, `ref` and `out` of a string; boxing a library struct (`(object)TimeSpan.Zero`), `unbox` to the address in a box of a nullable, type tests against `System.ValueType` and `System.Enum`, `Enum.HasFlag`, `GetType()`, `ref` and `out` of an object, type tests against library classes; an array in the field of a struct, `ToArray` of a span | With M3 (the heap) |
-| Exceptions (`try`, `catch`, `finally`, `throw`, `using`), `checked` arithmetic, multi-dimensional arrays, array covariance (`object[] items = new int[2][]`), `ref` and `out` of an array (but `Array.Resize(ref a, n)`), a static array kept outside its field, unsafe code (pointers, `stackalloc` into a pointer, `stackalloc` of a size known only when the program runs), collection expressions as spans (`Span<int> s = [1, 2];`), function pointers (`delegate*`), delegates that take or return arrays or spans (`Action<int[]>`), a delegate of a struct's method, `BeginInvoke` and `EndInvoke`, `typeof`, finalizers, classes derived from library classes | Later |
+| Exceptions (`try`, `catch`, `finally`, `throw`, `using`), `checked` arithmetic, multi-dimensional arrays, array covariance (`object[] items = new int[2][]`), `ref` and `out` of an array (but `Array.Resize(ref a, n)`), a static array kept outside its field, unsafe code (pointers, `stackalloc` into a pointer, `stackalloc` of a size known only when the program runs), collection expressions as spans (`Span<int> s = [1, 2];`), function pointers (`delegate*`), delegates that take or return arrays or spans (`Action<int[]>`), `BeginInvoke` and `EndInvoke`, `typeof`, finalizers, classes derived from library classes | Later |
 | The library's collections (`List<T>`, `Dictionary<TKey, TValue>`, ...), `foreach` over an enumerator that is disposed (one that implements `IDisposable`, as every `IEnumerator<T>` does: a `foreach` over an `IEnumerable<T>`), which C# does in a `try`/`finally`; an array used as an interface (`IEnumerable<int> e = numbers;`) | With M3 (collections) |
 | `Array.Copy` between arrays of different element types (`int[]` into `long[]`), `Array.Sort` and `BinarySearch` of enums, structs that do not implement `IComparable<T>` and objects, `Array.IndexOf` of structs, of `object` and of classes with an `Equals` of their own | Later |
 | Other library types and methods (`decimal`, `Random`, `Math.Sin`, `array.GetValue(i)`, the overloads of `System.Array` that take an `IComparer`, ...) | Not yet: `chipsharp check` lists the methods there are, and for `System.Array` says to write the loop |
@@ -545,8 +545,10 @@ make objects, which `chipsharp check` says is not allowed where it happens. On a
 the object C# makes for what lambdas capture, need a heap, which `chipsharp check` says in those words; a local function
 that C# only calls keeps what it captures in a struct of its method, passed by `ref`, and compiles on every target. Not
 yet: function pointers (`delegate*<int, int>`), delegates that take or return arrays or spans (the analysis of arrays
-cannot follow an array into the method a delegate calls), a delegate of a struct's method (which .NET calls on a box),
-and `BeginInvoke`. `samples/Delegates.cs` shows a thermostat's callbacks and events.
+cannot follow an array into the method a delegate calls), and `BeginInvoke`. A delegate of a struct's method is made of
+a box of the struct, as in .NET, whose value the method runs on (see Boxing, below). `samples/Delegates.cs` shows a
+thermostat's callbacks and events.
+
 ### Boxing and nullables
 
 A value used as an object is boxed (`src/ChipSharp.Frontend/Boxing.cs`, `Lowering/BoxingFunctions.cs`): `box T` makes an
