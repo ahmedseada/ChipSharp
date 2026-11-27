@@ -182,6 +182,54 @@ public sealed class AvrCallTests
         Assert.Contains("lpm", assembly, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void A_large_function_with_a_loop_is_never_inlined_on_an_avr()
+    {
+        var module = TirSamples.WithMain(new TirModule("Demo"));
+        var big = Counter(module, "Big", LlvmAvrCalls.OutOfLineSize, loops: true);
+        var small = Counter(module, "Small", 10, loops: true);
+        var straight = Counter(module, "Straight", LlvmAvrCalls.OutOfLineSize, loops: false);
+
+        var uno = Generate(module, AvrCode.Uno());
+        var pico = Generate(module, LlvmTargets.Pico);
+
+        Assert.Contains($"define internal i32 @{big}(i32 %p.n) nounwind noinline {NoBuiltins} {{", uno, StringComparison.Ordinal);
+        Assert.Contains($"define internal i32 @{small}(i32 %p.n) nounwind {NoBuiltins} {{", uno, StringComparison.Ordinal);
+        Assert.Contains($"define internal i32 @{straight}(i32 %p.n) nounwind {NoBuiltins} {{", uno, StringComparison.Ordinal);
+        Assert.DoesNotContain("noinline", pico, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Program.&lt;name&gt;(n): <paramref name="additions"/> additions to n, in a loop that runs n times when
+    /// <paramref name="loops"/>; more than that many instructions in all.
+    /// </summary>
+    private static string Counter(TirModule module, string name, int additions, bool loops)
+    {
+        var function = module.AddFunction("Program." + name, TirType.I32, ("n", TirType.I32));
+        var total = function.AddSlot("total", TirType.I32);
+        var (entry, body, done) = (function.AddBlock("entry"), function.AddBlock("body"), function.AddBlock("done"));
+        var b = new TirBuilder(entry);
+        b.Jump(body);
+        b.Block = body;
+        for (var i = 0; i < additions; i++)
+        {
+            b.Store(total, b.Binary(TirBinaryOp.Add, b.Load(total), function.Parameters[0]));
+        }
+
+        if (loops)
+        {
+            b.Branch(b.Compare(TirCompareOp.Lt, b.Load(total), function.Parameters[0]), body, done);
+        }
+        else
+        {
+            b.Jump(done);
+        }
+
+        b.Block = done;
+        b.Return(b.Load(total));
+        return "Program_" + name;
+    }
+
     /// <summary>A program with copies: Program.Copy calls memmove and memcpy, which the frontend declares so.</summary>
     private static TirModule Copies()
     {

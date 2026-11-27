@@ -47,6 +47,41 @@ internal static class LlvmAvrCalls
         return bytes > RegisterBytes;
     }
 
+    /// <summary>
+    /// The size, in TIR instructions, above which a function with a loop stays a function of its own on an AVR
+    /// (<see cref="StaysOutOfLine"/>).
+    /// </summary>
+    public const int OutOfLineSize = 100;
+
+    /// <summary>
+    /// True when <paramref name="function"/>, on an AVR, is never inlined (LLVM's <c>noinline</c>): it has a loop and more
+    /// than <see cref="OutOfLineSize"/> instructions. LLVM inlines a function called once wherever it is, so a program of
+    /// many such functions called from one loop became one function of thousands of instructions with hundreds of
+    /// bytes of spilled values, and LLVM 22's AVR register allocation gets such a function wrong: it copies one byte of
+    /// a register pair and spills the other's stale value as if it held nothing (the machine verifier says "Using an
+    /// undefined physical register" of the spill), and which passes then show it moves with the code
+    /// (stack-slot-coloring, early-machinelicm, machine-sink: NarrowingPrograms.Random(108, 12, ...) and 30 more of
+    /// 56 printed wrong numbers). Each of those functions on its own is right, and the program is mostly smaller so.
+    /// </summary>
+    public static bool StaysOutOfLine(TirFunction function)
+    {
+        var count = 0;
+        var loops = false;
+        var index = function.Blocks.Select((block, i) => (block, i)).ToDictionary(pair => pair.block, pair => pair.i);
+        foreach (var (block, i) in function.Blocks.Select((block, i) => (block, i)))
+        {
+            count += block.Instructions.Count;
+            loops |= block.Instructions.Any(instruction => instruction switch
+            {
+                TirJump jump => index[jump.Target] <= i,
+                TirBranch branch => index[branch.WhenTrue] <= i || index[branch.WhenFalse] <= i,
+                _ => false,
+            });
+        }
+
+        return loops && count > OutOfLineSize;
+    }
+
     /// <summary>The lines that give a function a variable of one byte on the stack, which LLVM keeps: <paramref name="name"/>.</summary>
     public static IEnumerable<string> FrameLines(string name) =>
         [$"{name} = alloca i8, align 1", $"store volatile i8 0, ptr {name}, align 1"];

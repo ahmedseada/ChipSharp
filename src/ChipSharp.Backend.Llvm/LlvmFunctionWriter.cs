@@ -80,6 +80,9 @@ internal sealed class LlvmFunctionWriter
     /// <summary>True on an AVR, whose C int has 16 bits: a call to the C library's memset is LLVM's llvm.memset there.</summary>
     public bool IsAvr { get; init; }
 
+    /// <summary>True when LLVM must not inline the function: on an AVR, a large one with a loop (see <see cref="LlvmAvrCalls"/>).</summary>
+    public bool StaysOutOfLine { get; init; }
+
     public void Write()
     {
         var allocas = Unique("allocas");
@@ -104,7 +107,7 @@ internal sealed class LlvmFunctionWriter
         var linkage = LlvmExports.Linkage(_function);
         _text.Append(CultureInfo.InvariantCulture,
             $"define {linkage}{_types.Of(_function.ReturnType)} @{_symbols[_function]}({parameters}) nounwind" +
-            $"{Flash?.FunctionAttributes} {{\n");
+            $"{(StaysOutOfLine ? " noinline" : "")}{Flash?.FunctionAttributes} {{\n");
 
         // LLVM's entry block cannot be a jump target, and TIR's may be (a loop at the very start of a method),
         // so the slots get a block of their own. Each starts at zero, like the locals of IL's ".locals init".

@@ -1,6 +1,7 @@
 using System.Text;
 using ChipSharp.Abstractions;
 using ChipSharp.Tests.Lowering;
+using ChipSharp.Tests.Narrowing;
 using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Avr;
@@ -88,5 +89,37 @@ public sealed class UnoProgramTests : IDisposable
             Assert.True(run.ExitCode == 0, run.ToString());
             Assert.Equal(Encoding.UTF8.GetBytes(output), run.Usart0);
         }
+    }
+
+    /// <summary>
+    /// Programs of twelve large functions with loops of bytes, shorts and ints, called from one loop
+    /// (<see cref="NarrowingPrograms.Random"/>), narrowed and not: LLVM 22 inlined them into one function of thousands
+    /// of instructions and got its register pairs wrong (a stale byte spilled as if it held nothing), and printed wrong
+    /// numbers for these four seeds and 26 more of 56; Random24's was a function of its own, which machine-sink moved
+    /// code in. Each large function with a loop stays out of line now (LlvmAvrCalls), and the target turns machine-sink
+    /// off.
+    /// </summary>
+    [AvrSimulatorTheory]
+    [InlineData(24, true)]
+    [InlineData(24, false)]
+    [InlineData(100, true)]
+    [InlineData(100, false)]
+    [InlineData(108, true)]
+    [InlineData(108, false)]
+    [InlineData(114, true)]
+    [InlineData(114, false)]
+    public async Task Large_generated_functions_print_what_dotnet_prints_narrowed_or_not(int seed, bool narrowed)
+    {
+        var name = $"Random{seed}{(narrowed ? "" : "Wide")}";
+        var assembly = CSharpCompiler.Compile(NarrowingPrograms.Random(seed, 12, returnsResult: false), name);
+        var dotnet = await HostRun.RunOnDotnetAsync(assembly, name, Path.Combine(_scratch, "dotnet"));
+        var target = narrowed ? UnoBuild.Target : AvrCode.Uno(("narrowing", "false"));
+        var program = UnoBuild.Build(assembly, name, Path.Combine(_scratch, "uno"), target);
+
+        var run = await AvrSimulator.RunAsync(program.Hex, 120_000);
+
+        Assert.True(run.ExitCode == 0, run.ToString());
+        Assert.Contains("the program has finished", run.Stopped);
+        Assert.Equal(dotnet.Text, Encoding.UTF8.GetString(run.Usart0));
     }
 }

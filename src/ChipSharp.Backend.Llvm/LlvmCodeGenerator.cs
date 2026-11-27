@@ -153,6 +153,7 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
                 ForgetRegisters = forgetRegisters,
                 HasFrame = isAvr && LlvmAvrCalls.NeedsFrame(function, types),
                 IsAvr = isAvr,
+                StaysOutOfLine = isAvr && LlvmAvrCalls.StaysOutOfLine(function),
             }.Write();
         }
 
