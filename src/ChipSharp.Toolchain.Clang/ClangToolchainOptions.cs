@@ -29,12 +29,25 @@ public sealed record ClangToolchainOptions
     /// </summary>
     public string? LlvmBinFolder { get; init; }
 
+    /// <summary>
+    /// The installed LLVM's clang (the toolchain "clang", the default) or the clang and ld.lld inside Zig (the toolchain
+    /// "zig"). The toolchain's name follows it.
+    /// </summary>
+    public ClangDriver Driver { get; init; } = ClangDriver.Clang;
+
+    /// <summary>
+    /// Zig itself (zig.exe), for <see cref="ClangDriver.Zig"/>. When not set: the environment variable CHIPSHARP_ZIG,
+    /// then D:\Tools\zig\zig.exe, then the PATH.
+    /// </summary>
+    public string? ZigPath { get; init; }
+
     /// <summary>More clang arguments, after the target's "clang.flags", e.g. "-g" for debug information.</summary>
     public IReadOnlyList<string> ExtraFlags { get; init; } = [];
 
     /// <summary>
     /// Keep what clang and llvm-dlltool make in the build cache and take it from there next time (the default): each
-    /// source file is compiled once for a target, its flags and its text, so a build compiles the runtime's C once and
+    /// source file is compiled once for a compiler (clang or Zig), a target, its flags and its text, so a build compiles
+    /// the runtime's C once and
     /// later builds only link it. False compiles everything every time (<c>chipsharp build --no-cache</c>).
     /// </summary>
     public bool UseCache { get; init; } = true;

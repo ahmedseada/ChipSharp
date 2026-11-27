@@ -7,12 +7,20 @@ using ChipSharp.Targets;
 namespace ChipSharp.Toolchain.Clang;
 
 /// <summary>
-/// What the target file says about building a program for a chip (no operating system): the triple and "cpu",
-/// "clang.flags", and the "link" settings: the entry point, which memory region holds the code ("link.code") and
-/// which the variables and the stack ("link.data"), how much RAM the stack needs ("link.stack"), the vector table's
-/// alignment ("link.vectorAlign"), sections that must come first in the code region ("link.head") and more linker
-/// arguments ("link.flags"); and from the capabilities, how much RAM the heap takes ("heap", 0 for none).
+/// What the target file says about building a program for a chip (no operating system): the triple, "cpu" and (AVR)
+/// "mmcu", "clang.flags", Zig's name of the target ("zig.target", for the toolchain "zig"), and the "link" settings:
+/// the entry point, which memory region holds the code ("link.code") and which the variables and the stack
+/// ("link.data"), how much RAM the stack needs ("link.stack"), the vector table's alignment ("link.vectorAlign"),
+/// sections that must come first in the code region ("link.head"), more linker arguments ("link.flags") and what the
+/// .elf adds to the data region's addresses ("link.dataOffset"); and from the capabilities, how much RAM the heap
+/// takes ("heap", 0 for none).
 /// </summary>
+/// <param name="Mmcu">The AVR microcontroller, as avr-gcc and clang name it (-mmcu), e.g. atmega328p; null elsewhere.</param>
+/// <param name="ZigTarget">Zig's name of the target (zig cc's --target), e.g. avr-freestanding-none; null when not given.</param>
+/// <param name="DataOffset">
+/// What the .elf adds to the data region's addresses ("link.dataOffset"): 0x800000 on AVR, whose RAM and flash are two
+/// address spaces that both start at 0 (binutils' convention, which ld.lld follows); 0 elsewhere.
+/// </param>
 internal sealed record ChipSettings(
     string Triple,
     string? Cpu,
@@ -24,8 +32,38 @@ internal sealed record ChipSettings(
     ulong VectorAlign,
     IReadOnlyList<HeadSection> Head,
     IReadOnlyList<string> LinkFlags,
-    ulong HeapSize = 0)
+    ulong HeapSize = 0,
+    string? Mmcu = null,
+    string? ZigTarget = null,
+    ulong DataOffset = 0)
 {
+    /// <summary>True for an AVR chip (the triple's processor is avr): the linker script lays it out as avr-gcc's does.</summary>
+    public bool IsAvr => Triple.Split('-')[0].Equals("avr", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The flags that pick the processor, after --target: -mcpu (the target's "cpu") and, for an AVR, -mmcu (its "mmcu").
+    /// zig cc needs both for an AVR: it takes the processor from -mcpu alone (given only -mmcu, it builds for a generic
+    /// avr2, without the multiply and the jmp and call instructions), and clang warns "no target microcontroller
+    /// specified" without -mmcu. So with Zig an AVR's -mcpu is its "mmcu" when it gives no "cpu": LLVM names its AVR
+    /// processors after the microcontrollers. The flags are part of every object's key in the build cache.
+    /// </summary>
+    public IReadOnlyList<string> ProcessorFlags(ClangDriver driver)
+    {
+        var cpu = Cpu ?? (driver == ClangDriver.Zig ? Mmcu : null);
+        List<string> flags = [];
+        if (cpu is not null)
+        {
+            flags.Add($"-mcpu={cpu}");
+        }
+
+        if (Mmcu is not null)
+        {
+            flags.Add($"-mmcu={Mmcu}");
+        }
+
+        return flags;
+    }
+
     /// <summary>True when the target is a chip: its "link" settings name the memory region for the code.</summary>
     public static bool Applies(TargetDescription target) =>
         target.Settings["link"] is JsonObject link && link["code"] is not null;
@@ -146,6 +184,28 @@ internal sealed record ChipSettings(
                 $"of {data.Name} ('link.data') it is kept in.");
         }
 
+        var dataOffset = Size(link["dataOffset"], "link.dataOffset", 0);
+        if (dataOffset > uint.MaxValue - data.Region.End)
+        {
+            throw Error($"'link.dataOffset' is 0x{dataOffset:x}: with it, {data.Name} ('link.data') would end past the " +
+                "4 GB a 32-bit .elf can address.");
+        }
+
+        string? OptionalText(JsonNode? node, string path) => node switch
+        {
+            null => null,
+            JsonValue v when v.TryGetValue(out string? s) && !string.IsNullOrWhiteSpace(s) => s,
+            _ => throw Error($"'{path}' must be text."),
+        };
+
+        var mmcu = OptionalText(target.Settings["mmcu"], "mmcu");
+        var zigTarget = target.Settings["zig"] switch
+        {
+            null => null,
+            JsonObject zig => OptionalText(zig["target"], "zig.target"),
+            _ => throw Error("'zig' must be an object, e.g. { \"target\": \"avr-freestanding-none\" }."),
+        };
+
         var heap = target.HeapSize ?? 0;
         if (heap > data.Region.Size - stack)
         {
@@ -165,7 +225,10 @@ internal sealed record ChipSettings(
             vectorAlign,
             head,
             TextList(link["flags"], "link.flags"),
-            heap);
+            heap,
+            mmcu,
+            zigTarget,
+            dataOffset);
     }
 }
 
