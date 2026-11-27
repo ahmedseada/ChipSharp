@@ -36,6 +36,9 @@ public sealed class SampleProgramTests : IDisposable
     public Task BitOps() => PrintsWhatDotnetPrints();
 
     [HostFact]
+    public Task Boxing() => PrintsWhatDotnetPrints();
+
+    [HostFact]
     public Task Classes() => PrintsWhatDotnetPrints();
 
     [HostFact]

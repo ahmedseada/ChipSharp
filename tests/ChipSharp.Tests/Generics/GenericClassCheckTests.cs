@@ -314,9 +314,22 @@ public sealed class GenericClassCheckTests(ITestOutputHelper output) : IDisposab
     }
 
     [Fact]
-    public void A_struct_without_IEquatable_in_a_default_comparer_would_be_boxed()
+    public void A_struct_without_IEquatable_in_a_default_comparer_is_boxed_as_dotnet_boxes_it()
     {
-        var problems = WholeProgram.Problems("""
+        // it compiles where there is a heap (Boxing.BoxingPrograms.Generic prints what it gives), and a chip without one
+        // says what boxes it
+        var analysis = WholeProgram.Check(Source);
+        Assert.True(analysis.IsSupported, analysis.Details);
+
+        var problems = WholeProgramPass.Check(IlAssembly.Load(CSharpCompiler.Compile(Source), "Test.dll"), Tiny)
+            .Problems.Select(problem => problem.Line);
+
+        Assert.Contains(problems, problem => problem.StartsWith("ChipSharp.Library.Equality.OfObject<Point>(Point, Point)",
+            StringComparison.Ordinal) && problem.Contains("(box): boxing (using a value as an object) needs a heap",
+            StringComparison.Ordinal));
+    }
+
+    private const string Source = """
             using System.Collections.Generic;
 
             struct Point
@@ -328,11 +341,7 @@ public sealed class GenericClassCheckTests(ITestOutputHelper output) : IDisposab
             {
                 static void Main() => System.Console.WriteLine(EqualityComparer<Point>.Default.Equals(new Point(), new Point()));
             }
-            """);
-
-        Assert.Contains(problems, problem => problem.StartsWith("ChipSharp.Library.Equality.OfObject<Point>(Point, Point)",
-            StringComparison.Ordinal) && problem.Contains("(box): boxing (using a value as an object)", StringComparison.Ordinal));
-    }
+            """;
 
     /// <summary>
     /// One copy for each type argument, on the Pico: three instances of a generic class over three classes take a little

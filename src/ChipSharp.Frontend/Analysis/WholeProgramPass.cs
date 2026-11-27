@@ -110,7 +110,7 @@ public static partial class WholeProgramPass
                     methods.Add(target);
                 }
 
-                methods.AddRange(dispatch.Follow(instructions, j).Where(found.Add));
+                methods.AddRange(dispatch.Follow(instructions, j, methods[i].Assembly).Where(found.Add));
                 methods.AddRange(dispatch.FollowArrays(methods[i], j).Where(found.Add)); // arrays as interfaces
 
                 // a throw calls the library's Thrown.Unhandled (see Exceptions)
@@ -190,11 +190,13 @@ public static partial class WholeProgramPass
         }
 
         // the locals C# builds interpolated strings in: taking their address is part of building the text, which
-        // printed text (PrintedText) judges where it is used, not as a local
+        // printed text (PrintedText) judges where it is used, not as a local (so are the params spans of formats)
         var interpolations = new HashSet<int>();
+        var printed = PrintedText.Of(method);
         foreach (var local in body.Locals)
         {
-            if (ForType(local.Type) is { } unsupported && !Unsupported.IsInterpolatedStringHandler(local.Type))
+            if (ForType(local.Type) is { } unsupported && !Unsupported.IsInterpolatedStringHandler(local.Type)
+                && !printed.InlineArrayLocals.Contains(local.Index))
             {
                 problems.Add(Problem.InLocal(method, local, unsupported));
             }
@@ -212,7 +214,6 @@ public static partial class WholeProgramPass
 
         // the verdict of printed text comes first for the instructions it is about, then the arrays' rule's (a problem;
         // then spans' problem; then a heap use or a fine), then generics', then virtual calls', then classes'
-        var printed = PrintedText.Of(method);
         var analyzed = ArrayEscapeAnalysis.Analyze(method, statics, heap);
         var arrays = analyzed.Verdicts;
         heapArrays.UnionWith(body.Instructions.Where(i => i.OpCode == IlOpCode.Newarr && analyzed.HeapArrays.Contains(i.Offset)));
@@ -221,11 +222,13 @@ public static partial class WholeProgramPass
         var virtuals = ForVirtualCalls(method);
         var classes = ForClasses(method);
         var strings = ForStrings(method);
+        var boxing = ForBoxing(method);
         var delegates = ForDelegates(method);
-        // after the arrays' and spans' verdicts: delegates', strings', generics', virtual calls', classes', building text,
-        // the struct/reference rules, the rest
+        // after the arrays' and spans' verdicts: boxing's, delegates', strings', generics', virtual calls', classes',
+        // building text, the struct/reference rules, the rest
         Unsupported? Others(IlInstruction instruction) =>
-            delegates.TryGetValue(instruction, out var forDelegates) ? forDelegates
+            boxing.TryGetValue(instruction, out var forBoxing) ? forBoxing
+            : delegates.TryGetValue(instruction, out var forDelegates) ? forDelegates
             : strings.TryGetValue(instruction, out var forStrings) ? forStrings
             : generics.TryGetValue(instruction, out var generic) ? generic
             : virtuals.TryGetValue(instruction, out var dispatched) ? dispatched
@@ -253,7 +256,8 @@ public static partial class WholeProgramPass
             }
 
             // a use of an instance over a reference type (generics over classes) needs a heap, but hides no problem
-            unsupported ??= Generics.ReferenceArguments.Use(method, instruction);
+            // (an InlineArray of objects for a format's params span is printed text's, which makes no instance)
+            unsupported ??= printed.Owns(instruction) ? null : Generics.ReferenceArguments.Use(method, instruction);
             if (unsupported is not null)
             {
                 problems.Add(Problem.At(method, instruction, unsupported));

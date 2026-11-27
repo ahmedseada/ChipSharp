@@ -160,7 +160,7 @@ internal sealed partial class MethodLowering
 
         CheckPrintedText();
         if (_body.Instructions.FirstOrDefault(i => !SupportedSubset.OpCodes.Contains(i.OpCode) && !IsPrintedText(i)
-            && !IsSpanInstruction(i) && !IsStringInstruction(i)) is { } unsupported)
+            && !IsSpanInstruction(i) && !IsStringInstruction(i) && !IsBoxingInstruction(i)) is { } unsupported)
         {
             throw Unsupported(unsupported);
         }
@@ -178,6 +178,10 @@ internal sealed partial class MethodLowering
 
         switch (instruction.OpCode)
         {
+            case var _ when IsBoxingInstruction(instruction):
+                LowerBoxingInstruction(instruction); // see MethodLowering.Boxing.cs
+                break;
+
             case var _ when IsDelegateInstruction(instruction):
                 LowerDelegateInstruction(instruction); // see MethodLowering.Delegates.cs
                 break;

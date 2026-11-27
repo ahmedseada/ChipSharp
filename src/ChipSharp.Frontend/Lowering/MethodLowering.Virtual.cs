@@ -152,7 +152,9 @@ internal sealed partial class MethodLowering
             result = reference;
         }
         else if (!cast && kind != TirTypeDescriptorKind.Array
-            && !_program.VirtualTables.Dispatch.Created.Any(type => Passes(type) && VirtualMethods.Fits(type, known)))
+            && !_program.VirtualTables.Dispatch.Created.Any(type => Passes(type) && VirtualMethods.Fits(type, known))
+            && !(kind == TirTypeDescriptorKind.Interface && _program.VirtualTables.Dispatch.Boxed
+                .Any(boxed => Boxing.Implements(boxed, plain) && Boxing.Fits(boxed, known))))
         {
             // no object the program makes can pass: as and is give null; a cast still stops at one that is there
             result = _ir.Zero(TirType.Ref);

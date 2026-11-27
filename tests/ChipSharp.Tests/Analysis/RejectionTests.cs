@@ -276,7 +276,8 @@ public sealed class RejectionTests
     [Fact]
     public void Boxing_and_objects()
     {
-        // an object compiles, and so do object's Equals and printing one (its ToString); a value turned into one does not
+        // an object compiles, and so do object's Equals and printing one (its ToString), and a value turned into one
+        // (boxing, which needs a heap: see Boxing.BoxingCheckTests); a library struct boxed does not
         var problems = Problems("""
             using System;
 
@@ -288,14 +289,15 @@ public sealed class RejectionTests
                 {
                     Console.WriteLine(Wrap(1));
                     Console.WriteLine(new object().Equals(null));
+                    Console.WriteLine((object)TimeSpan.Zero);
                 }
             }
             """);
 
         Assert.Equal(
         [
-            "Program.Wrap(int) at IL_0001 (box): boxing (using a value as an object) arrives with M3 (the heap). "
-                + "For now, keep values in their own types, such as int and bool.",
+            "Program.Main() at IL_0020 (box): boxing a System.TimeSpan (using it as an object) arrives with M3 (the heap). "
+                + "For now, box the numbers, enums and structs of the program, or keep the value in its own type.",
         ], problems);
     }
 
@@ -339,7 +341,8 @@ public sealed class RejectionTests
     [Fact]
     public void Structs_used_as_objects()
     {
-        // a struct's own methods compile; the ones it has as an object (GetHashCode), and boxing it, do not
+        // a struct's own methods compile, and so do the ones it has as an object (GetHashCode: ValueType's) and boxing it
+        // (a heap use); its GetType does not
         var problems = Problems("""
             using System;
 
@@ -356,18 +359,16 @@ public sealed class RejectionTests
                     Console.WriteLine(counter.Next(1));
                     Console.WriteLine(counter.GetHashCode());
                     Console.WriteLine(counter);
+                    Console.WriteLine(counter.GetType() == null);
                 }
             }
             """);
 
-        const string InstanceCalls = "instance or virtual method calls arrive with M3 (the heap). "
-            + "For now, call static methods, or the methods of your own structs.";
         Assert.Equal(
         [
-            $"Program.Main() at IL_0017 (constrained.): {InstanceCalls}",
-            $"Program.Main() at IL_001d (callvirt): {InstanceCalls}",
-            "Program.Main() at IL_0028 (box): boxing (using a value as an object) arrives with M3 (the heap). "
-                + "For now, keep values in their own types, such as int and bool.",
+            "Program.Main() at IL_0038 (call): the library method object.GetType() is not available yet.",
+            "Program.Main() at IL_003e (call): the library method System.Type.op_Equality(System.Type, System.Type) is "
+                + "not available yet.",
         ], problems);
     }
 

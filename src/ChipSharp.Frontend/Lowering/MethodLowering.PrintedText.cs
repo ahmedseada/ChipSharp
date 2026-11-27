@@ -58,6 +58,7 @@ internal sealed partial class MethodLowering
     /// address taken: a ptr slot that stays unused.
     /// </summary>
     private TirType LocalSlotType(IlLocal local) => Printed.HandlerLocals.Contains(local.Index)
+        || Printed.InlineArrayLocals.Contains(local.Index)
         ? TirType.Ptr
         : LoweringErrors.MapType(_method, local.Type, $"local V_{local.Index} has type");
 
@@ -133,7 +134,7 @@ internal sealed partial class MethodLowering
         {
             var label = IlPrinter.Label(piece.Source.Offset);
             var name = Printed.Roles[piece.Source] == PrintedRole.Concat ? $"part_{label}_{piece.Operand}" : $"part_{label}";
-            slot = AddSlot(name, PartType(piece.Type.Kind));
+            slot = AddSlot(name, ObjectPartType(piece) ?? PartType(piece.Type.Kind)); // see MethodLowering.TextOfObjects.cs
             _partSlots.Add((piece.Source, piece.Operand), slot);
         }
 
@@ -165,6 +166,11 @@ internal sealed partial class MethodLowering
         {
             _ir.Call(_program.Runtime(endLine ? "WriteLineString" : "WriteString"), Text(literal));
             return endLine;
+        }
+
+        if (WriteObjectPart(piece)) // a nullable, a struct, an object: MethodLowering.TextOfObjects.cs
+        {
+            return false;
         }
 
         var kind = piece.Type.Kind;

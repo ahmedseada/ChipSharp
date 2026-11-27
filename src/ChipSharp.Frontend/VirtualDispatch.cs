@@ -20,12 +20,32 @@ internal sealed partial class VirtualDispatch
     private readonly List<DispatchSlot> _called = [];
     private readonly HashSet<DispatchSlot> _isCalled = [];
     private readonly Dictionary<(IlTypeDefinition, DispatchSlot), DispatchTarget?> _resolved = [];
+    private readonly List<BoxedType> _boxed = [];
+    private readonly HashSet<BoxedType> _isBoxed = [];
 
     /// <summary>The program's assembly, as a delegate of one of its own delegate types names it; null until one is made.</summary>
     private IlAssembly? _delegates;
 
     /// <summary>The classes of the program whose objects it makes, in the order first made.</summary>
     public IReadOnlyList<IlTypeDefinition> Created => _created;
+
+    /// <summary>
+    /// The value types the program boxes (see <see cref="Boxing"/>), in the order first boxed: <c>box</c>, a struct in
+    /// printed text (whose ToString its box would run), and the structs ValueType's Equals of a boxed one boxes.
+    /// </summary>
+    public IReadOnlyList<BoxedType> Boxed => _boxed;
+
+    /// <summary>True when the program calls <c>object.Equals(object, object)</c>, which runs Equals through its slot.</summary>
+    public bool CallsObjectEquals { get; private set; }
+
+    /// <summary>
+    /// The slots of object's methods that ChipSharp's own code calls, not an instruction: the Equals and GetHashCode of
+    /// the objects in a boxed struct's fields and of <c>object.Equals(a, b)</c>, the ToString of an object in printed or
+    /// kept text (see <see cref="Boxing"/>).
+    /// </summary>
+    public IReadOnlyList<DispatchSlot> CalledByChipSharp => _ownCalls;
+
+    private readonly List<DispatchSlot> _ownCalls = [];
 
     /// <summary>True when the program makes objects of System.Object itself (<c>new object()</c>).</summary>
     public bool CreatesPlainObjects { get; private set; }
@@ -54,7 +74,7 @@ internal sealed partial class VirtualDispatch
             var instructions = method.Body?.Instructions ?? [];
             for (var i = 0; i < instructions.Count; i++)
             {
-                dispatch.Follow(instructions, i);
+                dispatch.Follow(instructions, i, method.Assembly);
                 dispatch.FollowArrays(method, i); // see VirtualDispatch.Arrays.cs
             }
         }
@@ -63,15 +83,40 @@ internal sealed partial class VirtualDispatch
     }
 
     /// <summary>
-    /// Takes in instruction <paramref name="index"/> of <paramref name="instructions"/>: a class it makes, or a slot it
-    /// calls. Returns the methods that this makes part of the program (none twice), generic code left out.
+    /// Takes in instruction <paramref name="index"/> of <paramref name="instructions"/> (of a method of
+    /// <paramref name="assembly"/>, which says what the types it boxes are): a class it makes, a value it boxes, or a slot
+    /// it calls. Returns the methods that this makes part of the program (none twice), generic code left out.
     /// </summary>
-    public IReadOnlyList<IlMethod> Follow(IReadOnlyList<IlInstruction> instructions, int index)
+    public IReadOnlyList<IlMethod> Follow(IReadOnlyList<IlInstruction> instructions, int index, IlAssembly? assembly = null)
     {
         // a delegate of a virtual method (ldvirtftn) runs what a call through its slot runs
         if ((VirtualMethods.CalledSlot(instructions, index) ?? Delegates.LoadedSlot(instructions, index)) is { } slot)
         {
             return _isCalled.Add(slot) ? Reached(Call(slot)) : [];
+        }
+
+        if (assembly is not null && Boxing.BoxedAt(instructions, index, assembly) is { } boxed)
+        {
+            return Box(boxed);
+        }
+
+        // a constrained call on a value runs what its box would, on the value: a method of the struct, reached here
+        if (assembly is not null && Boxing.ConstrainedAt(instructions, index, assembly) is var (value, target))
+        {
+            IlMethod[] called = target.Method is { } method && !Generics.Instantiations.IsGeneric(method) ? [method] : [];
+            return [.. called.Concat(value.Kind == BoxedKind.Struct ? Box(value) : []).Distinct()];
+        }
+
+        if (Boxing.IsObjectEquals(instructions[index]))
+        {
+            CallsObjectEquals = true;
+            return CallOwn(Boxing.ObjectSlot("Equals"));
+        }
+
+        // an object in text (a hole of $"...", string.Format): its ToString, which ChipSharp calls through its slot
+        if (assembly is not null && Boxing.PrintsObjectAt(instructions[index], assembly))
+        {
+            return CallOwn(Boxing.ObjectSlot("ToString"));
         }
 
         if (Delegates.Allocates(instructions[index]))
@@ -129,6 +174,15 @@ internal sealed partial class VirtualDispatch
             }
         }
 
+        // the boxes of values that a variable of the receiver's type can hold (object, an interface they implement)
+        foreach (var boxed in _boxed.Where(boxed => !array && Boxing.Has(boxed, slot) && Boxing.Fits(boxed, receiver)))
+        {
+            if (Boxing.Resolve(boxed, slot) is { } target && !targets.Contains(target))
+            {
+                targets.Add(target);
+            }
+        }
+
         if (slot.Kind == DispatchSlotKind.Object
             && (array || ((CreatesPlainObjects || CreatesArrays) && (receiver is null || ObjectTypes.IsSystemObject(receiver))))
             && new DispatchTarget(null, slot.Name) is var own && !targets.Contains(own))
@@ -171,7 +225,52 @@ internal sealed partial class VirtualDispatch
     private IEnumerable<DispatchTarget?> Call(DispatchSlot slot)
     {
         _called.Add(slot);
-        return _created.Where(type => VirtualMethods.Has(type, slot)).Select(type => Resolve(type, slot));
+        return _created.Where(type => VirtualMethods.Has(type, slot)).Select(type => Resolve(type, slot))
+            .Concat(_boxed.Where(boxed => Boxing.Has(boxed, slot)).Select(boxed => Boxing.Resolve(boxed, slot)));
+    }
+
+    /// <summary>
+    /// A value of <paramref name="boxed"/> boxed: the struct's own ToString, Equals and GetHashCode, and what the slots
+    /// called so far run on it; the structs its ValueType Equals boxes are boxed too.
+    /// </summary>
+    private IlMethod[] Box(BoxedType boxed)
+    {
+        var targets = new List<DispatchTarget?>();
+        var own = new List<IlMethod>();
+        var pending = new Queue<BoxedType>([boxed]);
+        while (pending.TryDequeue(out var next))
+        {
+            if (!_isBoxed.Add(next))
+            {
+                continue;
+            }
+
+            _boxed.Add(next);
+            own.AddRange(Boxing.OwnMethods(next));
+            targets.AddRange(_called.Where(slot => Boxing.Has(next, slot)).Select(slot => Boxing.Resolve(next, slot)));
+            foreach (var inner in Boxing.BoxedByEquals(next))
+            {
+                pending.Enqueue(inner);
+            }
+        }
+
+        // ValueType's Equals and GetHashCode call those of the objects in a struct's fields
+        IlMethod[] fields = boxed.Kind == BoxedKind.Struct
+            ? [.. CallOwn(Boxing.ObjectSlot("Equals")), .. CallOwn(Boxing.ObjectSlot("GetHashCode"))]
+            : [];
+        return [.. Reached(targets).Concat(own.Where(method => !Generics.Instantiations.IsGeneric(method))).Concat(fields)
+            .Distinct()];
+    }
+
+    /// <summary>A call through <paramref name="slot"/> that ChipSharp's own code makes (see <see cref="CalledByChipSharp"/>).</summary>
+    private IReadOnlyList<IlMethod> CallOwn(DispatchSlot slot)
+    {
+        if (!_ownCalls.Contains(slot))
+        {
+            _ownCalls.Add(slot);
+        }
+
+        return _isCalled.Add(slot) ? Reached(Call(slot)) : [];
     }
 
     private IEnumerable<DispatchTarget?> Create(IlTypeDefinition type)

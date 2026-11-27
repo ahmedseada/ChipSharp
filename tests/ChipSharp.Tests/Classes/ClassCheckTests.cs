@@ -155,7 +155,7 @@ public sealed class ClassCheckTests : IDisposable
     }
 
     [Fact]
-    public void Equals_GetHashCode_and_ToString_of_objects_compile_and_an_object_in_an_interpolated_hole_waits()
+    public void Equals_GetHashCode_and_ToString_of_objects_compile_and_so_does_an_object_in_an_interpolated_hole()
     {
         var analysis = WholeProgram.Check("""
             class Node
@@ -177,12 +177,8 @@ public sealed class ClassCheckTests : IDisposable
             }
             """);
 
-        // an object printed is printed as its ToString gives it; in a hole of $"..." not yet
-        Assert.Equal(
-        [
-            "ToString of objects (and printing an object) arrives with M3 (stored strings): 1 place in Program.Main() " +
-                "(IL_003a). For now, give the class a method that prints what it holds, such as Print(), and call that.",
-        ], analysis.Groups.Select(group => group.Line));
+        // an object printed is printed as its ToString gives it, in a hole of $"..." too
+        Assert.True(analysis.IsSupported, analysis.Details);
     }
 
     [Fact]
@@ -311,10 +307,11 @@ public sealed class ClassCheckTests : IDisposable
     }
 
     [Fact]
-    public void A_question_mark_dot_that_gives_a_number_makes_a_nullable_which_is_not_compiled_yet()
+    public void A_question_mark_dot_that_gives_a_number_makes_a_nullable_which_compiles()
     {
-        // ?. that gives an object, or nothing, compiles (ClassPrograms.Basics); one that gives an int gives an int?
-        var problems = WholeProgram.Problems("""
+        // ?. that gives an object, or nothing, compiles (ClassPrograms.Basics); one that gives an int gives an int?, which
+        // compiles too (Boxing.BoxingPrograms.Nullables)
+        var analysis = WholeProgram.Check("""
             class Node
             {
                 public int Value;
@@ -331,7 +328,7 @@ public sealed class ClassCheckTests : IDisposable
             }
             """);
 
-        Assert.StartsWith("Program.Main(), local variable V_0 (int?): the type int? arrives later.", problems[0]);
+        Assert.True(analysis.IsSupported, analysis.Details);
     }
 
     [Fact]

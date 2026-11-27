@@ -28,6 +28,8 @@
 //                                        chipsharp_exceptions.c), as .NET prints it
 //   ChipSharp_Runtime_InvalidCast        a cast to a type the object is not of (InvalidCastException), with the names of
 //                                        both types as their descriptors hold them (.NET's, e.g. Program+Node)
+//   ChipSharp_Runtime_EnumCompareType    IComparable's CompareTo of a boxed enum and a box of another type
+//                                        (ArgumentException), with the names of both types
 //   ChipSharp_Runtime_ArrayNull, ...     the arguments of the methods of System.Array (Array.Copy, Fill, IndexOf, ...):
 //                                        null, an index or a length outside the array, a destination too short
 //                                        (ArgumentNullException, ArgumentOutOfRangeException, ArgumentException); the
@@ -213,6 +215,20 @@ __attribute__((noreturn)) void ChipSharp_Runtime_InvalidCast(const char *from, c
     chipsharp_uart0_write(from, length(from));
     chipsharp_uart0_write(middle, sizeof middle - 1);
     chipsharp_uart0_write(to, length(to));
+    fail(end, sizeof end - 1);
+}
+
+// IComparable's CompareTo of a boxed enum given a box of another type (ArgumentException), with both types' names.
+__attribute__((noreturn)) void ChipSharp_Runtime_EnumCompareType(const char *passed, const char *type)
+{
+    static const char start[] = UNHANDLED "System.ArgumentException: Object must be the same type as the enum. The type "
+        "passed in was '";
+    static const char middle[] = "'; the enum type was '";
+    static const char end[] = "'.\r\n";
+    chipsharp_uart0_write(start, sizeof start - 1);
+    chipsharp_uart0_write(passed, length(passed));
+    chipsharp_uart0_write(middle, sizeof middle - 1);
+    chipsharp_uart0_write(type, length(type));
     fail(end, sizeof end - 1);
 }
 

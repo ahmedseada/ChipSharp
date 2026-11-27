@@ -281,14 +281,13 @@ public sealed class GenericCheckTests : IDisposable
     [Theory]
     [InlineData(null)]
     [InlineData("pico")]
-    public void Converting_a_struct_to_an_interface_arrives_with_M3_and_a_constraint_is_the_way_for_now(string? target)
+    public void Converting_a_struct_to_an_interface_boxes_it_where_there_is_a_heap(string? target)
     {
-        var problems = Problems(StructAsInterface, target is null ? null : Shipped.Load(target));
+        var analysis = Check(StructAsInterface, target is null ? null : Shipped.Load(target));
 
-        // a parameter of an interface type compiles (it holds an object, of a class that implements the interface); the
-        // struct must be boxed to be one
-        Assert.Equal([$"Program.Main() at IL_0010 (box): {Boxing} arrives with M3 (the heap). For now, {BoxingHint}"],
-            problems);
+        // a parameter of an interface type compiles (it holds an object: a class's, or a box of a struct that
+        // implements the interface)
+        Assert.True(analysis.IsSupported, analysis.Details);
     }
 
     [Fact]

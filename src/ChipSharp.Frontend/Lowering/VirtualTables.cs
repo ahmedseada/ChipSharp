@@ -69,6 +69,9 @@ internal sealed class VirtualTables
             }
         }
 
+        // and those ChipSharp's own code calls on any object (boxes' Equals and GetHashCode, the ToString of text)
+        _live.UnionWith(Dispatch.CalledByChipSharp.Where(slot => Dispatch.Targets(slot, null).Count >= 2));
+
         // object's slots in the order System.Object declares them
         _objectSlots.AddRange(_live.Where(slot => slot.Kind == DispatchSlotKind.Object)
             .OrderBy(slot => slot.Name switch { "Equals" => 0, "GetHashCode" => 1, _ => 2 }));

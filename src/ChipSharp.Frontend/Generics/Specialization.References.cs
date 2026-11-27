@@ -48,7 +48,7 @@ internal static partial class Specialization
             case { OpCode: IlOpCode.Box, Operand: IlTypeOperand { Type: var boxed } }
                 when next is { OpCode: IlOpCode.Ldnull } && index + 2 < instructions.Count
                     && instructions[index + 2].OpCode is IlOpCode.Ceq or IlOpCode.Cgt_Un
-                    && ValueTypes.TryMapType(StackArrays.Primitive(boxed), owner, out _):
+                    && ValueTypes.TryMapType(StackArrays.Primitive(boxed), owner, out _) && !Nullables.IsNullable(boxed):
                 // value == null is false, value != null true: a value is never null
                 var notNull = instructions[index + 2].OpCode == IlOpCode.Cgt_Un;
                 return Replaced(instructions, index, 3, [(IlOpCode.Pop, null), (notNull ? IlOpCode.Ldc_I4_1 : IlOpCode.Ldc_I4_0, null)],
