@@ -1,0 +1,158 @@
+ChipSharp third-party notices
+=============================
+
+ChipSharp ships code that others wrote, under the licenses below. The runtime's C and assembly is compiled into every
+program ChipSharp builds (only the functions a program uses are linked), so a program that contains a piece carries
+its notice too. Each source file keeps its own copyright lines and license text as well.
+
+  1. LLVM compiler-rt: soft-float arithmetic (Apache-2.0 WITH LLVM-exception)
+  2. Raspberry Pi Pico SDK: the RP2040's second-stage bootloaders, boot2 (BSD-3-Clause)
+  3. musl libc: math functions (MIT, with the notices of the code it derives from)
+  4. AMD AOCL-LibM (aocl-libm-ose): math functions (BSD-3-Clause)
+  5. .NET runtime (dotnet/runtime): library code ported to C# in ChipSharp.Library (MIT)
+
+
+1. LLVM compiler-rt
+-------------------
+
+Where: src/ChipSharp.Runtime.ArmV6M/CompilerRt (llvmorg-23.1.6, compiler-rt/lib/builtins, unchanged): the float and
+double arithmetic, comparisons and conversions of chips without float hardware.
+License: Apache License v2.0 with LLVM Exceptions (SPDX: Apache-2.0 WITH LLVM-exception). Copyright the LLVM Project
+contributors. The full license text is src/ChipSharp.Runtime.ArmV6M/CompilerRt/LICENSE.TXT, shipped next to the files.
+Its LLVM exception says: "As an exception, if, as a result of your compiling your source code, portions of this
+Software are embedded into an Object form of such source code, you may redistribute such embedded portions in such
+Object form without complying with the conditions of Sections 4(a), 4(b) and 4(d) of the License."
+
+
+2. Raspberry Pi Pico SDK: boot2
+-------------------------------
+
+Where: src/ChipSharp.Runtime.Rp2040/Boot2 (boot2_w25q080.S, boot2_generic_03h.S, boot2_helpers, boot_stage2.ld and the
+.bin files assembled from them), with their license in LICENSE.TXT there.
+License: BSD-3-Clause.
+
+Copyright (c) 2019-2021 Raspberry Pi (Trading) Ltd.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
+following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following
+   disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following
+   disclaimer in the documentation and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products
+   derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+3. musl libc: math functions
+----------------------------
+
+Where: src/ChipSharp.Runtime.Shared/chipsharp_math_musl.c (musl 1.2.5, src/math: sin, cos, tan and their argument
+reduction, exp, log, log2, log10, pow, cbrt, log1p, fma, and the float ones), each original file's comments kept.
+License: MIT.
+
+Copyright (c) 2005-2020 Rich Felker, et al.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit
+persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
+Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+musl's math code derives from code under these terms, labelled in the file where it applies:
+
+Copyright (C) 1993, 2004 by Sun Microsystems, Inc. All rights reserved. (FreeBSD's msun, from fdlibm; optimized by
+Bruce D. Evans, Steven G. Kargl, Stephen L. Moshier)
+
+  Developed at SunSoft, a Sun Microsystems, Inc. business. Permission to use, copy, modify, and distribute this
+  software is freely granted, provided that this notice is preserved.
+
+Copyright (c) 2017-2018, Arm Limited (exp, log, log2, pow and their float twins, from Arm's optimized-routines).
+SPDX-License-Identifier: MIT (the license text above, with "Arm Limited" as the holder).
+
+Copyright (c) 2005-2011 David Schultz <das@FreeBSD.ORG>. All rights reserved. (fmaf, from FreeBSD's s_fmaf.c)
+
+  Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
+  following conditions are met:
+  1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following
+     disclaimer.
+  2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the
+     following disclaimer in the documentation and/or other materials provided with the distribution.
+
+  THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING,
+  BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN
+  NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,
+  OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+  LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+  ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+4. AMD AOCL-LibM (aocl-libm-ose)
+--------------------------------
+
+Where: src/ChipSharp.Runtime.Shared/chipsharp_math_amd.c (src/ref: asin, acos, atan, atan2, sinh, cosh, tanh, asinf,
+acosf, atanf, atan2f, sinhf, coshf, tanhf, tanf, and helpers from include/libm_inlines_amd.h).
+License: BSD-3-Clause.
+
+Copyright (C) 2008-2022, Advanced Micro Devices, Inc. All rights reserved.
+Copyright (C) 2022-2023, Advanced Micro Devices, Inc. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
+following conditions are met:
+1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following
+   disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following
+   disclaimer in the documentation and/or other materials provided with the distribution.
+3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products
+   derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+5. .NET runtime (dotnet/runtime)
+--------------------------------
+
+Where: src/ChipSharp.Library, the library code ported from .NET 10's System.Private.CoreLib so that it behaves as .NET's
+does (List<T>, Dictionary<TKey, TValue>, HashSet<T>, Queue<T>, Stack<T>, System.Array, Array.Sort and its helpers,
+TimeSpan, ValueTuple, Math and MathF, their checks and messages); the arithmetic of Math.ScaleB and
+Math.IEEERemainder in src/ChipSharp.Runtime.Shared/chipsharp_float_math.c.
+License: MIT.
+
+Copyright (c) .NET Foundation and Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit
+persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
+Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

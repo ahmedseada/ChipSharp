@@ -6,7 +6,7 @@ using static ChipSharp.Tests.Analysis.WholeProgram;
 
 namespace ChipSharp.Tests.Analysis;
 
-/// <summary>What the pass says about floats and doubles: they are supported; ckfinite and the rest of Math are not yet.</summary>
+/// <summary>What the pass says about floats and doubles: they and Math are supported; ckfinite and the rest of double are not yet.</summary>
 public sealed class FloatCheckTests
 {
     [Fact]
@@ -61,7 +61,7 @@ public sealed class FloatCheckTests
     }
 
     [Fact]
-    public void The_Math_methods_beyond_Abs_Min_Max_and_Sqrt_are_library_methods_not_available_yet()
+    public void The_Math_methods_compile_and_a_float_method_Math_has_not_is_a_library_method_not_available_yet()
     {
         var problems = Problems("""
             using System;
@@ -75,16 +75,15 @@ public sealed class FloatCheckTests
                     Console.WriteLine(Math.Floor(x));
                     Console.WriteLine(double.IsNaN(x));
                     Console.WriteLine(Math.Abs(-3));
+                    Console.WriteLine(double.Exp10(x) + double.Cbrt(x));
                 }
             }
             """);
 
         Assert.Equal(
         [
-            "Program.Main() at IL_000f (call): the library method System.Math.Sin(double) is not available yet.",
-            "Program.Main() at IL_001a (call): the library method System.Math.Floor(double) is not available yet.",
-            "Program.Main() at IL_0024 (call): the library method double.IsNaN(double) is not available yet.",
-            "Program.Main() at IL_0030 (call): the library method System.Math.Abs(int) is not available yet.",
+            "Program.Main() at IL_0026 (call): the library method double.IsNaN(double) is not available yet.",
+            "Program.Main() at IL_003d (call): the library method double.Exp10(double) is not available yet.",
         ], problems);
     }
 

@@ -14,8 +14,8 @@ namespace ChipSharp.Runtime.ArmV6M;
 /// 32-bit operations only.</item>
 /// <item>Float math in software, as ARMv6-M has no float hardware: <see cref="CompilerRt"/> for the arithmetic and
 /// conversions LLVM calls (__aeabi_fadd, __aeabi_dmul, __aeabi_d2iz, ...), <see cref="FloatCompareFileName"/> for its
-/// comparisons, and <see cref="FloatMathFileName"/> (shared with the other runtimes) for fmod and the Math methods
-/// programs call.</item>
+/// comparisons, and <see cref="FloatMathFileName"/> and <see cref="MathFileNames"/> (shared with the other runtimes)
+/// for fmod and the Math methods programs call.</item>
 /// <item><see cref="FailuresFileName"/>: what an index outside an array (and the other failures .NET throws an
 /// exception for) does on a chip whose runtime says nothing: stop at a breakpoint. Weak, so a chip runtime with a
 /// console replaces them.</item>
@@ -46,6 +46,13 @@ public sealed class ArmV6MRuntime : IArchRuntime
     /// <summary>The C file with fmod and the Math methods (src/ChipSharp.Runtime.Shared).</summary>
     public const string FloatMathFileName = "chipsharp_float_math.c";
 
+    /// <summary>
+    /// The C files with the transcendental functions of Math and MathF (src/ChipSharp.Runtime.Shared, shared with the
+    /// other runtimes): ChipSharp's entry points, and the functions they call from musl and from AMD's math library.
+    /// </summary>
+    public static IReadOnlyList<string> MathFileNames { get; } =
+        ["chipsharp_math.c", "chipsharp_math_musl.c", "chipsharp_math_amd.c"];
+
     /// <summary>Objects, the allocator and the garbage collector (src/ChipSharp.Runtime.Shared), for a target with a heap.</summary>
     public const string HeapFileName = "chipsharp_heap.c";
 
@@ -73,7 +80,7 @@ public sealed class ArmV6MRuntime : IArchRuntime
         return new RuntimeSources(
         [
             Source(StartupFileName), Source(HelpersFileName), Source(DivModFileName), Source(FloatCompareFileName),
-            Source(FloatMathFileName), .. CompilerRt.Sources(), Source(FailuresFileName), Source(StringFileName),
+            Source(FloatMathFileName), .. MathFileNames.Select(Source), .. CompilerRt.Sources(), Source(FailuresFileName), Source(StringFileName),
             Source(ExceptionsFileName),
             .. target.HasHeap
                 ? [Source(HeapFileName), Source(HeapChipFileName), Source(StringHeapFileName), Source(FloatTextFileName)]

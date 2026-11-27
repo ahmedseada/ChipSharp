@@ -44,8 +44,8 @@ public sealed class Rp2040RuntimeTests
         var softFloat = CompilerRt.Sources().Select(f => f.FileName).ToList();
         Assert.Equal(
             ["armv6m_startup.c", "armv6m_helpers.c", "armv6m_divmod.S", "armv6m_float_compare.c",
-                ArmV6MRuntime.FloatMathFileName, .. softFloat, ArmV6MRuntime.FailuresFileName, "chipsharp_string.c",
-                "chipsharp_exceptions.c",
+                ArmV6MRuntime.FloatMathFileName, .. ArmV6MRuntime.MathFileNames, .. softFloat,
+                ArmV6MRuntime.FailuresFileName, "chipsharp_string.c", "chipsharp_exceptions.c",
                 "chipsharp_heap.c", "armv6m_heap.c", "chipsharp_string_heap.c", "chipsharp_float_text.c", "rp2040_boot2.S",
                 "rp2040_runtime.c", Rp2040Runtime.ConsoleFileName, "rp2040_failures.c", "rp2040_i2c.c", "rp2040_spi.c",
                 Rp2040Runtime.UartFileName, Rp2040Runtime.AdcFileName, Rp2040Runtime.PwmFileName],
@@ -103,14 +103,15 @@ public sealed class Rp2040RuntimeTests
         var files = runtime.Startup(pico).Files;
         var source = files.Single(f => f.FileName == Rp2040Runtime.SourceFileName).Content;
         var console = files.Single(f => f.FileName == Rp2040Runtime.ConsoleFileName).Content;
-        var floatMath = files.Single(f => f.FileName == ArmV6MRuntime.FloatMathFileName).Content;
+        var floatMath = files.Single(f => f.FileName == ArmV6MRuntime.FloatMathFileName).Content
+            + files.Single(f => f.FileName == ArmV6MRuntime.MathFileNames[0]).Content;
         var heap = files.Single(f => f.FileName == ArmV6MRuntime.HeapFileName).Content;
         var interrupts = runtime.InterruptEntry(pico).Files
             .Single(f => f.FileName == Rp2040Runtime.InterruptsFileName).Content;
 
-        // the Math methods are in the float math every runtime shares, Console's in the console output every runtime
-        // shares, which writes through the chip's own chipsharp_console_write, and GC's in the heap every runtime with
-        // one shares; the rest is the chip's own
+        // the Math methods are in the float math every runtime shares (the exact ones) and in its chipsharp_math.c,
+        // Console's in the console output every runtime shares, which writes through the chip's own
+        // chipsharp_console_write, and GC's in the heap every runtime with one shares; the rest is the chip's own
         Assert.All(KnownExternals.All, function =>
         {
             var symbol = LlvmCodeGenerator.SymbolName(function.DisplayName);

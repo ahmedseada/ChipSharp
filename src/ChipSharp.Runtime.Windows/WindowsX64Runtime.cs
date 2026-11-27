@@ -8,7 +8,8 @@ namespace ChipSharp.Runtime.Windows;
 /// goes (<c>chipsharp_console_write</c>: standard output) in <see cref="SourceFileName"/>, and, shared with the other
 /// runtimes, Console.Write and Console.WriteLine (<c>ChipSharp_Runtime_Write...</c>, <c>ChipSharp_Runtime_WriteLine...</c>)
 /// in <see cref="ConsoleFileName"/>, the text of floats and doubles in <see cref="FloatTextFileName"/> and fmod and the
-/// Math methods in <see cref="FloatMathFileName"/> (the float arithmetic itself is the PC's). It needs no C runtime, only kernel32. A PC has no interrupts to enter and its
+/// Math methods in <see cref="FloatMathFileName"/> and <see cref="MathFileNames"/> (the float arithmetic itself is the
+/// PC's). It needs no C runtime, only kernel32. A PC has no interrupts to enter and its
 /// atomics are plain instructions, so those parts are empty. Next to it: what the program does where .NET would throw
 /// (<see cref="FailuresFileName"/>), and what a C runtime would give the code LLVM writes (<see cref="MemoryFileName"/>,
 /// <see cref="StackProbeFileName"/>). For a target with a heap, objects and their garbage collector, shared with the
@@ -34,6 +35,14 @@ public sealed class WindowsX64Runtime : IArchRuntime
     /// runtimes (src/ChipSharp.Runtime.Shared).
     /// </summary>
     public const string FloatMathFileName = "chipsharp_float_math.c";
+
+    /// <summary>
+    /// The C files with the transcendental functions of Math and MathF (Sin, Exp, Pow, ...), shared with the other
+    /// runtimes (src/ChipSharp.Runtime.Shared): ChipSharp's entry points, and the functions they call from musl and from
+    /// AMD's math library. The linker keeps only those a program calls.
+    /// </summary>
+    public static IReadOnlyList<string> MathFileNames { get; } =
+        ["chipsharp_math.c", "chipsharp_math_musl.c", "chipsharp_math_amd.c"];
 
     /// <summary>What a program does where .NET would throw: <c>ChipSharp_Runtime_IndexOutOfRange</c> (exit code 1).</summary>
     public const string FailuresFileName = "chipsharp_failures.c";
@@ -90,6 +99,7 @@ public sealed class WindowsX64Runtime : IArchRuntime
             new GeneratedFile(ConsoleFileName, Console),
             new GeneratedFile(FloatTextFileName, FloatText),
             new GeneratedFile(FloatMathFileName, FloatMath),
+            .. MathFileNames.Select(name => new GeneratedFile(name, Read(name))),
             new GeneratedFile(FailuresFileName, Read(FailuresFileName)),
             new GeneratedFile(MemoryFileName, Read(MemoryFileName)),
             new GeneratedFile(StackProbeFileName, Read(StackProbeFileName)),

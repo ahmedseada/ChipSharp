@@ -70,32 +70,18 @@ public sealed class IlToTirErrorTests
         var error = Error("""
             class Program
             {
-                static void Main() => System.Console.WriteLine(System.Math.Abs(-5));
+                static void Main() => System.Console.WriteLine(int.Abs(-5));
             }
             """);
 
-        Assert.Equal("Test.dll: Program.Main() at IL_0002: the call to System.Math.Abs(int32) is not supported: " +
-            "of the library, ChipSharp can call System.Console.Write(string), System.Console.Write(char), " +
-            "System.Console.Write(int), " +
-            "System.Console.Write(uint), System.Console.Write(long), System.Console.Write(ulong), " +
-            "System.Console.Write(bool), System.Console.Write(float), System.Console.Write(double), " +
-            "System.Console.WriteLine(), System.Console.WriteLine(string), System.Console.WriteLine(char), " +
-            "System.Console.WriteLine(int), " +
-            "System.Console.WriteLine(uint), System.Console.WriteLine(long), System.Console.WriteLine(ulong), " +
-            "System.Console.WriteLine(bool), System.Console.WriteLine(float), System.Console.WriteLine(double), " +
-            "System.Math.Abs(double), System.Math.Abs(float), System.Math.Min(double, double), " +
-            "System.Math.Min(float, float), System.Math.Max(double, double), System.Math.Max(float, float), " +
-            "System.Math.Sqrt(double), System.MathF.Abs(float), System.MathF.Min(float, float), " +
-            "System.MathF.Max(float, float), System.MathF.Sqrt(float), " +
-            "System.GC.Collect(), System.GC.GetTotalMemory(bool), System.GC.KeepAlive(object), " +
-            "ChipSharp.Hardware.Pin.Output(int), ChipSharp.Hardware.Pin.Input(int), " +
-            "ChipSharp.Hardware.Pin.Write(int, bool), ChipSharp.Hardware.Pin.Toggle(int), ChipSharp.Hardware.Pin.Read(int), " +
-            "ChipSharp.Hardware.Timing.DelayMilliseconds(int), ChipSharp.Hardware.Timing.DelayMicroseconds(int), " +
-            "ChipSharp.Hardware.Registers.Read(uint), ChipSharp.Hardware.Registers.Write(uint, uint), " +
-            "ChipSharp.Hardware.Timing.EveryMilliseconds(int), ChipSharp.Hardware.Timing.EveryMicroseconds(int), " +
-            "ChipSharp.Hardware.Timing.AfterMilliseconds(int), ChipSharp.Hardware.Timing.AfterMicroseconds(int), " +
-            "ChipSharp.Hardware.Timing.Stop(), ChipSharp.Hardware.Pin.Watch(int), ChipSharp.Hardware.Pin.WatchRising(int), " +
-            "ChipSharp.Hardware.Pin.WatchFalling(int), ChipSharp.Hardware.Pin.Unwatch(int).", error.Message);
+        Assert.Equal("Test.dll: Program.Main() at IL_0002: the call to System.Int32.Abs(int32) is not supported: " +
+            "of the library, ChipSharp can call " +
+            string.Join(", ", KnownExternals.All.Select(function => function.LibraryMethod)) + ".", error.Message);
+        Assert.Contains("ChipSharp can call System.Console.Write(string), System.Console.Write(char), ", error.Message);
+        Assert.Contains(", System.Math.Sqrt(double), System.MathF.Abs(float), ", error.Message);
+        Assert.Contains(", System.Math.Sin(double), System.MathF.Sin(float), ", error.Message);
+        Assert.Contains(", System.Math.ScaleB(double, int), ", error.Message);
+        Assert.EndsWith(", ChipSharp.Hardware.Pin.Unwatch(int).", error.Message);
     }
 
     [Fact]

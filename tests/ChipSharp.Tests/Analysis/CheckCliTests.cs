@@ -59,7 +59,7 @@ public sealed class CheckCliTests : IDisposable
         Assert.Equal(1, exitCode);
         Assert.Equal($"""
             error: {dll} uses 2 C# features that ChipSharp does not compile yet (2 places):
-              the library method System.Math.Abs(int) is not available yet: 1 place in Program.Main() (IL_000e).
+              the library method int.Abs(int) is not available yet: 1 place in Program.Main() (IL_000e).
               checked arithmetic arrives later: 1 place in Program.Half(int) (IL_000c). For now, leave out checked: ChipSharp's arithmetic wraps around on overflow, like unchecked C#.
             {WholeProgram.LibraryCalls}
             For every place, run: chipsharp check {ChipSharpCli.Quoted(dll)} --details
@@ -78,7 +78,7 @@ public sealed class CheckCliTests : IDisposable
         Assert.Equal(1, exitCode);
         Assert.Equal($"""
             error: {dll} uses 2 C# features that ChipSharp does not compile yet (2 places):
-              Program.Main() at IL_000e (call): the library method System.Math.Abs(int) is not available yet.
+              Program.Main() at IL_000e (call): the library method int.Abs(int) is not available yet.
               Program.Half(int) at IL_000c (conv.ovf.i4): checked arithmetic arrives later. For now, leave out checked: ChipSharp's arithmetic wraps around on overflow, like unchecked C#.
             {WholeProgram.LibraryCallDetails}
 
@@ -137,7 +137,7 @@ public sealed class CheckCliTests : IDisposable
             static void Main()
             {
                 Console.WriteLine((int)Half(7));
-                Console.WriteLine(Math.Abs(-3));
+                Console.WriteLine(int.Abs(-3));
             }
         }
         """, Path.Combine(_scratch, "Half.dll"));

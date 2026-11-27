@@ -47,7 +47,7 @@ public sealed class HostTargetTests
         Assert.Equal(["GetStdHandle", "WriteFile", "ExitProcess", "VirtualAlloc", "AddVectoredExceptionHandler",
                 "SetThreadStackGuarantee"],
             dlls["kernel32.dll"]!.AsArray().Select(f => f!.GetValue<string>()));
-        Assert.Equal(["-O2", "-nostdlib", "-fuse-ld=lld", "-Wno-override-module"],
+        Assert.Equal(["-O2", "-nostdlib", "-fuse-ld=lld", "-ffunction-sections", "-fdata-sections", "-Wno-override-module"],
             host.Settings["clang"]!["flags"]!.AsArray().Select(f => f!.GetValue<string>()));
     }
 
@@ -73,8 +73,9 @@ public sealed class HostTargetTests
 
         Assert.Equal(
             ["chipsharp_runtime.c", "chipsharp_console.c", "chipsharp_float_text.c", "chipsharp_float_math.c",
-                "chipsharp_failures.c", "chipsharp_memory.c", "chipsharp_chkstk.S", "chipsharp_string.c",
-                "chipsharp_exceptions.c", "chipsharp_heap.c", "chipsharp_heap_windows.c", "chipsharp_heap_size.c",
+                "chipsharp_math.c", "chipsharp_math_musl.c", "chipsharp_math_amd.c", "chipsharp_failures.c",
+                "chipsharp_memory.c", "chipsharp_chkstk.S", "chipsharp_string.c", "chipsharp_exceptions.c",
+                "chipsharp_heap.c", "chipsharp_heap_windows.c", "chipsharp_heap_size.c",
                 "chipsharp_string_heap.c"],
             files.Select(f => f.FileName));
         var file = files[0];
@@ -114,8 +115,9 @@ public sealed class HostTargetTests
         Assert.Contains("int chipsharp_float32_text(u32 bits, char *text)", files[2].Content);
         Assert.Contains("double fmod(double x, double y)", files[3].Content); // what LLVM calls for % on doubles
         Assert.Contains("float fmodf(float x, float y)", files[3].Content);
+        // the Math methods: the exact ones in the float math, the transcendental ones in chipsharp_math.c
         Assert.All(KnownExternals.All.Where(f => f.LibraryMethod.StartsWith("System.Math", StringComparison.Ordinal)),
-            f => Assert.Contains($" {LlvmCodeGenerator.SymbolName(f.DisplayName)}(", files[3].Content));
+            f => Assert.Contains($" {LlvmCodeGenerator.SymbolName(f.DisplayName)}(", files[3].Content + files[4].Content));
         Assert.Empty(runtime.InterruptEntry(host).Files);
         Assert.Empty(runtime.Atomics(host).Files);
     }

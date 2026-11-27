@@ -24,7 +24,7 @@ public sealed class RejectionTests
             static void Main()
             {
                 int[,] grid = new int[3, 3];
-                Console.WriteLine(Math.Abs(checked(grid.Length + 1)));
+                Console.WriteLine(int.Abs(checked(grid.Length + 1)));
             }
         }
         """;
@@ -39,7 +39,7 @@ public sealed class RejectionTests
               multi-dimensional arrays (int[,]) arrive later: 1 place in Program.Main() (IL_0002). {MultiDimensional}
               the library method System.Array.get_Length() is not available yet: 1 place in Program.Main() (IL_0007). {Loop}
               checked arithmetic arrives later: 1 place in Program.Main() (IL_000d). {Checked}
-              the library method System.Math.Abs(int) is not available yet: 1 place in Program.Main() (IL_000e).
+              the library method int.Abs(int) is not available yet: 1 place in Program.Main() (IL_000e).
             {LibraryCalls}
             For every place, run: chipsharp check Test.dll --details
             """.ReplaceLineEndings("\n"), error.Message);
@@ -56,7 +56,7 @@ public sealed class RejectionTests
               Program.Main() at IL_0002 (newobj): multi-dimensional arrays (int[,]) arrive later. {MultiDimensional}
               Program.Main() at IL_0007 (callvirt): the library method System.Array.get_Length() is not available yet. {Loop}
               Program.Main() at IL_000d (add.ovf): checked arithmetic arrives later. {Checked}
-              Program.Main() at IL_000e (call): the library method System.Math.Abs(int) is not available yet.
+              Program.Main() at IL_000e (call): the library method int.Abs(int) is not available yet.
             {LibraryCallDetails}
             """.ReplaceLineEndings("\n"), analysis.Details);
         Assert.Equal([2, 7, 13, 14], analysis.Problems.Select(problem => problem.Offset));
@@ -195,7 +195,7 @@ public sealed class RejectionTests
     }
 
     [Fact]
-    public void Floating_point_beyond_the_supported_Math_methods_and_unchecked_conversions()
+    public void Floating_point_library_methods_ChipSharp_does_not_have_and_checked_conversions()
     {
         var problems = Problems("""
             using System;
@@ -208,7 +208,7 @@ public sealed class RejectionTests
                 static void Main()
                 {
                     Console.WriteLine((int)Half(5));
-                    Console.WriteLine(Math.Sin(Third(9f)));
+                    Console.WriteLine(double.Exp10(Third(9f)));
                     Console.WriteLine(checked((int)Half(7)));
                 }
             }
@@ -216,7 +216,7 @@ public sealed class RejectionTests
 
         Assert.Equal(
         [
-            "Program.Main() at IL_0017 (call): the library method System.Math.Sin(double) is not available yet.",
+            "Program.Main() at IL_0017 (call): the library method double.Exp10(double) is not available yet.",
             "Program.Main() at IL_0027 (conv.ovf.i4): checked arithmetic arrives later. For now, leave out " +
                 "checked: ChipSharp's arithmetic wraps around on overflow, like unchecked C#.",
         ], problems);
@@ -454,13 +454,13 @@ public sealed class RejectionTests
             {
                 static void Main()
                 {
-                    Console.WriteLine(Math.Max(1, 2));
+                    Console.WriteLine(int.Max(1, 2));
                 }
             }
             """);
 
         Assert.Equal(
-            ["Program.Main() at IL_0002 (call): the library method System.Math.Max(int, int) is not available yet."],
+            ["Program.Main() at IL_0002 (call): the library method int.Max(int, int) is not available yet."],
             problems);
     }
 

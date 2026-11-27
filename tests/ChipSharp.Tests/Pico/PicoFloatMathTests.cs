@@ -61,12 +61,13 @@ public sealed partial class PicoFloatMathTests : IDisposable
     }
 
     /// <summary>
-    /// compiler-rt's routines, the comparisons and the shared float math, built for the Cortex-M0+ as a program
-    /// builds them, call only each other and the armv6m helpers (64-bit multiply and shifts), and all of them
-    /// together take under 10 KB of flash.
+    /// compiler-rt's routines, the comparisons and the shared float math (with Math's exact functions: Floor, Round,
+    /// ScaleB, ...), built for the Cortex-M0+ as a program builds them, call only each other and the armv6m helpers
+    /// (64-bit multiply and shifts), and all of them together take under 14 KB of flash (a program links only those it
+    /// uses).
     /// </summary>
     [PicoFact]
-    public void The_float_routines_need_only_each_other_and_the_armv6m_helpers_and_take_under_10_KB()
+    public void The_float_routines_need_only_each_other_and_the_armv6m_helpers_and_take_under_14_KB()
     {
         Directory.CreateDirectory(_scratch);
         var pico = PicoBuild.Pico;
@@ -104,7 +105,7 @@ public sealed partial class PicoFloatMathTests : IDisposable
             .Distinct().Order();
         Assert.Equal(["__aeabi_llsl", "__aeabi_llsr", "__aeabi_lmul"], outside);
         var size = CodeSection().Matches(sections).Sum(m => int.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture));
-        Assert.InRange(size, 5000, 10 * 1024 - 1);
+        Assert.InRange(size, 5000, 14 * 1024 - 1);
     }
 
     /// <summary>A program that uses no float links none of the float routines: they cost it no flash.</summary>
