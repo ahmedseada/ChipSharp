@@ -201,6 +201,64 @@ public sealed class BusCheckTests : IDisposable
     }
 
     [Fact]
+    public void Lcd_needs_an_I2C_bus_and_takes_a_Pico_without_a_heap()
+    {
+        const string Display = """
+            using ChipSharp.Hardware;
+
+            I2c.Open(1, sda: 26, scl: 27, frequency: 100_000);
+            if (Lcd.Open(1, 0x27, 16, 2))
+            {
+                Lcd.Line(0, "ready");
+                Lcd.Write(0, 1, 42);
+            }
+            """;
+        var noHeap = new TargetLoader(TargetFiles.WithShipped(Path.Combine(_scratch, "targets"),
+            ("pico-no-heap", """{ "inherits": "pico", "capabilities": { "heap": false } }"""))).Load("pico-no-heap");
+
+        Assert.True(Check(Display, Shipped.Load("pico")).IsSupported);
+        Assert.True(Check(Display, noHeap).IsSupported);
+
+        // on a chip without I2C, each of Lcd's calls needs a bus, as I2c's does
+        Assert.Equal(
+        [
+            "ChipSharp.Hardware.I2c needs an I2C bus, and the target 'tiny' has none. Build the program for a chip that " +
+                "has one: its target file says \"i2c\": true among its capabilities, as the Pico's does.",
+            .. Enumerable.Repeat("ChipSharp.Hardware.Lcd needs an I2C bus, and the target 'tiny' has none. Build the " +
+                "program for a chip that has one: its target file says \"i2c\": true among its capabilities, as the " +
+                "Pico's does.", 3),
+        ], Problems(Display, Tiny).Select(Message));
+    }
+
+    [Fact]
+    public void A_constant_size_no_HD44780_shows_and_a_bus_the_chip_does_not_have_are_named_for_Lcd_Open()
+    {
+        var problems = Problems("""
+            using ChipSharp.Hardware;
+
+            Lcd.Open(1, 0x27, 41, 2);
+            Lcd.Open(1, 0x27, 21, 4);
+            Lcd.Open(1, 0x27, 16, 5);
+            Lcd.Open(1, 0x27, 0, 1);
+            Lcd.Open(2, 0x27, 16, 2);
+            Lcd.Open(1, 0x27, 40, 2);
+            Lcd.Open(0, 0x3F, 20, 4);
+            Lcd.Open(0, 0x3F, 40, 1);
+            """, Shipped.Load("pico"));
+
+        const string Shows = "It shows 1 to 4 rows of 1 to 40 columns, 20 on more than two rows: e.g. 16 columns and 2 " +
+            "rows, or 20 and 4.";
+        Assert.Equal(
+        [
+            $"an LCD of 41 by 2 characters (Lcd.Open's columns and rows) is not one an HD44780 shows. {Shows}",
+            $"an LCD of 21 by 4 characters (Lcd.Open's columns and rows) is not one an HD44780 shows. {Shows}",
+            $"an LCD of 16 by 5 characters (Lcd.Open's columns and rows) is not one an HD44780 shows. {Shows}",
+            $"an LCD of 0 by 1 characters (Lcd.Open's columns and rows) is not one an HD44780 shows. {Shows}",
+            "I2C bus 2 (Lcd.Open's bus) does not exist on target 'pico'. Its I2C buses are 0 and 1.",
+        ], problems.Select(Message));
+    }
+
+    [Fact]
     public async Task Chipsharp_check_names_the_bus_problems_for_the_target_it_is_given()
     {
         var dll = Path.Combine(_scratch, "Buses.dll");

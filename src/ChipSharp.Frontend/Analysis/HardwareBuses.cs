@@ -138,7 +138,7 @@ internal static class HardwareBuses
             && !(across >= 1 && down >= 1 && down <= 4 && across <= (down > 2 ? 20 : 40)))
         {
             yield return Unsupported.BusArgument(
-                $"an LCD of {Text(across)} columns and {Text(down)} rows ({open}'s columns and rows) is not one an " +
+                $"an LCD of {Text(across)} by {Text(down)} characters ({open}'s columns and rows) is not one an " +
                 "HD44780 shows",
                 "It shows 1 to 4 rows of 1 to 40 columns, 20 on more than two rows: e.g. 16 columns and 2 rows, or 20 and 4.");
         }
