@@ -114,7 +114,8 @@ internal sealed partial class MethodLowering
         var call = _ir.Call(_program.RuntimeFunction(StringMethods.RuntimeFunction(method)), arguments);
         if (made is not null)
         {
-            Push(_ir.Call(_program.HeapArrayFunctions.FromObject(made), call));
+            // with its IL type (string[] of Split), which an ldelem.ref of it needs
+            PushArray(_ir.Call(_program.HeapArrayFunctions.FromObject(made), call), ValueTypes.WithoutModifiers(reference.ReturnType));
         }
         else if (isNew)
         {

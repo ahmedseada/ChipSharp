@@ -33,7 +33,8 @@ public sealed class WindowsRuntimeFilesTests
         Assert.Equal(
             ["chipsharp_runtime.c", "chipsharp_console.c", "chipsharp_float_text.c", "chipsharp_float_math.c",
                 "chipsharp_failures.c", "chipsharp_memory.c", "chipsharp_chkstk.S", "chipsharp_string.c",
-                "chipsharp_heap.c", "chipsharp_heap_windows.c", "chipsharp_heap_size.c", "chipsharp_string_heap.c"],
+                "chipsharp_exceptions.c", "chipsharp_heap.c", "chipsharp_heap_windows.c", "chipsharp_heap_size.c",
+                "chipsharp_string_heap.c"],
             files.Select(f => f.FileName));
         Assert.All(files, file => Assert.DoesNotContain("#include", file.Content));
         Assert.Contains("void ChipSharp_Runtime_IndexOutOfRange(void)", files[4].Content);

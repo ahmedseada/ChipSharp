@@ -46,7 +46,7 @@ that ChipSharp does not compile yet, where, when it is planned, and what to writ
 on a line of its own, and every library method ChipSharp can call). `tir` shows the program in TIR. `build` compiles
 it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` also keeps the `.tir` and `.ll` files.
 
-`dotnet test` runs 1521 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
+`dotnet test` runs 1614 tests. The PC tests need LLVM (`C:\Program Files\LLVM\bin`, or set `CHIPSHARP_CLANG` /
 `CHIPSHARP_LLVM_BIN`); the Pico tests also need the simulator (see below), and are skipped, saying why, without it.
 
 ## What C# compiles today
@@ -55,8 +55,8 @@ it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` 
 |---|---|
 | Methods | Static methods, top-level statements, local functions (that capture variables too), recursion; the methods, constructors, properties and operators of structs and classes |
 | Values | `bool`, `char`, every whole number (`sbyte` to `ulong`, `nint`, `nuint`), `float` and `double` (computed and printed bit for bit like .NET) |
-| Code | `if`, `switch`, `for`, `while`, `do`, `foreach` over arrays, `&&`, `\|\|`, `?:`, patterns on numbers; arithmetic wraps around like unchecked C# |
-| Types | Structs, enums (`[Flags]` too), `ref`, `out` and `in` parameters, `ref` locals |
+| Code | `if`, `switch`, `for`, `while`, `do`, `foreach` over arrays and collections, `&&`, `\|\|`, `?:`, patterns on numbers; `try`/`finally` (nested, `return`, `break` and `continue` out of it), `using` statements and declarations, `throw`; arithmetic wraps around like unchecked C# |
+| Types | Structs, enums (`[Flags]` too), `ref`, `out` and `in` parameters (of values, objects and strings: `TryGetValue(key, out string name)`), `ref` locals |
 | Classes | On a target with a heap: the program's classes, `sealed` or not, nested, derived from each other (and from an `abstract` class): `new`, fields of the types above, of objects (the class itself too: lists, trees) and of structs holding objects, field initializers, constructors (overloads, `this(...)`, `base(...)`), instance and static methods and properties, `this`, a method hidden with `new`; objects in locals, parameters, return values, the fields of objects and of structs, and static fields; `null`, `==`, `!=`, `is null`, `ReferenceEquals`, `?.` and `??` (`??=` too), object initializers (`new Node { Value = 1 }`), `object`. The garbage collector frees what the program no longer reaches |
 | Virtual calls | On a target with a heap: `virtual`, `override` and `abstract` methods and properties over any number of levels, `sealed override`, `base.M()`, a `new virtual` method that opens a slot of its own; object's `Equals` and `GetHashCode` (overridden, `base.Equals`, and object's own: the same object, and a number that stays the same for it). A call that only one method can answer, on every object the program makes that the variable can hold, is a plain call (a sealed class, a sealed override, a single subclass made), and a method no object of the program can run is left out |
 | Interfaces of classes | Classes that implement interfaces implicitly and explicitly, through a base class, again in a derived class, interfaces that inherit interfaces, default methods, properties, generic interfaces (`IStore<int>`, `IRepository<Lane>`) with variance (`out T`, `in T`: an `IProducer<Dog>` is an `IProducer<Animal>` in calls, casts and `is`), the library's `IComparable`, `IComparable<T>`, `IEquatable<T>` and `IDisposable`, and the collections' `IEnumerable<T>`, `IEnumerator<T>`, `ICollection<T>`, `IList<T>`, `IReadOnlyCollection<T>`, `IReadOnlyList<T>`, `IComparer<T>` and `IEqualityComparer<T>` (and `IEnumerable`, `IEnumerator`); interfaces as the types of locals, parameters, return values, fields and static fields |
@@ -65,6 +65,8 @@ it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` 
 | Nullables | `int?`, `bool?`, nullable enums and structs, with no heap, on every target: `HasValue`, `Value` (.NET's `InvalidOperationException` message with none), `GetValueOrDefault`, `??`, `default`, lifted arithmetic and comparisons, `is int n`; in locals, parameters, return values, fields, arrays and static fields; printed and in text (nothing with no value); boxed as .NET boxes them (null with no value, else the value's box) and unboxed back |
 | Generics | Generic methods, structs and static classes over values (numbers, bools, enums, structs, generic structs, text), nested in each other: `static T Max<T>(T a, T b) where T : IComparable<T>`, `static void Swap<T>(ref T a, ref T b)`, `struct Pair<T>`, made once for each type argument, with no heap. On a target with a heap also over classes, interfaces, `object` and arrays, and generic classes (`class Stack<T>` of `Node<T>`, `class Derived<T> : Base<T>`, `class IntBox : Box<int>`, a class nested in one), each instance a class of its own with its own static fields and .NET's name (``Box`1[Program+Lane]``); constraints (`where T : class`, `where T : Animal`, `where T : IShape`, `where T : new()`, `where T : unmanaged`), `default(T)` (null), `new T()`, `new T[n]`, casts, `is` and `as` to `T`; generic virtual methods and generic methods of interfaces and of generic classes; the library's generic code over the program's types (`span.IndexOf(point)`, `Array.Sort` of structs that implement `IComparable<T>`); `EqualityComparer<T>.Default` and `Comparer<T>.Default` with .NET's results, with no boxing; `foreach` over a collection of the program's whose `GetEnumerator()` gives a struct or a sealed class. Interfaces implemented by structs, through a constraint (`static void Run<T>(ref T device) where T : struct, IDevice`, explicit implementations and static abstract members too) or called on the struct itself; `CompareTo`, `Equals`, `GetHashCode` and `ToString` of a number `T`; generic math (`INumber<T>`): the operators, comparisons, `T.Zero`, `T.One`, `MinValue`, `MaxValue`; `default(T)`, `typeof(T) == typeof(int)`, `sizeof(T)`; a `T` printed and in printed text |
 | Delegates | On a target with a heap: `Action`, `Func<...>`, `Predicate<T>`, `Comparison<T>`, `Converter<TInput, TOutput>`, `EventHandler<T>` and the program's own delegate types (generic ones too), over values, text and objects; made of static and instance methods, virtual and interface methods (the override of the object they are made of), extension methods, library methods (`Action<int> print = Console.WriteLine;`), generic methods, and lambdas (`static` ones too) that capture nothing, variables, `this`, the variables of outer scopes and loop variables (`foreach` gives each its own, as .NET does), in generic methods too; `d(x)`, `d.Invoke(x)`, `d?.Invoke(x)` (null stops the program with .NET's `NullReferenceException` message); `+`, `-`, `+=` and `-=` with .NET's order and what is left (the last occurrence of a list taken out), every delegate of a multicast one called in order and the last one's result, `GetInvocationList`, `==`, `!=`, `Equals`, `GetHashCode`, `ToString` (the type's name), `is` and `as`; field-like events (`event Action Changed`, static ones too) and events with their own `add` and `remove`; delegates in locals, fields, static fields, arrays and as type arguments. A local function that is only called keeps what it captures in a struct, with no heap, on every target; an interrupt handler may invoke a delegate kept in a static field |
+| Exceptions | On a target with a heap: `throw` of .NET's exceptions (`InvalidOperationException`, `ArgumentException`, `ArgumentNullException` and `ArgumentOutOfRangeException` with the parameter's name, `KeyNotFoundException`, `NotSupportedException`, `NotImplementedException`, `IndexOutOfRangeException`, `FormatException`, `OverflowException`, `ObjectDisposedException`, ...; `ArgumentNullException.ThrowIfNull` and the like) and of the program's own (derived from `Exception` or one of those, `Message` and `ToString` overridden), in a method, a `?? throw` and a `switch` arm: the program stops with what .NET prints for an exception nothing catches; an exception as a value too (`Message`, `ToString()`, `InnerException`, `ParamName`, .NET's default messages) |
+| Collections | On a target with a heap: `List<T>`, `Dictionary<TKey, TValue>` (`Keys`, `Values`, a custom `IEqualityComparer<T>`, `GetValueOrDefault`), `HashSet<T>`, `Queue<T>`, `Stack<T>` and `KeyValuePair<TKey, TValue>` (deconstructed too), of values, text and objects, with .NET's growth, order (after removals too), checks, messages and enumerators that stop when the collection changes; collection initializers (`new List<int> { 1, 2 }`, `{ ["a"] = 1 }`, `{ { "a", 1 } }`) and collection expressions of values into a list (`List<int> l = [1, 2, 3];`, `[.. array, 0, .. list]`); arrays as `IEnumerable<T>`, `ICollection<T>`, `IList<T>`, `IReadOnlyList<T>`, `IReadOnlyCollection<T>` and `IEnumerable` (and in `is`, `as` and casts) |
 | Static fields | Of the types above, `volatile` too, with field initializers and static constructors |
 | Arrays | Of numbers, bools, structs and enums, on the stack: a constant size, kept in the method that makes them and passed down to the methods it calls. On a target with a heap also on the heap: returned, kept in static fields, in the fields of objects and in other arrays, of a size known only when the program runs (`new int[n]`), `null` (`a == null`, `a?.Length ?? 0`), arrays of arrays (`int[][]`), of objects and of the program's classes; `[]` and `Array.Empty<T>()`, `foreach`, `.Length`, bounds checks and .NET's messages for null and a negative length. An array that stays in its method with a constant size is still on the stack |
 | Spans | `Span<T>` and `ReadOnlySpan<T>` with no heap, of arrays, of `stackalloc` (a constant size, initializers too), of constant data (`static ReadOnlySpan<byte> Digits => new byte[] { 0x3F, ... };`, in flash on a chip) and of variables (`MemoryMarshal.CreateSpan(ref x, 1)`): the indexer (`ref` too), `Length`, `IsEmpty`, `Slice`, ranges and indices (`s[2..5]`, `s[^1]`), `foreach`, `CopyTo`, `TryCopyTo`, `Fill`, `Clear`, `==`; as parameters, locals, return values and fields of a ref struct, of a generic `T` too |
@@ -76,9 +78,8 @@ it for a target (`host` is your PC) into `chipsharp-output\<target>\`; `--keep` 
 
 | Not yet | When |
 |---|---|
-| Records, `StringBuilder`, a `params` span of text (`string.Join(", ", a, b, c)`: give an array), the other formats (`F2`, `N0`), a format of an object or a struct (`$"{o:X2}"`) and `string.Format` of a format known only when the program runs or of an `object[]`, culture-aware comparisons and the case of letters past U+00FF, `ref` and `out` of a string; boxing a library struct (`(object)TimeSpan.Zero`), `unbox` to the address in a box of a nullable, type tests against `System.ValueType` and `System.Enum`, `Enum.HasFlag`, `GetType()`, `ref` and `out` of an object, type tests against library classes; an array in the field of a struct, `ToArray` of a span | With M3 (the heap) |
-| Exceptions (`try`, `catch`, `finally`, `throw`, `using`), `checked` arithmetic, multi-dimensional arrays, array covariance (`object[] items = new int[2][]`), `ref` and `out` of an array (but `Array.Resize(ref a, n)`), a static array kept outside its field, unsafe code (pointers, `stackalloc` into a pointer, `stackalloc` of a size known only when the program runs), collection expressions as spans (`Span<int> s = [1, 2];`), function pointers (`delegate*`), delegates that take or return arrays or spans (`Action<int[]>`), `BeginInvoke` and `EndInvoke`, `typeof`, finalizers, classes derived from library classes | Later |
-| The library's collections (`List<T>`, `Dictionary<TKey, TValue>`, ...), `foreach` over an enumerator that is disposed (one that implements `IDisposable`, as every `IEnumerator<T>` does: a `foreach` over an `IEnumerable<T>`), which C# does in a `try`/`finally`; an array used as an interface (`IEnumerable<int> e = numbers;`) | With M3 (collections) |
+| Records, `StringBuilder`, a `params` span of text (`string.Join(", ", a, b, c)`: give an array), the other formats (`F2`, `N0`), a format of an object or a struct (`$"{o:X2}"`) and `string.Format` of a format known only when the program runs or of an `object[]`, culture-aware comparisons and the case of letters past U+00FF; boxing a library struct (`(object)TimeSpan.Zero`; but `KeyValuePair` and the collections' enumerators), `unbox` to the address in a box of a nullable, type tests against `System.ValueType` and `System.Enum`, `Enum.HasFlag`, `GetType()`, type tests against library classes; an array in the field of a struct, `ToArray` of a span; `List<T>`'s non-generic `IList` and `ICollection`, `AsReadOnly`, a collection expression into a list of objects or text (it fills the list through a span, and spans of objects arrive later), `SortedDictionary`, `LinkedList` and the other collections, an array of a class as the interfaces of its base classes (`IList<Animal>` of a `Dog[]`) | With M3 (the heap) |
+| Catching exceptions (`try`/`catch`, filters), and the finally blocks .NET 10 runs after it prints an exception nothing catches (ChipSharp stops there; a `finally` runs when its try block is left normally), `checked` arithmetic, multi-dimensional arrays, array covariance (`object[] items = new int[2][]`), `ref` and `out` of an array (but `Array.Resize(ref a, n)`), a static array kept outside its field, unsafe code (pointers, `stackalloc` into a pointer, `stackalloc` of a size known only when the program runs), collection expressions as spans (`Span<int> s = [1, 2];`), function pointers (`delegate*`), delegates that take or return arrays or spans (`Action<int[]>`), `BeginInvoke` and `EndInvoke`, `typeof`, finalizers, classes derived from library classes ChipSharp has no C# for | Later |
 | `Array.Copy` between arrays of different element types (`int[]` into `long[]`), `Array.Sort` and `BinarySearch` of enums, structs that do not implement `IComparable<T>` and objects, `Array.IndexOf` of structs, of `object` and of classes with an `Equals` of their own | Later |
 | Other library types and methods (`decimal`, `Random`, `Math.Sin`, `array.GetValue(i)`, the overloads of `System.Array` that take an `IComparer`, ...) | Not yet: `chipsharp check` lists the methods there are, and for `System.Array` says to write the loop |
 
@@ -404,9 +405,52 @@ enum and a type that implements `IEquatable<T>` (`IComparable<T>`) through it (N
 its `Equals(object)` (`IComparable`), text as string compares it, null equal to null and before everything else. The
 collections' interfaces (`IEnumerable<T>`, `IList<T>`, `IReadOnlyList<T>`, `IEqualityComparer<T>`, ...) are interfaces a
 class of the program implements and is called through, and `foreach` over a collection of the program's uses its
-`GetEnumerator()`: a struct or a sealed class without `Dispose`, as C# makes no `try`/`finally` for one. A `foreach`
-over an enumerator that is disposed (every `IEnumerator<T>`), and an array used as an interface, arrive with the
-collections; `chipsharp check` says what to write for now.
+`GetEnumerator()`, and one over an enumerator that is disposed (every `IEnumerator<T>`) runs its `try`/`finally`; an
+array is an interface of collections too (see Collections, below).
+
+### Exceptions and collections
+
+**try/finally.** ChipSharp has no exceptions to catch: where .NET throws, the program stops, so a `finally` runs only
+when its try block is left normally, by a `leave` (the end of the block, `return`, `break`, `continue`). Before anything
+reads a method's IL, its finally regions become plain branches (`src/ChipSharp.Frontend/TryFinally.cs`): a `leave` goes
+to the innermost finally it leaves, whose `endfinally` goes on to the next one and at last to the leave's target. A
+finally that can go on one way only (the end of a `using` block) ends with a branch there; one that can go on several
+ways (a `return` out of a `using` block, besides its end) is entered through a store of the way's number in a local of
+its own, and ends with a `switch` on it. The finally is kept once, where it is, and the stores and switches go after the
+method's IL, so every instruction keeps its offset (`chipsharp il` shows the IL as it is); LLVM folds the switch where
+the number is known. `using` of a struct and a `foreach` over a struct enumerator call the struct's own `Dispose`. A
+method that catches (`try`/`catch`, a filter) keeps its regions, and `chipsharp check` says catching arrives later.
+
+**throw.** The exceptions are library substitutes of .NET's (`src/ChipSharp.Library/Exceptions`), with .NET 10's default
+messages, parameter names (` (Parameter 'name')`), `Actual value was ...` and inner exceptions; a class of the program
+derives from them like from any class. A `throw` calls `Exceptions.Thrown.Unhandled`, which prints `Unhandled exception. `
+and the exception's `ToString()` (an override too), as .NET does for an exception nothing catches, on standard error with
+exit code 1 on a PC, over UART0 and at a breakpoint on a chip; .NET's stack trace after it is not there, and .NET 10 runs
+the finally blocks around the throw after it prints, which ChipSharp does not. `throw null` stops with
+NullReferenceException's message, as in .NET. An exception is an object, so a `throw` needs a heap.
+
+**Collections.** `List<T>`, `Dictionary<TKey, TValue>`, `HashSet<T>`, `Queue<T>`, `Stack<T>` and `KeyValuePair` are .NET
+10's own code ported to library substitutes (`src/ChipSharp.Library/Collections`): the same growth (a list's capacity 4,
+8, 16, ...; a dictionary's primes 3, 7, 17, 37, ...), the same checks in the same order with .NET's exceptions and
+messages ("The given key 'x' was not present in the dictionary.", "Collection was modified; enumeration operation may
+not execute."), the same version checks (a dictionary's `Remove` and the set of a key that is there do not stop an
+enumerator, as in .NET), struct enumerators for `foreach`, and the same order: a dictionary and a set keep their entries
+in the order they were added, a removed one on a list of free entries the next ones take (the last freed first), so
+they enumerate as .NET's whatever the hash codes are (a string's is FNV-1a here). Keys and items compare with
+`EqualityComparer<T>.Default` (or the comparer given), a list sorts with .NET's introsort through `Comparer<T>.Default`
+(floats and doubles as `Array.Sort` of numbers does, NaNs first). `CollectionLibraryTests` run them next to .NET's own on
+thousands of random operations. A `ref`, `out` or `in` of an object or a string (`TryGetValue(key, out string name)`)
+is the address of the variable that holds it (`src/ChipSharp.Frontend/ObjectReferences.cs`).
+
+**Arrays as interfaces.** A `T[]` is an `IList<T>`, `ICollection<T>`, `IEnumerable<T>`, `IReadOnlyList<T>` and
+`IReadOnlyCollection<T>` (`src/ChipSharp.Frontend/ArrayInterfaces.cs`): the library's `SzArray<T>` (.NET's
+SZArrayHelper) has their methods, with the array as `this`. No object of it is made: where the program uses an array of
+T as an object or an interface, rapid type analysis takes it as made, so calls through those interfaces reach its
+methods (one only an array can answer is a plain call), and the descriptor of `T[]` gets its interface map, so a call, a
+cast and `o is IList<int>` find it in the array's header as in an object's. An array used so is on the heap.
+
+`samples/Collections.cs` counts the commands of a serial line in a dictionary, queues them, undoes them from a stack,
+sorts sensors and frees thousands of short-lived collections; on the Pico it takes 29.9 KB of flash.
 
 ### Library substitutes
 
@@ -415,9 +459,10 @@ Some library types are compiled from ChipSharp's own C#, in `src/ChipSharp.Libra
 ChipSharp compiles the substitute's public member with the same name and signature, together with the program, and only
 the members the program reaches; a struct substitute has the library struct's fields (`TimeSpan` is one `long` of
 ticks). A member the substitute does not have stays "not available yet". A substitute is written in the C# ChipSharp
-compiles, may use other substitutes, and stops the program where .NET throws by calling a method of
-`ChipSharp.Library.Runtime`, which becomes a call to the runtime function of that name (each runtime's
-`..._failures.c` has one per method). So a new library type is C# in `src/ChipSharp.Library`, not compiler code; its
+compiles, may use other substitutes, and stops the program where .NET throws: with a `throw` of .NET's exception (the
+collections do, see Exceptions and collections), or by calling a method of `ChipSharp.Library.Runtime`, which becomes a
+call to the runtime function of that name (each runtime's `..._failures.c` has one per method). A class of the program
+may derive from a substitute's class (`Exception`, `List<T>`). So a new library type is C# in `src/ChipSharp.Library`, not compiler code; its
 tests compare it with .NET's, value by value.
 
 ### Classes

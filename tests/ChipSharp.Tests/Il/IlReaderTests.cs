@@ -273,7 +273,7 @@ public sealed class IlReaderTests
                     }
                 }
             }
-            """), "Guarded.Run").Body!;
+            """), "Guarded.Run").BodyAsRead!;
 
         var region = Assert.Single(body.ExceptionRegions);
         Assert.Equal(new IlExceptionRegion(IlExceptionRegionKind.Finally, 0x00, 0x08, 0x08, 0x07, null, null), region);

@@ -144,7 +144,7 @@ public static partial class WholeProgramPass
                     : ForLibraryNew(constructor);
 
             case { OpCode: IlOpCode.Ldind_Ref or IlOpCode.Stind_Ref }:
-                return Unsupported.ObjectReferences;
+                return null; // a reference to an object or a string (ObjectReferences)
 
             case { Name: var name } when name.StartsWith("conv.", StringComparison.Ordinal) && TakesAddress(Previous(method, instruction)):
                 // &x: the address of a local or field, as a number

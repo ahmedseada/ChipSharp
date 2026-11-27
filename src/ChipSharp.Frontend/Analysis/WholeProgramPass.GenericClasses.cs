@@ -9,18 +9,15 @@ namespace ChipSharp.Frontend.Analysis;
 public static partial class WholeProgramPass
 {
     /// <summary>
-    /// What the try block at <paramref name="tryOffset"/> of <paramref name="method"/> is: a foreach over an enumerator
-    /// that C# disposes (its finally calls Dispose, its try MoveNext), which arrives with the collections; else
-    /// try/catch/finally.
+    /// What the try block at <paramref name="tryOffset"/> of <paramref name="method"/> is: one that catches, as the only
+    /// try blocks left by now are in a method with a catch (a try/finally, a using and a foreach are plain branches, see
+    /// <see cref="TryFinally"/>).
     /// </summary>
-    private static Unsupported ForTry(IlMethod method, int tryOffset) =>
-        method.Body!.ExceptionRegions.Any(region => region.TryOffset == tryOffset && IsDisposedEnumerator(method, region))
-            ? Unsupported.DisposedEnumerators
-            : Unsupported.TryCatchFinally;
+    private static Unsupported ForTry(IlMethod method, int tryOffset) => Unsupported.TryCatch;
 
     /// <summary>
-    /// The verdicts on the instructions that leave the try block and end the finally of a foreach over an enumerator that
-    /// is disposed: none (null), as they are part of the try block's problem (<see cref="ForTry"/>).
+    /// The verdicts on the instructions that leave the try block and end the finally of a foreach in a method that also
+    /// catches: none (null), as they are part of the try block's problem (<see cref="ForTry"/>).
     /// </summary>
     private static IEnumerable<KeyValuePair<IlInstruction, Unsupported?>> ForDisposedEnumerators(IlMethod method)
     {

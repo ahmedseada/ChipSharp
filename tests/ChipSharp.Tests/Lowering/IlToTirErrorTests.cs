@@ -139,7 +139,7 @@ public sealed class IlToTirErrorTests
     }
 
     [Fact]
-    public void Exception_handling_is_an_error_at_the_try()
+    public void Catching_an_exception_is_an_error_at_the_try()
     {
         var error = Error("""
             class Program
@@ -150,7 +150,7 @@ public sealed class IlToTirErrorTests
                     {
                         System.Console.WriteLine(1);
                     }
-                    finally
+                    catch (System.InvalidOperationException)
                     {
                         System.Console.WriteLine(2);
                     }
@@ -158,8 +158,8 @@ public sealed class IlToTirErrorTests
             }
             """);
 
-        Assert.Equal("Test.dll: Program.Main() at IL_0000: try, catch and finally are not supported yet " +
-            "(they arrive later).", error.Message);
+        Assert.Equal("Test.dll: Program.Main() at IL_0000: catching exceptions (try/catch) is not supported yet " +
+            "(it arrives later).", error.Message);
     }
 
     [Fact]

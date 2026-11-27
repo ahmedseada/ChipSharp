@@ -92,7 +92,7 @@ internal sealed class IlBlock
         _ => [],
     };
 
-    /// <summary>True for the instructions after which a new block starts: branches, switch and ret.</summary>
+    /// <summary>True for the instructions after which a new block starts: branches, switch, ret and throw.</summary>
     public static bool EndsBlock(IlInstruction instruction) =>
-        instruction.Operand is IlBranchOperand or IlSwitchOperand || instruction.OpCode == IlOpCode.Ret;
+        instruction.Operand is IlBranchOperand or IlSwitchOperand || instruction.OpCode is IlOpCode.Ret or IlOpCode.Throw;
 }

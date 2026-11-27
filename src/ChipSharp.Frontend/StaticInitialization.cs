@@ -91,6 +91,16 @@ internal static class StaticInitialization
             }
         }
 
+        // then those of the methods only a virtual call or an interface reaches (an override, an array's IList<T>.IndexOf),
+        // in the order the program reached them
+        foreach (var method in methods.Skip(1))
+        {
+            foreach (var type in TypesUsedByRunning(method, program))
+            {
+                Initialize(type);
+            }
+        }
+
         return order;
     }
 

@@ -182,7 +182,7 @@ public sealed class ClassCheckTests : IDisposable
     }
 
     [Fact]
-    public void Records_finalizers_and_classes_derived_from_library_classes_are_rejected_where_used_and_generic_classes_compile()
+    public void Records_finalizers_and_classes_derived_from_library_classes_are_rejected_where_used_and_generic_classes_and_exceptions_compile()
     {
         var analysis = WholeProgram.Check("""
             using System;
@@ -229,21 +229,21 @@ public sealed class ClassCheckTests : IDisposable
             }
             """);
 
-        // Box<int> compiles (generics over classes); the rest is rejected where the code uses it
+        // Box<int> compiles (generics over classes), and so does a class derived from Exception (a library class with a
+        // substitute, see Exceptions); the rest is rejected where the code uses it
         Assert.Equal(
         [
             "record classes arrive with M3 (stored strings)",
             "finalizers (~ClassName()) arrive later",
-            "exceptions arrive later",
             "classes derived from the library class System.Collections.ArrayList arrive later",
             "the type decimal in the field Letter.Code arrives later",
         ], analysis.Groups.Select(group => group.Problems[0].Unsupported.Heading).Distinct());
     }
 
     [Fact]
-    public void Casts_type_tests_and_interfaces_of_classes_compile_and_references_to_objects_are_rejected()
+    public void Casts_type_tests_interfaces_of_classes_and_references_to_objects_compile()
     {
-        var problems = WholeProgram.Problems("""
+        var analysis = WholeProgram.Check("""
             interface IShape
             {
                 int Area();
@@ -273,13 +273,7 @@ public sealed class ClassCheckTests : IDisposable
             }
             """);
 
-        Assert.Equal(
-        [
-            "Program.Replace(ref object), parameter 'thing' (ref object): references to objects (ref, out and in of a " +
-                "class, object or string) arrive with M3 (the heap). For now, return the object, or keep it in a field.",
-            "Program.Replace(ref object) at IL_0002 (stind.ref): references to objects (ref, out and in of a class, object " +
-                "or string) arrive with M3 (the heap). For now, return the object, or keep it in a field.",
-        ], problems);
+        Assert.True(analysis.IsSupported, analysis.Summary);
     }
 
     [Fact]

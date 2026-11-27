@@ -90,8 +90,11 @@ internal static class Boxing
                 : null;
         }
 
+        // a library struct but the collections' (KeyValuePair, their enumerators, which .NET boxes too)
         if (ValueTypes.Definition(plain, assembly) is not { } definition
-            || LibrarySubstitutes.Substituted.ContainsKey(definition.GenericDefinition ?? definition))
+            || (LibrarySubstitutes.Substituted.ContainsKey(definition.GenericDefinition ?? definition)
+                && !(definition.GenericDefinition ?? definition).FullName.StartsWith("ChipSharp.Library.Pairs.", StringComparison.Ordinal)
+                && !(definition.GenericDefinition ?? definition).FullName.StartsWith("ChipSharp.Library.Collections.", StringComparison.Ordinal)))
         {
             return null;
         }

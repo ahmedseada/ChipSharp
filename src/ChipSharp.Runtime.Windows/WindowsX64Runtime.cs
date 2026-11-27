@@ -56,6 +56,9 @@ public sealed class WindowsX64Runtime : IArchRuntime
     /// <summary>What makes strings (src/ChipSharp.Runtime.Shared), for a target with a heap.</summary>
     public const string StringHeapFileName = "chipsharp_string_heap.c";
 
+    /// <summary>The text of C#'s throw (src/ChipSharp.Runtime.Shared), which the failures file prints.</summary>
+    public const string ExceptionsFileName = "chipsharp_exceptions.c";
+
     /// <summary>The heap's size in bytes, <c>chipsharp_heap_size</c>, written for the target from its "heap" capability.</summary>
     public const string HeapSizeFileName = "chipsharp_heap_size.c";
 
@@ -91,6 +94,7 @@ public sealed class WindowsX64Runtime : IArchRuntime
             new GeneratedFile(MemoryFileName, Read(MemoryFileName)),
             new GeneratedFile(StackProbeFileName, Read(StackProbeFileName)),
             new GeneratedFile(StringFileName, Read(StringFileName)),
+            new GeneratedFile(ExceptionsFileName, Read(ExceptionsFileName)),
             .. target.HeapSize is { } heap
                 ?
                 [

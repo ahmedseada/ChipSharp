@@ -20,5 +20,7 @@
     <!-- strings, shared with the other runtimes: what reads them, and what makes them (a target with a heap) -->
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_string.c" LogicalName="chipsharp_string.c" />
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_string_heap.c" LogicalName="chipsharp_string_heap.c" />
+    <!-- C#'s throw, shared with the other runtimes (a target with a heap: an exception is an object) -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_exceptions.c" LogicalName="chipsharp_exceptions.c" />
   </ItemGroup>
 </Project>
