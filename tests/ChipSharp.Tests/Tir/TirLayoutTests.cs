@@ -2,11 +2,15 @@ using ChipSharp.Ir;
 
 namespace ChipSharp.Tests.Tir;
 
-/// <summary>Sizes, alignments and field offsets with 4-byte pointers (Pico, RISC-V) and 8-byte pointers (PC).</summary>
+/// <summary>
+/// Sizes, alignments and field offsets with 4-byte pointers (Pico, RISC-V), 8-byte pointers (PC), and the 2-byte pointers
+/// and no alignment of an AVR (Arduino Uno).
+/// </summary>
 public sealed class TirLayoutTests
 {
     private static readonly TirLayout Four = new(4);
     private static readonly TirLayout Eight = new(8);
+    private static readonly TirLayout Avr = new(2, maxAlignment: 1);
 
     [Theory]
     [InlineData(TirTypeKind.Bool, 1, 1)]
@@ -145,11 +149,49 @@ public sealed class TirLayoutTests
     }
 
     [Fact]
-    public void Only_4_and_8_byte_pointers_are_laid_out()
+    public void Only_2_4_and_8_byte_pointers_are_laid_out_up_to_an_alignment_of_8()
     {
-        var error = Assert.Throws<ArgumentOutOfRangeException>(() => new TirLayout(2));
+        var error = Assert.Throws<ArgumentOutOfRangeException>(() => new TirLayout(1));
+        Assert.StartsWith("TIR lays out memory for 2-byte, 4-byte and 8-byte pointers only.", error.Message);
 
-        Assert.StartsWith("TIR lays out memory for 4-byte and 8-byte pointers only.", error.Message);
+        var alignment = Assert.Throws<ArgumentOutOfRangeException>(() => new TirLayout(4, maxAlignment: 3));
+        Assert.StartsWith("The most alignment is 1, 2, 4 or 8 bytes.", alignment.Message);
+    }
+
+    [Fact]
+    public void On_an_avr_pointers_take_2_bytes_and_nothing_is_aligned_or_padded()
+    {
+        Assert.Equal(2, Avr.PointerSize);
+        Assert.Equal(1, Avr.MaxAlignment);
+        Assert.Equal(2, Avr.SizeOf(TirType.Ptr));
+        Assert.Equal(2, Avr.SizeOf(TirType.NativeInt));
+        Assert.Equal(4, Avr.SizeOf(TirType.I32));
+        Assert.Equal(8, Avr.SizeOf(TirType.F64));
+        Assert.All(new[] { TirType.Ptr, TirType.I16, TirType.I32, TirType.I64, TirType.F64 },
+            type => Assert.Equal(1, Avr.AlignmentOf(type)));
+
+        // struct Mixed { byte A; long B; short C; } and struct Node { byte Tag; void* Next; int Value; }
+        var mixed = new TirStructType("Program.Mixed", ("A", TirType.I8), ("B", TirType.I64), ("C", TirType.I16));
+        var node = new TirStructType("Program.Node", ("Tag", TirType.I8), ("Next", TirType.Ptr), ("Value", TirType.I32));
+        Assert.Equal([0L, 1L, 9L], Avr.OffsetsOf(mixed));
+        Assert.Equal(11, Avr.SizeOf(mixed));
+        Assert.Equal(1, Avr.AlignmentOf(mixed));
+        Assert.Equal([0L, 1L, 3L], Avr.OffsetsOf(node));
+        Assert.Equal(7, Avr.SizeOf(node));
+        Assert.Equal(21, Avr.SizeOf(new TirArrayType(node, 3)));
+        Assert.Equal(8, Avr.SizeOf(new TirArrayType(TirType.Ptr, 4)));
+    }
+
+    [Fact]
+    public void On_an_avr_an_array_object_has_its_length_after_a_2_byte_header_and_its_elements_from_8()
+    {
+        var node = TirTypeDescriptor.ObjectStruct("Program.Node", ("Next", TirType.Ref), ("Value", TirType.I32),
+            ("Other", TirType.Ref));
+
+        Assert.Equal(2, Avr.ArrayLengthOffset);
+        Assert.Equal(8, Avr.ArrayDataOffset);
+        Assert.Equal([2L, 8L], Avr.ReferenceOffsets(node));
+        Assert.Equal(10, Avr.SizeOf(node));
     }
 
     [Fact]
