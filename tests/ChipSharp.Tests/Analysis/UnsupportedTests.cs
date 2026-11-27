@@ -39,7 +39,7 @@ public sealed class UnsupportedTests
     [InlineData(IlOpCode.Localloc, "stackalloc")]
     [InlineData(IlOpCode.Ldftn, "function pointers (delegate*, &Method)")]
     [InlineData(IlOpCode.Calli, "function pointers (delegate*, &Method)")]
-    [InlineData(IlOpCode.Ldtoken, "typeof and type handles")]
+    [InlineData(IlOpCode.Ldtoken, "type handles (RuntimeTypeHandle, the tokens of methods and fields)")]
     public void An_instruction_is_described_in_CSharp_words(IlOpCode opCode, string what)
     {
         Assert.Equal(what, Unsupported.ForInstruction(opCode).What);

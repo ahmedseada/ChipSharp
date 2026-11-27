@@ -69,6 +69,13 @@ public sealed class TirGlobal
     public TirTypeDescriptor? Header { get; }
 
     /// <summary>
+    /// For a constant object outside the heap given its fields (<see cref="TirModule.AddObject(string, TirStructType,
+    /// TirTypeDescriptor, IReadOnlyList{TirValue?})"/>), what each field after the header holds (null: zero); null for
+    /// any other global, whose fields are zero.
+    /// </summary>
+    public IReadOnlyList<TirValue?>? FieldValues { get; internal set; }
+
+    /// <summary>
     /// For a constant object with elements (<see cref="TirModule.AddConstantObject"/>, such as a string literal), the
     /// array type of the object: its header is this descriptor's address, then come <see cref="ObjectLength"/> and, from
     /// <see cref="TirLayout.ArrayDataOffset"/> on, the elements' bytes, <see cref="Data"/>. Null for any other global.

@@ -238,9 +238,18 @@ internal static class LibrarySubstitutes
         {
             var parameters = string.Join(", ", method.Parameters.Select(parameter => CSharpName(parameter.Type, method)));
             var special = (method.Attributes & MethodAttributes.SpecialName) != 0;
+
+            // a property's setter is the property, as its getter names it (StringBuilder.Length)
+            if (special && method.Name.StartsWith("set_", StringComparison.Ordinal)
+                && type.Methods.Any(getter => getter.Name == "get_" + method.Name[4..]))
+            {
+                continue;
+            }
+
             yield return method.Name switch
             {
                 ".ctor" => $"{library}.new {name}({parameters})",
+                ['g', 'e', 't', '_', ..] when special && method.Parameters.Count > 0 => $"{library}.this[{parameters}]",
                 ['g', 'e', 't', '_', .. var property] when special && method.Parameters.Count == 0 =>
                     $"{library}.{property}",
                 "get_Item" when special => $"{library}.Item", // the indexer, a property named Item

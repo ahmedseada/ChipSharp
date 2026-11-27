@@ -178,6 +178,10 @@ internal sealed partial class MethodLowering
 
         switch (instruction.OpCode)
         {
+            case var _ when IsTypeObjectInstruction(instruction):
+                LowerTypeObjectInstruction(instruction); // see MethodLowering.TypeObjects.cs
+                break;
+
             case var _ when IsBoxingInstruction(instruction):
                 LowerBoxingInstruction(instruction); // see MethodLowering.Boxing.cs
                 break;

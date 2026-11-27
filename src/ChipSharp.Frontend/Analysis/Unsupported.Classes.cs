@@ -2,12 +2,12 @@ namespace ChipSharp.Frontend.Analysis;
 
 /// <summary>
 /// What of classes (see <see cref="ClassRules"/>) does not compile yet, in C# words. The features that come with the
-/// next pieces of M3 name the piece: stored strings (object's ToString, records) and generics over classes. Like
+/// next pieces of M3 name the piece: stored strings (object's ToString) and generics over classes. Like
 /// everything that makes objects, they need a heap.
 /// </summary>
 internal sealed partial record Unsupported
 {
-    /// <summary>The <see cref="Arrival"/> of what returns or keeps a string: ToString, records.</summary>
+    /// <summary>The <see cref="Arrival"/> of what returns or keeps a string: ToString.</summary>
     private const string ArrivesWithStoredStrings = "with M3 (stored strings)";
 
     /// <summary>The <see cref="Arrival"/> of generic classes.</summary>
@@ -20,9 +20,6 @@ internal sealed partial record Unsupported
     public static readonly Unsupported ObjectMethods = Coming("ToString of objects (and printing an object)", false,
         "For now, give the class a method that prints what it holds, such as Print(), and call that.",
         ArrivesWithStoredStrings);
-
-    public static readonly Unsupported Records = Coming("record classes", true,
-        "For now, write a class with its fields and a constructor (or a struct).", ArrivesWithStoredStrings);
 
     public static readonly Unsupported GenericClasses = Coming("generic classes", true,
         "For now, write a class for each type argument you need, or make it a generic struct.", WithGenericClasses);

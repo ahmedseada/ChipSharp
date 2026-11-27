@@ -82,8 +82,10 @@ internal static class ReferenceArguments
         ArgumentNullException.ThrowIfNull(instruction);
         var assembly = method.Assembly;
 
-        // a library member that gives an object (EqualityComparer<int>.Default), outside the library's own code
-        if (instruction.Operand is IlMethodOperand { Method.Definition: { } member } && !LibrarySubstitutes.Defines(method)
+        // a default comparer, an object (EqualityComparer<int>.Default), outside the library's own code (a library
+        // object of another kind, a StringBuilder, a type object's names, needs a heap where it is made, if it is)
+        if (instruction.Operand is IlMethodOperand { Method.Definition: { Name: "get_Default" } member }
+            && !LibrarySubstitutes.Defines(method)
             && LibrarySubstitutes.Defines(member) && ObjectTypes.TryMapType(member.ReturnType, member.Assembly, out _))
         {
             return Unsupported.DefaultComparers;

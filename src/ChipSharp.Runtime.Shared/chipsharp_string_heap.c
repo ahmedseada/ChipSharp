@@ -981,3 +981,107 @@ void *ChipSharp_Runtime_StringOfName(const char *name)
 
     return result;
 }
+
+// ---- Failures of the substitutes that build text (ChipSharp.Library's StringBuilder) ------------------------------------
+//
+// ChipSharp.Library's Runtime.ArgumentOutOfRangeOf, ArgumentNegative, ArgumentNotPositive, ArgumentNullOf and
+// ArgumentInvalid: .NET's argument exceptions, their parameter's name and message given as strings.
+
+#define FAILURE_SIZE 512
+
+// Appends the chars of s (null as nothing) to message at *n as UTF-8, while there is room.
+static void append_string(char *message, unsigned int *n, const string *s)
+{
+    for (int i = 0; s != 0 && i < s->length && *n < FAILURE_SIZE - 8; i++)
+    {
+        unsigned int c = at(s, i);
+        if (c < 0x80)
+        {
+            message[(*n)++] = (char)c;
+        }
+        else if (c < 0x800)
+        {
+            message[(*n)++] = (char)(0xC0 | c >> 6);
+            message[(*n)++] = (char)(0x80 | (c & 0x3F));
+        }
+        else
+        {
+            message[(*n)++] = (char)(0xE0 | c >> 12);
+            message[(*n)++] = (char)(0x80 | (c >> 6 & 0x3F));
+            message[(*n)++] = (char)(0x80 | (c & 0x3F));
+        }
+    }
+}
+
+// " (Parameter 'name')"
+static void append_parameter(char *message, unsigned int *n, const string *parameter)
+{
+    append(message, n, " (Parameter '");
+    append_string(message, n, parameter);
+    append(message, n, "')");
+}
+
+__attribute__((noreturn)) void ChipSharp_Runtime_ArgumentOutOfRangeOf(const string *parameter, const string *text)
+{
+    char message[FAILURE_SIZE];
+    unsigned int n = 0;
+    append(message, &n, OUT_OF_RANGE);
+    append_string(message, &n, text);
+    append_parameter(message, &n, parameter);
+    message[n] = 0;
+    chipsharp_fail(message);
+}
+
+// "name ('value') <rule> (Parameter 'name')\r\nActual value was value."
+__attribute__((noreturn)) static void argument_rule(const string *parameter, int value, const char *rule)
+{
+    char message[FAILURE_SIZE];
+    unsigned int n = 0;
+    append(message, &n, OUT_OF_RANGE);
+    append_string(message, &n, parameter);
+    append(message, &n, " ('");
+    append_number(message, &n, value);
+    append(message, &n, "') ");
+    append(message, &n, rule);
+    append_parameter(message, &n, parameter);
+    append(message, &n, "\r\nActual value was ");
+    append_number(message, &n, value);
+    append(message, &n, ".");
+    message[n] = 0;
+    chipsharp_fail(message);
+}
+
+__attribute__((noreturn)) void ChipSharp_Runtime_ArgumentNegative(const string *parameter, int value)
+{
+    argument_rule(parameter, value, "must be a non-negative value.");
+}
+
+__attribute__((noreturn)) void ChipSharp_Runtime_ArgumentNotPositive(const string *parameter, int value)
+{
+    argument_rule(parameter, value, "must be a non-negative and non-zero value.");
+}
+
+__attribute__((noreturn)) void ChipSharp_Runtime_ArgumentNullOf(const string *parameter)
+{
+    char message[FAILURE_SIZE];
+    unsigned int n = 0;
+    append(message, &n, "System.ArgumentNullException: Value cannot be null.");
+    append_parameter(message, &n, parameter);
+    message[n] = 0;
+    chipsharp_fail(message);
+}
+
+__attribute__((noreturn)) void ChipSharp_Runtime_ArgumentInvalid(const string *text, const string *parameter)
+{
+    char message[FAILURE_SIZE];
+    unsigned int n = 0;
+    append(message, &n, "System.ArgumentException: ");
+    append_string(message, &n, text);
+    if (parameter != 0)
+    {
+        append_parameter(message, &n, parameter);
+    }
+
+    message[n] = 0;
+    chipsharp_fail(message);
+}

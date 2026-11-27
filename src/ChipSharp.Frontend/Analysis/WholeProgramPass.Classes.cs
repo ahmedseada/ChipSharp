@@ -113,11 +113,6 @@ public static partial class WholeProgramPass
     {
         for (IlTypeDefinition? current = type; current is not null;)
         {
-            if (ClassRules.IsRecord(current))
-            {
-                return Unsupported.Records;
-            }
-
             if (ClassRules.HasFinalizer(current))
             {
                 return Unsupported.Finalizers;

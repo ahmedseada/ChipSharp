@@ -261,12 +261,10 @@ public sealed class VirtualCheckTests : IDisposable
             }
             """);
 
-        // Pick<int>, an instance of a generic virtual method, has a slot of its own (VirtualMethods.Generic.cs)
+        // Pick<int>, an instance of a generic virtual method, has a slot of its own (VirtualMethods.Generic.cs); GetType()
+        // is a type object (TypeObjects)
         Assert.Equal(
         [
-            "Program.Main() at IL_0026 (callvirt): typeof and type handles arrive later. For now, leave them out.",
-            "Program.Main() at IL_002c (call): the library method System.Type.op_Equality(System.Type, System.Type) is " +
-                "not available yet.",
             "Program.Main() at IL_0045 (isinst): type tests and casts to System.Random (is, as, (T)x) arrive with M3 (the " +
                 "heap). For now, test objects against the program's own classes and interfaces.",
             "Program.Main() at IL_005d (isinst): type tests and casts to int[,] (is, as, (T)x) arrive with M3 (the heap). " +

@@ -256,6 +256,48 @@ public sealed class TirModule
         return global;
     }
 
+    /// <summary>
+    /// Adds a constant object outside the heap like <see cref="AddObject(string, TirStructType, TirTypeDescriptor)"/>,
+    /// whose other fields hold <paramref name="fields"/>, one per field after the header, in order: a constant (in no
+    /// block), the address of a constant global (<c>globaladdr</c>: a string literal is a ref) or of a type descriptor
+    /// (<c>typeaddr</c>), each not added to any block; null for a field that is zero. Printed as
+    /// <c>constant %T @name = object Header { ... }</c>, such as the object <c>typeof(X)</c> gives.
+    /// </summary>
+    public TirGlobal AddObject(string name, TirStructType type, TirTypeDescriptor header, IReadOnlyList<TirValue?> fields)
+    {
+        ArgumentNullException.ThrowIfNull(fields);
+        if (type is not null && fields.Count != type.Fields.Count - 1)
+        {
+            throw new TirException($"Module '{Name}': object @{name} is {type}, which has {type.Fields.Count - 1} fields " +
+                $"after its header, but it is given {fields.Count}.");
+        }
+
+        for (var i = 0; type is not null && i < fields.Count; i++)
+        {
+            var field = type.Fields[i + 1];
+            var (valueType, fits) = fields[i] switch
+            {
+                null => (field.Type, true),
+                TirConst { Block: null } constant => (constant.Type, constant.Type == field.Type),
+                TirGlobalAddress { Block: null, Global: { IsConstant: true } target } address =>
+                    (address.Type, target.Module == this && (field.Type == TirType.Ref || field.Type == TirType.Ptr)),
+                TirTypeAddress { Block: null, TypeDescriptor: var descriptor } =>
+                    (TirType.Ptr, descriptor.Module == this && field.Type == TirType.Ptr),
+                var other => (other.Type, false),
+            };
+            if (!fits)
+            {
+                throw new TirException($"Module '{Name}': field {field.Name} of object @{name} is {field.Type}; it " +
+                    $"cannot hold a {fields[i]!.GetType().Name} ({valueType}): give a constant, or the address of a " +
+                    "constant global or a type descriptor of this module, in no block.");
+            }
+        }
+
+        var made = AddObject(name, type!, header);
+        made.FieldValues = [.. fields];
+        return made;
+    }
+
     public TirGlobal AddArray(string name, TirArrayType type, IEnumerable<TirConst>? elements, bool isConstant)
     {
         CheckNewGlobal(name);

@@ -69,4 +69,15 @@ internal static class Equality
 
     /// <summary>The hash code of <paramref name="value"/>: its GetHashCode, 0 for null, as .NET's default comparer gives it.</summary>
     public static int HashOf<T>(T value) => value == null ? 0 : value.GetHashCode();
+
+    /// <summary>
+    /// Two nullables as .NET's NullableEqualityComparer compares them: both without a value, or both with equal values
+    /// (as T's default comparer compares them). What <c>EqualityComparer&lt;int?&gt;.Default.Equals</c> is (see
+    /// ChipSharp.Frontend's DefaultComparers).
+    /// </summary>
+    public static bool OfNullable<T>(T? x, T? y) where T : struct =>
+        x.HasValue ? y.HasValue && AreEqual(x.GetValueOrDefault(), y.GetValueOrDefault()) : !y.HasValue;
+
+    /// <summary>The hash code of a nullable: its value's, 0 without one, as Nullable's GetHashCode gives it.</summary>
+    public static int HashOfNullable<T>(T? value) where T : struct => value.HasValue ? HashOf(value.GetValueOrDefault()) : 0;
 }
