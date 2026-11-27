@@ -27,7 +27,7 @@ namespace ChipSharp.Hardware;
 /// Interrupts exist on chips, not on a PC: a program with such a method builds for a chip target, such as "pico".
 /// </para>
 /// </remarks>
-/// <param name="event">The event, one of <see cref="Hardware.Event"/>'s: <see cref="Hardware.Event.Timer"/> or <see cref="Hardware.Event.Pin"/>.</param>
+/// <param name="event">The event, one of <see cref="Hardware.Event"/>'s: <see cref="Hardware.Event.Timer"/>, <see cref="Hardware.Event.Pin"/> or <see cref="Hardware.Event.Uart"/>.</param>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
 public sealed class InterruptAttribute(string @event) : Attribute
 {
@@ -49,4 +49,10 @@ public static class Event
     /// which pins, and which changes. One method handles every pin watched; it can <see cref="Pin.Read"/> them.
     /// </summary>
     public const string Pin = "pin";
+
+    /// <summary>
+    /// Bytes arrived on a serial port that <see cref="Uart.Watch"/> watches, and are in its buffer. One method handles
+    /// every port watched; it can <see cref="Uart.Read"/> them.
+    /// </summary>
+    public const string Uart = "uart";
 }

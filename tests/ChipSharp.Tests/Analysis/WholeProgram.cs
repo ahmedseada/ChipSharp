@@ -25,6 +25,7 @@ internal static class WholeProgram
     public static readonly string LibraryCalls = """
         ChipSharp can call these library methods (--details lists each one with its parameters):
           Console.Write and Console.WriteLine of (nothing), text, char, int, uint, long, ulong, bool, float, double
+          Console.Read and Console.ReadLine
           Math: Abs, Min, Max, Sqrt, Sin, Cos, Tan, Asin, Acos, Atan, Sinh, Cosh, Tanh, Asinh, Acosh, Atanh, Exp, Log, Log2, Log10, ... (43 in all)
           MathF: Abs, Min, Max, Sqrt, Sin, Cos, Tan, Asin, Acos, Atan, Sinh, Cosh, Tanh, Asinh, Acosh, Atanh, Exp, Log, Log2, Log10, ... (40 in all)
           GC: Collect, GetTotalMemory, KeepAlive
@@ -66,13 +67,13 @@ internal static class WholeProgram
           Enumerable.ToList and Enumerable.ToArray of System.Collections.Generic.IEnumerable<TSource>
           KeyCollection: GetEnumerator, CopyTo, Contains, its constructors and properties
           ValueCollection: GetEnumerator, CopyTo, its constructors and properties
-          ChipSharp.Hardware: Pin, Timing, Registers (see the README)
+          ChipSharp.Hardware: Pin, Timing, Registers, Adc, I2c, Pwm, Spi, Uart (see the README)
         """.ReplaceLineEndings("\n");
 
     /// <summary>The lines the details end with when the program calls a library method ChipSharp does not have.</summary>
     public static readonly string LibraryCallDetails = """
         ChipSharp can call these library methods:
-          System.Console: Write(string), Write(char), Write(int), Write(uint), Write(long), Write(ulong), Write(bool), Write(float), Write(double), WriteLine(), WriteLine(string), WriteLine(char), WriteLine(int), WriteLine(uint), WriteLine(long), WriteLine(ulong), WriteLine(bool), WriteLine(float), WriteLine(double)
+          System.Console: Write(string), Write(char), Write(int), Write(uint), Write(long), Write(ulong), Write(bool), Write(float), Write(double), WriteLine(), WriteLine(string), WriteLine(char), WriteLine(int), WriteLine(uint), WriteLine(long), WriteLine(ulong), WriteLine(bool), WriteLine(float), WriteLine(double), Read(), ReadLine()
           System.Math: Abs(double), Abs(float), Min(double, double), Min(float, float), Max(double, double), Max(float, float), Sqrt(double), Sin(double), Cos(double), Tan(double), Asin(double), Acos(double), Atan(double), Sinh(double), Cosh(double), Tanh(double), Asinh(double), Acosh(double), Atanh(double), Exp(double), Log(double), Log2(double), Log10(double), Cbrt(double), Floor(double), Ceiling(double), Truncate(double), Round(double), BitIncrement(double), BitDecrement(double), ReciprocalEstimate(double), ReciprocalSqrtEstimate(double), Atan2(double, double), Pow(double, double), CopySign(double, double), IEEERemainder(double, double), MinMagnitude(double, double), MaxMagnitude(double, double), FusedMultiplyAdd(double, double, double), ScaleB(double, int), ILogB(double), Abs(short), Abs(int), Abs(long), Abs(nint), Abs(sbyte), BigMul(uint, uint), BigMul(int, int), BigMul(ulong, ulong, ref ulong), BigMul(long, long, ref long), DivRem(int, int, ref int), DivRem(long, long, ref long), DivRem(sbyte, sbyte), DivRem(byte, byte), DivRem(short, short), DivRem(ushort, ushort), DivRem(int, int), DivRem(uint, uint), DivRem(long, long), DivRem(ulong, ulong), DivRem(nint, nint), DivRem(nuint, nuint), Clamp(byte, byte, byte), Clamp(double, double, double), Clamp(short, short, short), Clamp(int, int, int), Clamp(long, long, long), Clamp(nint, nint, nint), Clamp(sbyte, sbyte, sbyte), Clamp(float, float, float), Clamp(ushort, ushort, ushort), Clamp(uint, uint, uint), Clamp(ulong, ulong, ulong), Clamp(nuint, nuint, nuint), Log(double, double), Max(byte, byte), Max(short, short), Max(int, int), Max(long, long), Max(nint, nint), Max(sbyte, sbyte), Max(ushort, ushort), Max(uint, uint), Max(ulong, ulong), Max(nuint, nuint), Min(byte, byte), Min(short, short), Min(int, int), Min(long, long), Min(nint, nint), Min(sbyte, sbyte), Min(ushort, ushort), Min(uint, uint), Min(ulong, ulong), Min(nuint, nuint), Round(double, int), Round(double, System.MidpointRounding), Round(double, int, System.MidpointRounding), Sign(double), Sign(short), Sign(int), Sign(long), Sign(nint), Sign(sbyte), Sign(float), SinCos(double)
           System.MathF: Abs(float), Min(float, float), Max(float, float), Sqrt(float), Sin(float), Cos(float), Tan(float), Asin(float), Acos(float), Atan(float), Sinh(float), Cosh(float), Tanh(float), Asinh(float), Acosh(float), Atanh(float), Exp(float), Log(float), Log2(float), Log10(float), Cbrt(float), Floor(float), Ceiling(float), Truncate(float), Round(float), BitIncrement(float), BitDecrement(float), ReciprocalEstimate(float), ReciprocalSqrtEstimate(float), Atan2(float, float), Pow(float, float), CopySign(float, float), IEEERemainder(float, float), MinMagnitude(float, float), MaxMagnitude(float, float), FusedMultiplyAdd(float, float, float), ScaleB(float, int), ILogB(float), Log(float, float), Round(float, int), Round(float, System.MidpointRounding), Round(float, int, System.MidpointRounding), Sign(float), SinCos(float)
           System.GC: Collect(), GetTotalMemory(bool), KeepAlive(object)
@@ -145,6 +146,11 @@ internal static class WholeProgram
           ChipSharp.Hardware.Pin: Output(int), Input(int), Write(int, bool), Toggle(int), Read(int), Watch(int), WatchRising(int), WatchFalling(int), Unwatch(int)
           ChipSharp.Hardware.Timing: DelayMilliseconds(int), DelayMicroseconds(int), EveryMilliseconds(int), EveryMicroseconds(int), AfterMilliseconds(int), AfterMicroseconds(int), Stop(), Delay(System.TimeSpan)
           ChipSharp.Hardware.Registers: Read(uint), Write(uint, uint)
+          ChipSharp.Hardware.Adc: Input(int), Read(int), Volts(int), Temperature()
+          ChipSharp.Hardware.I2c: Open(int, int, int, int), Write(int, int, System.ReadOnlySpan<byte>), Read(int, int, System.Span<byte>), WriteRead(int, int, System.ReadOnlySpan<byte>, System.Span<byte>), Probe(int, int), Scan(int, System.Span<byte>)
+          ChipSharp.Hardware.Pwm: Output(int, int), Duty(int, double), PulseMicroseconds(int, int), Stop(int)
+          ChipSharp.Hardware.Spi: Open(int, int, int, int, int, int), Write(int, System.ReadOnlySpan<byte>), Read(int, System.Span<byte>), Transfer(int, System.ReadOnlySpan<byte>, System.Span<byte>)
+          ChipSharp.Hardware.Uart: Open(int, int, int, int), Write(int, System.ReadOnlySpan<byte>), WriteByte(int, byte), Read(int, System.Span<byte>), ReadByte(int), Available(int), Watch(int), Unwatch(int)
         """.ReplaceLineEndings("\n");
 
     public static IlProgram Analyze(string source) => WholeProgramPass.Analyze(Load(source));

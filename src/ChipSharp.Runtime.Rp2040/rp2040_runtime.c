@@ -340,7 +340,8 @@ void ChipSharp_Runtime_RegisterWrite(unsigned int address, unsigned int value)
 
 // ---- Console.Write and Console.WriteLine on UART0 ----------------------------------------------------------------
 
-static unsigned int uart_started;
+// Set when UART0 is set up, also by Uart.Open(0, ...) (rp2040_uart.c), whose pins and speed the console then keeps.
+unsigned int chipsharp_uart0_started;
 
 static void start_uart(void)
 {
@@ -351,12 +352,12 @@ static void start_uart(void)
     REG(UART0_CR) = UART_CR_ENABLE;
     select_function(UART_TX_PIN, FUNCTION_UART);
     select_function(UART_RX_PIN, FUNCTION_UART);
-    uart_started = 1;
+    chipsharp_uart0_started = 1;
 }
 
 static void write_bytes(const char *bytes, unsigned int count)
 {
-    if (!uart_started)
+    if (!chipsharp_uart0_started)
     {
         start_uart();
     }

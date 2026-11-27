@@ -59,6 +59,7 @@ public static partial class WholeProgramPass
         }
 
         var forTarget = TargetRules.Apply(target, methods, problems);
+        forTarget |= SerialAnalogRules.Apply(target, methods, problems);
         CheckHandlers(entryPoint, methods, handlers, interruptProblems, heapArrays);
         problems.AddRange(interruptProblems);
         return new AnalysisResult(assembly, methods, problems)
