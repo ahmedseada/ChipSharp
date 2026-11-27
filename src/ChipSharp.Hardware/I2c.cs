@@ -5,7 +5,8 @@ namespace ChipSharp.Hardware;
 /// port expanders, each at its own 7-bit address. The chip leads every transfer and the device at the address answers.
 /// <see cref="Open"/> a bus before using it. On the Raspberry Pi Pico there are two, bus 0 and bus 1 (I2C0 and I2C1),
 /// each on pins of its own: SDA on GPIO 0, 4, 8, 12, 16, 20, 24 or 28 and SCL on GPIO 1, 5, 9, ..., 29 for bus 0;
-/// SDA on GPIO 2, 6, 10, ..., 26 and SCL on GPIO 3, 7, 11, ..., 27 for bus 1.
+/// SDA on GPIO 2, 6, 10, ..., 26 and SCL on GPIO 3, 7, 11, ..., 27 for bus 1. On the Arduino Uno there is one, bus 0 (the
+/// ATmega328P's TWI), with SDA on A4 (pin 18) and SCL on A5 (pin 19).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -29,7 +30,8 @@ public static class I2c
     /// Sets up <paramref name="bus"/> on the pins <paramref name="sda"/> and <paramref name="scl"/> (with the chip's
     /// pull-ups on; a long bus or a fast one needs resistors of its own, e.g. 4.7 kΩ to 3.3 V), with its clock at
     /// <paramref name="frequency"/> hertz: 100_000 (standard mode), 400_000 (fast mode) or up to 1_000_000 (fast mode
-    /// plus); from 2_000. Call it again to change the frequency.
+    /// plus); from 2_000. The Uno makes 490 to 400_000, the nearest it can at or below the frequency (100_000 and 400_000
+    /// exactly). Call it again to change the frequency.
     /// </summary>
     public static void Open(int bus, int sda, int scl, int frequency) => throw ChipOnly.Method("I2c.Open");
 
