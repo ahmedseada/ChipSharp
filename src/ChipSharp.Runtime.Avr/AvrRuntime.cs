@@ -158,7 +158,7 @@ public sealed class AvrRuntime : IArchRuntime
                     VECTOR chipsharp_halt_failure
                     .size chipsharp_unhandled_interrupt, . - chipsharp_unhandled_interrupt
 
-                """).ToString();
+                """).ToString().ReplaceLineEndings("\n");
     }
 
     /// <summary>One of this runtime's source files by name, e.g. <see cref="DivideFileName"/>.</summary>

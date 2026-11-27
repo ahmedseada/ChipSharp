@@ -1,0 +1,89 @@
+using System.Text.Json.Nodes;
+using ChipSharp.Abstractions;
+using ChipSharp.Build;
+using ChipSharp.Runtime.ArmV6M;
+using ChipSharp.Runtime.Avr;
+
+namespace ChipSharp.Tests.Avr;
+
+/// <summary>The avr runtime's files and its vector table, as a build gets them.</summary>
+public sealed class AvrRuntimeTests
+{
+    [Fact]
+    public void A_build_finds_the_avr_runtime_by_its_name()
+    {
+        var build = new BuildContext(new BuildOptions(), AvrProgram.Target, "Program",
+            Path.Combine(Path.GetTempPath(), "chipsharp-tests", Guid.NewGuid().ToString("N")));
+
+        Assert.IsType<AvrRuntime>(DefaultComponents.CreateRegistry(build).Get<IArchRuntime>("avr"));
+    }
+
+    [Fact]
+    public void The_runtime_is_the_start_up_the_helpers_compiler_rts_soft_float_and_the_failures()
+    {
+        var runtime = new AvrRuntime();
+
+        var files = runtime.Startup(AvrProgram.Target).Files;
+
+        var softFloat = CompilerRt.Sources().Select(file => file.FileName).ToList();
+        Assert.Equal(
+            ["avr_startup.S", "avr_runtime.c", "avr_multiply.S", "avr_divide.S", "avr_memory.S", .. softFloat, "avr_failures.c"],
+            files.Select(file => file.FileName));
+        Assert.Equal([AvrRuntime.VectorsFileName], runtime.InterruptEntry(AvrProgram.Target).Files.Select(file => file.FileName));
+        Assert.Empty(runtime.Atomics(AvrProgram.Target).Files);
+
+        // the very compiler-rt files the armv6m runtime has; ChipSharp's own files include nothing
+        Assert.Equal(CompilerRt.Sources().Select(file => file.Content), files.Where(file => softFloat.Contains(file.FileName))
+            .Select(file => file.Content));
+        Assert.All(files.Where(file => !softFloat.Contains(file.FileName)),
+            file => Assert.DoesNotContain("#include", file.Content));
+    }
+
+    /// <summary>C# double is 64 bits; AVR's clang makes it 32 unless told -mdouble=64, so the runtime refuses to build without.</summary>
+    [Fact]
+    public void The_runtimes_C_stops_unless_double_is_64_bits()
+    {
+        Assert.Contains("#if __SIZEOF_DOUBLE__ != 8\n#error", AvrRuntime.Source(AvrRuntime.RuntimeFileName).Content.ReplaceLineEndings("\n"));
+    }
+
+    [Fact]
+    public void The_vector_table_has_an_entry_for_reset_and_a_weak_handler_for_every_interrupt_of_the_chip()
+    {
+        var vectors = Assert.Single(new AvrRuntime().InterruptEntry(AvrProgram.Target).Files).Content;
+
+        Assert.Contains("    .section .vectors, \"ax\", @progbits\n", vectors);
+        Assert.Contains("chipsharp_vectors:\n    VECTOR chipsharp_reset\n    VECTOR chipsharp_isr_irq1\n", vectors);
+        Assert.Contains("    VECTOR chipsharp_isr_irq25\n    .size chipsharp_vectors", vectors);
+        Assert.DoesNotContain("chipsharp_isr_irq26", vectors);
+        Assert.Equal(25, vectors.Split("    .weak chipsharp_isr_irq").Length - 1);
+        Assert.Contains("    .set chipsharp_isr_irq7, chipsharp_unhandled_interrupt\n", vectors);
+        Assert.Contains("chipsharp_unhandled_interrupt:\n    VECTOR chipsharp_halt_failure\n", vectors);
+    }
+
+    [Theory]
+    [InlineData(null, "'vectors' is missing")]
+    [InlineData("0", "from 1 to 128")]
+    [InlineData("many", "\"many\"")]
+    public void A_target_without_its_number_of_vectors_says_so(string? vectors, string message)
+    {
+        var settings = new JsonObject();
+        if (vectors is not null)
+        {
+            settings[AvrRuntime.VectorsSetting] = vectors;
+        }
+
+        var target = new TargetDescription
+        {
+            Name = "chip",
+            InheritanceChain = ["chip"],
+            Backend = "llvm",
+            PointerSize = 2,
+            Endian = Endianness.Little,
+            Settings = settings,
+        };
+
+        var error = Assert.Throws<ChipSharpException>(() => new AvrRuntime().InterruptEntry(target));
+        Assert.Contains(message, error.Message);
+        Assert.Contains("Target 'chip'", error.Message);
+    }
+}
