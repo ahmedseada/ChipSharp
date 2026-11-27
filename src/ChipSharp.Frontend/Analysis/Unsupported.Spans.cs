@@ -38,10 +38,6 @@ internal sealed partial record Unsupported
     public static readonly Unsupported PointerSpans = new("spans of pointers (new Span<T>(void*, int))", true,
         "For now, use stackalloc or an array.");
 
-    public static readonly Unsupported LibraryGenericsOfProgramTypes = new(
-        "the library's generic methods (MemoryExtensions.IndexOf, SequenceEqual, ...) on the program's own structs",
-        true, "For now, write the loop: for (int i = 0; i < span.Length; i++) if (span[i].Equals(value)) ...");
-
     /// <summary>
     /// MemoryMarshal.Read, Write, AsBytes or Cast of a type that is not plain data: <paramref name="type"/> as C# writes
     /// it, and why (e.g. "the field Person.Name has type string"). .NET throws ArgumentException there when the program

@@ -65,8 +65,14 @@ internal static class ObjectTypes
 
     /// <summary>The class of <paramref name="assembly"/> that <paramref name="type"/> names (modifiers looked through), or null.</summary>
     public static IlTypeDefinition? Class(IlType type, IlAssembly assembly) =>
-        ValueTypes.WithoutModifiers(type) is IlNamedType { IsDefinedInThisAssembly: true } named
-            && assembly.FindType(named.FullName) is { GenericParameters.Count: 0 } definition && IsClass(definition)
+        ValueTypes.WithoutModifiers(type) switch
+        {
+            IlNamedType { IsDefinedInThisAssembly: true } named => assembly.FindType(named.FullName),
+
+            // an instance of a generic class (generics over classes), of the program's or a library substitute's
+            IlGenericInstanceType instance => Generics.Instantiations.Type(instance, assembly),
+            _ => null,
+        } is { GenericParameters.Count: 0 } definition && IsClass(definition)
             ? definition
             : null;
 

@@ -38,6 +38,9 @@ internal static class Instantiations
     /// <summary>The most generic types a type argument may nest (<c>Pair&lt;Pair&lt;int&gt;&gt;</c> nests 2).</summary>
     public const int MostNesting = 8;
 
+    /// <summary>The namespace of ChipSharp.Library's types, with the dot after it.</summary>
+    private const string LibraryNamespace = "ChipSharp.Library.";
+
     private static readonly ConditionalWeakTable<IlAssembly, Registry> Registries = new();
 
     /// <summary>
@@ -47,22 +50,40 @@ internal static class Instantiations
     /// which generic code makes most, is linked to ChipSharp's own (<see cref="ConstrainedCalls.Link"/>). Any other
     /// reference as it is.
     /// </summary>
-    public static IlMethodReference Link(IlMethodReference reference)
+    public static IlMethodReference Link(IlMethodReference reference) => Link(reference, null);
+
+    /// <summary>
+    /// <paramref name="reference"/>, which <paramref name="owner"/>'s IL makes, linked as <see cref="Link(IlMethodReference)"/>
+    /// links it; an instance of another assembly's generic code (ChipSharp.Library's) over <paramref name="owner"/>'s
+    /// types is made in <paramref name="owner"/> (<see cref="Home"/>), whose IL names those types.
+    /// </summary>
+    public static IlMethodReference Link(IlMethodReference reference, IlAssembly? owner)
     {
         ArgumentNullException.ThrowIfNull(reference);
         if (reference.Definition is null)
         {
-            return ConstrainedCalls.Link(reference);
+            // a member of a library generic type with a generic substitute (EqualityComparer<T>) is the substitute's
+            reference = GenericSubstitutes.Link(reference, owner);
+            if (reference.Definition is null)
+            {
+                return ConstrainedCalls.Link(reference);
+            }
         }
 
         if (reference.Definition is not { } definition
-            || TypeArguments(definition, reference.DeclaringType, reference.GenericArguments) is not { } typeArguments
-            || Refusal(definition.Assembly, [.. typeArguments, .. reference.GenericArguments]) is not null)
+            || TypeArguments(definition, reference.DeclaringType, reference.GenericArguments) is not { } typeArguments)
         {
             return reference;
         }
 
-        var instance = Method(definition, typeArguments, reference.GenericArguments);
+        IlType[] arguments = [.. typeArguments, .. reference.GenericArguments];
+        var home = Home(definition.Assembly, arguments, owner);
+        if (Refusal(home, arguments) is not null)
+        {
+            return reference;
+        }
+
+        var instance = Method(definition, typeArguments, reference.GenericArguments, home);
         return new IlMethodReference(reference.DeclaringType, reference.Name, instance.Signature,
             reference.GenericArguments, instance);
     }
@@ -71,18 +92,26 @@ internal static class Instantiations
     /// <paramref name="reference"/> linked to the field of the instance of the generic type it names (with its type in
     /// that instance), when its type arguments can be compiled; any other reference as it is.
     /// </summary>
-    public static IlFieldReference Link(IlFieldReference reference)
+    public static IlFieldReference Link(IlFieldReference reference) => Link(reference, null);
+
+    /// <summary><paramref name="reference"/>, which <paramref name="owner"/>'s IL makes, linked as a method's is.</summary>
+    public static IlFieldReference Link(IlFieldReference reference, IlAssembly? owner)
     {
         ArgumentNullException.ThrowIfNull(reference);
         if (reference.Definition is not { DeclaringType.GenericParameters.Count: > 0 } field
             || reference.DeclaringType is not IlGenericInstanceType { Arguments: var arguments }
-            || arguments.Count != field.DeclaringType.GenericParameters.Count || arguments.Any(Substitution.IsOpen)
-            || Refusal(field.DeclaringType.Assembly, arguments) is not null)
+            || arguments.Count != field.DeclaringType.GenericParameters.Count || arguments.Any(Substitution.IsOpen))
         {
             return reference;
         }
 
-        var type = TypeOf(field.DeclaringType, arguments);
+        var home = Home(field.DeclaringType.Assembly, arguments, owner);
+        if (Refusal(home, arguments) is not null)
+        {
+            return reference;
+        }
+
+        var type = TypeOf(field.DeclaringType, arguments, home);
         var instance = type.Fields[IndexOf(field.DeclaringType.Fields, field)];
         return new IlFieldReference(reference.DeclaringType, reference.Name, instance.Type, instance);
     }
@@ -95,25 +124,37 @@ internal static class Instantiations
     {
         ArgumentNullException.ThrowIfNull(type);
         ArgumentNullException.ThrowIfNull(assembly);
-        return Definition(type, assembly) is { } definition
-            && definition.GenericParameters.Count == type.Arguments.Count && !type.Arguments.Any(Substitution.IsOpen)
-            && Refusal(definition.Assembly, type.Arguments) is null
-            ? TypeOf(definition, type.Arguments)
-            : null;
-    }
-
-    /// <summary>The instance of a generic type of <paramref name="assembly"/> made so far with this full name, e.g. "Pair&lt;int&gt;".</summary>
-    public static IlTypeDefinition? FindType(IlAssembly assembly, string fullName)
-    {
-        if (!Registries.TryGetValue(assembly, out var registry))
+        if (Definition(type, assembly) is not { } definition
+            || definition.GenericParameters.Count != type.Arguments.Count || type.Arguments.Any(Substitution.IsOpen))
         {
             return null;
         }
 
-        lock (registry)
+        var home = Home(definition.Assembly, type.Arguments, assembly);
+        return Refusal(home, type.Arguments) is null ? TypeOf(definition, type.Arguments, home) : null;
+    }
+
+    /// <summary>
+    /// The instance of a generic type of <paramref name="assembly"/> made so far with this full name, e.g. "Pair&lt;int&gt;";
+    /// else a type of ChipSharp.Library by its full name, which the IL of an instance of the library's generic code over
+    /// <paramref name="assembly"/>'s types names (see <see cref="Home"/>), and the signatures of the library's instances.
+    /// </summary>
+    public static IlTypeDefinition? FindType(IlAssembly assembly, string fullName)
+    {
+        if (Registries.TryGetValue(assembly, out var registry))
         {
-            return registry.TypesByName.GetValueOrDefault(fullName);
+            lock (registry)
+            {
+                if (registry.TypesByName.GetValueOrDefault(fullName) is { } type)
+                {
+                    return type;
+                }
+            }
         }
+
+        return fullName.StartsWith(LibraryNamespace, StringComparison.Ordinal) && assembly != LibrarySubstitutes.Assembly
+            ? LibrarySubstitutes.Assembly.FindType(fullName)
+            : null;
     }
 
     /// <summary>True for a generic method, or a method of a generic type: one that is compiled only as its instances.</summary>
@@ -127,18 +168,27 @@ internal static class Instantiations
     /// Why the generic method, type or field that <paramref name="reference"/> names with these type arguments is not
     /// linked to an instance: a class as a type argument, type arguments nested too deep, ...; null when it is.
     /// </summary>
-    public static Unsupported? Refusal(IlMethodReference reference)
+    public static Unsupported? Refusal(IlMethodReference reference) => Refusal(reference, null);
+
+    /// <summary>Like <see cref="Refusal(IlMethodReference)"/>, for a reference <paramref name="owner"/>'s IL makes.</summary>
+    public static Unsupported? Refusal(IlMethodReference reference, IlAssembly? owner)
     {
         ArgumentNullException.ThrowIfNull(reference);
-        return reference.Definition is { } definition
-            && TypeArguments(definition, reference.DeclaringType, reference.GenericArguments) is { } typeArguments
-            ? Refusal(definition.Assembly, [.. typeArguments, .. reference.GenericArguments])
-            : null;
+        if (reference.Definition is not { } definition
+            || TypeArguments(definition, reference.DeclaringType, reference.GenericArguments) is not { } typeArguments)
+        {
+            return null;
+        }
+
+        IlType[] arguments = [.. typeArguments, .. reference.GenericArguments];
+        return Refusal(Home(definition.Assembly, arguments, owner), arguments);
     }
 
     /// <summary>Why the generic type instance <paramref name="type"/> cannot be compiled, or null when it can.</summary>
     public static Unsupported? Refusal(IlGenericInstanceType type, IlAssembly assembly) =>
-        Definition(type, assembly) is { } definition ? Refusal(definition.Assembly, type.Arguments) : null;
+        Definition(type, assembly) is { } definition
+            ? Refusal(Home(definition.Assembly, type.Arguments, assembly), type.Arguments)
+            : null;
 
     /// <summary>
     /// Why <paramref name="arguments"/>, closed type arguments that code of <paramref name="assembly"/> gives, cannot be
@@ -166,9 +216,18 @@ internal static class Instantiations
     /// The instance of <paramref name="definition"/> for these closed type arguments (of its type, then its own), made
     /// the first time it is asked for.
     /// </summary>
-    public static IlMethod Method(IlMethod definition, IReadOnlyList<IlType> typeArguments, IReadOnlyList<IlType> methodArguments)
+    public static IlMethod Method(IlMethod definition, IReadOnlyList<IlType> typeArguments, IReadOnlyList<IlType> methodArguments) =>
+        Method(definition, typeArguments, methodArguments, null);
+
+    /// <summary>
+    /// Like <see cref="Method(IlMethod, IReadOnlyList{IlType}, IReadOnlyList{IlType})"/>, made in <paramref name="home"/>
+    /// (see <see cref="Home"/>; null: the definition's assembly).
+    /// </summary>
+    public static IlMethod Method(IlMethod definition, IReadOnlyList<IlType> typeArguments, IReadOnlyList<IlType> methodArguments,
+        IlAssembly? home)
     {
-        var registry = Registries.GetValue(definition.Assembly, _ => new Registry());
+        home ??= definition.Assembly;
+        var registry = Registries.GetValue(home, _ => new Registry());
         lock (registry)
         {
             var key = (definition, Key(typeArguments), Key(methodArguments));
@@ -180,7 +239,7 @@ internal static class Instantiations
             if (typeArguments.Count > 0)
             {
                 // the type's instance makes its methods that are not generic themselves
-                var type = TypeOf(definition.DeclaringType, typeArguments);
+                var type = TypeOf(definition.DeclaringType, typeArguments, home);
                 if (methodArguments.Count == 0)
                 {
                     return registry.Methods[key];
@@ -189,7 +248,8 @@ internal static class Instantiations
                 return registry.Methods[key] = Create(type, definition, typeArguments, methodArguments);
             }
 
-            return registry.Methods[key] = Create(definition.DeclaringType, definition, [], methodArguments);
+            return registry.Methods[key] = Create(definition.DeclaringType, definition, [], methodArguments,
+                home == definition.Assembly ? null : home);
         }
     }
 
@@ -197,9 +257,19 @@ internal static class Instantiations
     /// The instance of the generic type <paramref name="definition"/> for these closed type arguments, with its fields and
     /// its methods that are not generic themselves, made the first time it is asked for.
     /// </summary>
-    public static IlTypeDefinition TypeOf(IlTypeDefinition definition, IReadOnlyList<IlType> arguments)
+    public static IlTypeDefinition TypeOf(IlTypeDefinition definition, IReadOnlyList<IlType> arguments) =>
+        TypeOf(definition, arguments, null);
+
+    /// <summary>
+    /// Like <see cref="TypeOf(IlTypeDefinition, IReadOnlyList{IlType})"/>, made in <paramref name="home"/> (see
+    /// <see cref="Home"/>; null: the definition's assembly), which is the instance's <see cref="IlTypeDefinition.Assembly"/>.
+    /// A type nested in a generic type has the type arguments of the type it is in first (C# gives it them), so its
+    /// instance is nested in that type's instance: <c>List&lt;int&gt;.Cell</c>.
+    /// </summary>
+    public static IlTypeDefinition TypeOf(IlTypeDefinition definition, IReadOnlyList<IlType> arguments, IlAssembly? home)
     {
-        var registry = Registries.GetValue(definition.Assembly, _ => new Registry());
+        home ??= definition.Assembly;
+        var registry = Registries.GetValue(home, _ => new Registry());
         lock (registry)
         {
             var key = (definition, Key(arguments));
@@ -208,21 +278,28 @@ internal static class Instantiations
                 return known;
             }
 
+            var outer = definition.DeclaringType is { GenericParameters.Count: > 0 and var inherited } declaring
+                && inherited <= arguments.Count
+                ? TypeOf(declaring, [.. arguments.Take(inherited)], home)
+                : null;
+            IReadOnlyList<IlType> own = outer is null ? arguments : [.. arguments.Skip(outer.TypeArguments.Count)];
             var tick = definition.Name.IndexOf('`', StringComparison.Ordinal);
-            var name = $"{(tick < 0 ? definition.Name : definition.Name[..tick])}<{Names(arguments)}>";
-            var named = new IlNamedType(definition.Namespace, name, definition.Type.DeclaringType, definition.Type.Assembly);
+            var plain = tick < 0 ? definition.Name : definition.Name[..tick];
+            var name = own.Count == 0 ? plain : $"{plain}<{Names(own)}>";
+            var named = new IlNamedType(definition.Namespace, name, outer?.Type ?? definition.Type.DeclaringType,
+                definition.Type.Assembly);
             for (var n = 2; registry.TypesByName.ContainsKey(named.FullName); n++)
             {
                 named = named with { Name = $"{name}#{n}" };
             }
 
             var substitution = new Substitution(arguments, []);
-            var type = new IlTypeDefinition(definition.Assembly, definition.Token, named, definition.Attributes,
+            var type = new IlTypeDefinition(home, definition.Token, named, definition.Attributes,
                 definition.BaseType is { } baseType ? substitution.Apply(baseType) : null, [])
             {
                 GenericDefinition = definition,
                 TypeArguments = arguments,
-                DeclaringType = definition.DeclaringType,
+                DeclaringType = outer ?? definition.DeclaringType,
             };
             registry.Types.Add(key, type);
             registry.TypesByName.Add(named.FullName, type);
@@ -248,21 +325,55 @@ internal static class Instantiations
     /// for <paramref name="method"/>, a method of its generic type.
     /// </summary>
     public static IlMethod MethodOf(IlTypeDefinition type, IlMethod method) =>
-        type.GenericDefinition is null ? method : Method(method, type.TypeArguments, []);
+        type.GenericDefinition is null ? method : Method(method, type.TypeArguments, [], type.Assembly);
 
     /// <summary>The type arguments as C# writes them, e.g. "int, Program.Point".</summary>
     public static string Names(IEnumerable<IlType> arguments) =>
         string.Join(", ", arguments.Select(argument => CSharpNames.Type(argument)));
 
+    /// <summary>
+    /// The type IL names <paramref name="type"/> with: an instance of a generic type as the generic type with its type
+    /// arguments (<c>Box`1&lt;Program+Lane&gt;</c>, which .NET names <c>Box`1[Program+Lane]</c>), any other type as it is.
+    /// </summary>
+    public static IlType Reference(IlTypeDefinition type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        return type.GenericDefinition is { } generic ? new IlGenericInstanceType(generic.Type, type.TypeArguments) : type.Type;
+    }
+
+    /// <summary>
+    /// Where the instance of generic code of <paramref name="definitions"/> for <paramref name="arguments"/>, which
+    /// <paramref name="owner"/>'s IL names, is made: in <paramref name="owner"/> when the arguments name its own types and
+    /// the code is another assembly's (ChipSharp.Library's generic code over the program's types: the instance's IL then
+    /// names the program's types as the program does, and the library's by their full names, see
+    /// <see cref="FindType"/>); else, as for every instance over values and the library's own types, in the assembly
+    /// of the generic code, so the program's instances are made once.
+    /// </summary>
+    private static IlAssembly Home(IlAssembly definitions, IReadOnlyList<IlType> arguments, IlAssembly? owner) =>
+        owner is not null && owner != definitions && arguments.Any(NamesOwnType) ? owner : definitions;
+
+    /// <summary>True when <paramref name="type"/> names a type of the assembly whose IL it is in (or one in it).</summary>
+    private static bool NamesOwnType(IlType type) => type switch
+    {
+        IlNamedType named => named.IsDefinedInThisAssembly,
+        IlGenericInstanceType instance => NamesOwnType(instance.Definition) || instance.Arguments.Any(NamesOwnType),
+        IlArrayType array => NamesOwnType(array.ElementType),
+        IlMultiDimensionalArrayType array => NamesOwnType(array.ElementType),
+        IlByRefType reference => NamesOwnType(reference.ElementType),
+        IlPointerType pointer => NamesOwnType(pointer.ElementType),
+        IlModifiedType modified => NamesOwnType(modified.UnmodifiedType),
+        _ => false,
+    };
+
     private static IlMethod Create(IlTypeDefinition type, IlMethod definition, IReadOnlyList<IlType> typeArguments,
-        IReadOnlyList<IlType> methodArguments)
+        IReadOnlyList<IlType> methodArguments, IlAssembly? context = null)
     {
         var substitution = new Substitution(typeArguments, methodArguments);
         var name = methodArguments.Count == 0 ? definition.Name : $"{definition.Name}<{Names(methodArguments)}>";
         var signature = substitution.Apply(definition.Signature) with { GenericParameterCount = 0 };
         IlParameter[] parameters = [.. definition.Parameters.Select(p => p with { Type = substitution.Apply(p.Type) })];
         return new IlMethod(type, definition, name, signature, parameters, methodArguments,
-            instance => Specialization.Body(instance, definition, substitution));
+            instance => Specialization.Body(instance, definition, substitution), context);
     }
 
     /// <summary>
@@ -291,22 +402,26 @@ internal static class Instantiations
     }
 
     /// <summary>The generic type (of <paramref name="assembly"/>, or a library substitute) <paramref name="type"/> is an instance of.</summary>
-    private static IlTypeDefinition? Definition(IlGenericInstanceType type, IlAssembly assembly) => type.Definition switch
+    internal static IlTypeDefinition? Definition(IlGenericInstanceType type, IlAssembly assembly) => type.Definition switch
     {
         IlNamedType { IsDefinedInThisAssembly: true } named => assembly.FindType(named.FullName),
         IlNamedType named => LibrarySubstitutes.FindType(named),
         _ => null,
     };
 
-    /// <summary>Why one type argument cannot be one, or null when it is a value: a number, a bool, an enum, a struct, text.</summary>
+    /// <summary>
+    /// Why one type argument cannot be one, or null when it is a value (a number, a bool, an enum, a struct, text) or a
+    /// reference (<see cref="ReferenceArguments"/>: object, a class, an interface, an array).
+    /// </summary>
     private static Unsupported? ForArgument(IlType argument, IlAssembly assembly)
     {
+        if (ReferenceArguments.IsReference(argument, assembly, out var reference))
+        {
+            return reference;
+        }
+
         switch (ValueTypes.WithoutModifiers(argument))
         {
-            case IlPrimitiveType { Kind: IlPrimitiveKind.Object }:
-            case IlArrayType or IlMultiDimensionalArrayType:
-                return Unsupported.GenericsOverClasses;
-
             case IlPrimitiveType { Kind: IlPrimitiveKind.Void or IlPrimitiveKind.TypedReference } primitive:
                 return Unsupported.TypeNamed(CSharpNames.Type(primitive));
 
@@ -324,7 +439,7 @@ internal static class Instantiations
             case IlGenericInstanceType instance:
                 return Definition(instance, assembly) is not { } generic ? Unsupported.TypeNamed(CSharpNames.Type(instance))
                     : !ValueTypes.IsStruct(generic) ? Unsupported.GenericsOverClasses
-                    : Refusal(generic.Assembly, instance.Arguments);
+                    : Refusal(assembly, instance.Arguments);
 
             default:
                 return Unsupported.TypeNamed(CSharpNames.Type(argument));

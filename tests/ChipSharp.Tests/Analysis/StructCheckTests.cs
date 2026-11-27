@@ -187,7 +187,7 @@ public sealed class StructCheckTests
     }
 
     [Fact]
-    public void Generic_library_and_overlapping_structs_fixed_buffers_and_ref_fields_are_features_of_their_own()
+    public void Library_and_overlapping_structs_fixed_buffers_and_ref_fields_are_features_of_their_own()
     {
         var analysis = Check("""
             using System;
@@ -229,13 +229,9 @@ public sealed class StructCheckTests
             }
             """);
 
-        // each default(...) is a local that initobj clears
+        // each default(...) is a local that initobj clears; Box<object> compiles (generics over classes)
         Assert.Equal(
         [
-            "generics over classes (a class, an interface, object or an array as a type argument) arrive with M3 (the "
-                + "heap): 3 places in Program.Main() (IL_0002 and local V_0) and Program.Value(Box<object>) (parameter "
-                + "'box'). For now, use numbers, bools, enums and structs as type arguments: ChipSharp makes the code "
-                + "once for each.",
             "structs with an explicit layout (LayoutKind.Explicit) arrive later: 3 places in Program.Main() "
                 + "(IL_0010 and local V_1) and Program.Low(Union) (parameter 'union'). "
                 + "For now, leave out [StructLayout(LayoutKind.Explicit)] and [FieldOffset].",

@@ -28,6 +28,8 @@ public sealed class LibrarySubstituteTests
         Assert.Equal(
             [
                 "ChipSharp.Library.BinaryPrimitives for System.Buffers.Binary.BinaryPrimitives",
+                "ChipSharp.Library.Comparer`1 for System.Collections.Generic.Comparer`1",
+                "ChipSharp.Library.EqualityComparer`1 for System.Collections.Generic.EqualityComparer`1",
                 "ChipSharp.Library.MemoryExtensions for System.MemoryExtensions",
                 "ChipSharp.Library.TimeSpan for System.TimeSpan", "ChipSharp.Library.Timing for ChipSharp.Hardware.Timing",
             ],

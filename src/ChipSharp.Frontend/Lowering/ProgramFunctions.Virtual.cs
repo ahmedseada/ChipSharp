@@ -67,7 +67,7 @@ internal sealed partial class ProgramFunctions
     {
         foreach (var (type, descriptor) in _classes)
         {
-            descriptor.RuntimeName = VirtualMethods.RuntimeName(type.Type);
+            descriptor.RuntimeName = VirtualMethods.RuntimeName(Generics.Instantiations.Reference(type));
         }
 
         if (_classes.Count == 0 && _systemObject is null)

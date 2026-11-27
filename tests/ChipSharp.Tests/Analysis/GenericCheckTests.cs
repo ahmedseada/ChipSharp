@@ -222,11 +222,13 @@ public sealed class GenericCheckTests : IDisposable
     [InlineData(null)]
     [InlineData("pico")]
     [InlineData("host")]
-    public void Classes_as_type_arguments_arrive_with_M3(string? target)
+    public void Classes_as_type_arguments_compile_on_a_target_with_a_heap(string? target)
     {
-        Assert.Equal(
-            [$"Program.Main() at IL_0007 (call): {OverClasses} arrive with M3 (the heap). For now, {OverClassesHint}"],
-            Problems(ClassArgument, target is null ? null : Shipped.Load(target)));
+        var analysis = Check(ClassArgument, target is null ? null : Shipped.Load(target));
+
+        Assert.True(analysis.IsSupported, analysis.Details);
+        Assert.Equal(["Program.Main", "Program.Keep<int>", "Program.Keep<object>"],
+            analysis.Methods.Select(method => method.DisplayName));
     }
 
     [Fact]
@@ -239,7 +241,7 @@ public sealed class GenericCheckTests : IDisposable
     }
 
     [Fact]
-    public void Generic_types_over_classes_and_generic_classes_are_their_problems()
+    public void Generic_types_over_types_that_cannot_be_type_arguments_are_their_problems()
     {
         var problems = WholeProgram.Problems("""
             struct Pair<T>
@@ -264,11 +266,14 @@ public sealed class GenericCheckTests : IDisposable
             }
             """);
 
+        // an array as a type argument is what arrays of its elements need: strings on the heap (Box<int> compiles)
+        const string Strings = "arrays of strings arrive with M3 (the heap). For now, keep each string in a variable or " +
+            "a static field of its own, or pick it with a switch.";
         Assert.Equal(
         [
-            $"Program.Main(), local variable V_0 (Pair<string[]>): {OverClasses} arrive with M3 (the heap). For now, {OverClassesHint}",
-            $"Program.Main() at IL_0002 (initobj): {OverClasses} arrive with M3 (the heap). For now, {OverClassesHint}",
-            $"Program.Main() at IL_0009 (ldfld): {OverClasses} arrive with M3 (the heap). For now, {OverClassesHint}",
+            $"Program.Main(), local variable V_0 (Pair<string[]>): {Strings}",
+            $"Program.Main() at IL_0002 (initobj): {Strings}",
+            $"Program.Main() at IL_0009 (ldfld): {Strings}",
         ], problems);
     }
 
