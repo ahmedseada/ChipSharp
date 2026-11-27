@@ -1,0 +1,11 @@
+latest: max -1, none yet: True
+3 readings, last 48, max 270
+5 readings, last 830, max 970
+7 readings, last 988, max 988
+9 readings, last 690, max 948
+total 897000, 4 windows kept, the latest's max 886
+first readings: 2280
+channel 9: none
+its length, or 0: 0
+channel 2 again: 7 readings
+an empty window: max -1

@@ -39,11 +39,12 @@ internal sealed partial class MethodLowering
 
     /// <summary>
     /// Rejects spans that would outlive an array or stackalloc of the method, and the other span problems, with the
-    /// verdicts the whole-program pass uses (<see cref="WholeProgramPass.ForSpans"/>), so the two always agree.
+    /// verdicts the whole-program pass uses (<see cref="WholeProgramPass.ForSpans"/>), so the two always agree; a span
+    /// that puts its array on the heap (a heap use, see <see cref="HeapArrays"/>) is fine here.
     /// </summary>
     private void CheckSpans()
     {
-        var problem = WholeProgramPass.ForSpans(_method).Where(verdict => verdict.Value is not null)
+        var problem = WholeProgramPass.ForSpans(_method).Where(verdict => verdict.Value is { IsHeapUse: false })
             .OrderBy(verdict => verdict.Key.Offset).FirstOrDefault();
         if (problem.Value is { } unsupported)
         {

@@ -106,21 +106,31 @@ internal static partial class ArrayEscapeAnalysis
 
         /// <summary>
         /// ldsfld, stsfld and ldsflda of a static field of an array type: reading a static array is an array that comes
-        /// from that field; its initializer's store takes the new array. Any use of a field that breaks the rule has its
-        /// problem.
+        /// from that field; its initializer's store takes the new array. Any other field of an array type is assigned while
+        /// the program runs, which needs a heap (see <see cref="HeapArrays"/>): what it is given is kept, and what it holds
+        /// was kept, or is null; on a target without a heap it has its problem. A reference to it is not supported.
         /// </summary>
         private void AccessStaticArray(IlInstruction instruction, IlField field, Func<Value> pop, List<Value> stack)
         {
             var isArray = _statics!.TryGet(field, out _);
-            Verdict(instruction, isArray ? null : _statics.Problem(field) ?? Unsupported.ArrayEscapes);
+            var problem = _statics.Problem(field) ?? Unsupported.ArrayEscapes;
+            Verdict(instruction, isArray ? null
+                : instruction.OpCode != IlOpCode.Ldsflda ? HeapUse(problem)
+                : problem == Unsupported.StaticArrayReferences ? problem
+                : Unsupported.ArrayReferences);
             switch (instruction.OpCode)
             {
                 case IlOpCode.Ldsfld:
-                    stack.Add(Value.Of(Kind.Array, isArray ? [StaticOrigin(field)] : []));
+                    stack.Add(ArrayOf(isArray ? [StaticOrigin(field)] : [LoadedOrigin], StaticFields.Type(field)));
                     break;
 
                 case IlOpCode.Stsfld:
-                    pop();
+                    var stored = pop();
+                    if (!isArray)
+                    {
+                        Kept(instruction, stored);
+                    }
+
                     break;
 
                 default:

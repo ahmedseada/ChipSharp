@@ -107,6 +107,25 @@ public sealed class TirArrayData : TirInstruction
 }
 
 /// <summary>
+/// <c>%1 = arrayobject %0</c>: the array object (a ref) whose element 0 is at the ptr %0, the inverse of
+/// <see cref="TirArrayData"/>: %0 less <see cref="TirLayout.ArrayDataOffset"/>. %0 must be what arraydata gave for an
+/// array object (on the heap, or an array object outside it); nothing checks that it is.
+/// </summary>
+public sealed class TirArrayObject : TirInstruction
+{
+    public TirArrayObject(TirValue data) : base(TirType.Ref)
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        Data = data;
+    }
+
+    /// <summary>The address of element 0: a ptr.</summary>
+    public TirValue Data { get; }
+
+    public override IReadOnlyList<TirValue> Operands => [Data];
+}
+
+/// <summary>
 /// <c>%1 = typeof %0</c>: the header of the object %0 (a ref, not null), the address of its type descriptor (a ptr),
 /// to compare with <see cref="TirTypeAddress"/> or to read the descriptor through (see <see cref="TirTypeDescriptor"/>
 /// for its layout: the virtual methods, the base, the interfaces).

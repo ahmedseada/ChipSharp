@@ -13,14 +13,18 @@ internal static class TargetRules
 {
     /// <summary>
     /// Changes <paramref name="problems"/>, the places in <paramref name="methods"/> that ChipSharp cannot compile, for
-    /// <paramref name="target"/>: on a target without a heap, a feature that needs one does not arrive with M3, it needs
-    /// a heap the target does not have (<see cref="Unsupported.WithoutHeap"/>), and so does every place that makes an
-    /// object of a class, which compiles on a target with a heap; on a target without a console, every
+    /// <paramref name="target"/>: a heap use (<see cref="Unsupported.IsHeapUse"/>) is no problem on a target with a heap
+    /// (or for any target, when <paramref name="target"/> is null); on a target without a heap, a feature that needs one
+    /// does not arrive with M3, it needs a heap the target does not have (<see cref="Unsupported.WithoutHeap"/>), and so
+    /// does every place that makes an object of a class, which compiles on a target with a heap; on a target without a
+    /// console, every
     /// call of Console.Write and Console.WriteLine is a problem too, added after the others. True when a problem says
     /// so: the target's own rules found something.
     /// </summary>
     public static bool Apply(TargetDescription? target, IReadOnlyList<IlMethod> methods, List<Problem> problems)
     {
+        // a heap use (Unsupported.IsHeapUse) is no problem where there is a heap: on any target, when checked without one
+        problems.RemoveAll(problem => problem.Unsupported.IsHeapUse && (target is null || target.HasHeap));
         if (target is null)
         {
             return false;

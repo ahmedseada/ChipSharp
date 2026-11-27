@@ -218,6 +218,10 @@ internal sealed class LlvmFunctionWriter
                 Define(data, $"getelementptr i8, {Typed(data.Array)}, i32 {_types.Layout.ArrayDataOffset}");
                 break;
 
+            case TirArrayObject arrayObject:
+                Define(arrayObject, $"getelementptr i8, {Typed(arrayObject.Data)}, i32 -{_types.Layout.ArrayDataOffset}");
+                break;
+
             case TirTypeOf typeOf:
                 Define(typeOf, $"load ptr, {Typed(typeOf.Reference)}, align {_types.Layout.PointerSize}");
                 break;

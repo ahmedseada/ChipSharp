@@ -17,10 +17,6 @@ namespace ChipSharp.Tests.Analysis;
 /// </summary>
 public sealed class SpanCheckTests : IDisposable
 {
-    private const string Escapes = "a span of an array that leaves the method that creates the array (returned, or "
-        + "stored where the caller sees it) arrives with M3 (the heap). For now, keep the span in the method that creates "
-        + "the array; the methods it calls can take the span as a parameter, and return it.";
-
     private const string Reuse = "a span of an array or of stackalloc made in a loop while a span or reference made there "
         + "before may still be in use arrives with M3 (the heap). For now, make the array or the stackalloc once, before "
         + "the loop, and reuse it.";
@@ -83,7 +79,8 @@ public sealed class SpanCheckTests : IDisposable
     [Fact]
     public void A_span_of_an_array_that_leaves_the_method_that_makes_the_array_is_rejected_where_it_leaves()
     {
-        var problems = Problems(Program("""
+        // on a target with a heap, each such array is on the heap (see HeapArrays): a chip without one says where
+        var source = Program("""
             Span<int> made = default;
             MakeOut(out made);
             MakeThrough(ref made);
@@ -117,13 +114,20 @@ public sealed class SpanCheckTests : IDisposable
 
                 public void Keep() => Values = new int[3];
             }
-            """));
+            """);
+        Assert.True(Check(source).IsSupported, Check(source).Details);
 
+        var problems = WholeProgramPass.Check(Load(source), new TargetLoader(TinyChip.Targets(_scratch)).Load(TinyChip.Name))
+            .Problems.Where(problem => !problem.Feature.StartsWith("Console.", StringComparison.Ordinal))
+            .Select(problem => problem.Line);
+        const string WithoutHeap = "a span of an array that leaves the method that creates the array (returned, or stored "
+            + "where the caller sees it) needs a heap, and the target 'tiny' (2 KB RAM) has no heap. Keep the span in the "
+            + "method that creates the array; the methods it calls can take the span as a parameter, and return it.";
         Assert.Equal(string.Join("\n",
-            $"Program.MakeOut(ref System.Span<int>) at IL_000c (stobj): {Escapes}",
-            $"Program.MakeThrough(ref System.Span<int>) at IL_000c (call): {Escapes}",
-            $"Holder.Keep() at IL_000c (stfld): {Escapes}",
-            $"Program.Make() at IL_000b (ret): {Escapes}"), string.Join("\n", problems));
+            $"Program.MakeOut(ref System.Span<int>) at IL_000c (stobj): {WithoutHeap}",
+            $"Program.MakeThrough(ref System.Span<int>) at IL_000c (call): {WithoutHeap}",
+            $"Holder.Keep() at IL_000c (stfld): {WithoutHeap}",
+            $"Program.Make() at IL_000b (ret): {WithoutHeap}"), string.Join("\n", problems));
     }
 
     [Fact]
@@ -162,9 +166,9 @@ public sealed class SpanCheckTests : IDisposable
             }
             """, "static int Use(ReadOnlySpan<int> span) => span.Length;"));
 
-        Assert.Equal(string.Join("\n",
-            $"Program.Main() at IL_000d (newarr): {Reuse}",
-            $"Program.Main() at IL_0041 (localloc): {Reuse}"), string.Join("\n", problems));
+        // the array made again while a span of the one before is in use is on the heap (see HeapArrays), a stackalloc
+        // cannot be
+        Assert.Equal($"Program.Main() at IL_0041 (localloc): {Reuse}", string.Join("\n", problems));
     }
 
     [Fact]

@@ -10,7 +10,9 @@ namespace ChipSharp.Frontend.Analysis;
 /// array to be on the heap: <c>Span&lt;int&gt; s = new int[4]; return s;</c> is fine C#. In ChipSharp that array is on
 /// the stack (<see cref="StackArrays"/>), so a span of it obeys the array's rule: it may be kept in locals, indexed,
 /// sliced and passed to methods, which may hand it back, but it must not leave the method that made the array, and an
-/// array (or a stackalloc) made again in a loop must not be in use through a span from the time before.
+/// array (or a stackalloc) made again in a loop must not be in use through a span from the time before. On a target with
+/// a heap, an array whose span does is on the heap instead (<see cref="KeptArrays"/>, see <see cref="HeapArrays"/>),
+/// which a span may view from anywhere; a stackalloc never is.
 /// </summary>
 /// <remarks>
 /// It follows, for every value on IL's evaluation stack and every local and argument, which arrays and stackallocs of
@@ -29,14 +31,31 @@ internal static class SpanEscapeAnalysis
     /// <summary>What an address that points outside the method may point to: memory of the caller's.</summary>
     private const int Outside = int.MinValue;
 
-    /// <summary>The problems of <paramref name="method"/>'s spans, by instruction; only the instructions that have one.</summary>
-    public static IReadOnlyDictionary<IlInstruction, Unsupported> Check(IlMethod method)
+    /// <summary>
+    /// The problems of <paramref name="method"/>'s spans, by instruction; only the instructions that have one. A span of
+    /// an array that leaves the method, or that is in use when its array is made again, puts the array on the heap
+    /// (<see cref="KeptArrays"/>): a heap use (<see cref="Unsupported.IsHeapUse"/>); one of a stackalloc is a problem.
+    /// </summary>
+    public static IReadOnlyDictionary<IlInstruction, Unsupported> Check(IlMethod method) => Analyze(method).Verdicts;
+
+    /// <summary>
+    /// The IL offsets of the <c>newarr</c> instructions of <paramref name="method"/> whose arrays a span keeps beyond
+    /// what the stack allows, so they are on the heap (see <see cref="HeapArrays"/>): a span of one leaves the method, or
+    /// is still in use when the newarr runs again.
+    /// </summary>
+    public static IReadOnlySet<int> KeptArrays(IlMethod method) => Analyze(method).Kept;
+
+    private static (IReadOnlyDictionary<IlInstruction, Unsupported> Verdicts, IReadOnlySet<int> Kept) Analyze(IlMethod method)
     {
         ArgumentNullException.ThrowIfNull(method);
         // only a method that makes an array or a stackalloc has something that must not outlive it
-        return method.Body is { } body && body.Instructions.Any(i => i.OpCode is IlOpCode.Newarr or IlOpCode.Localloc)
-            ? new Flow(method, body).Run()
-            : new Dictionary<IlInstruction, Unsupported>();
+        if (method.Body is not { } body || !body.Instructions.Any(i => i.OpCode is IlOpCode.Newarr or IlOpCode.Localloc))
+        {
+            return (new Dictionary<IlInstruction, Unsupported>(), new HashSet<int>());
+        }
+
+        var flow = new Flow(method, body);
+        return (flow.Run(), flow.Kept);
     }
 
     /// <summary>The marker of variable <paramref name="variable"/> (locals first, then the arguments) in a set.</summary>
@@ -324,7 +343,7 @@ internal static class SpanEscapeAnalysis
                         var type = ValueTypes.WithoutModifiers(_method.ReturnType);
                         if ((type is IlByRefType || IsSpanLike(type)) && returned.Any(IsOrigin))
                         {
-                            Verdict(instruction, Unsupported.SpanOfArrayEscapes);
+                            Escapes(instruction, Origins(returned));
                         }
                     }
 
@@ -383,7 +402,7 @@ internal static class SpanEscapeAnalysis
                     }
                     else if (item == Outside && !origins.IsEmpty)
                     {
-                        Verdict(instruction, Unsupported.SpanOfArrayEscapes);
+                        Escapes(instruction, origins);
                     }
                 }
             }
@@ -428,7 +447,7 @@ internal static class SpanEscapeAnalysis
                 }
                 else if (item == Outside && origins.Any(IsOrigin))
                 {
-                    Verdict(instruction, Unsupported.SpanOfArrayEscapes);
+                    Escapes(instruction, origins);
                 }
             }
         }
@@ -467,7 +486,7 @@ internal static class SpanEscapeAnalysis
             if (state.Stack.Any(value => value.Contains(offset))
                 || live.Any(v => state.Variables[v].Contains(offset)))
             {
-                Verdict(instruction, Unsupported.SpanReuse);
+                MadeAgain(instruction);
             }
         }
 
@@ -573,12 +592,57 @@ internal static class SpanEscapeAnalysis
 
         private static bool IsVoid(IlType type) => ValueTypes.WithoutModifiers(type) == IlType.Void;
 
-        /// <summary>Records a verdict in the last pass; the first problem found at an instruction stays.</summary>
+        /// <summary>
+        /// Records a verdict in the last pass; the first problem found at an instruction stays, but for a heap use, which
+        /// a problem that is not one takes the place of.
+        /// </summary>
         private void Verdict(IlInstruction instruction, Unsupported unsupported)
         {
+            if (_record && (!_verdicts.TryGetValue(instruction, out var found) || (found.IsHeapUse && !unsupported.IsHeapUse)))
+            {
+                _verdicts[instruction] = unsupported;
+            }
+        }
+
+        /// <summary>The newarr instructions whose arrays are on the heap because of a span (see <see cref="KeptArrays"/>).</summary>
+        public HashSet<int> Kept { get; } = [];
+
+        private bool IsNewarr(int origin) => _body.Instructions[_body.IndexOf(origin)].OpCode == IlOpCode.Newarr;
+
+        /// <summary>
+        /// A span or reference that may view <paramref name="origins"/> leaves the method at <paramref name="instruction"/>:
+        /// an array made here is then on the heap (a heap use), a stackalloc cannot be.
+        /// </summary>
+        private void Escapes(IlInstruction instruction, ImmutableHashSet<int> origins)
+        {
+            var made = origins.Where(IsOrigin).ToList();
+            if (made.All(IsNewarr))
+            {
+                Verdict(instruction, Unsupported.HeapUse(Unsupported.SpanOfArrayEscapes));
+                if (_record)
+                {
+                    Kept.UnionWith(made);
+                }
+            }
+            else
+            {
+                Verdict(instruction, Unsupported.SpanOfArrayEscapes);
+            }
+        }
+
+        /// <summary>A newarr or localloc runs again while a span of what it made before may be in use: a newarr's array is then on the heap.</summary>
+        private void MadeAgain(IlInstruction instruction)
+        {
+            if (instruction.OpCode != IlOpCode.Newarr)
+            {
+                Verdict(instruction, Unsupported.SpanReuse);
+                return;
+            }
+
+            Verdict(instruction, Unsupported.HeapUse(Unsupported.SpanReuse));
             if (_record)
             {
-                _verdicts.TryAdd(instruction, unsupported);
+                Kept.Add(instruction.Offset);
             }
         }
     }

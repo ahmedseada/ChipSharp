@@ -80,10 +80,12 @@ public sealed class IlToTirStaticArrayTests
             }
             """);
 
-        // an empty array has no global: its value is the empty array, a null data and a length of 0
+        // an empty array has no global of its own: its value is the program's empty array (see HeapArrays), whose data is
+        // not null, and a length of 0
         Assert.Equal(
         [
             "constant [2 x i32] @Program.Late = [7, 8]",
+            "constant [1 x ChipSharp.EmptyArray] @ChipSharp.Array.Empty",
             "global i32 @Program.count",
             "constant [3 x i32] @Program.Squares = [0, 1, 4]",
         ], Globals(module));
@@ -106,7 +108,7 @@ public sealed class IlToTirStaticArrayTests
               return
 
             """.ReplaceLineEndings("\n"), Function(module, "Program..cctor"));
-        Assert.Contains("  %7 = zero ChipSharp.Array\n  %8 = call i32 ChipSharp.Array.Length(%7)\n",
+        Assert.Contains("  %7 = call ChipSharp.Array ChipSharp.Array.Empty()\n  %8 = call i32 ChipSharp.Array.Length(%7)\n",
             Function(module, "Program.Main"), StringComparison.Ordinal);
     }
 
@@ -158,22 +160,22 @@ public sealed class IlToTirStaticArrayTests
     [Fact]
     public void Breaking_the_rule_is_an_error_of_the_translation_too()
     {
-        // the program is made here without the whole-program pass, which would have said so first
+        // the program is made here without the whole-program pass, which would have said so first: a constant table has
+        // no object around it, so it is never kept (an array assigned again is on the heap, see HeapArrays)
         var error = Assert.Throws<ChipSharpException>(() => Lowered.Module("""
             class Program
             {
-                static int[] table = new int[4];
+                static readonly int[] Table = { 1, 2 };
 
-                static void Main()
-                {
-                    table = new int[2];
-                    System.Console.WriteLine(table.Length);
-                }
+                static int[] Get() => Table;
+
+                static void Main() => System.Console.WriteLine(Get().Length);
             }
             """));
 
-        Assert.Equal("Test.dll: Program.Main() at IL_0006: stsfld: an array in a static field that is assigned again, or "
-            + "anywhere but in its field initializer or static constructor arrives with M3 (the heap).", error.Message);
+        Assert.Equal("Test.dll: Program.Get() at IL_0005: ret: an array in a static field that needs no heap (a constant "
+            + "table, or a fixed array) kept outside its field: returned, stored in another field or array, or passed to "
+            + "a method that keeps it arrives later.", error.Message);
     }
 
     /// <summary>The module's globals, as the printer lists them.</summary>

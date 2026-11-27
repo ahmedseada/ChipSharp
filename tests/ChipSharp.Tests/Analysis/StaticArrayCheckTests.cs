@@ -10,23 +10,27 @@ namespace ChipSharp.Tests.Analysis;
 /// <summary>
 /// Arrays in static fields (see StaticArrays): a field its initializer gives a new array of a constant size, once, is a
 /// constant table when nothing in the program writes an element (also not the methods it is passed to), else a static
-/// fixed array; every other static field of an array type is rejected, with a message in C# words.
+/// fixed array; every other static field of an array type is assigned while the program runs, on the heap (see
+/// HeapArrays), so on a chip without a heap it is rejected, with a message in C# words.
 /// </summary>
 public sealed class StaticArrayCheckTests : IDisposable
 {
+    // what breaks the rule is on the heap, which the chip "tiny" does not have (see ProblemsWithoutHeap)
+    private const string NoHeap = "the target 'tiny' (2 KB RAM) has no heap.";
+
     private const string Assigned = "an array in a static field that is assigned again, or anywhere but in its field "
-        + "initializer or static constructor arrives with M3 (the heap). For now, assign it once, where the field is "
+        + $"initializer or static constructor needs a heap, and {NoHeap} Assign it once, where the field is "
         + "declared (static int[] buffer = new int[16];), and change its elements instead.";
 
     private const string NotConstant = "an array in a static field that is not made with a constant size and constant "
-        + "elements arrives with M3 (the heap). For now, make it where the field is declared, with a constant size (new "
+        + $"elements needs a heap, and {NoHeap} Make it where the field is declared, with a constant size (new "
         + "int[16]) or constant elements ({ 1, 2, 3 }); a method that Main calls first can set the elements.";
 
-    private const string Null = "a static field of an array type that holds null (it is never given an array) arrives "
-        + "with M3 (the heap). For now, give it an array where the field is declared (static int[] buffer = new int[16];).";
+    private const string Null = "a static field of an array type that holds null (it is never given an array) needs "
+        + $"a heap, and {NoHeap} Give it an array where the field is declared (static int[] buffer = new int[16];).";
 
-    private const string References = "references to a static field that holds an array (ref, out) arrive with M3 (the "
-        + "heap). For now, use the field itself: it always holds the same array.";
+    private const string References = "references to a static field that holds an array (ref, out) need a heap, and "
+        + $"{NoHeap} Use the field itself: it always holds the same array.";
 
     private readonly string _scratch = Path.Combine(Path.GetTempPath(), "chipsharp-tests", Guid.NewGuid().ToString("N"));
 
@@ -229,7 +233,7 @@ public sealed class StaticArrayCheckTests : IDisposable
     [Fact]
     public void A_static_array_assigned_again_or_outside_its_initializer_is_rejected_at_every_use()
     {
-        var problems = Problems(Program("Reset(); Console.WriteLine(table.Length + other.Length);", """
+        var problems = ProblemsWithoutHeap(Program("Reset(); Console.WriteLine(table.Length + other.Length);", """
             static int[] table = new int[4];
             static int[] other;
 
@@ -255,7 +259,7 @@ public sealed class StaticArrayCheckTests : IDisposable
     [InlineData("on one path only", "if (limit > 0) { table = new int[4]; }")]
     public void A_static_constructor_that_may_assign_the_array_more_than_once_or_not_at_all_is_rejected(string what, string body)
     {
-        var problems = Problems(Program("Console.WriteLine(table.Length);", $$"""
+        var problems = ProblemsWithoutHeap(Program("Console.WriteLine(table.Length);", $$"""
             static int limit = 2;
             static int[] table;
 
@@ -272,7 +276,7 @@ public sealed class StaticArrayCheckTests : IDisposable
     [Fact]
     public void A_static_array_of_another_types_initializer_is_rejected()
     {
-        var problems = Problems(Program("Console.WriteLine(Tables.Squares.Length);", """
+        var problems = ProblemsWithoutHeap(Program("Console.WriteLine(Tables.Squares.Length);", """
             static Program()
             {
                 Tables.Squares = new int[3];
@@ -295,7 +299,7 @@ public sealed class StaticArrayCheckTests : IDisposable
     public void A_static_array_that_is_never_given_one_or_given_null_is_rejected()
     {
         // C# leaves "= null" out: the field is null anyway
-        var problems = Problems(Program("Console.WriteLine(missing.Length + empty.Length);", """
+        var problems = ProblemsWithoutHeap(Program("Console.WriteLine(missing.Length + empty.Length);", """
             static int[] missing;
             static int[] empty = null;
             """));
@@ -310,7 +314,7 @@ public sealed class StaticArrayCheckTests : IDisposable
     [Fact]
     public void A_static_array_whose_size_or_elements_are_computed_is_rejected()
     {
-        var problems = Problems(Program("Console.WriteLine(Sized.Length + Computed[0] + Corners[0].X + Copy.Length);", """
+        var problems = ProblemsWithoutHeap(Program("Console.WriteLine(Sized.Length + Computed[0] + Corners[0].X + Copy.Length);", """
             static int size = 4;
             static readonly int[] Sized = new int[size];
             static readonly int[] Computed = { size, 2 };
@@ -331,8 +335,8 @@ public sealed class StaticArrayCheckTests : IDisposable
             $"Program.Main() at IL_0007 (ldsfld): {NotConstant}",
             $"Program.Main() at IL_000f (ldsfld): {NotConstant}",
             $"Program.Main() at IL_0020 (ldsfld): {NotConstant}",
-            "Program..cctor() at IL_000b (newarr): an array whose size is known only when the program runs arrives with "
-                + "M3 (the heap). For now, give the array a fixed size: a constant, such as new int[16].",
+            "Program..cctor() at IL_000b (newarr): an array whose size is known only when the program runs needs a heap, "
+                + $"and {NoHeap} Give the array a fixed size: a constant, such as new int[16].",
             $"Program..cctor() at IL_0010 (stsfld): {NotConstant}",
             $"Program..cctor() at IL_0027 (stsfld): {NotConstant}",
             $"Program..cctor() at IL_0040 (stsfld): {NotConstant}",
@@ -344,11 +348,12 @@ public sealed class StaticArrayCheckTests : IDisposable
     [Fact]
     public void A_reference_to_a_static_array_field_is_rejected()
     {
-        var problems = Problems(Program("Fill(ref buffer); Console.WriteLine(buffer[0]);", """
+        // a reference to an array is no heap matter: not supported on any target (see HeapArrays)
+        var problems = ProblemsWithoutHeap(Program("Fill(ref buffer); Console.WriteLine(buffer[0]);", """
             static int[] buffer = new int[4];
 
             static void Fill(ref int[] values) => values[0] = 1;
-            """));
+            """), compilesWithHeap: false);
 
         Assert.Contains($"Program.Main() at IL_0000 (ldsflda): {References}", problems);
         Assert.Contains($"Program.Main() at IL_000a (ldsfld): {References}", problems);
@@ -358,9 +363,10 @@ public sealed class StaticArrayCheckTests : IDisposable
     [Fact]
     public void A_static_array_keeps_the_rules_of_arrays_on_the_stack_otherwise()
     {
+        // compared with null it is never null; kept outside its field it is not (it has no object around it, see
+        // HeapArrays), and an array of strings waits for strings on the heap
         var problems = Problems(Program("""
             Console.WriteLine(Table == null);
-            Array.Clear(Table);
             Console.WriteLine(Get().Length + Names.Length);
             """, """
             static readonly int[] Table = { 1, 2, 3 };
@@ -369,39 +375,35 @@ public sealed class StaticArrayCheckTests : IDisposable
             static int[] Get() => Table;
             """));
 
+        const string Strings = "arrays of strings arrive with M3 (the heap). For now, keep each string in a variable or "
+            + "a static field of its own, or pick it with a switch.";
         Assert.Equal(
         [
-            "Program.Main() at IL_0006 (ceq): comparing arrays (or an array with null) arrives with M3 (the heap). For now, "
-                + "leave the comparison out: an array on the stack is never null.",
-            "Program.Main() at IL_0012 (call): the library method System.Array.Clear(System.Array) is not available yet.",
-            "Program.Main() at IL_001e (ldsfld): arrays of strings, objects or arrays arrive with M3 (the heap). For now, "
-                + "use arrays of numbers, bools, structs or enums.",
-            "Program..cctor() at IL_0017 (newarr): arrays of strings, objects or arrays arrive with M3 (the heap). For now, "
-                + "use arrays of numbers, bools, structs or enums.",
-            "Program..cctor() at IL_0023 (stelem.ref): arrays of strings, objects or arrays arrive with M3 (the heap). For "
-                + "now, use arrays of numbers, bools, structs or enums.",
-            "Program..cctor() at IL_0024 (stsfld): arrays of strings, objects or arrays arrive with M3 (the heap). For now, "
-                + "use arrays of numbers, bools, structs or enums.",
-            "Program.Get(), return type (int[]): an array that leaves the method that creates it (returned, or stored in a "
-                + "field or in another array) arrives with M3 (the heap). For now, keep each array in the method that "
-                + "creates it; the methods it calls can take it as a parameter.",
+            $"Program.Main() at IL_0014 (ldsfld): {Strings}",
+            $"Program..cctor() at IL_0017 (newarr): {Strings}",
+            $"Program..cctor() at IL_0024 (stsfld): {Strings}",
+            "Program.Get() at IL_0005 (ret): an array in a static field that needs no heap (a constant table, or a fixed "
+                + "array) kept outside its field: returned, stored in another field or array, or passed to a method that "
+                + "keeps it arrives later. For now, read it through its field where it is needed, or copy its elements "
+                + "into an array made with new and keep that.",
         ], problems);
     }
 
     [Fact]
     public void The_summary_groups_the_uses_of_a_static_array_that_breaks_the_rule()
     {
-        var analysis = Check(Program("Reset(); Console.WriteLine(table[0]);", """
+        var analysis = CheckWithoutHeap(Program("Reset(); Console.WriteLine(table[0]);", """
             static int[] table = new int[4];
 
             static void Reset() => table = new int[4];
             """));
 
-        var group = Assert.Single(analysis.Groups);
+        var group = Assert.Single(analysis.Groups, group => group.Problems.All(IsAboutArrays));
         Assert.Equal("an array in a static field that is assigned again, or anywhere but in its field initializer or "
-            + "static constructor arrives with M3 (the heap): 3 places in Program.Main() (IL_0005), the static field "
-            + "initializers of Program (IL_0006) and Program.Reset() (IL_0006). For now, assign it once, where the field is declared (static "
-            + "int[] buffer = new int[16];), and change its elements instead.", group.Line);
+            + "static constructor needs a heap, and the target 'tiny' (2 KB RAM) has no heap: 3 places in Program.Main() "
+            + "(IL_0005), the static field initializers of Program (IL_0006) and Program.Reset() (IL_0006). Assign it "
+            + "once, where the field is declared (static int[] buffer = new int[16];), and change its elements instead.",
+            group.Line);
     }
 
     [Fact]
@@ -438,6 +440,27 @@ public sealed class StaticArrayCheckTests : IDisposable
             + "has no heap. Assign it once, where the field is declared (static int[] buffer = new int[16];), and change "
             + "its elements instead.", broken.Problems.Select(problem => problem.Line));
     }
+
+    /// <summary>
+    /// The program in <paramref name="source"/> checked for the chip "tiny", which has no heap; checked without a target
+    /// (for any target, the PC's and the Pico's with a heap) it compiles: what breaks the rule of static arrays is on the
+    /// heap (see HeapArrays).
+    /// </summary>
+    private AnalysisResult CheckWithoutHeap(string source, bool compilesWithHeap = true)
+    {
+        Assert.True(Check(source).IsSupported == compilesWithHeap, Check(source).Details);
+        var analysis = WholeProgramPass.Check(Load(source), new TargetLoader(TinyChip.Targets(_scratch)).Load(TinyChip.Name));
+        Assert.False(analysis.IsSupported);
+        return analysis;
+    }
+
+    /// <summary>The problems of <see cref="CheckWithoutHeap"/>, one per place.</summary>
+    private string[] ProblemsWithoutHeap(string source, bool compilesWithHeap = true) =>
+        [.. CheckWithoutHeap(source, compilesWithHeap).Problems.Where(IsAboutArrays).Select(problem => problem.Line)];
+
+    /// <summary>True for a problem about arrays: the chip "tiny" has no console either, which is a problem of its own.</summary>
+    private static bool IsAboutArrays(Problem problem) =>
+        !problem.Feature.StartsWith("Console.Write", StringComparison.Ordinal);
 
     /// <summary>The static arrays of the program in <paramref name="source"/>, which the whole-program pass accepts.</summary>
     private static string[] Arrays(string source)
