@@ -32,7 +32,7 @@ namespace ChipSharp.Runtime.Avr;
 /// replaces them; and <c>chipsharp_stack_overflow</c>, for the code generator's stack checks.</item>
 /// <item><see cref="VectorsFileName"/>, written for the target (<see cref="Vectors"/>): the interrupt vector table
 /// (section .vectors), as many entries as the chip's <see cref="VectorsSetting"/> says, with weak handlers a chip runtime
-/// or a program replaces, e.g. <c>chipsharp_isr_irq1</c>.</item>
+/// or a program replaces, avr-libc's names: <c>__vector_1</c> (INT0 on the ATmega328P) to <c>__vector_25</c>.</item>
 /// </list>
 /// The sources use the symbols of the linker script the toolchain writes for chips (__chipsharp_data_start,
 /// __chipsharp_stack_top, ...: see <see cref="StartupFileName"/>). A chip's runtime adds its own files to these; on its
@@ -104,8 +104,8 @@ public sealed class AvrRuntime : IArchRuntime
 
     /// <summary>
     /// The assembly of a vector table of <paramref name="count"/> entries: entry 0 jumps to <c>chipsharp_reset</c>,
-    /// entry n to <c>chipsharp_isr_irq&lt;n&gt;</c>, weak, which is <c>chipsharp_unhandled_interrupt</c> (the failure
-    /// stop) unless something defines it.
+    /// entry n to <c>__vector_&lt;n&gt;</c> (avr-libc's name: a <c>signal</c> handler by that name needs no other), weak,
+    /// which is <c>chipsharp_unhandled_interrupt</c> (the failure stop) unless something defines it.
     /// </summary>
     public static string Vectors(string target, int count)
     {
@@ -118,13 +118,14 @@ public sealed class AvrRuntime : IArchRuntime
             .Append("""
                 //
                 // The table is at the start of flash (section .vectors, which the linker script puts first). Entry 0 is the
-                // reset vector; entry n is the chip's interrupt n, counted as avr-libc's __vector_n counts them (1 is INT0 on
-                // the ATmega328P). Each entry jumps to chipsharp_reset or to chipsharp_isr_irq<n>: with JMP, two words, on a
-                // chip with more than 8 KB of flash, with RJMP, one word, on a smaller one, as the chip's table is laid out.
-                // A chip runtime, or a program's [Interrupt] method, handles interrupt n by defining chipsharp_isr_irq<n> (an
-                // AVR interrupt handler: it saves what it changes, SREG too, and returns with RETI). Every one nobody defines
-                // is chipsharp_unhandled_interrupt, which stops the program as a failure does: an interrupt was turned on
-                // with nothing to handle it, and the chip would come back to it again and again.
+                // reset vector; entry n is the chip's interrupt n, as the datasheet numbers them less one (1 is INT0 on the
+                // ATmega328P, 13 TIMER1_OVF, 16 TIMER0_OVF, 18 USART_RX). Each entry jumps to chipsharp_reset or to
+                // __vector_<n>, avr-libc's name: with JMP, two words, on a chip with more than 8 KB of flash, with RJMP, one
+                // word, on a smaller one, as the chip's table is laid out. A chip runtime, or a program's [Interrupt] method,
+                // handles interrupt n by defining __vector_<n> (an AVR interrupt handler, __attribute__((signal)) in C: it
+                // saves what it changes, SREG too, and returns with RETI). Every one nobody defines is
+                // chipsharp_unhandled_interrupt, which stops the program as a failure does: an interrupt was turned on with
+                // nothing to handle it, and the chip would come back to it again and again.
 
                 #if defined(__AVR_HAVE_JMP_CALL__)
                 #define VECTOR jmp
@@ -140,13 +141,13 @@ public sealed class AvrRuntime : IArchRuntime
                 """);
         for (var n = 1; n < count; n++)
         {
-            text.Append("    VECTOR chipsharp_isr_irq").Append(n.ToString(CultureInfo.InvariantCulture)).Append('\n');
+            text.Append("    VECTOR ").Append(Handler(n)).Append('\n');
         }
 
         text.Append("    .size chipsharp_vectors, . - chipsharp_vectors\n\n");
         for (var n = 1; n < count; n++)
         {
-            var handler = "chipsharp_isr_irq" + n.ToString(CultureInfo.InvariantCulture);
+            var handler = Handler(n);
             text.Append("    .weak ").Append(handler).Append('\n')
                 .Append("    .set ").Append(handler).Append(", chipsharp_unhandled_interrupt\n");
         }
@@ -162,6 +163,9 @@ public sealed class AvrRuntime : IArchRuntime
 
                 """).ToString().ReplaceLineEndings("\n");
     }
+
+    /// <summary>The handler of interrupt <paramref name="number"/> (entry <paramref name="number"/> of the table): avr-libc's name.</summary>
+    public static string Handler(int number) => "__vector_" + number.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>One of this runtime's source files by name, e.g. <see cref="DivideFileName"/>.</summary>
     public static GeneratedFile Source(string fileName) => new(fileName, EmbeddedText.Read(typeof(AvrRuntime), fileName));

@@ -124,21 +124,40 @@ public sealed class AvrHelperTests
         }
     }
 
-    /// <summary>A copy from flash reads flash (LPM), wherever it starts and whatever its length.</summary>
+    /// <summary>
+    /// A copy from flash reads flash (LPM), wherever it starts and whatever its length: chipsharp_memcpy_flash given a
+    /// flash address, with bit 15 (the code generator's constants) or without; memcpy and memmove given one with bit 15.
+    /// memcmp compares bytes in RAM and in flash alike.
+    /// </summary>
     [AvrFact]
-    public async Task Chipsharp_memcpy_flash_copies_from_flash_to_RAM()
+    public async Task What_is_read_may_be_in_flash()
     {
         var program = await Built.Value;
         var cpu = program.Load();
         var random = new Random(1);
-        for (var test = 0; test < 300; test++)
+        string[] copies = ["chipsharp_memcpy_flash", "memcpy", "memmove"];
+        for (var test = 0; test < 600; test++)
         {
             var count = random.Next(5) == 0 ? random.Next(3) : random.Next(1, 600);
             var source = random.Next(0, program.Flash.Length - count);
             var target = 0x200 + random.Next(0, 0x100);
-            Assert.Equal((ulong)target, AvrAbi.Call(cpu, program.Address("chipsharp_memcpy_flash"), 2, random,
-                ((ulong)target, 2), ((ulong)source, 2), ((ulong)count, 2)));
+            var name = copies[test % 3];
+            var tagged = name != "chipsharp_memcpy_flash" || random.Next(2) == 0;
+            Assert.Equal((ulong)target, AvrAbi.Call(cpu, program.Address(name), 2, random,
+                ((ulong)target, 2), ((ulong)(source | (tagged ? 0x8000 : 0)), 2), ((ulong)count, 2)));
             Assert.Equal(program.Flash[source..(source + count)], cpu.Data[target..(target + count)]);
+
+            // the copy, then one byte changed, compared both ways
+            if (count > 0 && random.Next(2) == 0)
+            {
+                cpu.Data[target + random.Next(count)] ^= (byte)random.Next(1, 256);
+            }
+
+            var sign = Math.Sign(cpu.Data.AsSpan(target, count).SequenceCompareTo(program.Flash.AsSpan(source, count)));
+            Assert.Equal(sign, Math.Sign((short)AvrAbi.Call(cpu, program.Address("memcmp"), 2, random,
+                ((ulong)target, 2), ((ulong)(source | 0x8000), 2), ((ulong)count, 2))));
+            Assert.Equal(-sign, Math.Sign((short)AvrAbi.Call(cpu, program.Address("memcmp"), 2, random,
+                ((ulong)(source | 0x8000), 2), ((ulong)target, 2), ((ulong)count, 2))));
         }
     }
 
@@ -159,7 +178,7 @@ public sealed class AvrHelperTests
         string[] memory = ["memcpy", "memmove", "memset", "memcmp", "chipsharp_memcpy_flash"];
         Assert.InRange(multiply.Sum(program.SizeOf), 150, 256);
         Assert.InRange(divide.Sum(program.SizeOf), 400, 768);
-        Assert.InRange(memory.Sum(program.SizeOf), 80, 160);
+        Assert.InRange(memory.Sum(program.SizeOf), 100, 200);
 
         var divides = await AvrCoreProgram.BuildAsync(
         [

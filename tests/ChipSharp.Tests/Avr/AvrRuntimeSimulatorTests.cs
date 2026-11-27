@@ -8,8 +8,8 @@ namespace ChipSharp.Tests.Avr;
 
 /// <summary>
 /// The avr runtime built as a build builds it for the Arduino Uno (the toolchain "zig", the linker script it writes,
-/// the .hex) and run in the avr8js simulator (tools/avr-sim): a program that multiplies, divides and computes with
-/// floats and doubles, checked against .NET's results, lights D13 when every one is right and finishes; one that fails
+/// the .hex) and run in the avr8js simulator (tools/avr-sim): a program that multiplies, divides (8 to 64 bits), copies
+/// and computes with floats and doubles, checked against .NET's results, lights D13 when every one is right and finishes; one that fails
 /// stops at BREAK, which the simulator reports as a failure.
 /// </summary>
 public sealed class AvrRuntimeSimulatorTests : IDisposable
@@ -82,6 +82,9 @@ public sealed class AvrRuntimeSimulatorTests : IDisposable
         int c = 2000000000, d = -7;
         double x = 1.1, y = 3.3;
         float f = 2.5f, g = 0.1f;
+        ushort e = 60000, h = 7;
+        short i = -30000, j = 7;
+        byte k = 250, l = 7;
         (string Expression, ulong Bits)[] checks =
         [
             ("(unsigned long long)(a / b)", (ulong)(a / b)),
@@ -103,6 +106,13 @@ public sealed class AvrRuntimeSimulatorTests : IDisposable
             ("bits32(f / g)", BitConverter.SingleToUInt32Bits(f / g)),
             ("bits32((float)x)", BitConverter.SingleToUInt32Bits((float)x)),
             ("(unsigned long)(long)(f * 1000.0f)", (uint)(int)(f * 1000.0f)),
+            ("(unsigned long)(e / h)", (uint)(e / h)),
+            ("(unsigned long)(e % h)", (uint)(e % h)),
+            ("(unsigned long)(unsigned short)(i / j)", (ushort)(i / j)),
+            ("(unsigned long)(unsigned short)(i % j)", (ushort)(i % j)),
+            ("(unsigned long)(unsigned char)(k / l)", (uint)(k / l)),
+            ("(unsigned long)(unsigned char)(k % l)", (uint)(k % l)),
+            ("copied()", 1),
         ];
 
         var tests = string.Concat(checks.Select(check =>
@@ -118,6 +128,21 @@ public sealed class AvrRuntimeSimulatorTests : IDisposable
             volatile long c = {{c.ToString(CultureInfo.InvariantCulture)}}L, d = {{d.ToString(CultureInfo.InvariantCulture)}}L;
             volatile double x = 1.1, y = 3.3;
             volatile float f = 2.5f, g = 0.1f;
+            volatile unsigned short e = 60000, h = 7;
+            volatile short i = -30000, j = 7;
+            volatile unsigned char k = 250, l = 7;
+
+            // a struct this big is copied with a call to memcpy
+            struct big { char bytes[100]; };
+            struct big from = { { 1, 2, 3 } }, to;
+
+            static int copied(void)
+            {
+                from.bytes[99] = 99;
+                to = from;
+                volatile char *copy = to.bytes;
+                return copy[2] == 3 && copy[99] == 99;
+            }
 
             long chipsharp_entry(void)
             {

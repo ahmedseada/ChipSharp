@@ -31,7 +31,7 @@ public sealed class AvrStartupTests
 
         void chipsharp_chip_init(void) { chip_init_ran++; }
         void chipsharp_before_halt(void) { before_halt_ran++; }
-        __attribute__((signal)) void chipsharp_isr_irq1(void) { irq1_ran++; }
+        __attribute__((signal)) void __vector_1(void) { irq1_ran++; }
 
         long chipsharp_entry(void)
         {
@@ -142,7 +142,7 @@ public sealed class AvrStartupTests
             var expected = entry switch
             {
                 0 => "chipsharp_reset",
-                1 => "chipsharp_isr_irq1",
+                1 => "__vector_1",
                 _ => "chipsharp_unhandled_interrupt",
             };
             Assert.Equal(program.Address(expected) / 2, cpu.Program[entry * 2 + 1]);

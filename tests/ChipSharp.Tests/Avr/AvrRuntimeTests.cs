@@ -62,11 +62,11 @@ public sealed class AvrRuntimeTests
         var vectors = Assert.Single(new AvrRuntime().InterruptEntry(AvrCoreProgram.Target).Files).Content;
 
         Assert.Contains("    .section .vectors, \"ax\", @progbits\n", vectors);
-        Assert.Contains("chipsharp_vectors:\n    VECTOR chipsharp_reset\n    VECTOR chipsharp_isr_irq1\n", vectors);
-        Assert.Contains("    VECTOR chipsharp_isr_irq25\n    .size chipsharp_vectors", vectors);
-        Assert.DoesNotContain("chipsharp_isr_irq26", vectors);
-        Assert.Equal(25, vectors.Split("    .weak chipsharp_isr_irq").Length - 1);
-        Assert.Contains("    .set chipsharp_isr_irq7, chipsharp_unhandled_interrupt\n", vectors);
+        Assert.Contains("chipsharp_vectors:\n    VECTOR chipsharp_reset\n    VECTOR __vector_1\n", vectors);
+        Assert.Contains("    VECTOR __vector_25\n    .size chipsharp_vectors", vectors);
+        Assert.DoesNotContain("__vector_26", vectors);
+        Assert.Equal(25, vectors.Split("    .weak __vector_").Length - 1);
+        Assert.Contains("    .set __vector_7, chipsharp_unhandled_interrupt\n", vectors);
         Assert.Contains("chipsharp_unhandled_interrupt:\n    VECTOR chipsharp_halt_failure\n", vectors);
     }
 
