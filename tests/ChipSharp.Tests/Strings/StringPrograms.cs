@@ -403,6 +403,20 @@ internal static class StringPrograms
             public override int Sides() => 4;
         }
 
+        abstract class Animal
+        {
+        }
+
+        class Dog : Animal
+        {
+            public override string ToString() => "dog";
+        }
+
+        class Cat : Animal
+        {
+            public override string ToString() => "cat";
+        }
+
         class Plain
         {
         }
@@ -428,6 +442,13 @@ internal static class StringPrograms
                 {
                     Console.WriteLine(shape);
                     Console.WriteLine(shape.ToString().ToUpper());
+                }
+
+                // only printing calls the ToString of an animal, which has two
+                Animal[] animals = { new Dog(), new Cat() };
+                foreach (var animal in animals)
+                {
+                    Console.WriteLine(animal);
                 }
 
                 Console.WriteLine(new Plain());

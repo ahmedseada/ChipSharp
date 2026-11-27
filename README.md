@@ -190,7 +190,7 @@ type's .NET name (`Program+Node`); `Console.WriteLine(node)` and `"x" + node` ca
 `GetHashCode` or `ToString` on an `object` that holds a string runs a string's, and `is string`, `as string` and
 `(string)o` test the object's header. `StringBuilder`, `$"{node}"` of an object and a `params` span (`string.Join(",
 ", a, b, c)`, give an array) are not there yet. `samples/Text.cs` takes commands as text, the way they come over a
-serial line.
+serial line; on the Pico it takes 21.8 KB of flash, the runtime's text of floats and strings included.
 
 ### Arrays in static fields
 

@@ -44,19 +44,13 @@ internal sealed partial class MethodLowering
         var receiverType = StackType(0);
         var value = ObjectFromStack(PopValue(), $"the object {callee.Name} writes");
         var targets = _program.VirtualTables.Dispatch.Targets(slot, receiverType ?? callee.ParameterTypes[0]);
-        var toString = StringMethods.MayBeString(receiverType)
-            ? _program.StringObjects.OrString(slot.Name, targets.Count switch
-            {
-                0 => null,
-                1 => _program.Function(targets[0]),
-                _ => _program.ObjectFunctions.VirtualObjectCall(slot.Name, SlotIndex(slot)),
-            })
-            : targets.Count switch
-            {
-                0 => null,
-                1 => _program.Function(targets[0]),
-                _ => _program.ObjectFunctions.VirtualObjectCall(slot.Name, SlotIndex(slot)),
-            };
+        var called = targets.Count switch
+        {
+            0 => null,
+            1 => _program.Function(targets[0]),
+            _ => _program.ObjectFunctions.VirtualObjectCall(slot.Name, SlotIndex(slot)),
+        };
+        var toString = StringMethods.MayBeString(receiverType) ? _program.StringObjects.OrString(slot.Name, called) : called;
 
         // no object that could be there is ever made: it is null, which writes nothing
         if (toString is not null)
@@ -69,5 +63,4 @@ internal sealed partial class MethodLowering
             _ir.Call(_program.Runtime("WriteLine"));
         }
     }
-
 }

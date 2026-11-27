@@ -132,13 +132,13 @@ public sealed class StringCheckTests : IDisposable
         ], analysis.Groups.Select(group => group.Feature));
         Assert.Equal(
         [
-            $"Program.Main() at IL_000b (call): keeping built text in a variable {NeedsHeap}. Print it straight away: " +
+            $"Program.Main() at IL_000e (call): keeping built text in a variable {NeedsHeap}. Print it straight away: " +
                 "Console.WriteLine($\"...\").",
-            $"Program.Main() at IL_0015 (callvirt): {Making} {NeedsHeap}. Print the parts one after another with Console.Write.",
-            $"Program.Main() at IL_002a (callvirt): {Making} {NeedsHeap}. Print the parts one after another with Console.Write.",
-            $"Program.Main() at IL_003a (call): {Making} {NeedsHeap}. Print the parts one after another with Console.Write.",
-            $"Program.Main() at IL_004b (call): {Making} {NeedsHeap}. Print the parts one after another with Console.Write.",
-            $"Program.Report(float) at IL_002a (call): keeping built text in a variable {NeedsHeap}. Print it straight " +
+            $"Program.Main() at IL_001d (callvirt): {Making} {NeedsHeap}. Print the parts one after another with Console.Write.",
+            $"Program.Main() at IL_0032 (callvirt): {Making} {NeedsHeap}. Print the parts one after another with Console.Write.",
+            $"Program.Main() at IL_0044 (call): {Making} {NeedsHeap}. Print the parts one after another with Console.Write.",
+            $"Program.Main() at IL_0055 (call): {Making} {NeedsHeap}. Print the parts one after another with Console.Write.",
+            $"Program.Report(float) at IL_001f (call): keeping built text in a variable {NeedsHeap}. Print it straight " +
                 "away: Console.WriteLine($\"...\").",
         ], analysis.Problems.Select(problem => problem.Line));
         Assert.True(WholeProgramPass.Check(assembly).IsSupported);

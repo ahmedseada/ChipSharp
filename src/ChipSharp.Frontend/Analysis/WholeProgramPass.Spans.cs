@@ -111,10 +111,6 @@ public static partial class WholeProgramPass
         _ => Unsupported.ForSpan(call.Element, assembly),
     };
 
-    /// <summary>
-    /// Why a value of <paramref name="type"/> cannot be read or written as bytes (MemoryMarshal): it is not a number, a
-    /// bool, an enum or a struct of them; null when it is.
-    /// </summary>
     /// <summary>The first field of a struct (or of a struct in it) that holds a reference: a string or an object; null for none.</summary>
     private static (IlTypeDefinition Owner, IlField Field)? ReferenceField(IlType type, IlAssembly assembly)
     {
@@ -139,6 +135,10 @@ public static partial class WholeProgramPass
         return null;
     }
 
+    /// <summary>
+    /// Why a value of <paramref name="type"/> cannot be read or written as bytes (MemoryMarshal): it is not a number, a
+    /// bool, an enum or a struct of them (no string or object in it); null when it is.
+    /// </summary>
     private static Unsupported? ForPlainData(IlType type, IlAssembly assembly)
     {
         if (StackArrays.TryMapElementType(type, assembly, out _))
