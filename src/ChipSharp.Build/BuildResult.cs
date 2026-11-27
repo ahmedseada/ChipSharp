@@ -1,4 +1,5 @@
 using ChipSharp.Abstractions;
+using ChipSharp.Frontend.Analysis;
 
 namespace ChipSharp.Build;
 
@@ -13,4 +14,14 @@ namespace ChipSharp.Build;
 /// <param name="Target">The target the program was built for, with everything it inherits merged in.</param>
 /// <param name="Memory">How much of the target's flash and RAM the program takes (for a PC, how big it is).</param>
 public sealed record BuildResult(string OutputPath, IReadOnlyList<string> IntermediatePaths, TargetDescription Target,
-    MemoryReport Memory);
+    MemoryReport Memory)
+{
+    /// <summary>
+    /// The places whose result in .NET depends on the PC's language settings, where the program's is the same
+    /// everywhere (see <see cref="AnalysisResult.Notes"/>): they do not stop a build. Empty when there are none.
+    /// </summary>
+    public IReadOnlyList<Note> Notes { get; init; } = [];
+
+    /// <summary>The <see cref="Notes"/> by difference, as <c>chipsharp build</c> prints them.</summary>
+    public IReadOnlyList<NoteGroup> NoteGroups { get; init; } = [];
+}

@@ -66,6 +66,7 @@ public static partial class WholeProgramPass
             InterruptHandlers = handlers,
             DetailsTarget = forTarget ? target!.Name : null,
             UnalignedAccess = target?.HasCapability("unalignedAccess") ?? true,
+            Notes = CultureNotes.Find(assembly, methods),
         };
     }
 

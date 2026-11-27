@@ -57,7 +57,8 @@ public static class ChipSharpBuilder
             ?? throw new InvalidOperationException("The registry factory returned no registry.");
         var parts = Parts.Find(registry, target);
 
-        var module = IlToTir.Lower(WholeProgramPass.Analyze(assembly, target));
+        var analysis = WholeProgramPass.Check(assembly, target);
+        var module = IlToTir.Lower(analysis.ToProgram());
         var kept = new List<string>();
         if (options.KeepIntermediates)
         {
@@ -99,7 +100,7 @@ public static class ChipSharpBuilder
         }
 
         DeleteFolder(workFolder);
-        return new BuildResult(output, kept, target, memory);
+        return new BuildResult(output, kept, target, memory) { Notes = analysis.Notes, NoteGroups = analysis.NoteGroups };
     }
 
     /// <summary>
