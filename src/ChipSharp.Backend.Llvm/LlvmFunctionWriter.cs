@@ -54,6 +54,9 @@ internal sealed class LlvmFunctionWriter
     /// <summary>True when the function checks the stack where it starts (see <see cref="LlvmStackChecks"/>).</summary>
     public bool ChecksStack { get; init; }
 
+    /// <summary>The line that clears the callee-saved registers before a call that collects (<see cref="LlvmCollectCalls"/>).</summary>
+    public string? ForgetRegisters { get; init; }
+
     public void Write()
     {
         var allocas = Unique("allocas");
@@ -268,6 +271,12 @@ internal sealed class LlvmFunctionWriter
                 // and the runtime's functions take i32 and i64 only; a C function taking a bool, i8 or i16 would.
                 var arguments = string.Join(", ", call.Arguments.Select(Typed));
                 var callText = $"call {_types.Of(call.Type)} @{_symbols[call.Callee]}({arguments})";
+                if (ForgetRegisters is { } forget && call.Callee.Kind == TirFunctionKind.External
+                    && LlvmCollectCalls.Collects(_symbols[call.Callee]))
+                {
+                    Line(forget);
+                }
+
                 if (call.HasResult)
                 {
                     Define(call, callText);

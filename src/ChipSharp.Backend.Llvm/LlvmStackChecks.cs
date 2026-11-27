@@ -10,7 +10,7 @@ namespace ChipSharp.Backend.Llvm;
 /// locks up instead). So the functions through which the stack can grow without end check it themselves: when one starts,
 /// it compares the stack pointer (its frame is there already: the call that stops the program needs one, so LLVM sets
 /// it up first) with <see cref="LimitSymbol"/>, which the linker script puts a margin above the stack's bottom, and below it calls <see cref="OverflowSymbol"/> (the armv6m runtime: a stack
-/// of its own, then "Stack overflow.", as .NET says it, and a stop). The checks, three instructions and a literal, are in:
+/// of its own, then "Stack overflow.", as .NET says it, and a stop). The checks, four instructions and a literal, are in:
 /// <list type="bullet">
 /// <item>every function that can call itself again (<see cref="Find"/>): in a cycle of the program's calls, through
 /// other functions, virtual and interface calls and delegates (a call through an address may reach every function

@@ -147,6 +147,39 @@ public sealed class InterruptStoreRuleTests(Xunit.Abstractions.ITestOutputHelper
         Assert.Empty(problems);
     }
 
+    [Fact]
+    public void A_handler_that_boxes_a_value_makes_an_object()
+    {
+        var problems = Problems("""
+            using System;
+            using ChipSharp.Hardware;
+
+            static class Program
+            {
+                static volatile int ticks;
+
+                static void Main() => Timing.EveryMilliseconds(1);
+
+                static bool Same(object a, object b) => a.Equals(b);
+
+                [Interrupt(Event.Timer)]
+                static void Tick()
+                {
+                    if (Same(ticks, 3))
+                    {
+                        ticks = 0;
+                    }
+
+                    ticks++;
+                }
+            }
+            """);
+
+        Assert.Equal(2, problems.Count);
+        Assert.All(problems, problem => Assert.Matches(@"^Program\.Tick\(\) at IL_00[0-9a-f]{2} \(box\): an interrupt handler " +
+            @"cannot create objects \(new \.\.\.\)\.", problem));
+    }
+
     private static List<string> Problems(string source) =>
         [.. WholeProgramPass.Check(InterruptCheckTests.Load(source), PicoBuild.Pico).Problems.Select(problem => problem.Line)];
 }

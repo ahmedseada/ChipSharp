@@ -122,12 +122,14 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
 
         var intrinsics = new SortedSet<string>(StringComparer.Ordinal);
         var stackChecks = LlvmStackChecks.Find(module, target, types.Layout);
+        var forgetRegisters = LlvmCollectCalls.ForgetRegisters(target);
         foreach (var function in module.Functions.Where(f => f.Kind == TirFunctionKind.Defined))
         {
             text.Append('\n');
             new LlvmFunctionWriter(function, types, symbols, globalSymbols, typeSymbols, text, intrinsics)
             {
                 ChecksStack = stackChecks.Contains(function),
+                ForgetRegisters = forgetRegisters,
             }.Write();
         }
 

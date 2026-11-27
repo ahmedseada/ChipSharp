@@ -145,7 +145,8 @@ public static partial class WholeProgramPass
 
                 // the runtime stops a program that makes an object (an array on the heap too) in a handler: this finds
                 // it before it runs
-                if (inHandlers.Contains(method) && (ClassRules.Allocates(instruction) || heapArrays.Contains(instruction)))
+                if (inHandlers.Contains(method) && (ClassRules.Allocates(instruction) || heapArrays.Contains(instruction)
+                    || Boxes(instruction, method.Assembly)))
                 {
                     problems.Add(Problem.At(method, instruction, Unsupported.AllocationInHandler));
                 }
@@ -224,6 +225,11 @@ public static partial class WholeProgramPass
 
         return reached;
     }
+
+    /// <summary>True for a <c>box</c> of a value: it makes an object (see <see cref="Boxing"/>); one of a reference is the reference itself.</summary>
+    private static bool Boxes(IlInstruction instruction, IlAssembly assembly) =>
+        instruction is { OpCode: IlOpCode.Box, Operand: IlTypeOperand { Type: var type } }
+        && !ObjectTypes.TryMapType(type, assembly, out _) && ValueTypes.WithoutModifiers(type) is not IlArrayType;
 
     /// <summary>The library substitutes among <paramref name="methods"/> that store references (themselves, or through the substitutes they call).</summary>
     private static HashSet<IlMethod> Storing(IReadOnlyList<IlMethod> methods)
