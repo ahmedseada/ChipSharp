@@ -458,7 +458,8 @@ internal static partial class VirtualMethods
     private static DispatchSlot InterfaceSlot(IlMethodReference callee)
     {
         var owner = Canonical(callee.DeclaringType);
-        return new DispatchSlot(DispatchSlotKind.Interface, owner, callee.Name, Arguments(owner).Apply(callee.Signature));
+        return new DispatchSlot(DispatchSlotKind.Interface, owner, callee.Name,
+            CanonicalSignature(Arguments(owner).Apply(callee.Signature)));
     }
 
     /// <summary>The type arguments of an instance of a generic interface, for its <c>!0</c>, <c>!1</c>, ...</summary>
@@ -495,7 +496,7 @@ internal static partial class VirtualMethods
             {
                 var implicitly = current.Methods.FirstOrDefault(method => method is { IsStatic: false }
                     && (method.Attributes & MethodAttributes.MemberAccessMask) == MethodAttributes.Public
-                    && method.Name == slot.Name && method.Signature == slot.Signature);
+                    && method.Name == slot.Name && CanonicalSignature(method.Signature) == slot.Signature);
                 if (implicitly is not null)
                 {
                     return Final(type, implicitly);
@@ -503,7 +504,8 @@ internal static partial class VirtualMethods
             }
         }
 
-        return VariantInterface(type, slot.Owner) is { } implemented
+        // (one that is the slot's own interface, which the class lists, has no method for it: no variance makes it one)
+        return VariantInterface(type, slot.Owner) is { } implemented && implemented != slot.Owner
             ? ResolveVariant(type, slot, implemented)
             : DefaultMethod(type, slot);
     }
@@ -537,7 +539,7 @@ internal static partial class VirtualMethods
         }
 
         return InterfaceDefinition(slot.Owner, assembly)?.Methods.FirstOrDefault(method => method is { IsStatic: false, HasBody: true }
-            && method.Name == slot.Name && method.Signature == slot.Signature) is { } own
+            && method.Name == slot.Name && CanonicalSignature(method.Signature) == slot.Signature) is { } own
             ? DispatchTarget.Of(own)
             : null;
     }
@@ -559,7 +561,7 @@ internal static partial class VirtualMethods
     {
         var owner = Canonical(new Substitution(implementer.TypeArguments, []).Apply(declaration.DeclaringType));
         return owner == slot.Owner && declaration.Name == slot.Name
-            && Arguments(owner).Apply(declaration.Signature) == slot.Signature;
+            && CanonicalSignature(Arguments(owner).Apply(declaration.Signature)) == slot.Signature;
     }
 
     /// <summary>What an implementation runs on an object of <paramref name="type"/>: itself, or when it is virtual, its slot's method there.</summary>

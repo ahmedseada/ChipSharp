@@ -88,8 +88,7 @@ public class Queue<T> : IEnumerable<T>, IReadOnlyCollection<T>
 
         if (arrayIndex < 0 || arrayIndex > array!.Length)
         {
-            var text = arrayIndex.ToString();
-            throw new ArgumentOutOfRangeException(nameof(arrayIndex), text, ThrowHelper.IndexMustBeLessOrEqual);
+            ThrowHelper.ArgumentOutOfRange(nameof(arrayIndex), ThrowHelper.IndexMustBeLessOrEqual);
         }
 
         var arrayLen = array.Length;

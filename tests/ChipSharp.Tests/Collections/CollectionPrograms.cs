@@ -892,9 +892,9 @@ internal static class CollectionPrograms
                         total += recent.Dequeue().Value % 3;
                     }
 
-                    if (round % 100 == 0)
+                    if (round % 250 == 0)
                     {
-                        kept[round / 100] = list;
+                        kept[round / 250] = list;
                     }
                 }
 

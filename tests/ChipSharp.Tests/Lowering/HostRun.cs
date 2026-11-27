@@ -47,7 +47,14 @@ internal static class HostRun
     /// samples/update-expected.ps1 makes the expected outputs: in the invariant culture (1.5 and Infinity, whatever
     /// the PC's regional settings).
     /// </summary>
-    public static async Task<ProgramRun> RunOnDotnetAsync(byte[] assembly, string name, string folder)
+    public static async Task<ProgramRun> RunOnDotnetAsync(byte[] assembly, string name, string folder) =>
+        await RunOnDotnetAsync(assembly, name, folder, failing: false);
+
+    /// <summary>
+    /// Like <see cref="RunOnDotnetAsync(byte[], string, string)"/>; a program that is <paramref name="failing"/> may write
+    /// to standard error (an exception nothing catches).
+    /// </summary>
+    public static async Task<ProgramRun> RunOnDotnetAsync(byte[] assembly, string name, string folder, bool failing)
     {
         Directory.CreateDirectory(folder);
         var dll = Path.Combine(folder, name + ".dll");
@@ -64,7 +71,7 @@ internal static class HostRun
             """);
 
         var run = await RunAsync(Dotnet(), [dll], folder);
-        Assert.True(run.Errors.Length == 0, $"dotnet {dll} failed:\n{run}");
+        Assert.True(failing || run.Errors.Length == 0, $"dotnet {dll} failed:\n{run}");
         return run;
     }
 

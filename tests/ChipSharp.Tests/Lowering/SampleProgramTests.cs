@@ -42,6 +42,9 @@ public sealed class SampleProgramTests : IDisposable
     public Task Classes() => PrintsWhatDotnetPrints();
 
     [HostFact]
+    public Task Collections() => PrintsWhatDotnetPrints();
+
+    [HostFact]
     public Task Comparisons() => PrintsWhatDotnetPrints();
 
     [HostFact]

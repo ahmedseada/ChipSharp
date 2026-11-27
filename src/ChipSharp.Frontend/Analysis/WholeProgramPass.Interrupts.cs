@@ -134,7 +134,8 @@ public static partial class WholeProgramPass
 
                 // the runtime stops a program that makes an object (an array on the heap too) in a handler: this finds
                 // it before it runs
-                if (inHandlers.Contains(method) && (ClassRules.Allocates(instruction) || heapArrays.Contains(instruction)))
+                if (inHandlers.Contains(method) && (ClassRules.Allocates(instruction) || heapArrays.Contains(instruction)
+                    || LibraryAllocates(instruction, program, heapArrays))) // WholeProgramPass.Collections.cs
                 {
                     problems.Add(Problem.At(method, instruction, Unsupported.AllocationInHandler));
                 }
