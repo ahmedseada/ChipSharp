@@ -104,7 +104,7 @@ internal static class HashHelpers
     {
         if ((candidate & 1) != 0)
         {
-            var limit = (int)Math.Sqrt(candidate);
+            var limit = (int)System.Math.Sqrt(candidate);
             for (var divisor = 3; divisor <= limit; divisor += 2)
             {
                 if (candidate % divisor == 0)

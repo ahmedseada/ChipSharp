@@ -22,6 +22,11 @@
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_exceptions.c" LogicalName="chipsharp_exceptions.c" />
     <!-- fmod, square roots, Math.Min and the like, shared with the other runtimes -->
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_math.c" LogicalName="chipsharp_float_math.c" />
+    <!-- the transcendental functions of Math and MathF, shared with the other runtimes: ChipSharp's entry points, and the
+         functions from musl (MIT) and from AMD's math library (BSD-3-Clause), each file with its license -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_math.c" LogicalName="chipsharp_math.c" />
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_math_musl.c" LogicalName="chipsharp_math_musl.c" />
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_math_amd.c" LogicalName="chipsharp_math_amd.c" />
     <!-- float arithmetic in software: LLVM's compiler-rt builtins (llvmorg-23.1.6, compiler-rt/lib/builtins), unchanged;
          Apache-2.0 WITH LLVM-exception, CompilerRt/LICENSE.TXT -->
     <EmbeddedResource Include="CompilerRt\*.c;CompilerRt\*.h;CompilerRt\*.inc" LogicalName="compiler-rt/%(Filename)%(Extension)" />

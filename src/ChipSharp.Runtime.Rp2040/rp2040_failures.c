@@ -36,6 +36,9 @@
 //                                        null, an index or a length outside the array, a destination too short
 //                                        (ArgumentNullException, ArgumentOutOfRangeException, ArgumentException); the
 //                                        ...BelowZero ones say the value too, as .NET does
+//   ChipSharp_Runtime_ArithmeticNaN,    the methods of System.Math: Sign of NaN (ArithmeticException), Clamp given a
+//   ...MinMax..., RoundingDigits,       min above its max, with both (ArgumentException), Round given too many digits
+//   InvalidMidpointRounding             (ArgumentOutOfRangeException) or a MidpointRounding that is none of its five
 //
 // IndexOutOfRange, NullReference, OutOfMemory, Overflow, HeapInInterrupt, the span ones and the array ones are the code
 // generator's and the heap's (chipsharp_heap.c, armv6m_heap.c), InvalidCast the program's casts' (ChipSharp.Object.
@@ -403,6 +406,130 @@ __attribute__((noreturn)) void ChipSharp_Runtime_SourceIndexBelowZero(int value)
 __attribute__((noreturn)) void ChipSharp_Runtime_DestinationIndexBelowZero(int value)
 {
     fail_below_zero("destinationIndex", "must be greater than or equal to '0'.", value);
+}
+
+
+// ---- The methods of System.Math -----------------------------------------------------------------------------------
+
+// In chipsharp_float_text.c: a double and a float as .NET writes them, the shortest text that reads back as the value.
+int chipsharp_float64_text(unsigned long long bits, char *text);
+int chipsharp_float32_text(unsigned int bits, char *text);
+
+// Appends a whole number of 64 bits as .NET writes it (a '-' first when negative), with no division.
+static void append_int64(char *message, COUNT *count, unsigned long long magnitude, int negative)
+{
+    static const unsigned long long powers[] = {10000000000000000000ull, 1000000000000000000ull,
+        100000000000000000ull, 10000000000000000ull, 1000000000000000ull, 100000000000000ull, 10000000000000ull,
+        1000000000000ull, 100000000000ull, 10000000000ull, 1000000000ull, 100000000ull, 10000000ull, 1000000ull,
+        100000ull, 10000ull, 1000ull, 100ull, 10ull, 1ull};
+    int started = 0;
+    if (negative)
+    {
+        append(message, count, "-");
+    }
+
+    for (int i = 0; i < 20; i++)
+    {
+        char digit[2] = {'0', 0};
+        while (magnitude >= powers[i])
+        {
+            magnitude -= powers[i];
+            digit[0]++;
+        }
+
+        if (digit[0] != '0' || started || i == 19)
+        {
+            append(message, count, digit);
+            started = 1;
+        }
+    }
+}
+
+// Math.Clamp given a min above its max (ArgumentException): "'<min>' cannot be greater than <max>.", the two
+// numbers given as text.
+__attribute__((noreturn)) static void fail_min_max(const char *min, const char *max)
+{
+    char message[MESSAGE_SIZE];
+    COUNT count = 0;
+    append(message, &count, UNHANDLED "System.ArgumentException: '");
+    append(message, &count, min);
+    append(message, &count, "' cannot be greater than ");
+    append(message, &count, max);
+    append(message, &count, ".\r\n");
+    fail(message, count);
+}
+
+__attribute__((noreturn)) void ChipSharp_Runtime_MinMaxInt64(long long min, long long max)
+{
+    char low[24];
+    char high[24];
+    COUNT low_count = 0;
+    COUNT high_count = 0;
+    append_int64(low, &low_count, min < 0 ? 0ull - (unsigned long long)min : (unsigned long long)min, min < 0);
+    append_int64(high, &high_count, max < 0 ? 0ull - (unsigned long long)max : (unsigned long long)max, max < 0);
+    low[low_count] = 0;
+    high[high_count] = 0;
+    fail_min_max(low, high);
+}
+
+__attribute__((noreturn)) void ChipSharp_Runtime_MinMaxUInt64(unsigned long long min, unsigned long long max)
+{
+    char low[24];
+    char high[24];
+    COUNT low_count = 0;
+    COUNT high_count = 0;
+    append_int64(low, &low_count, min, 0);
+    append_int64(high, &high_count, max, 0);
+    low[low_count] = 0;
+    high[high_count] = 0;
+    fail_min_max(low, high);
+}
+
+__attribute__((noreturn)) void ChipSharp_Runtime_MinMaxFloat64(double min, double max)
+{
+    union { double value; unsigned long long bits; } low = {min}, high = {max};
+    char low_text[40];
+    char high_text[40];
+    low_text[chipsharp_float64_text(low.bits, low_text)] = 0;
+    high_text[chipsharp_float64_text(high.bits, high_text)] = 0;
+    fail_min_max(low_text, high_text);
+}
+
+__attribute__((noreturn)) void ChipSharp_Runtime_MinMaxFloat32(float min, float max)
+{
+    union { float value; unsigned int bits; } low = {min}, high = {max};
+    char low_text[40];
+    char high_text[40];
+    low_text[chipsharp_float32_text(low.bits, low_text)] = 0;
+    high_text[chipsharp_float32_text(high.bits, high_text)] = 0;
+    fail_min_max(low_text, high_text);
+}
+
+__attribute__((noreturn)) void ChipSharp_Runtime_ArithmeticNaN(void)
+{
+    FAIL_WITH(UNHANDLED "System.ArithmeticException: Function does not accept floating point Not-a-Number values.\r\n");
+}
+
+// Math.Round (maximum 15) and MathF.Round (6) given more digits (ArgumentOutOfRangeException).
+__attribute__((noreturn)) void ChipSharp_Runtime_RoundingDigits(int maximum)
+{
+    char message[MESSAGE_SIZE];
+    COUNT count = 0;
+    append(message, &count, UNHANDLED "System.ArgumentOutOfRangeException: Rounding digits must be between 0 and ");
+    append_int(message, &count, maximum);
+    append(message, &count, ", inclusive. (Parameter 'digits')\r\n");
+    fail(message, count);
+}
+
+// Math.Round given a MidpointRounding that is none of its five (ArgumentException), by its number.
+__attribute__((noreturn)) void ChipSharp_Runtime_InvalidMidpointRounding(int mode)
+{
+    char message[MESSAGE_SIZE];
+    COUNT count = 0;
+    append(message, &count, UNHANDLED "System.ArgumentException: The value '");
+    append_int(message, &count, mode);
+    append(message, &count, "' is not valid for this usage of the type MidpointRounding. (Parameter 'mode')\r\n");
+    fail(message, count);
 }
 
 // ---- C#'s throw ---------------------------------------------------------------------------------------------------

@@ -54,6 +54,24 @@ public static class KnownExternals
         FloatMath(MathF, "Max", IlType.Float32, 2),
         FloatMath(MathF, "Sqrt", IlType.Float32, 1),
 
+        // the other methods of System.Math and System.MathF on floats that are one runtime function each (the rest are
+        // ChipSharp.Library's Math and MathF). Exact ones bit for bit like .NET (chipsharp_float_math.c: Floor,
+        // Ceiling, Truncate, Round, CopySign, BitIncrement, ...; FusedMultiplyAdd); the transcendental ones as near to
+        // .NET's as one implementation for every target gets (chipsharp_math.c)
+        .. FloatMathOfBoth(1, "Sin", "Cos", "Tan", "Asin", "Acos", "Atan", "Sinh", "Cosh", "Tanh", "Asinh", "Acosh",
+            "Atanh", "Exp", "Log", "Log2", "Log10", "Cbrt", "Floor", "Ceiling", "Truncate", "Round", "BitIncrement",
+            "BitDecrement", "ReciprocalEstimate", "ReciprocalSqrtEstimate"),
+        .. FloatMathOfBoth(2, "Atan2", "Pow", "CopySign", "IEEERemainder", "MinMagnitude", "MaxMagnitude"),
+        .. FloatMathOfBoth(3, "FusedMultiplyAdd"),
+        (Math, "ScaleB", [IlType.Float64, IlType.Int32], IlType.Float64,
+            new("ChipSharp.Runtime.ScaleBFloat64", TirType.F64, [TirType.F64, TirType.I32], $"{Math}.ScaleB(double, int)")),
+        (MathF, "ScaleB", [IlType.Float32, IlType.Int32], IlType.Float32,
+            new("ChipSharp.Runtime.ScaleBFloat32", TirType.F32, [TirType.F32, TirType.I32], $"{MathF}.ScaleB(float, int)")),
+        (Math, "ILogB", [IlType.Float64], IlType.Int32,
+            new("ChipSharp.Runtime.ILogBFloat64", TirType.I32, [TirType.F64], $"{Math}.ILogB(double)")),
+        (MathF, "ILogB", [IlType.Float32], IlType.Int32,
+            new("ChipSharp.Runtime.ILogBFloat32", TirType.I32, [TirType.F32], $"{MathF}.ILogB(float)")),
+
         // System.GC (chipsharp_heap.c): a collection now, the bytes of the objects not known to be garbage (after a
         // collection when asked), and an object kept alive until the call; a program that calls them uses the heap
         (Gc, "Collect", [], IlType.Void,
@@ -171,6 +189,18 @@ public static class KnownExternals
             new ExternalFunction($"ChipSharp.Runtime.{name}{p.Runtime}", TirType.Void, [p.TirType],
                 $"System.Console.{name}({p.CSharp})")));
     }
+
+    /// <summary>
+    /// The entries of each of <paramref name="names"/> in System.Math (of doubles) and System.MathF (of floats), taking
+    /// <paramref name="count"/> values: e.g. Math.Sin(double) and MathF.Sin(float).
+    /// </summary>
+    private static IEnumerable<(string Type, string Name, IlType[] Parameters, IlType Returns, ExternalFunction Function)>
+        FloatMathOfBoth(int count, params string[] names) =>
+        names.SelectMany(name => new[]
+        {
+            FloatMath(Math, name, IlType.Float64, count),
+            FloatMath(MathF, name, IlType.Float32, count),
+        });
 
     /// <summary>
     /// The entry of <paramref name="type"/>.<paramref name="name"/> taking <paramref name="count"/> values of

@@ -11,8 +11,10 @@
     "console": true       // Console.Write and Console.WriteLine go to standard output
   },
   "clang": {
-    // passed to clang after --target; -nostdlib: no C runtime, the windows-x64 runtime is all the program needs
-    "flags": ["-O2", "-nostdlib", "-fuse-ld=lld", "-Wno-override-module"]
+    // passed to clang after --target; -nostdlib: no C runtime, the windows-x64 runtime is all the program needs;
+    // -ffunction-sections and -fdata-sections: each function and variable on its own, so that the linker keeps only
+    // those the program uses (the math functions of the runtime, say)
+    "flags": ["-O2", "-nostdlib", "-fuse-ld=lld", "-ffunction-sections", "-fdata-sections", "-Wno-override-module"]
   },
   "link": {
     "entry": "chipsharp_start",    // in the runtime: runs chipsharp_entry, then ExitProcess with its result

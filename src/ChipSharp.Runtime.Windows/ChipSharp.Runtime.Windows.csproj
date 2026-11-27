@@ -11,6 +11,11 @@
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_text.c" LogicalName="chipsharp_float_text.c" />
     <!-- fmod and the Math methods, shared with the other runtimes -->
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_math.c" LogicalName="chipsharp_float_math.c" />
+    <!-- the transcendental functions of Math and MathF, shared with the other runtimes: ChipSharp's entry points, and the
+         functions from musl (MIT) and from AMD's math library (BSD-3-Clause), each file with its license -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_math.c" LogicalName="chipsharp_math.c" />
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_math_musl.c" LogicalName="chipsharp_math_musl.c" />
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_math_amd.c" LogicalName="chipsharp_math_amd.c" />
     <EmbeddedResource Include="chipsharp_failures.c" LogicalName="chipsharp_failures.c" />
     <EmbeddedResource Include="chipsharp_memory.c" LogicalName="chipsharp_memory.c" />
     <EmbeddedResource Include="chipsharp_chkstk.S" LogicalName="chipsharp_chkstk.S" />

@@ -23,6 +23,9 @@
 //   ChipSharp_Runtime_EnumCompareType    IComparable's CompareTo of a boxed enum and a box of another type
 //   ChipSharp_Runtime_ArrayNull, ...     the arguments of the methods of System.Array (Array.Copy, Fill, IndexOf, ...):
 //                                        null, an index or a length outside the array, a destination too short
+//   ChipSharp_Runtime_ArithmeticNaN, ...MinMax..., RoundingDigits, InvalidMidpointRounding
+//                                        the methods of System.Math: Sign of NaN, Clamp given a min above its max, Round
+//                                        given too many digits or a MidpointRounding that is none of its five
 //
 // The TimeSpan ones and NegateOverflow are the methods of ChipSharp.Library.Runtime, which says when each happens (so
 // are the four array ones Array.Sort and Array.BinarySearch call); InvalidCast is the program's casts'; the others are
@@ -94,6 +97,40 @@ __attribute__((weak, noreturn)) void ChipSharp_Runtime_LengthBelowZero(int value
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_SourceIndexBelowZero(int value) { (void)value; fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_DestinationIndexBelowZero(int value) { (void)value; fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_Unhandled(const void *text) { (void)text; fail(); }
+
+// the methods of System.Math: Sign of NaN, Clamp given a min above its max, Round given too many digits or a
+// MidpointRounding that is none of its five
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_ArithmeticNaN(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_MinMaxInt64(long long min, long long max)
+{
+    (void)min;
+    (void)max;
+    fail();
+}
+
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_MinMaxUInt64(unsigned long long min, unsigned long long max)
+{
+    (void)min;
+    (void)max;
+    fail();
+}
+
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_MinMaxFloat64(double min, double max)
+{
+    (void)min;
+    (void)max;
+    fail();
+}
+
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_MinMaxFloat32(float min, float max)
+{
+    (void)min;
+    (void)max;
+    fail();
+}
+
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_RoundingDigits(int maximum) { (void)maximum; fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_InvalidMidpointRounding(int mode) { (void)mode; fail(); }
 
 // ---- The stack, and fatal errors ----------------------------------------------------------------------------------
 //

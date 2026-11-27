@@ -47,7 +47,7 @@ public sealed class HostTargetTests
         Assert.Equal(["GetStdHandle", "WriteFile", "ExitProcess", "VirtualAlloc", "AddVectoredExceptionHandler",
                 "SetThreadStackGuarantee"],
             dlls["kernel32.dll"]!.AsArray().Select(f => f!.GetValue<string>()));
-        Assert.Equal(["-O2", "-nostdlib", "-fuse-ld=lld", "-Wno-override-module"],
+        Assert.Equal(["-O2", "-nostdlib", "-fuse-ld=lld", "-ffunction-sections", "-fdata-sections", "-Wno-override-module"],
             host.Settings["clang"]!["flags"]!.AsArray().Select(f => f!.GetValue<string>()));
     }
 
