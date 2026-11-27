@@ -571,6 +571,10 @@ internal static partial class ArrayEscapeAnalysis
                     stack.Add(Value.Other);
                     break;
 
+                case IlOpCode.Castclass when ArrayMethods.IsCloneCast(_body, index):
+                    CloneCast(instruction, Pop, stack);
+                    break;
+
                 case IlOpCode.Call when instruction.Operand is IlMethodOperand { Method: var callee }
                     && StackArrays.IsEmptyArray(callee, _method.Assembly, out var emptyOf):
                     Verdict(instruction, null);
@@ -671,7 +675,7 @@ internal static partial class ArrayEscapeAnalysis
 
             if (instruction.OpCode is IlOpCode.Ldflda or IlOpCode.Ldsflda)
             {
-                Verdict(instruction, Unsupported.ArrayReferences);
+                Verdict(instruction, FieldReference(instruction, Unsupported.ArrayReferences));
             }
             else if (field.Definition is { IsStatic: false } definition && ValueTypes.IsStruct(definition.DeclaringType))
             {
@@ -696,7 +700,7 @@ internal static partial class ArrayEscapeAnalysis
                 Verdict(instruction, Unsupported.MultiDimensionalArrays);
             }
 
-            ArrayMethod(instruction, callee);
+            ArrayMethod(instruction, callee, stack); // see ArrayEscapeAnalysis.ArrayMethods.cs
 
             // the return type, the callee's parameter or the library method (not available) says whether it is fine
             var checkedElsewhere = instruction.OpCode == IlOpCode.Ret || callee is not null;

@@ -159,7 +159,7 @@ internal sealed partial class MethodLowering
 
         CheckPrintedText();
         if (_body.Instructions.FirstOrDefault(i => !SupportedSubset.OpCodes.Contains(i.OpCode) && !IsPrintedText(i)
-            && !IsSpanInstruction(i)) is { } unsupported)
+            && !IsSpanInstruction(i) && !IsArrayMethodInstruction(i)) is { } unsupported)
         {
             throw Unsupported(unsupported);
         }
@@ -183,6 +183,10 @@ internal sealed partial class MethodLowering
 
             case var _ when IsArrayInstruction(instruction):
                 LowerArrayInstruction(instruction);
+                break;
+
+            case var _ when IsArrayMethodInstruction(instruction):
+                LowerArrayMethod(instruction); // see MethodLowering.ArrayMethods.cs
                 break;
 
             case var _ when IsObjectInstruction(instruction):

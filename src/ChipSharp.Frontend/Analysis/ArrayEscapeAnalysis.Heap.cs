@@ -320,19 +320,6 @@ internal static partial class ArrayEscapeAnalysis
         private IlType? VariableType(int variable) =>
             variable < _localCount ? _body.Locals[variable].Type : ArgumentType(variable - _localCount);
 
-        /// <summary>
-        /// A call of a method of System.Array (but <c>Array.Empty</c>, which has its own case): <c>Array.Copy</c>,
-        /// <c>Array.Fill</c>, <c>array.Clone()</c>, ... are not available yet, each saying what to write for now.
-        /// </summary>
-        private void ArrayMethod(IlInstruction call, IlMethodReference? callee)
-        {
-            if (callee is { Definition: null, DeclaringType: IlNamedType { Namespace: "System", Name: "Array" } type }
-                && !type.IsDefinedInThisAssembly)
-            {
-                Verdict(call, Unsupported.ArrayMethod(CSharpNames.Method(callee)));
-            }
-        }
-
         /// <summary>True for a field of a class: an object's, which the class's own rules judge (an array there is kept).</summary>
         private static bool IsObjectField(IlInstruction instruction) =>
             instruction.Operand is IlFieldOperand { Field.Definition: { IsStatic: false } field }

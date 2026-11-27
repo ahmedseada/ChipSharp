@@ -169,7 +169,10 @@ internal sealed partial class ProgramFunctions(TirModule module)
             var count = external.ParameterTypes.Count;
             var parameters = external.ParameterTypes
                 .Select((type, i) => (count == 1 ? "value" : $"value{i + 1}", type));
-            function = module.AddExternalFunction(external.DisplayName, external.ReturnType, parameters);
+            // a failure of the runtime may be there already, declared by the functions of arrays or spans
+            function = module.Functions.FirstOrDefault(f => f.Kind == TirFunctionKind.External
+                    && f.Name == external.DisplayName)
+                ?? module.AddExternalFunction(external.DisplayName, external.ReturnType, parameters);
             _externals.Add(external.DisplayName, function);
         }
 

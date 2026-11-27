@@ -16,9 +16,12 @@
 //   ChipSharp_Runtime_ArgumentOutOfRange, LengthOutOfRange, DestinationTooShort, DataMisaligned
 //                                        a span's start or length outside it, too few bytes for MemoryMarshal.Read or
 //                                        Write, a CopyTo a shorter span, a MemoryMarshal.Cast this chip cannot read
+//   ChipSharp_Runtime_ArrayNull, ...     the arguments of the methods of System.Array (Array.Copy, Fill, IndexOf, ...):
+//                                        null, an index or a length outside the array, a destination too short
 //
-// The TimeSpan ones and NegateOverflow are the methods of ChipSharp.Library.Runtime, which says when each happens; the
-// others are the code generator's and the heap's (chipsharp_heap.c, armv6m_heap.c).
+// The TimeSpan ones and NegateOverflow are the methods of ChipSharp.Library.Runtime, which says when each happens (so
+// are the four array ones Array.Sort and Array.BinarySearch call); the others are the code generator's and the heap's
+// (chipsharp_heap.c, armv6m_heap.c).
 
 __attribute__((noreturn)) static void fail(void)
 {
@@ -44,3 +47,22 @@ __attribute__((weak, noreturn)) void ChipSharp_Runtime_ArgumentOutOfRange(void) 
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_LengthOutOfRange(void) { fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_DestinationTooShort(void) { fail(); }
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_DataMisaligned(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_ArrayNull(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_SourceArrayNull(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_DestinationArrayNull(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_SourceArrayTooShort(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_DestinationArrayTooShort(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_HugeSourceIndex(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_HugeDestinationIndex(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_HugeLength(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_HugeIndex(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_StartIndexPastEnd(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_StartIndexAtEnd(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_CountOutOfRange(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_NegativeIndex(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_NegativeLength(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_NegativeNewSize(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_InvalidOffsetLength(void) { fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_LengthBelowZero(int value) { (void)value; fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_SourceIndexBelowZero(int value) { (void)value; fail(); }
+__attribute__((weak, noreturn)) void ChipSharp_Runtime_DestinationIndexBelowZero(int value) { (void)value; fail(); }
