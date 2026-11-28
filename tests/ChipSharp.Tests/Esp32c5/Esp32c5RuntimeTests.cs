@@ -1,4 +1,6 @@
 using System.Text;
+using ChipSharp.Simulators;
+using ChipSharp.Simulators.Esp32c5;
 using ChipSharp.Tests.Conformance;
 using ChipSharp.Tests.Support;
 
@@ -17,7 +19,7 @@ public sealed class Esp32c5RuntimeTests : ConformanceTests
     private const int Console = 1; // the adapter's serial port of the USB console (0 is UART0)
 
     [Fact]
-    public async Task Blink_on_a_GPIO_runs_at_160_MHz_and_toggles_with_the_delays()
+    public async Task Blink_on_a_GPIO_keeps_the_crystal_clock_and_toggles_with_the_delays()
     {
         if (Chip.Missing is not null)
         {
@@ -34,7 +36,7 @@ public sealed class Esp32c5RuntimeTests : ConformanceTests
             """, new ChipStimulus(200));
 
         Assert.True(run.Stop == ChipStop.Finished, run.ToString());
-        Assert.Contains("CPU clock 160 MHz", run.Output);
+        Assert.DoesNotContain("CPU clock", run.Output); // the CPU stays on the crystal, as the ROM leaves it
         Assert.Equal(["low", "high", "low", "high", "low"], run.Levels(Chip.Pins.Output).Select(change => change.State));
         var toggles = Toggles(run, Chip.Pins.Output);
         for (var i = 0; i < toggles.Count; i++)
@@ -182,13 +184,13 @@ public sealed class Esp32c5RuntimeTests : ConformanceTests
         var pins = Problems("""
             using ChipSharp.Hardware;
 
-            Pin.Output(27);
+            Pin.Output(13);
             Pin.Output(6);
-            Pin.Watch(13);
+            Pin.Watch(15);
             Uart.Open(0, 1, 12, 115200);
             """);
-        Assert.True(pins.Contains("27 cannot be a pin a program uses"), pins);
-        Assert.True(pins.Contains("13 cannot be watched"), pins);
+        Assert.True(pins.Contains("13 cannot be a pin a program uses"), pins);
+        Assert.True(pins.Contains("15 cannot be watched"), pins);
         Assert.True(pins.Contains("cannot be UART0's TX"), pins);
         Assert.DoesNotContain("6 cannot be", pins);
 
@@ -200,5 +202,73 @@ public sealed class Esp32c5RuntimeTests : ConformanceTests
             """);
         Assert.Contains("I2c", buses);
         Assert.Contains("Adc", buses);
+    }
+
+    /// <summary>The program built for the board with its "clockHz" 160000000, and run with <paramref name="setUp"/> first.</summary>
+    private SimulationResult RunOnPll(string source, Action<Esp32c5Chip> setUp)
+    {
+        var targets = Path.Combine(_scratch, "targets");
+        foreach (var file in Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "targets"), "*.json", SearchOption.AllDirectories))
+        {
+            var copy = Path.Combine(targets, Path.GetRelativePath(Path.Combine(AppContext.BaseDirectory, "targets"), file));
+            Directory.CreateDirectory(Path.GetDirectoryName(copy)!);
+            File.WriteAllText(copy, File.ReadAllText(file).Replace("\"clockHz\": 48000000", "\"clockHz\": 160000000", StringComparison.Ordinal));
+        }
+
+        var dll = Path.Combine(_scratch, "OnPll.dll");
+        File.WriteAllBytes(dll, CSharpCompiler.Compile([source], [typeof(ChipSharp.Hardware.Pin).Assembly.Location], "OnPll"));
+        var image = ChipSharp.Build.ChipSharpBuilder.Build(dll, new ChipSharp.Build.BuildOptions
+        {
+            Target = "esp32c5-devkitc", TargetsFolder = targets, OutputFolder = Path.Combine(_scratch, "pll"),
+        }).OutputPath;
+        return Simulation.Run(new SimulationOptions { Chip = "esp32c5", Image = image, Milliseconds = 100 },
+            setUp: chip => setUp((Esp32c5Chip)chip));
+    }
+
+    private const string PllProgram = """
+        using ChipSharp.Hardware;
+
+        Pin.Output(6);
+        Pin.Toggle(6);
+        Timing.DelayMilliseconds(5);
+        Pin.Toggle(6);
+        """;
+
+    [Fact]
+    public void With_clockHz_160000000_a_CPU_already_on_the_PLL_goes_to_160_MHz_and_the_delays_follow_SYSTIMER()
+    {
+        if (Chip.Missing is not null)
+        {
+            return;
+        }
+
+        // a bootloader that left the SPLL running and the CPU on it, at 240 MHz
+        var run = RunOnPll(PllProgram, chip =>
+        {
+            chip.PllRunning = true;
+            chip.Write(0x60096110, 4, (chip.Read(0x60096110, 4) & ~(3u << 16)) | (3u << 16));
+            chip.Write(0x6009611C, 4, 5);
+            chip.Write(0x60096144, 4, 1);
+        });
+
+        Assert.Equal(0, run.ExitCode);
+        Assert.Equal(["CPU clock 240 MHz", "CPU clock 160 MHz"], run.Lines.Where(l => l.Contains("CPU clock")).Select(l => l[(l.IndexOf(']') + 2)..]));
+        var toggles = run.Pins.Where(p => p.Pin == "GPIO6" && p.State is "low" or "high").ToList();
+        Assert.InRange(toggles[^1].Milliseconds - toggles[^2].Milliseconds, 5.0, 5.05);
+    }
+
+    [Fact]
+    public void With_clockHz_160000000_and_the_CPU_on_the_crystal_the_program_says_the_PLL_is_not_running_and_stops()
+    {
+        if (Chip.Missing is not null)
+        {
+            return;
+        }
+
+        var run = RunOnPll(PllProgram, _ => { });
+
+        Assert.NotEqual(0, run.ExitCode);
+        Assert.Contains("needs the PLL running", Encoding.ASCII.GetString(run.SerialOf("USB")));
+        Assert.DoesNotContain(run.Lines, line => line.Contains("] CPU clock"));
     }
 }

@@ -43,7 +43,7 @@ public sealed class Esp32c5Chip : SimulatedChip, IRiscVBus
     private const uint SramSize = Esp32c5Map.SramEnd - Esp32c5Map.SramStart;
     private const uint LpSramSize = Esp32c5Map.LpSramEnd - Esp32c5Map.LpSramStart;
     private const int PeripheralCycles = 3;
-    private const uint PcrSysclk = 0x110, PcrCpuFreq = 0x118, PcrBusClockUpdate = 0x144;
+    private const uint PcrSysclk = 0x110, PcrCpuFreq = 0x118, PcrAhbFreq = 0x11C, PcrBusClockUpdate = 0x144;
 
     private static readonly Dictionary<uint, uint> PcrResets = new()
     {
@@ -148,6 +148,15 @@ public sealed class Esp32c5Chip : SimulatedChip, IRiscVBus
     public override byte[] Ram => _sram;
 
     public override int ProgramCounter => (int)_cpu.Pc;
+
+    /// <summary>
+    /// Whether the SPLL (the 480 MHz PLL behind PLL_F160M and PLL_F240M) is powered and locked. Not as the ROM leaves the
+    /// chip (a boot of an image straight from the ROM: the CPU runs from the crystal, and ESP-IDF's bootloader is what
+    /// powers and calibrates the SPLL, through the PMU and the analog I2C: rtc_clk_bbpll_enable and _configure); true
+    /// for a program a bootloader started that did (chipsim's --pll-running). A program that selects a PLL as the CPU's
+    /// clock source while it is not running has stopped its own clock: the run fails.
+    /// </summary>
+    public bool PllRunning { get; set; }
 
     /// <summary>The CPU's clock, in hertz.</summary>
     public long CpuHertz => _cpuHertz;
@@ -770,7 +779,30 @@ public sealed class Esp32c5Chip : SimulatedChip, IRiscVBus
             2 => Esp32c5Map.Pll160Hz,
             _ => Esp32c5Map.Pll240Hz,
         };
+        var onPll = ((_pcr[PcrSysclk] >> 16) & 3) >= 2;
+        if (onPll && !PllRunning)
+        {
+            Fail("the program selected PLL_F160M or PLL_F240M as the CPU's clock source (PCR_SYSCLK_CONF.SOC_CLK_SEL), but the " +
+                "SPLL is not running: the ROM leaves the CPU on the crystal, and the PLL must be powered (PMU) and calibrated " +
+                "(analog I2C) first, as ESP-IDF's rtc_clk_bbpll_enable and rtc_clk_bbpll_configure do (chipsim --pll-running " +
+                "starts the program as a bootloader that did leaves it)");
+            return;
+        }
+
         var hertz = root / ((_pcr.GetValueOrDefault(PcrCpuFreq) & 0xFF) + 1);
+        if (onPll)
+        {
+            // clk_ll_ahb_set_divider: f_ahb <= 48 MHz (the AHB divider of PCR_AHB_FREQ_CONF is for the crystal and RC_FAST;
+            // on a PLL the bus has its own divider, which ESP-IDF sets to 4 at 160 MHz and 6 at 240)
+            var ahb = root / ((_pcr.GetValueOrDefault(PcrAhbFreq) & 0xFF) + 1);
+            if (ahb > 48_000_000)
+            {
+                Fail(string.Create(CultureInfo.InvariantCulture,
+                    $"the CPU is on a PLL with the AHB clock at {ahb / 1e6:0.###} MHz, above its 48 MHz limit: ") +
+                    "PCR_AHB_FREQ_CONF's AHB_DIV_NUM must be set first (ESP-IDF's clk_ll_ahb_set_divider: 4 at 160 MHz, 6 at 240)");
+                return;
+            }
+        }
         if (hertz != _cpuHertz)
         {
             _cycleFraction = _cycleFraction * hertz / _cpuHertz;

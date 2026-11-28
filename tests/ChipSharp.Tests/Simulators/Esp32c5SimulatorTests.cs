@@ -405,6 +405,7 @@ public sealed class Esp32c5SimulatorTests(ITestOutputHelper output) : IDisposabl
                 out = timed(); report();
                 REG(0x60096110) = (REG(0x60096110) & ~(3u << 16)) | (3u << 16); /* SOC_CLK_SEL: PLL_F240M */
                 REG(0x60096118) = 0;              /* CPU_DIV_NUM */
+                REG(0x6009611C) = 5;              /* AHB_DIV_NUM: 240 / 6 = 40 MHz */
                 REG(0x60096144) = 1;              /* BUS_CLOCK_UPDATE */
                 while (REG(0x60096144) & 1) {}
                 out = timed(); report();
@@ -412,12 +413,45 @@ public sealed class Esp32c5SimulatorTests(ITestOutputHelper output) : IDisposabl
             }
             """, _scratch);
 
-        var (run, values) = program.RunReports(1000);
+        var (run, values) = program.RunReports(1000, pllRunning: true);
 
         Assert.True(run.ExitCode == 0, run.ToString());
         Assert.Single(run.After("CPU clock 240 MHz"));
         Assert.Equal(2, values.Count);
         Assert.InRange((double)values[0] / values[1], 4.9, 5.1);
+    }
+
+    [Esp32c5Fact]
+    public async Task A_PLL_as_the_CPU_clock_needs_a_running_SPLL_and_the_AHB_divider_set()
+    {
+        static string Source(int ahbDivider) => $$"""
+            #include "c5.h"
+            volatile uint32_t out;
+            int main(void)
+            {
+                REG(0x60096110) = (REG(0x60096110) & ~(3u << 16)) | (2u << 16); /* SOC_CLK_SEL: PLL_F160M */
+                REG(0x60096118) = 0;              /* CPU_DIV_NUM */
+                REG(0x6009611C) = {{ahbDivider}};  /* AHB_DIV_NUM */
+                REG(0x60096144) = 1;              /* BUS_CLOCK_UPDATE */
+                while (REG(0x60096144) & 1) {}
+                out = 1; report();
+                return 0;
+            }
+            """;
+        var program = await Esp32c5CProgram.BuildAsync(Source(3), _scratch);
+
+        // as the ROM leaves the chip (the SPLL off), the switch stops the program's own clock
+        var off = program.Run(10);
+        Assert.NotEqual(0, off.ExitCode);
+        Assert.Contains("the SPLL is not running", off.Stopped);
+
+        // a bootloader left it running: 160 MHz over an AHB divider of 4 is 40 MHz, allowed; undivided it is not
+        var on = program.Run(10, pllRunning: true);
+        Assert.True(on.ExitCode == 0, on.ToString());
+        Assert.Single(on.After("CPU clock 160 MHz"));
+
+        var fast = await Esp32c5CProgram.BuildAsync(Source(0), _scratch + "-fast");
+        Assert.Contains("above its 48 MHz limit", fast.Run(10, pllRunning: true).Stopped);
     }
 
     [Esp32c5Fact]
