@@ -4,9 +4,9 @@ namespace ChipSharp.Simulators.Ch32v003;
 /// The WCH CH32V003's memory map and the addresses of the peripherals the simulator models, in one table: the memories
 /// are the CH32V003 Reference Manual's (V1.6, Figure 1-2 and 1.2.1: 16 KB of flash at 0x0800_0000, aliased at 0 where
 /// the chip boots, 2 KB of SRAM at 0x2000_0000; the option bytes at 0x1FFF_F800, ESIG at 0x1FFF_F7E0), the peripherals'
-/// base addresses WCH's SVD (CH32V003.svd) and EVT's ch32v00x.h, the core's PFIC and SysTick (STK) the QingKeV2 Processor
-/// Manual's (Tables 3-2 and 4-1), and the interrupt numbers the RM's Table 6-1 (WCH's startup_ch32v00x.S has its vector
-/// table in that order).
+/// base addresses WCH's SVD (chips/svd/CH32V003xx.svd) and EVT's ch32v00x.h, the core's PFIC and SysTick (STK) the
+/// QingKeV2 Processor Manual's (Tables 3-2 and 4-1), and the interrupt numbers the RM's Table 6-1 (WCH's
+/// startup_ch32v00x.S has its vector table in that order).
 /// </summary>
 public static class Ch32v003Map
 {
@@ -56,7 +56,7 @@ public static class Ch32v003Map
     {
         ["TIM2"] = Tim2, ["WWDG"] = Wwdg, ["IWDG"] = Iwdg, ["I2C1"] = I2c1, ["PWR"] = Pwr, ["AFIO"] = Afio, ["EXTI"] = Exti,
         ["GPIOA"] = GpioA, ["GPIOC"] = GpioC, ["GPIOD"] = GpioD, ["ADC1"] = Adc1, ["TIM1"] = Tim1, ["SPI1"] = Spi1,
-        ["USART1"] = Usart1, ["DMA1"] = Dma1, ["RCC"] = Rcc, ["FLASH"] = Flash, ["EXTEND"] = Extend, ["DBG"] = Dbg,
+        ["USART1"] = Usart1, ["DMA1"] = Dma1, ["RCC"] = Rcc, ["FLASH"] = Flash, ["EXTEN"] = Extend, ["DBG"] = Dbg,
         ["PFIC"] = Pfic,
     };
 

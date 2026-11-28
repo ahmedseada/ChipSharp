@@ -4,6 +4,7 @@ using System.Text;
 using ChipSharp.Simulators;
 using ChipSharp.Simulators.Ch32v003;
 using ChipSharp.Tests.Ch32v003;
+using ChipSharp.Tests.Pico;
 using ChipSharp.Tests.Support;
 using Xunit.Abstractions;
 
@@ -251,6 +252,79 @@ public sealed class Ch32v003SimulatorTests(ITestOutputHelper output) : IDisposab
         var failure = Simulation.Run(new SimulationOptions { Chip = "ch32v003", Image = failed.Elf, Milliseconds = 100 });
         Assert.True(failure.ExitCode == 3, failure.ToString());
         Assert.StartsWith("stopped: the program hit a breakpoint (ebreak)", failure.Stopped, StringComparison.Ordinal);
+
+        // chipsharp build -t ch32v003-evt: its Name.bin, as chipsharp flash writes it; a wrong sum would fail at ebreak
+        var dll = Path.Combine(_scratch, "Sums.dll");
+        var expected = Enumerable.Range(1, 1000).Sum(i => (long)i * i / 3);
+        File.WriteAllBytes(dll, CSharpCompiler.Compile([$$"""
+            class Program
+            {
+                static void Main()
+                {
+                    long sum = 0;
+                    for (int i = 1; i <= 1000; i++) sum += (long)i * i / 3;
+                    System.Span<int> one = stackalloc int[1];
+                    one[sum == {{expected}}L ? 0 : 1] = 1; // out of its range, a failure, unless the sum is right
+                }
+            }
+            """], [typeof(ChipSharp.Hardware.Pin).Assembly.Location], "Sums"));
+        var built = ChipSharp.Build.ChipSharpBuilder.Build(dll, new ChipSharp.Build.BuildOptions
+        {
+            Target = "ch32v003-evt",
+            TargetsFolder = Path.Combine(AppContext.BaseDirectory, "targets"),
+            OutputFolder = Path.Combine(_scratch, "out"),
+        });
+        Assert.EndsWith("Sums.bin", built.OutputPath, StringComparison.Ordinal);
+        var sums = Simulation.Run(new SimulationOptions { Chip = "ch32v003", Image = built.OutputPath, Milliseconds = 200 });
+        Assert.True(sums.ExitCode == 0, sums.ToString());
+        Assert.StartsWith("stopped: the program has finished", sums.Stopped, StringComparison.Ordinal);
+        Assert.Contains("CPU clock 48 MHz", sums.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_simulator_s_addresses_interrupts_memories_and_pins_are_WCH_s_SVD_s_and_the_chip_and_target_files()
+    {
+        var svd = ChipSharp.Chips.Svd.Read(Path.Combine(Repository.Root, "chips", "svd", "CH32V003xx.svd"));
+        foreach (var (name, address) in Ch32v003Map.Peripherals)
+        {
+            var peripheral = svd.Peripherals.Single(p => p.Name == name);
+            Assert.True(peripheral.Base == address, $"{name}: the simulator has 0x{address:x8}, the SVD 0x{peripheral.Base:x8}");
+        }
+
+        foreach (var (name, number) in Ch32v003Map.Interrupts)
+        {
+            Assert.True(svd.Interrupts.First(i => i.Name == name).Number == number, name);
+        }
+
+        Assert.Equal((ulong)Ch32v003Map.SysTick, svd.Registers.Single(r => r.Name == "STK_CTLR").Address);
+        var chip = ChipSharp.Chips.ChipCatalog.Read(Path.Combine(Repository.Root, "chips", "ch32v003.json"));
+        Assert.Equal((Ch32v003Map.SysTickNumber, Ch32v003Map.SoftwareNumber),
+            (chip.Interrupts.Single(i => i.Name == "SysTick").Number, chip.Interrupts.Single(i => i.Name == "SW").Number));
+        Assert.Equal(((ulong)Ch32v003Map.FlashStart, (ulong)Ch32v003Map.FlashSize),
+            (chip.Memory.Single(m => m.Name == "flash").Origin, chip.Memory.Single(m => m.Name == "flash").Size));
+        Assert.Equal(((ulong)Ch32v003Map.SramStart, (ulong)Ch32v003Map.SramSize),
+            (chip.Memory.Single(m => m.Name == "sram").Origin, chip.Memory.Single(m => m.Name == "sram").Size));
+        Assert.Equal((ulong)Ch32v003Map.OptionBytes, chip.Memory.Single(m => m.Name == "option").Origin);
+
+        // the pins: the chip file's, by ChipSharp's numbers (8 * the port's letter + the bit), are the simulator's
+        var simulated = new Ch32v003Chip(Ch32v003Image.Load(WriteBin([0x6F, 0x00, 0x00, 0x00])));
+        var pins = simulated.Ports.SelectMany(port => Enumerable.Range(0, 8).Where(bit => (port.Pins & (1 << bit)) != 0)
+            .Select(bit => (Name: port.PinName(bit), Number: 8 * (port.Letter - 'A') + bit))).ToList();
+        Assert.Equal(chip.Pins.Select(pin => (pin.Name, pin.Number)).OrderBy(pin => pin.Number), pins);
+
+        var target = Ch32v003Build.Board;
+        Assert.Equal(Ch32v003Map.InterruptCount, (int)target.Settings["vectors"]!);
+        Assert.Equal(Ch32v003Map.SysTickNumber, (int)target.Settings["interrupts"]!["timer"]!["irq"]!);
+        Assert.Equal(Ch32v003Map.Exti7To0Number, (int)target.Settings["interrupts"]!["pin"]!["irq"]!);
+    }
+
+    /// <summary>A .bin of <paramref name="bytes"/> in the scratch folder.</summary>
+    private string WriteBin(byte[] bytes)
+    {
+        Directory.CreateDirectory(_scratch);
+        var path = Path.Combine(_scratch, "tiny.bin");
+        File.WriteAllBytes(path, bytes);
+        return path;
     }
 
     [Ch32v003Fact]
