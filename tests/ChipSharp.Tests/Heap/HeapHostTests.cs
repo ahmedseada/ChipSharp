@@ -1,5 +1,6 @@
 using ChipSharp.Targets;
 using ChipSharp.Tests.Host;
+using ChipSharp.Tests.Support;
 using Xunit.Abstractions;
 
 namespace ChipSharp.Tests.Heap;
@@ -17,10 +18,7 @@ public sealed class HeapHostTests(ITestOutputHelper output) : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [HostFact]

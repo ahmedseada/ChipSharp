@@ -24,10 +24,7 @@ public sealed class UnoMathTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     /// <summary>Every function of Math and MathF the runtime's transcendental C has, as "Math.Sin" or "MathF.Pow".</summary>

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Simulators;
 
@@ -17,10 +18,7 @@ public sealed class ArithmeticSimulatorTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     private const string All = "+ - * / % << >>";

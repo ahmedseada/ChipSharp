@@ -50,10 +50,7 @@ public sealed class DivisionTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     /// <summary>A division that .NET throws for, and the message ChipSharp stops with.</summary>

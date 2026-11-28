@@ -19,10 +19,7 @@ public sealed class DateTimeProgramTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     /// <summary>Dates whose text the tests compare: the edges (but the last two days, which AddDays(1.25) passes) and random ones.</summary>

@@ -16,10 +16,7 @@ public sealed class TextSimulatorTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     public static TheoryData<string> ProgramNames => [.. TextPrograms.All.Select(program => program.Name)];

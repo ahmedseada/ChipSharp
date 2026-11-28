@@ -20,10 +20,7 @@ public sealed class GenericClassSimulatorTests(ITestOutputHelper output) : IDisp
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     public static TheoryData<string, bool> ProgramsInReleaseAndDebug => GenericClassPrograms.InReleaseAndDebug();

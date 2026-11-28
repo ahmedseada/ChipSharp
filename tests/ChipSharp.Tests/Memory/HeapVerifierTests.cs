@@ -25,10 +25,7 @@ public sealed class HeapVerifierTests(ITestOutputHelper output) : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     /// <summary>The heap's stress programs, each with what it must print first.</summary>

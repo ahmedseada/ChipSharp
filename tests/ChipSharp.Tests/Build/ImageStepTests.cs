@@ -24,10 +24,7 @@ public sealed class ImageStepTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
 
         foreach (var build in _builds.Where(b => Directory.Exists(b.WorkFolder)))
         {

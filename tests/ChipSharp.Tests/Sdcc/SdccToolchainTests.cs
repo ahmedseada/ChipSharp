@@ -1,6 +1,7 @@
 using ChipSharp.Abstractions;
 using ChipSharp.Build;
 using ChipSharp.Tests.Build;
+using ChipSharp.Tests.Support;
 using ChipSharp.Toolchain.Clang;
 using ChipSharp.Toolchain.Sdcc;
 
@@ -16,10 +17,7 @@ public sealed class SdccToolchainTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using System.Text;
+using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Avr;
 
@@ -22,10 +23,7 @@ public sealed class UnoRuntimeSimulatorTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [AvrSimulatorFact]

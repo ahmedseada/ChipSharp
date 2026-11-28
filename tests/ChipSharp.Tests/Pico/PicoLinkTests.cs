@@ -4,6 +4,7 @@ using ChipSharp.Abstractions;
 using ChipSharp.Image.Uf2;
 using ChipSharp.Runtime.Rp2040;
 using ChipSharp.Targets;
+using ChipSharp.Tests.Support;
 using ChipSharp.Toolchain.Clang;
 
 namespace ChipSharp.Tests.Pico;
@@ -22,10 +23,7 @@ public sealed class PicoLinkTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [Fact]

@@ -14,6 +14,7 @@ using ChipSharp.Targets;
 using ChipSharp.Tests.Avr;
 using ChipSharp.Tests.Pico;
 using ChipSharp.Tests.Sdcc;
+using ChipSharp.Tests.Support;
 using ChipSharp.Toolchain.Clang;
 using ChipSharp.Toolchain.Sdcc;
 
@@ -34,10 +35,7 @@ public sealed partial class HardwareContractTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [Fact]

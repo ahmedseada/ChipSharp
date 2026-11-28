@@ -2,6 +2,7 @@ using ChipSharp.Frontend.Analysis;
 using ChipSharp.Tests.Heap;
 using ChipSharp.Tests.Host;
 using ChipSharp.Tests.Lowering;
+using ChipSharp.Tests.Support;
 using Xunit.Abstractions;
 
 namespace ChipSharp.Tests.Strings;
@@ -17,10 +18,7 @@ public sealed class StringProgramTests(ITestOutputHelper output) : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     public static TheoryData<string, bool> ProgramsInReleaseAndDebug => StringPrograms.InReleaseAndDebug();

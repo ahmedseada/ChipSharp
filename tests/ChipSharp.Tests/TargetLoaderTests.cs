@@ -1,5 +1,6 @@
 using ChipSharp.Abstractions;
 using ChipSharp.Targets;
+using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests;
 
@@ -10,10 +11,7 @@ public sealed class TargetLoaderTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [Fact]

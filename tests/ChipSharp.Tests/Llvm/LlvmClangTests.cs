@@ -1,6 +1,7 @@
 using ChipSharp.Abstractions;
 using ChipSharp.Backend.Llvm;
 using ChipSharp.Ir;
+using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Llvm;
 
@@ -16,10 +17,7 @@ public sealed class LlvmClangTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [Theory]

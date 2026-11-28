@@ -1,4 +1,5 @@
 using ChipSharp.Tests.Sdcc;
+using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Conformance;
 
@@ -13,10 +14,7 @@ public sealed class ChipSimulatorTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [Fact]

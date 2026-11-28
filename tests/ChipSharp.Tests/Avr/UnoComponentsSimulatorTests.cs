@@ -1,5 +1,6 @@
 using System.Text;
 using ChipSharp.Tests.Pico;
+using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Avr;
 
@@ -17,10 +18,7 @@ public sealed class UnoComponentsSimulatorTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [AvrSimulatorFact]

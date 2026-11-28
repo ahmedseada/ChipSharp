@@ -23,7 +23,7 @@ chipsharp build bin\Release\net10.0\Pfs154PwmFade.dll -t pfs154-bare
 chipsharp flash bin\Release\net10.0\Pfs154PwmFade.dll -t pfs154-bare
 ```
 
-It takes **860 words** of the 2048 words of program memory and **53 bytes** of the 128 bytes of RAM. `flash` writes it
+It takes **872 words** of the 2048 words of program memory and **53 bytes** of the 128 bytes of RAM. `flash` writes it
 with the Easy PDK programmer (`easypdkprog`), as `pfs154-blink`'s README says.
 
 Without a chip (`chipsim` is `src\ChipSharp.Simulators\bin\Release\net10.0\chipsim.exe`):

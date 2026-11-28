@@ -1,6 +1,7 @@
 using ChipSharp.Abstractions;
 using ChipSharp.Backend.Llvm;
 using ChipSharp.Ir;
+using ChipSharp.Tests.Support;
 using ChipSharp.Tests.Tir;
 using static ChipSharp.Tests.Llvm.LlvmSamples;
 
@@ -18,10 +19,7 @@ public sealed class LlvmObjectTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     private static string Generate(TirModule module, TargetDescription? target = null) =>

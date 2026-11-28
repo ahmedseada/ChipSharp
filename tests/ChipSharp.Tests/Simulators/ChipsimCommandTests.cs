@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using ChipSharp.Simulators;
+using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Simulators;
 
@@ -15,7 +16,7 @@ public sealed class ChipsimCommandTests : IDisposable
 
     public ChipsimCommandTests() => Directory.CreateDirectory(_scratch);
 
-    public void Dispose() => Directory.Delete(_scratch, recursive: true);
+    public void Dispose() => Scratch.Delete(_scratch);
 
     /// <summary>
     /// An STM8S103 program: the reset vector to 0x8004; PB5 an output (low); UART1 at 2 MHz / 208 sending "hi\n" (each

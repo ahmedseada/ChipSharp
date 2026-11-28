@@ -19,10 +19,7 @@ public sealed class SdccNarrowingTests(ITestOutputHelper output) : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     public static TheoryData<string> Chips => [.. BackendTargets.All.Where(target => target.Chip is not null).Select(target => target.Name)];

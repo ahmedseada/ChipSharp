@@ -1,5 +1,6 @@
 using ChipSharp.Ir;
 using ChipSharp.Tests.Host;
+using ChipSharp.Tests.Support;
 using ChipSharp.Tests.Tir;
 
 namespace ChipSharp.Tests.Llvm;
@@ -14,10 +15,7 @@ public sealed class LlvmProgramTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [HostFact]

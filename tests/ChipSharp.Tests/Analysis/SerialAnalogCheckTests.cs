@@ -62,10 +62,7 @@ public sealed class SerialAnalogCheckTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     private static IEnumerable<MethodInfo> Methods => new[] { typeof(Uart), typeof(Adc), typeof(Pwm) }

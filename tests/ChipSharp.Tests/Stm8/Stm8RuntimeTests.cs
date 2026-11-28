@@ -4,6 +4,7 @@ using ChipSharp.Build;
 using ChipSharp.Runtime.Stm8;
 using ChipSharp.Runtime.Stm8s103;
 using ChipSharp.Tests.Sdcc;
+using ChipSharp.Tests.Support;
 using ChipSharp.Toolchain.Sdcc;
 
 namespace ChipSharp.Tests.Stm8;
@@ -20,10 +21,7 @@ public sealed partial class Stm8RuntimeTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [Fact]

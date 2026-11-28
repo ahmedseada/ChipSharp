@@ -1,6 +1,7 @@
 using System.Text;
 using ChipSharp.Tests.Pico;
 using ChipSharp.Tests.Sdcc;
+using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Stm8;
 
@@ -17,10 +18,7 @@ public sealed class Stm8sComponentsTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [SdccFact]

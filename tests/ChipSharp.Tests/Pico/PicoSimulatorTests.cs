@@ -1,3 +1,5 @@
+using ChipSharp.Tests.Support;
+
 namespace ChipSharp.Tests.Pico;
 
 /// <summary>
@@ -10,10 +12,7 @@ public sealed class PicoSimulatorTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     public static TheoryData<string> SampleNames =>

@@ -151,7 +151,7 @@ internal static class HostRun
         using var output = new MemoryStream();
         var copy = process.StandardOutput.BaseStream.CopyToAsync(output);
         var errors = process.StandardError.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(1));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
         try
         {
             await process.WaitForExitAsync(timeout.Token);
@@ -159,7 +159,7 @@ internal static class HostRun
         catch (OperationCanceledException)
         {
             process.Kill(entireProcessTree: true);
-            throw new TimeoutException($"'{program}' took more than a minute.");
+            throw new TimeoutException($"'{program}' took more than three minutes.");
         }
 
         await copy;
