@@ -61,14 +61,18 @@ public sealed class ChipSimulatorTests : IDisposable
     }
 
     [Fact]
-    public void A_chip_says_why_a_case_cannot_run_and_a_part_its_simulator_lacks_skips_only_its_cases()
+    public void A_chip_says_why_a_case_cannot_run_and_the_STM8S103_runs_every_case_its_target_has()
     {
         var stm8 = ChipSimulators.Get("stm8s103-board");
 
-        Assert.Equal(stm8.Missing, stm8.MissingFor(["chip"]));
-        Assert.StartsWith("chipsim's STM8S103 has its I2C controller's registers", stm8.MissingFor(["i2c"]));
+        // chipsim has devices on the STM8S103's buses and voltages on its analog inputs: nothing of its target is left out
+        Assert.All((string[])["chip", "i2c", "spi", "adc", "uart", "interrupts.pin", "interrupts.timer", "interrupts.uart",
+            "clock", "console", "consoleInput", "pwm"], need =>
+        {
+            Assert.True(stm8.Has(need), need);
+            Assert.Equal(stm8.Missing, stm8.MissingFor([need]));
+        });
         Assert.False(ChipSimulators.Get("pfs154-bare").Has("uart"));
-        Assert.True(stm8.Has("uart") && stm8.Has("chip") && !stm8.Has("interrupts.timer"));
     }
 
     [SdccFact]

@@ -40,13 +40,34 @@
 //
 // Failures say what .NET says through chipsharp_fail (each runtime's failures file): "System.ArgumentOutOfRangeException:
 // ..." after "Unhandled exception. ".
+//
+// With SDCC (the STM8's runtime), whose linker takes a file's functions all or none, the file is compiled in modules, one
+// for each "//@module" part below, each with the text before the first part and CHIPSHARP_MODULES defined (see
+// src/ChipSharp.Runtime.Stm8's Stm8Runtime.Modules): a program has only the parts it uses. The helpers that parts share
+// (SHARED) are then functions of their own part that the others call, instead of static ones.
 
+#if defined(CHIPSHARP_MODULES)
+#define SHARED
+#else
+#define SHARED static
+#endif
+
+// 32 bits on every target: an int or a long (AVR's and SDCC's int has 16), as the compiler's own fixed-width types say.
+// C# passes an int, a char (its UTF-16 code unit) and a bool (0 or 1) as 32 bits, and gets them back so.
+#if defined(__SDCC)
+typedef unsigned int uintptr_t;
+typedef long s32;
+typedef unsigned long u32;
+#define NORETURN _Noreturn
+// SDCC's 1 KB of RAM (the STM8S103's) has no room for a long message: a failure to parse quotes fewer chars
+#define QUOTED 24
+#else
 typedef __UINTPTR_TYPE__ uintptr_t;
-
-// 32 bits on every target: an int or a long (AVR's int has 16), as the compiler's own fixed-width types say. C# passes
-// an int, a char (its UTF-16 code unit) and a bool (0 or 1) as 32 bits, and gets them back so.
 typedef __INT32_TYPE__ s32;
 typedef __UINT32_TYPE__ u32;
+#define NORETURN __attribute__((noreturn))
+#define QUOTED 200
+#endif
 
 // A string the program gives may be one of its constants, which on an AVR stay in flash: there an address with bit 15
 // set is 0x8000 plus a flash address, read with LPM (see src/ChipSharp.Backend.Llvm/LlvmFlash.cs); RAM's addresses
@@ -95,43 +116,61 @@ typedef struct string
 #define DATA ((u32)((sizeof(void *) + 4 + 7) / 8 * 8))
 #define TYPE_ARRAY 1u
 
-const chipsharp_type chipsharp_string_type = {DATA, 1, TYPE_ARRAY, 0, 0, 0, "System.String", 0, 0, 0};
-const chipsharp_type chipsharp_wide_string_type = {DATA, 2, TYPE_ARRAY, 0, 0, 0, "System.String", 0, 0, 0};
+extern const chipsharp_type chipsharp_string_type;
+extern const chipsharp_type chipsharp_wide_string_type;
 
 // In each runtime's failures file: stops the program with "Unhandled exception. " and the message.
-__attribute__((noreturn)) void chipsharp_fail(const char *message);
-__attribute__((noreturn)) void ChipSharp_Runtime_IndexOutOfRange(void);
+NORETURN void chipsharp_fail(const char *message);
+NORETURN void ChipSharp_Runtime_IndexOutOfRange(void);
+s32 ChipSharp_Runtime_CharToUpper(s32 c);
+s32 ChipSharp_Runtime_CharIsWhiteSpace(s32 c);
+s32 ChipSharp_Runtime_StringEquals(const string *a, const string *b);
 
 typedef const chipsharp_type *type_pointer;
 
-static s32 length(const string *s)
+// The helpers the parts share (see SHARED above), each in its part.
+SHARED s32 length(const string *s);
+SHARED s32 is_wide(const string *s);
+SHARED u32 at(const string *s, s32 i);
+SHARED s32 same_chars(const string *a, s32 start, const string *b, s32 count);
+SHARED u32 char_as(const string *s, s32 i, s32 ignore_case);
+SHARED s32 compare_chars(const string *a, const string *b, s32 ignore_case);
+SHARED s32 compare_ordinal(const string *a, const string *b);
+SHARED NORETURN void null_value(void);
+
+// The messages of searching (with and without a StringComparison)
+#define OUT_OF_RANGE "System.ArgumentOutOfRangeException: "
+#define START_INDEX_LE "Index was out of range. Must be non-negative and less than or equal to the size of the collection. " \
+    "(Parameter 'startIndex')"
+#define START_INDEX_LT "Index was out of range. Must be non-negative and less than the size of the collection. " \
+    "(Parameter 'startIndex')"
+#define COUNT_RANGE "Count must be positive and count must refer to a location within the string/array/collection. " \
+    "(Parameter 'count')"
+
+//@module types
+const chipsharp_type chipsharp_string_type = {DATA, 1, TYPE_ARRAY, 0, 0, 0, "System.String", 0, 0, 0};
+const chipsharp_type chipsharp_wide_string_type = {DATA, 2, TYPE_ARRAY, 0, 0, 0, "System.String", 0, 0, 0};
+
+//@module basics
+SHARED s32 length(const string *s)
 {
     return READ(s32, &s->length);
 }
 
-static s32 is_wide(const string *s)
+SHARED s32 is_wide(const string *s)
 {
     return READ(u32, &READ(type_pointer, &s->type)->element_size) == 2;
 }
 
-static u32 at(const string *s, s32 i)
+SHARED u32 at(const string *s, s32 i)
 {
     const char *data = (const char *)s + DATA;
     return is_wide(s) ? READ(unsigned short, (const unsigned short *)data + i) : READ(unsigned char, data + i);
 }
 
-s32 ChipSharp_Runtime_StringChar(const string *s, s32 index)
-{
-    if ((u32)index >= (u32)length(s))
-    {
-        ChipSharp_Runtime_IndexOutOfRange();
-    }
-
-    return (s32)at(s, index);
-}
-
+//@module same_chars
 // True when the chars of a from start, count of them, are those of b from 0.
-static s32 same_chars(const string *a, s32 start, const string *b, s32 count)
+SHARED s32 same_chars(const string *a, s32 start, const string *b, s32 count)
 {
     for (s32 i = 0; i < count; i++)
     {
@@ -144,6 +183,18 @@ static s32 same_chars(const string *a, s32 start, const string *b, s32 count)
     return 1;
 }
 
+//@module char_at
+s32 ChipSharp_Runtime_StringChar(const string *s, s32 index)
+{
+    if ((u32)index >= (u32)length(s))
+    {
+        ChipSharp_Runtime_IndexOutOfRange();
+    }
+
+    return (s32)at(s, index);
+}
+
+//@module equals
 s32 ChipSharp_Runtime_StringEquals(const string *a, const string *b)
 {
     if (a == b)
@@ -176,10 +227,9 @@ s32 ChipSharp_Runtime_StringEqualsObject(const string *s, const void *other)
     return other != 0 && is_string(other) && ChipSharp_Runtime_StringEquals(s, (const string *)other);
 }
 
-s32 ChipSharp_Runtime_CharToUpper(s32 c);
-
+//@module compare
 // The char at i as a comparison reads it: its upper case when ignore_case is 1.
-static u32 char_as(const string *s, s32 i, s32 ignore_case)
+SHARED u32 char_as(const string *s, s32 i, s32 ignore_case)
 {
     u32 c = at(s, i);
     return ignore_case ? (u32)ChipSharp_Runtime_CharToUpper((s32)c) : c;
@@ -187,7 +237,7 @@ static u32 char_as(const string *s, s32 i, s32 ignore_case)
 
 // The difference of the first chars that differ (the upper case of each when ignore_case is 1), else of the lengths:
 // how .NET compares in its invariant mode.
-static s32 compare_chars(const string *a, const string *b, s32 ignore_case)
+SHARED s32 compare_chars(const string *a, const string *b, s32 ignore_case)
 {
     s32 count = length(a) < length(b) ? length(a) : length(b);
     for (s32 i = 0; i < count; i++)
@@ -206,7 +256,7 @@ static s32 compare_chars(const string *a, const string *b, s32 ignore_case)
 // at a time from the third, so where the shorter has fewer than two chars or an odd number of them it reads the 0 that
 // ends a string in .NET and gives the difference of the longer one's next char and 0 ("apple" and "app": 108, the 'l'),
 // else the difference of the lengths ("apple" and "ap": 3).
-static s32 compare_ordinal(const string *a, const string *b)
+SHARED s32 compare_ordinal(const string *a, const string *b)
 {
     s32 count = length(a) < length(b) ? length(a) : length(b);
     for (s32 i = 0; i < count; i++)
@@ -256,6 +306,7 @@ s32 ChipSharp_Runtime_StringCompare(const string *a, const string *b)
     return compare_chars(a, b, 0);
 }
 
+//@module hash
 s32 ChipSharp_Runtime_StringHash(const string *s)
 {
     u32 hash = 2166136261u;
@@ -269,6 +320,7 @@ s32 ChipSharp_Runtime_StringHash(const string *s)
 
 // ---- Chars -----------------------------------------------------------------------------------------------------------
 
+//@module chars
 s32 ChipSharp_Runtime_CharIsWhiteSpace(s32 c)
 {
     return (c >= 0x09 && c <= 0x0D) || c == 0x20 || c == 0x85 || c == 0xA0 || c == 0x1680 || (c >= 0x2000 && c <= 0x200A)
@@ -317,19 +369,13 @@ s32 ChipSharp_Runtime_CharToLower(s32 c)
 
 // ---- Searching -------------------------------------------------------------------------------------------------------
 
-#define OUT_OF_RANGE "System.ArgumentOutOfRangeException: "
-#define START_INDEX_LE "Index was out of range. Must be non-negative and less than or equal to the size of the collection. " \
-    "(Parameter 'startIndex')"
-#define START_INDEX_LT "Index was out of range. Must be non-negative and less than the size of the collection. " \
-    "(Parameter 'startIndex')"
-#define COUNT_RANGE "Count must be positive and count must refer to a location within the string/array/collection. " \
-    "(Parameter 'count')"
-
-__attribute__((noreturn)) static void null_value(void)
+//@module null_value
+SHARED NORETURN void null_value(void)
 {
     chipsharp_fail(MESSAGE("System.ArgumentNullException: Value cannot be null. (Parameter 'value')"));
 }
 
+//@module search
 // Where c is first in s from start, count chars at most; -1 when it is not there.
 static s32 find_char(const string *s, u32 c, s32 start, s32 count)
 {
@@ -510,6 +556,8 @@ s32 ChipSharp_Runtime_StringEndsWithChar(const string *s, s32 c)
 
 // ---- With a StringComparison -----------------------------------------------------------------------------------------
 
+//@module using
+
 // The overloads with a StringComparison compare char by char for every value, as .NET compares in its invariant mode:
 // CurrentCulture (0), InvariantCulture (2) and Ordinal (4) the chars themselves, their IgnoreCase forms (1, 3, 5) the
 // upper case of each char (ChipSharp_Runtime_CharToUpper), as OrdinalIgnoreCase does. Another value fails as in .NET.
@@ -659,6 +707,7 @@ s32 ChipSharp_Runtime_StringLastIndexOfUsing(const string *s, const string *valu
     return -1;
 }
 
+//@module empty
 s32 ChipSharp_Runtime_StringIsNullOrEmpty(const string *s)
 {
     return s == 0 || length(s) == 0;
@@ -682,17 +731,19 @@ s32 ChipSharp_Runtime_StringIsNullOrWhiteSpace(const string *s)
 
 // ---- Parsing ---------------------------------------------------------------------------------------------------------
 
-// The text of a failure: a prefix, the string's chars as UTF-8 (the first 200 of them), a suffix.
-__attribute__((noreturn)) static void fail_with(const char *prefix, const string *s, const char *suffix)
+//@module parse
+
+// The text of a failure: a prefix, the string's chars as UTF-8 (the first QUOTED of them: 200, 24 with SDCC), a suffix.
+NORETURN static void fail_with(const char *prefix, const string *s, const char *suffix)
 {
-    char message[96 + 200 * 3 + 64];
+    char message[96 + QUOTED * 3 + 64];
     u32 n = 0;
     for (char c = READ(char, prefix); c != 0; prefix++, c = READ(char, prefix))
     {
         message[n++] = c;
     }
 
-    for (s32 i = 0; i < length(s) && i < 200; i++)
+    for (s32 i = 0; i < length(s) && i < QUOTED; i++)
     {
         u32 c = at(s, i);
         if (c < 0x80)

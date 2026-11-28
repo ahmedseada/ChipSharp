@@ -351,7 +351,7 @@ public sealed class LibrarySubstituteTests
 
         Assert.Equal(46, functions.Count);
         Assert.All(functions.Where(Thrown), method =>
-            Assert.Contains($"__attribute__((noreturn)) void {LlvmCodeGenerator.SymbolName($"ChipSharp.Runtime.{method.Name}")}(",
+            Assert.Contains($"NORETURN void {LlvmCodeGenerator.SymbolName($"ChipSharp.Runtime.{method.Name}")}(",
                 exceptions));
         Assert.All(functions.Where(method => method.Name.StartsWith("Clock", StringComparison.Ordinal)), method =>
         {
