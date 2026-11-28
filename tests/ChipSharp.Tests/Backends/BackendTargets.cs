@@ -23,6 +23,9 @@ internal sealed record BackendTarget(string Name, string Backend, string? Chip)
         ? CSdcc.WithStack(CSdcc.With(Shipped.Load(Name), "console", "true"), "16")
         : CSdcc.With(Shipped.Load(Name), "console", "true");
 
+    /// <summary>A chip built through C and SDCC (not the ESP32-C5, which the llvm code generator builds).</summary>
+    public bool IsSdcc => Chip is not null && Backend == "c";
+
     public override string ToString() => Name;
 }
 
@@ -43,9 +46,9 @@ internal static class BackendTargets
         new("pfs154-bare", "c", "pfs154"),
         new("stm8s103-board", "c", "stm8s103"),
 
-        // the ESP32-C5 (M4): the llvm code generator for riscv32 and the esp32c5 runtime, in the chip's simulator, once
-        // the simulator and the runtime's console come (wave 1): new("esp32c5-devkitc", "llvm", "esp32c5"), run by the
-        // build pipeline as the PC's are. Until then its programs compile and link (Esp32c5ProgramTests)
+        // the ESP32-C5 (M4): the llvm code generator for riscv32 and the esp32c5 runtime, built as chipsharp build builds
+        // it, in chipsim's esp32c5 (the console is the USB Serial/JTAG port)
+        new("esp32c5-devkitc", "llvm", "esp32c5"),
     ];
 
     public static BackendTarget Get(string name) => All.Single(target => target.Name == name);

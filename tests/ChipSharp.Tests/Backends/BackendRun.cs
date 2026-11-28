@@ -41,9 +41,12 @@ internal static class BackendRun
     public static async Task<BackendOutcome> RunAsync(BackendTarget target, string name, string source, string folder)
     {
         var file = name.Replace('/', '_');
-        var outcome = target.Chip is null
-            ? await OnThePcAsync(target, file, source, folder)
-            : OnTheChip(target, file, source, folder);
+        var outcome = target.Chip switch
+        {
+            null => await OnThePcAsync(target, file, source, folder),
+            "esp32c5" => OnTheEsp32c5(target, file, source, folder),
+            _ => OnTheChip(target, file, source, folder),
+        };
         if (outcome.Skipped is not null)
         {
             return outcome;
@@ -111,6 +114,40 @@ internal static class BackendRun
         {
             return (module, null, BackendOutcome.Skip(reason, e.Message));
         }
+    }
+
+    /// <summary>
+    /// The program built for the ESP32-C5 as chipsharp build builds it (the llvm code generator for riscv32, the esp32c5
+    /// runtime, the ESP image), and run in chipsim's esp32c5: what it writes to the USB Serial/JTAG console (serial port
+    /// "USB") is what it prints.
+    /// </summary>
+    private static BackendOutcome OnTheEsp32c5(BackendTarget target, string file, string source, string folder)
+    {
+        var dll = CSharpCompiler.CompileToFile(source, Path.Combine(folder, "dll", file + ".dll"));
+        BuildResult result;
+        try
+        {
+            result = ChipSharpBuilder.Build(dll, new BuildOptions
+            {
+                Target = target.Name,
+                TargetsFolder = ShippedTargets,
+                OutputFolder = Path.Combine(folder, target.Name),
+            });
+        }
+        catch (ChipSharpException e)
+        {
+            return BackendOutcome.Skip(BackendSkips.Classify(e.Message), e.Message);
+        }
+
+        var run = Simulation.Run(new SimulationOptions
+        {
+            Chip = target.Chip!,
+            Image = result.OutputPath,
+            Milliseconds = ChipMilliseconds,
+        });
+        var ended = run.Stopped.StartsWith("stopped: the program has finished", StringComparison.Ordinal);
+        var errors = ended && run.ExitCode == 0 ? "" : $"{run.Stopped} (exit code {run.ExitCode}){Environment.NewLine}{run.Output}";
+        return new BackendOutcome(null, null, new ProgramRun(run.SerialOf("USB"), ended ? run.ExitCode : 1, errors), null);
     }
 
     private static BackendOutcome OnTheChip(BackendTarget target, string file, string source, string folder)

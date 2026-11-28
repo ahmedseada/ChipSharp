@@ -28,7 +28,7 @@ public sealed class StackOverflowTests(ITestOutputHelper output) : IDisposable
     }
 
     /// <summary>A recursion with no end (whose result is not a sum LLVM could turn into a loop), after a line.</summary>
-    private const string Endless = """
+    internal const string Endless = """
         using System;
 
         static class Program
@@ -53,7 +53,7 @@ public sealed class StackOverflowTests(ITestOutputHelper output) : IDisposable
         """;
 
     /// <summary>Two methods that call each other through a virtual call, a delegate and an interface, with no end.</summary>
-    private const string Indirect = """
+    internal const string Indirect = """
         using System;
 
         interface IStep
@@ -91,7 +91,7 @@ public sealed class StackOverflowTests(ITestOutputHelper output) : IDisposable
         """;
 
     /// <summary>Deep recursions that end, on the Pico's 8 KB stack, and a frame of 1 KB on the stack in a loop.</summary>
-    private const string Finite = """
+    internal const string Finite = """
         using System;
 
         static class Program
