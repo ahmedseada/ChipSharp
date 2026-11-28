@@ -1410,7 +1410,7 @@ dotnet build -c Release
 dotnet test -c Release --no-build
 ```
 
-The 3,026 tests (about 7 minutes once the build cache is warm) check each stage on its own (reading IL, the
+The 3,715 tests (about 7 minutes once the build cache is warm) check each stage on its own (reading IL, the
 whole-program pass, TIR, the LLVM code, linking, the `.uf2` and the `.hex`), then compile C# programs and run them: on
 the PC, on the simulated Pico and on the simulated Uno, comparing what they print, byte for byte, with what .NET prints
 for the same program; the library code (collections, `StringBuilder`, sorting, `TimeSpan`, `DateTime` and its formats)

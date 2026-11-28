@@ -1,4 +1,5 @@
 using ChipSharp.Tests.CBackend;
+using ChipSharp.Tests.Sdcc;
 using ChipSharp.Tests.Simulators;
 using ChipSharp.Tests.Support;
 using ChipSharp.Toolchain.Sdcc;
@@ -9,8 +10,8 @@ namespace ChipSharp.Tests.Backends;
 /// <summary>
 /// The narrowing pass on SDCC's chips, whose target files turn it on ("narrowing": true): each program of the corpora
 /// that a chip takes, built through C and SDCC with its arithmetic narrowed to 8 and 16 bits where that gives C#'s
-/// result and without, takes less program memory narrowed, all of them together. The numbers are in the target files
-/// and the README.
+/// result and without, takes less program memory narrowed, all of them together; and what dates take of the STM8's
+/// flash does not grow. The numbers are in the target files and the README.
 /// </summary>
 public sealed class SdccNarrowingTests(ITestOutputHelper output) : IDisposable
 {
@@ -54,5 +55,22 @@ public sealed class SdccNarrowingTests(ITestOutputHelper output) : IDisposable
         output.WriteLine($"{built.Count} programs: {narrowedTotal} bytes narrowed, {wideTotal} without");
         Assert.NotEmpty(built);
         Assert.True(narrowedTotal < wideTotal, $"narrowed {narrowedTotal} bytes, without {wideTotal}");
+    }
+
+    /// <summary>
+    /// What DateTime and TimeSpan take of the STM8S103's 8 KB of flash (the runtime's clock and a DS1307's driver need
+    /// them too): the C code generator must not make it grow. Chips/Dates, through C and SDCC with the tests' console,
+    /// took 7,322 bytes when this was written.
+    /// </summary>
+    [SdccFact]
+    public void Dates_and_TimeSpans_take_no_more_of_the_STM8s_flash_than_they_did()
+    {
+        var target = BackendTargets.Get("stm8s103-board").Load();
+        var (_, binary, skip) = BackendRun.BuildForChip(target, "Dates", ChipPrograms.Dates, Path.Combine(_scratch, "dates"));
+
+        Assert.Null(skip?.Why);
+        var used = SdccMemoryUse.Read(binary!, target).CodeUsed;
+        output.WriteLine($"Chips/Dates: {used} bytes of flash");
+        Assert.True(used <= 7_322, $"Chips/Dates takes {used} bytes of flash, more than 7,322");
     }
 }
