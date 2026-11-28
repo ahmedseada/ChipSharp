@@ -10,6 +10,8 @@ using ChipSharp.Image.Uf2;
 using ChipSharp.Runtime.ArmV6M;
 using ChipSharp.Runtime.Atmega328p;
 using ChipSharp.Runtime.Avr;
+using ChipSharp.Runtime.Pdk14;
+using ChipSharp.Runtime.Pfs154;
 using ChipSharp.Runtime.Rp2040;
 using ChipSharp.Runtime.Windows;
 using ChipSharp.Toolchain.Clang;
@@ -62,6 +64,8 @@ public static class DefaultComponents
             .Register(new Rp2040Runtime())          // runtime "rp2040": Raspberry Pi Pico
             .Register(new AvrRuntime())             // runtime "avr": any AVR chip (ATmega328P: Arduino Uno)
             .Register(new Atmega328pRuntime())      // runtime "atmega328p": Arduino Uno, on the runtime "avr"
+            .Register(new Pdk14Runtime())           // runtime "pdk14": any Padauk PDK14 chip (PFS154), through SDCC
+            .Register(new Pfs154Runtime())          // runtime "pfs154": a PFS154 on its own, on the runtime "pdk14"
             .Register(new Uf2ImageFormat())         // image "uf2"
             .Register(new IntelHexImageFormat()));  // image "hex": Intel HEX (an AVR's flash; SDCC's .ihx)
     }
