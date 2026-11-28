@@ -93,8 +93,15 @@ chipsharp_i32 chipsharp_entry(void);
 // Pin.Output: the chip drives the pin, low until written.
 void ChipSharp_Runtime_PinOutput(chipsharp_i32 pin) CHIPSHARP_REENTRANT;
 
-// Pin.Input: the chip stops driving the pin (its pull-up or pull-down as after reset); PinRead reads it.
+// Pin.Input: the chip stops driving the pin and puts no pull on it, the same on every chip (whatever the chip's reset
+// left on it); PinRead reads it.
 void ChipSharp_Runtime_PinInput(chipsharp_i32 pin) CHIPSHARP_REENTRANT;
+
+// Pin.Input(pin, pull): as PinInput, then the pull: 0 none (PinInput itself), 1 up, 2 down. A function of its own, so that
+// a program that never asks for a pull links no code for one. Every chip has the pull-up; the pull-down is the target's
+// "pullDown": true, which chipsharp check checks for a constant Pull.Down; a pull the chip does not have, or a number
+// above 2, stops the program (chipsharp_hardware_failure).
+void ChipSharp_Runtime_PinInputPull(chipsharp_i32 pin, chipsharp_i32 pull) CHIPSHARP_REENTRANT;
 
 // Pin.Write: drives an output high (any high but 0) or low.
 void ChipSharp_Runtime_PinWrite(chipsharp_i32 pin, chipsharp_i32 high) CHIPSHARP_REENTRANT;

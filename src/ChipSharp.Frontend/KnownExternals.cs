@@ -26,6 +26,7 @@ public sealed record ExternalFunction(
 public static class KnownExternals
 {
     private const string Pin = "ChipSharp.Hardware.Pin";
+    private static readonly IlType PullType = new IlNamedType("ChipSharp.Hardware", "Pull", null, "ChipSharp.Hardware");
     private const string Timing = "ChipSharp.Hardware.Timing";
     private const string Registers = "ChipSharp.Hardware.Registers";
     private const string Math = "System.Math";
@@ -87,6 +88,7 @@ public static class KnownExternals
         // contract (HardwareContract, src/ChipSharp.Runtime.Shared/chipsharp_hardware.h) the calls become
         Hardware(Pin, "Output", [IlType.Int32], IlType.Void, "int"),
         Hardware(Pin, "Input", [IlType.Int32], IlType.Void, "int"),
+        Hardware(Pin, "Input", [IlType.Int32, PullType], IlType.Void, "int, Pull"),
         Hardware(Pin, "Write", [IlType.Int32, IlType.Bool], IlType.Void, "int, bool"),
         Hardware(Pin, "Toggle", [IlType.Int32], IlType.Void, "int"),
         Hardware(Pin, "Read", [IlType.Int32], IlType.Bool, "int"),

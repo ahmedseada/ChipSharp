@@ -29,7 +29,7 @@
 //   the lights:      red A0, yellow A1, green A2 (each LED: the pin -> 220 ohm resistor -> LED + ; LED - -> GND)
 //   the display:     a common-cathode 7-segment display, segments A D3, B D4, C D7, D D8, E D9, F D11, G D10 (each
 //                    through a 220 ohm resistor), COM to GND
-//   the button:      between D2 and GND (the program turns D2's pull-up on, so it needs no resistor)
+//   the button:      between D2 and GND (Pull.Up turns the pin's own pull-up on, so it needs no resistor)
 //   the LCD:         its I2C backpack (address 0x27): SDA to A4, SCL to A5, VCC to 5V, GND to GND
 // D0 and D1 are the serial port's, D13 the LED "L"'s; D5, D6, D12 and A3 are free. Without an LCD connected,
 // Lcd.Open returns false and the traffic light runs without it.
@@ -154,7 +154,6 @@ static class Heartbeat
 static class Button
 {
     const int PinNumber = 2;
-    const uint PortD = 0x2B;             // PORTD: for an input pin of D0-D7, its bit turns the pin's pull-up on
 
     // set by the interrupt, read and cleared by the main loop, so it must be volatile
     static volatile bool pressed;
@@ -163,8 +162,7 @@ static class Button
 
     public static void Watch()
     {
-        Pin.Input(PinNumber);
-        Registers.Write(PortD, Registers.Read(PortD) | 1u << PinNumber);   // the pull-up: high until pressed
+        Pin.Input(PinNumber, Pull.Up);   // high until pressed
         Pin.WatchFalling(PinNumber);     // a press (D2 to GND) runs Pressed() below
     }
 

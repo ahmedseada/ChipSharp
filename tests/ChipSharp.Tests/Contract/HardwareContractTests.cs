@@ -51,7 +51,7 @@ public sealed partial class HardwareContractTests : IDisposable
                 (header.Name, header.Returns, header.Section, header.Guard, header.Reentrant, header.NoReturn));
             Assert.Equal(function.Parameters, header.Parameters);
         });
-        Assert.Equal(57, declared.Count);
+        Assert.Equal(58, declared.Count);
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public sealed partial class HardwareContractTests : IDisposable
         var hardware = KnownExternals.All
             .Where(f => f.LibraryMethod.StartsWith("ChipSharp.Hardware.", StringComparison.Ordinal)).ToList();
 
-        Assert.Equal(18, hardware.Count);
+        Assert.Equal(19, hardware.Count);
         Assert.All(hardware, external =>
         {
             var function = HardwareContract.ForCSharp(external.LibraryMethod);

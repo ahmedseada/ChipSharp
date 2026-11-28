@@ -11,7 +11,7 @@ namespace ChipSharp.Tests.Padauk;
 /// <summary>
 /// The example projects for the Padauk PFS154 (examples/pfs154-*), built the way their READMEs say (dotnet build of the
 /// project, then <c>chipsharp build -t pfs154-bare</c> of its .dll) and run in chipsim with what their circuit gives
-/// them (a button that a resistor holds high, pressed): each pin's timeline, and what each takes of the chip's 2K words
+/// them (a button that the pin's pull-up holds high, pressed): each pin's timeline, and what each takes of the chip's 2K words
 /// and 128 bytes, in the test's output and its messages. They use the portable API alone (Pin, Timing, [Interrupt],
 /// Pwm): no Registers, nothing of the PFS154's own.
 /// </summary>
@@ -68,12 +68,12 @@ public sealed partial class Pfs154ExampleTests(ITestOutputHelper output) : IDisp
     }
 
     /// <summary>
-    /// The button on PA0, to GND, with the resistor to VDD that holds the pin high (the simulator drives it high from
-    /// the start, as the resistor does): pressed at 200, 500 and 800 ms, let go 100 ms or 50 ms later.
+    /// The button on PA0, to GND, with the pin's own pull-up (Pull.Up) that holds it high (the simulator reads it high
+    /// from the start, undriven): pressed at 200, 500 and 800 ms, let go 100 ms or 50 ms later.
     /// </summary>
     [SdccFact]
     [RunsLong]
-    public async Task The_button_on_PA0_toggles_PA4_on_each_press_with_the_pull_up_resistor_outside()
+    public async Task The_button_on_PA0_toggles_PA4_on_each_press_with_the_pins_own_pull_up()
     {
         var example = await BuildAsync("pfs154-button");
 
@@ -81,13 +81,13 @@ public sealed partial class Pfs154ExampleTests(ITestOutputHelper output) : IDisp
         {
             Inputs =
             [
-                new(Button, true), new(Button, false, 200), new(Button, true, 300), new(Button, false, 500),
+                new(Button, false, 200), new(Button, true, 300), new(Button, false, 500),
                 new(Button, true, 600), new(Button, false, 800), new(Button, true, 850),
             ],
         });
 
-        // the program leaves PA0's own pull-up off: Pin.Input, as after reset
-        Assert.DoesNotContain(run.Pins, p => p.Pin == Button && p.State == "input pull-up");
+        // the program turns PA0's own pull-up on: Pin.Input(Button, Pull.Up)
+        Assert.Contains(run.Pins, p => p.Pin == Button && p.State == "input pull-up");
         var led = run.Levels(Led);
         Assert.True(led.Select(p => p.State).SequenceEqual(["low", "high", "low", "high"]), $"{example}\n{run}");
         double[] presses = [200, 500, 800];
@@ -110,7 +110,7 @@ public sealed partial class Pfs154ExampleTests(ITestOutputHelper output) : IDisp
 
         var run = await RunAsync(example, new ChipStimulus(16000)
         {
-            Inputs = [new(Button, true), new(Button, false, 2500), new(Button, true, 2700)],
+            Inputs = [new(Button, false, 2500), new(Button, true, 2700)],
         });
         var pins = run.Pins;
 
@@ -135,8 +135,8 @@ public sealed partial class Pfs154ExampleTests(ITestOutputHelper output) : IDisp
         Assert.InRange(Green("high", 3000), 6500, 6560);
         Assert.InRange(Green("low", 7000), 10500, 10600);
 
-        // the button's pin with its pull-up off (the resistor holds it high); PA4 changes every 500 ms from the timer
-        Assert.DoesNotContain(pins, p => p.Pin == Button && p.State == "input pull-up");
+        // the button's pin with its pull-up on (no resistor); PA4 changes every 500 ms from the timer
+        Assert.Contains(pins, p => p.Pin == Button && p.State == "input pull-up");
         var heartbeat = run.Levels(Led).Skip(1).ToList();
         Assert.InRange(heartbeat.Count, 30, 32);
         for (var i = 1; i < heartbeat.Count; i++)

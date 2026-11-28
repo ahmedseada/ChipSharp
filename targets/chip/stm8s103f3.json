@@ -71,6 +71,7 @@
   ],
   "capabilities": {
     "heap": false,                // 1 KB of RAM: structs, static fields and stack arrays, no objects
+    "pullDown": false,            // pull-ups only (CR1 of an input): chipsharp check refuses Pull.Down
     "console": true,              // Console.Write and Console.WriteLine go to UART1 (PD5, 115200 baud)
     "consoleInput": true,         // Console.Read reads UART1 (PD6, 115200 baud); ReadLine makes a string, which needs a heap
     "uart": 1,                    // serial ports for Uart: UART1 (TX PD5, RX PD6)
