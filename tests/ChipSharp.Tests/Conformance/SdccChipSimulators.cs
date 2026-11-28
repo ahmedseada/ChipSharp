@@ -45,8 +45,14 @@ internal abstract partial class SdccChipSimulator(string target, string chip) : 
         }
     }
 
+    /// <summary>The conformance cases (their methods' names) whose programs the chip has no room for, with why.</summary>
+    protected virtual IReadOnlyDictionary<string, string> TooBig { get; } = new Dictionary<string, string>();
+
     public override string? MissingFor(IReadOnlyList<string> needs) =>
         needs.Select(need => Unsimulated.GetValueOrDefault(need)).FirstOrDefault(reason => reason is not null) ?? Missing;
+
+    public override string? MissingFor(string test, IReadOnlyList<string> needs) =>
+        MissingFor(needs) ?? TooBig.GetValueOrDefault(test);
 
     /// <summary>The chip's pin names by number, as chipsim names them.</summary>
     private List<string> Names =>
@@ -103,10 +109,27 @@ internal abstract partial class SdccChipSimulator(string target, string chip) : 
 
 /// <summary>
 /// The Padauk PFS154 at 2 MHz (pfs154-bare), in chipsim's "pfs154": pins are port * 8 + bit (PA0-PA7 0-7, PB0-PB7
-/// 8-15); PA0 is one of its two pins with an interrupt, PB5 TM3's PWM output. No serial port, ADC or bus.
+/// 8-15); PA0 is one of its two pins with an interrupt, PB5 TM3's PWM output. No serial port, ADC or bus. Two cases'
+/// programs do not fit its 2K words and 128 bytes (<see cref="TooBig"/>): what their C# needs of TimeSpan and DateTime,
+/// as the c code generator writes it for SDCC, whose Padauk ports keep every function's values at addresses of their
+/// own; the runtime's part of them (the delays, the clock) is tested on its own (Pfs154RuntimeTests).
 /// </summary>
 internal sealed class Pfs154ChipSimulator() : SdccChipSimulator("pfs154-bare", "pfs154")
 {
+    private const string NoRoom = "{0} does not fit the PFS154 (2K words of program memory, 128 bytes of RAM) as the c " +
+        "code generator writes it for SDCC, whose Padauk ports keep the values of every function at addresses of their " +
+        "own: the case runs there once its C does.";
+
+    protected override IReadOnlyDictionary<string, string> TooBig { get; } = new Dictionary<string, string>
+    {
+        [nameof(TimingConformanceTests.The_delays_wait_at_least_the_time_given_and_little_more)] = string.Format(
+            CultureInfo.InvariantCulture, NoRoom, "Timing.Delay(TimeSpan.FromMilliseconds(2)) (TimeSpan's 64-bit " +
+            "arithmetic: about 360 bytes of RAM)"),
+        [nameof(TimingConformanceTests.The_clock_counts_the_time_for_Stopwatch_TickCount64_and_DateTime_UtcNow)] =
+            string.Format(CultureInfo.InvariantCulture, NoRoom, "The case's Stopwatch.GetElapsedTime, TimeSpan and " +
+                "DateTime (about 6000 words of program memory and 1.2 KB of RAM)"),
+    };
+
     public override ChipPins Pins { get; } = new(Output: 4, Second: 3, Pass: 9, Fail: 10, Input: 0) { Pwm = 13 };
 
     // 2 MHz, an instruction a cycle (mostly), and 32-bit arithmetic in software: a delay's loop and an event's entry

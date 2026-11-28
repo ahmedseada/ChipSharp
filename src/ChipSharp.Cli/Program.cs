@@ -4,8 +4,9 @@
 //                                    and how much of the chip's flash and RAM the program takes
 //   chipsharp flash <assembly.dll | image>
 //                                    puts the program onto a board with its target's flasher (the Uno: avrdude, through
-//                                    its USB port; the Pico: a copy to its RPI-RP2 drive); a .dll is built first, as
-//                                    build does, an image (.hex, .uf2) is flashed as it is
+//                                    its USB port; the Pico: a copy to its RPI-RP2 drive; the PFS154: easypdkprog, in the
+//                                    Easy PDK programmer; the STM8S103: stm8flash, through an ST-LINK); a .dll is built
+//                                    first, as build does, an image (.hex, .uf2) is flashed as it is
 //   chipsharp check <assembly.dll>   whether ChipSharp can compile the program, and the methods it uses; if it
 //                                    cannot, the C# features it uses that ChipSharp does not have yet, each with
 //                                    where, when it is planned and what to do for now
@@ -18,7 +19,9 @@
 //                                with check and tir: check the program for it: what it has (a heap, a console) and its
 //                                interrupts (with tir, put the handlers in them)
 //          --port <port>          with flash: where the board is, a serial port (COM5) for avrdude, the boot loader's
-//                                 drive (E:\) for uf2-copy (default: the one there is that looks like the board's)
+//                                 drive (E:\) for uf2-copy, the programmer's serial port (COM7) for easypdkprog, the
+//                                 ST-LINK's serial number for stm8flash (default: the one there is that looks like the
+//                                 board's)
 //          -o, --output <folder>  with build and flash: where to write the program (default: chipsharp-output\<target>)
 //          --keep                 with build: also write the program's TIR and generated code (.ll) there
 //          --verify-heap          with build: check the whole heap after every garbage collection, and stop the
@@ -213,7 +216,8 @@ try
                   -t, --target <name>     build: the target to build for (default: host); flash: the board; check,
                                           tir: the target to check the program for: its heap, console and interrupts
                   --port <port>           flash: the board's serial port (avrdude: COM5) or boot drive (uf2-copy:
-                                          E:\); by default the one there is that looks like the board's
+                                          E:\), the programmer's port (easypdkprog: COM7), the ST-LINK's serial
+                                          number (stm8flash); by default the one there is that looks like the board's
                   -o, --output <folder>   build, flash: where to write the program (default: chipsharp-output\<target>)
                   --keep                  build: also write the program's TIR (.tir) and generated code (.ll) there
                   --verify-heap           build: check the whole heap after every garbage collection
@@ -228,6 +232,9 @@ try
                 build finds LLVM's clang in its install folder or on the PATH, or set CHIPSHARP_LLVM_BIN to its bin folder.
                 For an AVR (the Arduino Uno: -t uno) it runs the clang inside Zig: set CHIPSHARP_ZIG to zig.exe.
                 flash -t uno runs avrdude: from the PATH, the Arduino IDE's, or set CHIPSHARP_AVRDUDE to avrdude.exe.
+                flash -t pfs154-bare runs easypdkprog (the Easy PDK programmer's): from the PATH, D:\Tools\easypdkprog,
+                or set CHIPSHARP_EASYPDKPROG; flash -t stm8s103-board runs stm8flash (through an ST-LINK V2): from the
+                PATH, D:\Tools\stm8flash, sduino's, or set CHIPSHARP_STM8FLASH.
                 """);
             return 2;
         }

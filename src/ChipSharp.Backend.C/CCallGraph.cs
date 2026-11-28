@@ -43,6 +43,16 @@ internal static class CCallGraph
         return Recursive(defined, Callees(defined, Addressed(module)));
     }
 
+    /// <summary>
+    /// The defined functions an interrupt may run: the exported ones (an interrupt handler's entry, which the runtime's
+    /// vector calls) and every function they call, directly or not.
+    /// </summary>
+    public static HashSet<TirFunction> InInterrupts(TirModule module)
+    {
+        var defined = module.Functions.Where(function => function.Kind == TirFunctionKind.Defined).ToList();
+        return Reached(defined.Where(function => function.ExportName is not null), Callees(defined, Addressed(module)));
+    }
+
     /// <summary>What each defined function calls: a call through an address, every function whose address is taken.</summary>
     private static Dictionary<TirFunction, List<TirFunction>> Callees(List<TirFunction> defined, HashSet<TirFunction> addressed)
     {

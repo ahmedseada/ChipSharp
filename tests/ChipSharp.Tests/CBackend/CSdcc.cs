@@ -121,7 +121,7 @@ internal static class CSdcc
     {
         var types = new CTypes(new TirLayout(target.PointerSize, 1));
         types.Name(module, new HashSet<string>(StringComparer.Ordinal));
-        var text = new StringBuilder("#include <stdint.h>\n#include <stddef.h>\n\nint chipsharp_entry(void);\n\n");
+        var text = new StringBuilder("#include <stdint.h>\n#include <stddef.h>\n\nint32_t chipsharp_entry(void);\n\n");
         foreach (var function in module.Functions.Where(f => f.Kind == TirFunctionKind.External))
         {
             var symbol = CText.Symbol(function.Name);

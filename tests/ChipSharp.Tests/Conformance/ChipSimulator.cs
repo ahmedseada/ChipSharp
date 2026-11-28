@@ -176,6 +176,13 @@ internal abstract class ChipSimulator
     /// </summary>
     public virtual string? MissingFor(IReadOnlyList<string> needs) => Missing;
 
+    /// <summary>
+    /// Null when the conformance case <paramref name="test"/> (its method's name), which needs <paramref name="needs"/>,
+    /// runs on this chip here; otherwise why not: <see cref="MissingFor(IReadOnlyList{string})"/>, or a case whose
+    /// program the chip has no room for.
+    /// </summary>
+    public virtual string? MissingFor(string test, IReadOnlyList<string> needs) => MissingFor(needs);
+
     public abstract ChipPins Pins { get; }
 
     public abstract ChipTolerances Tolerances { get; }

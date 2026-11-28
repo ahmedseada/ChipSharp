@@ -123,7 +123,7 @@ internal static partial class BackendSkips
                 .. OnEveryChip,
                 (Ram,
                 [
-                    "Arrays/Indexes", "Chips/Longs", "Chips/Tables", "PrintedText/SideEffects", "StaticArrays/Buffer",
+                    "Arrays/Indexes", "Chips/Longs", "Chips/Tables", "PrintedText/SideEffects",
                     "StaticArrays/Initializers", "StaticFields/EveryType", "StaticFields/StaticReadonly", "Structs/Enums",
                     "Structs/Layout", "Structs/Nested", "Structs/StaticFields", "samples/Arithmetic",
                     "samples/FactorialLong", "samples/Primes", "samples/StaticFields", "samples/TrafficLights",
@@ -135,9 +135,9 @@ internal static partial class BackendSkips
                     "Arrays/Loops", "Arrays/StructsAndReferences", "Chips/ByteOrder", "Chips/Dates", "Chips/Floats",
                     "Chips/Generics", "Chips/Spans", "Chips/Text", "Chips/Values", "GenericClasses/Library",
                     "Narrowing/Edges", "Narrowing/Random1", "Narrowing/Random2", "StaticArrays/ComputedElements",
-                    "StaticArrays/Tables", "StaticArrays/WrittenByCallees", "Structs/Large", "Structs/Members",
-                    "Structs/PassingAndReturning", "Structs/References", "samples/Arrays", "samples/Gcd", "samples/Logit",
-                    "samples/LookupTables", "samples/Spans", "samples/Structs",
+                    "StaticArrays/Buffer", "StaticArrays/Tables", "StaticArrays/WrittenByCallees", "Structs/Large",
+                    "Structs/Members", "Structs/PassingAndReturning", "Structs/References", "samples/Arrays",
+                    "samples/Gcd", "samples/Logit", "samples/LookupTables", "samples/Spans", "samples/Structs",
                 ]),
                 // recursion deeper than what the variables leave of the 128 bytes holds
                 (Stack, ["StaticFields/Counters", "samples/Fibonacci"]),

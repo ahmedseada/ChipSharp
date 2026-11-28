@@ -1,6 +1,7 @@
 using ChipSharp.Abstractions;
 using ChipSharp.Build;
 using ChipSharp.Flasher.Avrdude;
+using ChipSharp.Flasher.Shared;
 using ChipSharp.Targets;
 using ChipSharp.Tests.Build;
 
@@ -9,7 +10,7 @@ namespace ChipSharp.Tests.Flash;
 /// <summary>
 /// The flasher "avrdude", for the Arduino Uno: the command line it runs (as the Arduino IDE's), where it finds avrdude
 /// (CHIPSHARP_AVRDUDE, the PATH, the Arduino IDE's copy) and what it says when there is none, which serial port it
-/// takes, and a flash with a stand-in for avrdude (<see cref="FakeAvrdude"/>), which works and which fails.
+/// takes, and a flash with a stand-in for avrdude (<see cref="FakeTool"/>), which works and which fails.
 /// </summary>
 public sealed class AvrdudeFlasherTests : IDisposable
 {
@@ -46,7 +47,7 @@ public sealed class AvrdudeFlasherTests : IDisposable
 
         var registry = DefaultComponents.CreateFlasherRegistry();
         Assert.IsType<AvrdudeFlasher>(registry.Get<IFlasher>("avrdude"));
-        Assert.Equal(["avrdude", "uf2-copy"], registry.Names<IFlasher>());
+        Assert.Equal(["avrdude", "easypdkprog", "stm8flash", "uf2-copy"], registry.Names<IFlasher>());
     }
 
     [Fact]
@@ -131,24 +132,24 @@ public sealed class AvrdudeFlasherTests : IDisposable
         SerialPortInfo clone = new("COM7", "USB-SERIAL CH340", 0x1a86, 0x7523);
         SerialPortInfo other = new("COM9", "USB Serial Device", 0x1234, 0x5678);
 
-        Assert.Equal("COM5", SerialPorts.Choose([bluetooth, uno, other]));
-        Assert.Equal("COM7", SerialPorts.Choose([clone, bluetooth]));
-        Assert.True(new SerialPortInfo("COM4", "Arduino Mega 2560").LooksLikeArduino);    // no ids: by its name
-        Assert.True(new SerialPortInfo("/dev/ttyACM0").LooksLikeArduino);                 // Linux's USB serial ports
-        Assert.True(new SerialPortInfo("COM8", "Arduino Uno R4", 0x2341, 0x1002).LooksLikeArduino);
-        Assert.True(new SerialPortInfo("COM6", "FT232R USB UART", 0x0403, 0x6001).LooksLikeArduino);
-        Assert.False(new SerialPortInfo("COM1", "Communications Port").LooksLikeArduino);
+        Assert.Equal("COM5", ArduinoPorts.Choose([bluetooth, uno, other]));
+        Assert.Equal("COM7", ArduinoPorts.Choose([clone, bluetooth]));
+        Assert.True(ArduinoPorts.LooksLikeArduino(new SerialPortInfo("COM4", "Arduino Mega 2560")));    // no ids: by its name
+        Assert.True(ArduinoPorts.LooksLikeArduino(new SerialPortInfo("/dev/ttyACM0")));                 // Linux's USB serial ports
+        Assert.True(ArduinoPorts.LooksLikeArduino(new SerialPortInfo("COM8", "Arduino Uno R4", 0x2341, 0x1002)));
+        Assert.True(ArduinoPorts.LooksLikeArduino(new SerialPortInfo("COM6", "FT232R USB UART", 0x0403, 0x6001)));
+        Assert.False(ArduinoPorts.LooksLikeArduino(new SerialPortInfo("COM1", "Communications Port")));
 
         Assert.Equal(
             "2 serial ports look like an Arduino's: COM5 (Arduino Uno), COM7 (USB-SERIAL CH340). Say which is the " +
             "board's with --port, e.g. --port COM5.",
-            Assert.Throws<ChipSharpException>(() => SerialPorts.Choose([uno, clone])).Message);
+            Assert.Throws<ChipSharpException>(() => ArduinoPorts.Choose([uno, clone])).Message);
         Assert.Equal(
             "None of the serial ports looks like an Arduino's: COM3 (Standard Serial over Bluetooth link), COM9 (USB " +
             "Serial Device). Plug the board in by USB, or give its port with --port, e.g. --port COM9.",
-            Assert.Throws<ChipSharpException>(() => SerialPorts.Choose([bluetooth, other])).Message);
+            Assert.Throws<ChipSharpException>(() => ArduinoPorts.Choose([bluetooth, other])).Message);
         Assert.StartsWith("No serial port was found: plug the board in by USB, or give its port with --port (e.g. --port ",
-            Assert.Throws<ChipSharpException>(() => SerialPorts.Choose([])).Message);
+            Assert.Throws<ChipSharpException>(() => ArduinoPorts.Choose([])).Message);
     }
 
     [Fact]
@@ -170,7 +171,7 @@ public sealed class AvrdudeFlasherTests : IDisposable
     [Fact]
     public async Task A_flash_runs_avrdude_on_the_port_and_reports_each_stage()
     {
-        var avrdude = new FakeAvrdude(Path.Combine(_scratch, "avrdude"), 0, "avrdude: 1234 bytes of flash verified");
+        var avrdude = new FakeTool(Path.Combine(_scratch, "avrdude"), "avrdude", 0, "avrdude: 1234 bytes of flash verified");
         var flasher = new AvrdudeFlasher(name => name == "CHIPSHARP_AVRDUDE" ? avrdude.Path : null,
             () => [new SerialPortInfo("COM3", "Standard Serial over Bluetooth link"), new SerialPortInfo("COM5", "Arduino Uno", 0x2341, 0x0043)]);
         var hex = Hex();
@@ -200,7 +201,7 @@ public sealed class AvrdudeFlasherTests : IDisposable
         var hex = Hex();
         async Task<string> Failure(params string[] said)
         {
-            var avrdude = new FakeAvrdude(Path.Combine(_scratch, Guid.NewGuid().ToString("N")), 1, said);
+            var avrdude = new FakeTool(Path.Combine(_scratch, Guid.NewGuid().ToString("N")), "avrdude", 1, said);
             var flasher = new AvrdudeFlasher(name => name == "CHIPSHARP_AVRDUDE" ? avrdude.Path : null, () => []);
             return (await Assert.ThrowsAsync<ChipSharpException>(() =>
                 flasher.FlashAsync(hex, Shipped.Load("uno"), new FlashOptions("COM5"), null, CancellationToken.None))).Message;

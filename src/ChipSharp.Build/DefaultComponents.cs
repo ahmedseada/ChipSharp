@@ -2,12 +2,16 @@ using ChipSharp.Abstractions;
 using ChipSharp.Backend.C;
 using ChipSharp.Backend.Llvm;
 using ChipSharp.Flasher.Avrdude;
+using ChipSharp.Flasher.EasyPdkProg;
+using ChipSharp.Flasher.Stm8Flash;
 using ChipSharp.Flasher.Uf2Copy;
 using ChipSharp.Image.Hex;
 using ChipSharp.Image.Uf2;
 using ChipSharp.Runtime.ArmV6M;
 using ChipSharp.Runtime.Atmega328p;
 using ChipSharp.Runtime.Avr;
+using ChipSharp.Runtime.Pdk14;
+using ChipSharp.Runtime.Pfs154;
 using ChipSharp.Runtime.Rp2040;
 using ChipSharp.Runtime.Windows;
 using ChipSharp.Toolchain.Clang;
@@ -60,6 +64,8 @@ public static class DefaultComponents
             .Register(new Rp2040Runtime())          // runtime "rp2040": Raspberry Pi Pico
             .Register(new AvrRuntime())             // runtime "avr": any AVR chip (ATmega328P: Arduino Uno)
             .Register(new Atmega328pRuntime())      // runtime "atmega328p": Arduino Uno, on the runtime "avr"
+            .Register(new Pdk14Runtime())           // runtime "pdk14": any Padauk PDK14 chip (PFS154), through SDCC
+            .Register(new Pfs154Runtime())          // runtime "pfs154": a PFS154 on its own, on the runtime "pdk14"
             .Register(new Uf2ImageFormat())         // image "uf2"
             .Register(new IntelHexImageFormat()));  // image "hex": Intel HEX (an AVR's flash; SDCC's .ihx)
     }
@@ -72,5 +78,7 @@ public static class DefaultComponents
 
     private static ComponentRegistry RegisterFlashers(ComponentRegistry registry) => registry
         .Register(new Uf2CopyFlasher())             // flasher "uf2-copy": the .uf2 onto the Pico's RPI-RP2 drive
-        .Register(new AvrdudeFlasher());            // flasher "avrdude": the .hex through an Arduino's USB port
+        .Register(new AvrdudeFlasher())             // flasher "avrdude": the .hex through an Arduino's USB port
+        .Register(new EasyPdkProgFlasher())         // flasher "easypdkprog": the .hex into a PFS154 in the Easy PDK programmer
+        .Register(new Stm8FlashFlasher());          // flasher "stm8flash": the .hex into an STM8 through an ST-LINK's SWIM
 }

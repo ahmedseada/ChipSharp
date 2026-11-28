@@ -40,7 +40,10 @@
     "charSigned": false,
     // SDCC reaches a frame through 8-bit offsets from SP and cannot return 3 or 4 bytes from a function whose frame
     // they do not reach (an internal error): a function whose locals may take more returns them through a pointer
-    "largeFrame": 255
+    "largeFrame": 255,
+    // SDCC gets the address of a struct parameter wrong in a function that returns a struct (it forgets the hidden
+    // pointer it passes the result's place in): a function gives a struct it returns through a pointer of its own
+    "structReturn": "pointer"
   },
   "sdcc": {
     "port": "stm8",               // sdcc -mstm8; its assembler is sdasstm8, its linker sdldstm8

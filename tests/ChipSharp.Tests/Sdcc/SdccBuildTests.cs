@@ -105,6 +105,38 @@ public sealed class SdccBuildTests : IDisposable
     }
 
     [SdccFact]
+    public void A_library_file_is_linked_for_a_symbol_nothing_else_defines_and_a_file_linked_whole_takes_its_place()
+    {
+        foreach (var target in new[] { SdccPrograms.Pfs154, SdccPrograms.Stm8s103 })
+        {
+            var folder = Path.Combine(_scratch, target.Name);
+            // steps.c in the library, which blink.c calls; a default answer() there too, which answer.s (linked whole)
+            // takes the place of; and a file nothing calls
+            List<GeneratedFile> files =
+            [
+                .. SdccPrograms.Code(target).Files.Select(file => file.FileName == "steps.c" ? file with { Library = true } : file),
+                new GeneratedFile("default_answer.c", "unsigned char answer(void)\n{\n    return 0;\n}\n") { Library = true },
+                new GeneratedFile("unused.c", "unsigned char unused_table[40];\n\nvoid unused(void)\n{\n    unused_table[0] = 1;\n}\n")
+                {
+                    Library = true,
+                },
+            ];
+
+            var binary = SdccPrograms.Build(target, folder, new GeneratedCode(files));
+
+            var link = File.ReadAllLines(Path.Combine(folder, "Blink.lk"));
+            Assert.Equal(["blink.c.rel", "answer.s.rel"], link.Where(line => line.EndsWith(".rel", StringComparison.Ordinal)));
+            Assert.Contains("-l Blink.lib", link);
+            var map = File.ReadAllText(Path.ChangeExtension(binary.Path, ".map"));
+            Assert.Contains("[ steps.c.rel ]", map);
+            Assert.DoesNotContain("default_answer.c.rel", map);
+            Assert.DoesNotContain("unused.c.rel", map);
+            // steps.c's starting value (offset = 3) is set before main() runs, from the library too
+            Assert.Contains("_offset", map);
+        }
+    }
+
+    [SdccFact]
     public void The_hex_image_of_an_SDCC_program_is_its_ihx_in_address_order_in_records_of_16_bytes()
     {
         var target = SdccPrograms.Stm8s103;

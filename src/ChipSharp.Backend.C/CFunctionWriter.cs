@@ -85,8 +85,8 @@ internal sealed class CFunctionWriter
     public string? ForgetRegisters { get; init; }
 
     /// <summary>
-    /// The functions of the file that give their result through a pointer (see <see cref="ResultName"/>): every one
-    /// that returns a struct or an array, and on SDCC's STM8 one with a large frame that returns 3 or 4 bytes.
+    /// The functions of the file that give their result through a pointer (see <see cref="ResultName"/>): on SDCC's STM8
+    /// every one that returns a struct or an array, and one with a large frame that returns 3 or 4 bytes.
     /// </summary>
     public IReadOnlySet<TirFunction> PointerReturns { get; init; } = new HashSet<TirFunction>();
 
@@ -100,6 +100,12 @@ internal sealed class CFunctionWriter
 
     /// <summary>The limit the function checks the stack against when it starts (see <see cref="CStackChecks"/>); null for none.</summary>
     public CStackChecks.Limit? StackLimit { get; init; }
+
+    /// <summary>
+    /// Whether every function that returns a struct gives it through a pointer ("c.structReturn": "pointer"): how a call
+    /// through an address calls one.
+    /// </summary>
+    public bool StructReturnPointer { get; init; }
 
     /// <summary>The stores a call wrote its result to itself, through the pointer: they are not written again.</summary>
     private readonly HashSet<TirInstruction> _done = [];
@@ -452,7 +458,7 @@ internal sealed class CFunctionWriter
                 Call(call, $"{_symbols.Functions[call.Callee]}({Arguments(call.Arguments)})");
                 break;
 
-            case TirCallIndirect call when call.Type.IsAggregate:
+            case TirCallIndirect call when call.Type.IsAggregate && StructReturnPointer:
                 var pointerType = _needs.FunctionType("void",
                     [_types.Of(call.Type) + " *", .. call.Arguments.Select(argument => _types.Of(argument.Type))]);
                 CallWithResultPointer(call, $"(({pointerType}){Operand(call.Callee, Unary)})", call.Arguments);

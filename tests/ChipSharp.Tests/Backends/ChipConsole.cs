@@ -68,7 +68,7 @@ internal static class ChipConsole
             volatile uint8_t cs_kind;
             volatile uint32_t cs_value;
             void report(void);
-            int chipsharp_entry(void);
+            int32_t chipsharp_entry(void);
 
             #define PUT(kind, value) do { cs_value = (uint32_t)(value); cs_kind = (kind); report(); } while (0)
             #define LENGTH_OFFSET {{layout.ArrayLengthOffset.ToString(CultureInfo.InvariantCulture)}}
@@ -129,7 +129,7 @@ internal static class ChipConsole
 
             void main(void)
             {
-                int result = chipsharp_entry();
+                int32_t result = chipsharp_entry();
                 PUT(
             """.ReplaceLineEndings("\n")).Append(EndKind.ToString(CultureInfo.InvariantCulture))
             .Append(", (uint16_t)result);\n    STOP();\n}\n");

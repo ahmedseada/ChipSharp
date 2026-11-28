@@ -192,7 +192,7 @@ public sealed class CSimulatorTests : IDisposable
 
             volatile uint32_t out;
             void report(void);
-            int chipsharp_entry(void);
+            int32_t chipsharp_entry(void);
 
             void ChipSharp_Runtime_WriteLineInt32(uint32_t value)
             {

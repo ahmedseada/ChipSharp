@@ -1,7 +1,6 @@
-using System.ComponentModel;
-using System.Diagnostics;
 using System.Globalization;
 using ChipSharp.Abstractions;
+using ChipSharp.Flasher.Shared;
 
 namespace ChipSharp.Flasher.Avrdude;
 
@@ -16,15 +15,12 @@ namespace ChipSharp.Flasher.Avrdude;
 /// version 1) and the speed (<c>-b</c>); its "mmcu" the chip (<c>-p</c>, or "avrdude.part"). <c>-D</c> leaves the
 /// erasing to the bootloader, which erases each page as it writes it; then avrdude reads the flash back and compares.
 /// The port is <see cref="FlashOptions.Port"/>, else the one serial port that looks like an Arduino's
-/// (<see cref="SerialPorts.Choose"/>). avrdude itself is found by <see cref="FindAvrdude"/>.
+/// (<see cref="ArduinoPorts.Choose"/>). avrdude itself is found by <see cref="FindAvrdude"/>.
 /// </summary>
 public sealed class AvrdudeFlasher : IFlasher
 {
     /// <summary>The environment variable that points at avrdude (avrdude.exe, or its folder).</summary>
     public const string AvrdudeVariable = "CHIPSHARP_AVRDUDE";
-
-    /// <summary>How many of avrdude's last lines a failure's message shows.</summary>
-    private const int ShownLines = 12;
 
     private readonly AvrdudeLocator _locator;
     private readonly Func<IReadOnlyList<SerialPortInfo>> _ports;
@@ -62,12 +58,13 @@ public sealed class AvrdudeFlasher : IFlasher
 
         var settings = AvrdudeSettings.Read(target);
         var avrdude = FindAvrdude();
-        var port = string.IsNullOrWhiteSpace(options.Port) ? SerialPorts.Choose(_ports()) : options.Port.Trim();
+        var port = string.IsNullOrWhiteSpace(options.Port) ? ArduinoPorts.Choose(_ports()) : options.Port.Trim();
         var hex = Path.GetFullPath(imagePath);
         var arguments = Arguments(settings, port, hex, avrdude.ConfigFile);
 
         progress?.Report(new FlashProgress($"{port}: avrdude {CommandLine(arguments)}", 0));
-        var (exitCode, output) = await RunAsync(avrdude.Path, arguments, cancellationToken).ConfigureAwait(false);
+        var (exitCode, output) = await ProgrammerTool.RunAsync("avrdude", avrdude.Path, arguments, cancellationToken)
+            .ConfigureAwait(false);
         if (exitCode != 0)
         {
             throw new ChipSharpException(Failure(settings, port, hex, exitCode, output));
@@ -98,8 +95,7 @@ public sealed class AvrdudeFlasher : IFlasher
     }
 
     /// <summary>The arguments as a command line shows them: those with a space in quotes.</summary>
-    public static string CommandLine(IEnumerable<string> arguments) =>
-        string.Join(' ', arguments.Select(argument => argument.Contains(' ', StringComparison.Ordinal) ? $"\"{argument}\"" : argument));
+    public static string CommandLine(IEnumerable<string> arguments) => ProgrammerTool.CommandLine(arguments);
 
     /// <summary>
     /// What a failed avrdude says: which file, which port and the exit code, what is likely wrong (from what avrdude
@@ -107,19 +103,15 @@ public sealed class AvrdudeFlasher : IFlasher
     /// </summary>
     internal static string Failure(AvrdudeSettings settings, string port, string hexPath, int exitCode, string output)
     {
-        var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(line => line.Length > 0).ToList();
-        var shown = lines.Skip(Math.Max(0, lines.Count - ShownLines)).ToList();
-        var said = shown.Count == 0 ? " avrdude printed nothing." : $"\navrdude said:\n  {string.Join("\n  ", shown)}";
         var hint = Hint(settings, port, output);
         return string.Create(CultureInfo.InvariantCulture,
             $"avrdude could not flash '{Path.GetFileName(hexPath)}' to the board on {port} (exit code {exitCode}).") +
-            (hint is null ? "" : " " + hint) + said;
+            (hint is null ? "" : " " + hint) + ProgrammerTool.Said("avrdude", output);
     }
 
     private static string? Hint(AvrdudeSettings settings, string port, string output)
     {
-        bool Says(params string[] texts) => texts.Any(text => output.Contains(text, StringComparison.OrdinalIgnoreCase));
+        bool Says(params string[] texts) => ProgrammerTool.Says(output, texts);
 
         if (Says("can't open device", "cannot open port", "could not open port", "ser_open()"))
         {
@@ -146,64 +138,6 @@ public sealed class AvrdudeFlasher : IFlasher
         }
 
         return null;
-    }
-
-    /// <summary>Runs avrdude; returns its exit code and what it printed, standard output and error as they came.</summary>
-    private static async Task<(int ExitCode, string Output)> RunAsync(string avrdude, IReadOnlyList<string> arguments,
-        CancellationToken cancellationToken)
-    {
-        var start = new ProcessStartInfo(avrdude)
-        {
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-        foreach (var argument in arguments)
-        {
-            start.ArgumentList.Add(argument);
-        }
-
-        var output = new List<string>();
-        void Add(object sender, DataReceivedEventArgs e)
-        {
-            if (e.Data is not null)
-            {
-                lock (output)
-                {
-                    output.Add(e.Data);
-                }
-            }
-        }
-
-        using var process = new Process { StartInfo = start };
-        process.OutputDataReceived += Add;
-        process.ErrorDataReceived += Add;
-        try
-        {
-            process.Start();
-        }
-        catch (Win32Exception e)
-        {
-            throw new ChipSharpException($"avrdude ('{avrdude}') could not be started: {e.Message}", e);
-        }
-
-        process.BeginOutputReadLine();
-        process.BeginErrorReadLine();
-        try
-        {
-            await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException)
-        {
-            process.Kill(entireProcessTree: true);
-            throw;
-        }
-
-        lock (output)
-        {
-            return (process.ExitCode, string.Join('\n', output));
-        }
     }
 }
 

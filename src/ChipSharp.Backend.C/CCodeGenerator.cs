@@ -33,7 +33,7 @@ namespace ChipSharp.Backend.C;
 /// </summary>
 public sealed class CCodeGenerator : ICodeGenerator
 {
-    /// <summary>The function the runtime calls to run the program, as C sees it: <c>int chipsharp_entry(void)</c>.</summary>
+    /// <summary>The function the runtime calls to run the program, as C sees it: <c>int32_t chipsharp_entry(void)</c>.</summary>
     public const string EntrySymbol = "chipsharp_entry";
 
     /// <summary>
@@ -96,6 +96,10 @@ public sealed class CCodeGenerator : ICodeGenerator
 
         var functions = new StringBuilder();
         var forget = ForgetRegisters(target);
+
+        // where the compiler keeps a function's locals at fixed addresses (SDCC's pdk14), it overlays those of functions
+        // that never run at once (leaves): one an interrupt runs must not share them with one Main runs
+        var notOverlaid = settings.Reentrant is null ? [] : CCallGraph.InInterrupts(module);
         foreach (var function in module.Functions.Where(f => f.Kind == TirFunctionKind.Defined && reachable.Functions.Contains(f)))
         {
             if (functions.Length > 0)
@@ -103,13 +107,18 @@ public sealed class CCodeGenerator : ICodeGenerator
                 functions.Append('\n');
             }
 
+            var apart = notOverlaid.Contains(function) && !reentrant.Contains(function);
+            functions.Append(apart ? "/* an interrupt runs it: its locals are its own (SDCC overlays a leaf's) */\n" +
+                "#pragma save\n#pragma nooverlay\n" : "");
             new CFunctionWriter(function, types, symbols, needs)
             {
                 IsReentrant = reentrant.Contains(function),
                 ForgetRegisters = forget,
                 PointerReturns = pointerReturns,
+                StructReturnPointer = settings.StructReturnPointer,
                 StackLimit = stackChecks.Contains(function) ? stackLimit : null,
             }.Write(functions);
+            functions.Append(apart ? "#pragma restore\n" : "");
         }
 
         if (module.EntryPoint is { } entryPoint)
@@ -274,8 +283,9 @@ public sealed class CCodeGenerator : ICodeGenerator
     }
 
     /// <summary>
-    /// <c>int chipsharp_entry(void)</c>, which sets the heap up for a program that uses it, then calls the entry point and
-    /// returns its int result (0 when it returns nothing). The entry point must take nothing and return void or i32.
+    /// <c>int32_t chipsharp_entry(void)</c>, which sets the heap up for a program that uses it, then calls the entry point
+    /// and returns its int result (0 when it returns nothing): a C# int, 32 bits, as the hardware contract has it (C's
+    /// int has 16 on SDCC's chips). The entry point must take nothing and return void or i32.
     /// </summary>
     private static string EntryFunction(TirFunction entryPoint, string symbol, string heapStart)
     {
@@ -287,13 +297,13 @@ public sealed class CCodeGenerator : ICodeGenerator
         var call = entryPoint.ReturnType.Kind switch
         {
             TirTypeKind.Void => $"    {symbol}();\n    return 0;\n",
-            TirTypeKind.I32 => $"    return (int)(int32_t){symbol}();\n",
+            TirTypeKind.I32 => $"    return (int32_t){symbol}();\n",
             _ => throw new ChipSharpException($"The entry point '{entryPoint.Name}' returns " +
                 $"{entryPoint.ReturnType}; it must return void or i32 (int)."),
         };
 
         return "/* the program's entry, which the runtime's startup calls: Main's result, 0 for a void Main */\n" +
-            $"int {EntrySymbol}(void)\n{{\n{heapStart}{call}}}\n";
+            $"int32_t {EntrySymbol}(void)\n{{\n{heapStart}{call}}}\n";
     }
 
     /// <summary>
@@ -468,15 +478,15 @@ public sealed class CCodeGenerator : ICodeGenerator
     };
 
     /// <summary>
-    /// The functions that give their result through a pointer (<see cref="CFunctionWriter.ResultName"/>): each the program
-    /// has that returns a struct or an array, and, on a target whose "c.largeFrame" says how far its compiler reaches into
-    /// a frame (SDCC's STM8: 255 bytes), each one called only directly that returns 3 or 4 bytes and whose locals may
-    /// take more.
+    /// The functions that give their result through a pointer (<see cref="CFunctionWriter.ResultName"/>): on a target whose
+    /// "c.structReturn" is "pointer" (SDCC's STM8), each the program has that returns a struct or an array, and on one
+    /// whose "c.largeFrame" says how far its compiler reaches into a frame (the STM8's 255 bytes), each one called only
+    /// directly that returns 3 or 4 bytes and whose locals may take more.
     /// </summary>
     private static HashSet<TirFunction> PointerReturns(TirModule module, CReachable reachable, CTypes types, CSettings settings)
     {
         var defined = module.Functions.Where(f => f.Kind == TirFunctionKind.Defined && reachable.Functions.Contains(f)).ToList();
-        var pointer = defined.Where(function => function.ReturnType.IsAggregate).ToHashSet();
+        var pointer = defined.Where(function => settings.StructReturnPointer && function.ReturnType.IsAggregate).ToHashSet();
         if (settings.LargeFrame is not { } limit)
         {
             return pointer;
