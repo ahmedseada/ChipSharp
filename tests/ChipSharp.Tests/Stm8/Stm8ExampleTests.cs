@@ -30,10 +30,7 @@ public sealed partial class Stm8ExampleTests(ITestOutputHelper output) : IDispos
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     /// <summary>The board's LED on PB5, lit while low: Pin.Output lights it, each toggle lets it go or lights it.</summary>

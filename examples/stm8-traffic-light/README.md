@@ -23,9 +23,9 @@ Two lanes take turns on one set of lights: green 4 s, yellow 1 s, red 2 s while 
 before the other lane's green; a press during green goes to yellow, and the turn goes on with what is left of it (the
 display jumps to 4). No heap: an enum and static classes, the steps a method's parameters, as in the Pico's heap-free
 traffic light. The Uno's table of record structs, its signal and display passed from call to call, and
-`Timing.Delay(TimeSpan)` take 11.5 KB as C for SDCC (an STM8 copies a struct argument byte by byte, and `TimeSpan`'s
-code is 64-bit arithmetic), more than the 8 KB there is; written this way it takes 6.4 KB. The LCD's driver alone takes
-most of the 8 KB (see `stm8-lcd`).
+`Timing.Delay(TimeSpan)` take 10.8 KB as C for SDCC (9.0 KB without the `TimeSpan`, whose code is 64-bit
+arithmetic), more than the 8 KB there is; written this way, with no table built and no struct copied from call to
+call, it takes 6.4 KB. The LCD's driver alone takes most of the 8 KB (see `stm8-lcd`).
 
 ## Wiring
 

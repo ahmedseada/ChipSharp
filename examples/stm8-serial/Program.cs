@@ -16,8 +16,8 @@
 using System;
 using ChipSharp.Hardware;
 
-const int Led = 13;             // PB5, the board's LED
-const bool LedLitWhenHigh = false; // it is wired from 3.3 V to PB5: lit while the pin is low (true on a Pico or an Uno)
+const int Led = 13;                 // PB5, the board's LED
+const bool LedLitWhenHigh = false;  // wired from 3.3 V to PB5, it is lit while the pin is low (true on a Pico, an Uno)
 
 Pin.Output(Led);
 Pin.Write(Led, !LedLitWhenHigh);    // off

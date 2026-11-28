@@ -691,6 +691,33 @@ grows past the end of RAM. The tests (`Pfs154ExampleTests`) build each example a
 button with `--input PA0=high` (the resistor) and presses, the traffic light with
 `--input PA0=high --input PA0=low@2500ms --input PA0=high@2700ms`, as each `Program.cs` says.
 
+### Examples for the STM8S103 board
+
+Built with `chipsharp build bin\Release\net10.0\<Name>.dll -t stm8s103-board` in their folders, or written into the
+chip through an ST-LINK V2 with `chipsharp flash ... -t stm8s103-board`; each has a `README.md` with its wiring, by the
+labels on the board, and a `chipsim` command to run it without a board. They use the portable API alone (`Pin`,
+`Timing`, `[Interrupt]`, `Console`, `Adc`, `I2c`, `Pwm`, and `SevenSegment` and `Lcd` from ChipSharp.Components; no
+`Registers`), so the same C# builds for the Pico or the Uno with other pin numbers.
+
+| Example | What it does | STM8S103 |
+|---|---|---|
+| `stm8-blink` | Blinks the board's LED (PB5, lit while low) with a delay loop | 762 bytes, 16 bytes of RAM |
+| `stm8-serial` | `pico-uart-echo` with no heap: a prompt on UART1 (PD5, PD6; 115200 baud) whose `on`, `off` and `status` switch the LED and say what it is; the line read char by char into a `stackalloc` span, each char sent back as it comes, a `switch` on the span | 6.7 KB, 64 bytes of RAM |
+| `stm8-traffic-light` | The Uno's traffic light without its LCD: red PA1, yellow PA2, green PA3, the turn's countdown on a 7-segment display (PC3 to PC7, PD2, PD3), a pedestrian button on PD4 (to 3V3, a 10 kOhm resistor to GND) that cuts a green short, the board's LED blinking from the timer event; over UART1 exactly what the Pico's and the Uno's traffic lights print, line for line | 6.4 KB, 54 bytes of RAM |
+| `stm8-lcd` | A potentiometer on PD3 (AIN4) as its reading and voltage on a 16x2 LCD at 0x27 on I2C (SDA PB5, SCL PB4): `0512 = 1.650 V`, the digits written as chars | 7.5 KB, 45 bytes of RAM |
+| `stm8-pwm-fade` | `pfs154-pwm-fade` on PD4: TIM2's PWM at 1000 Hz, its pulse 20 us longer or shorter every 20 ms (`Pwm.PulseMicroseconds`) | 3.3 KB, 23 bytes of RAM |
+
+What 8 KB holds decides how they are written. The Uno's traffic light, with its table of record structs, its signal
+and display passed from call to call and `Timing.Delay` of a `TimeSpan`, takes 10.8 KB as C for SDCC (9.0 KB without
+the `TimeSpan`, whose code is 64-bit arithmetic): the STM8's is written as the heap-free Pico one is, the steps a
+method's parameters and the parts static, so that no table is built and no struct copied from call to call. `Lcd` and the I2C bus take some 7 KB, and `Lcd.Write` of a
+number beside the ADC goes just past the 8 KB: `stm8-lcd` writes its digits a char at a time, in fixed places. The
+board's LED is PB5, which is also I2C's SDA: with the LCD on the bus it shows the bus's traffic. `Pin.Input` leaves
+the pull-up off (as on the Pico and the Uno) and the STM8 has no pull-down, so the traffic light's button has a
+resistor. The tests (`Stm8ExampleTests`) build each example as above and run it in chipsim as each README says: the
+prompt with commands sent to PD6, the traffic light with `--input PD4=high@2500ms --input PD4=low@2700ms`, the LCD
+with `--i2c 0:0x27=lcd1602 --adc PD3=...`.
+
 ## A new chip: one contract, one suite, chips as data
 
 Every chip is built the same way, so that a new one is data and one runtime, not changes all over ChipSharp:
@@ -1382,9 +1409,10 @@ the Pico:
 | `Tuples` | A crossroads' readings as tuples: the busiest lane and a summary returned together, a light switched on `(light, waiting)`, a grid keyed by `(row, column)`, collection expressions of lanes and of their names | 28.1 KB + heap |
 | `GenericClasses`, `Delegates`, `ArrayMethods`, `Collections` | Generic classes; callbacks, closures and events; `Array.Copy`, `Sort`, `Resize`; `List`, `Dictionary`, `Queue`, `Stack` | 13.8 to 36.6 KB + heap |
 
-**`examples/`** holds projects for the Pico (`pico-*`), the Arduino Uno (`uno-*`) and the Padauk PFS154 (`pfs154-*`),
-each a `.csproj` that references `ChipSharp.Hardware`, built with `dotnet build -c Release` and then
-`chipsharp build bin\Release\net10.0\<Name>.dll -t pico` (or `-t uno`, `-t pfs154-bare`) in its folder. The Pico's:
+**`examples/`** holds projects for the Pico (`pico-*`), the Arduino Uno (`uno-*`), the Padauk PFS154 (`pfs154-*`) and
+the STM8S103 board (`stm8-*`), each a `.csproj` that references `ChipSharp.Hardware`, built with
+`dotnet build -c Release` and then `chipsharp build bin\Release\net10.0\<Name>.dll -t pico` (or `-t uno`,
+`-t pfs154-bare`, `-t stm8s103-board`) in its folder. The Pico's:
 
 | Example | What it does | Pico |
 |---|---|---|
@@ -1404,7 +1432,9 @@ each a `.csproj` that references `ChipSharp.Hardware`, built with `dotnet build 
 
 The Arduino Uno's examples (the blink, the button, the serial port, a traffic light with an LCD, a clock, a servo) are
 in [Examples for the Uno](#examples-for-the-uno), the Padauk PFS154's (`pfs154-*`: the blinks, the button, a PWM
-fade, a traffic light) in [Examples for the PFS154](#examples-for-the-pfs154).
+fade, a traffic light) in [Examples for the PFS154](#examples-for-the-pfs154), the STM8S103 board's (`stm8-*`: the
+blink, a serial prompt, a traffic light, an LCD, a PWM fade) in
+[Examples for the STM8S103 board](#examples-for-the-stm8s103-board).
 
 The traffic lights, the bus examples, the 7-segment counter, the clock, the command prompt, the knob and the servo have a
 `diagram.json` for Wokwi with the whole circuit, wired directly (Wokwi needs no resistors): common-cathode displays,
