@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A traffic light with a 7-segment countdown, a pedestrian button and a heartbeat LED in 2K words and 128 bytes of
+       RAM, with no heap: build with ChipSharp for the target "pfs154-bare" (see Program.cs and README.md) -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ChipSharp.Hardware\ChipSharp.Hardware.csproj" />
+  </ItemGroup>
+</Project>

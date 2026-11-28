@@ -669,6 +669,28 @@ as `-t uno` runs avrdude; neither tool comes with ChipSharp:
   easypdkprog never erases. The PFS154 runtime's start-up holds both (`EasyPdkProgFlasher` documents the words). After
   writing, the chip runs once it is out of the socket (or in it: `easypdkprog start`).
 
+### Examples for the PFS154
+
+Built with `chipsharp build bin\Release\net10.0\<Name>.dll -t pfs154-bare` in their folders, or written into the chip
+with `chipsharp flash ... -t pfs154-bare`; each has a `README.md` with its wiring and a `chipsim` command to run it
+without a chip. They use the portable API alone (`Pin`, `Timing`, `[Interrupt]`, `Pwm`; no `Registers`), so the same
+C# builds for the Pico or the Uno with other pin numbers.
+
+| Example | What it does | PFS154 |
+|---|---|---|
+| `pfs154-blink` | Blinks an LED on PA4 with a delay loop | 264 words, 9 bytes of RAM |
+| `pfs154-timer-blink` | Blinks the LED on PA4 from the timer event (TM2), while `Main` does nothing | 600 words, 23 bytes of RAM |
+| `pfs154-button` | A button between PA0 and GND toggles the LED on PA4 through the pin event (falling edges); `Pin.Input` leaves the pin's pull-up off, so a 10 kOhm resistor to VDD holds it high | 372 words, 12 bytes of RAM |
+| `pfs154-pwm-fade` | Fades an LED on PB5 (TM3's PWM, 1008 Hz) up and down with `Pwm.PulseMicroseconds`, 20 us more or less every 20 ms | 860 words, 53 bytes of RAM |
+| `pfs154-traffic-light` | The Uno's traffic light with what the chip has: red PA3, yellow PA6, green PA7, the turn's countdown on a 7-segment display (PB1 to PB7), a pedestrian button on PA0 that cuts a green short, a heartbeat LED on PA4 from the timer event; no console, no LCD, the steps a method's parameters (a table of record structs does not fit beside the stack) | 1369 words, 72 bytes of RAM |
+
+The stack grows from the end of the variables to the end of the 128 bytes, and the target reserves 16 bytes for it
+(`link.stack`); a program with the timer event needs more: the traffic light's goes about 48 bytes deep when TM2's
+interrupt comes while `Main` writes a pin, and its test checks the room it leaves. chipsim stops a run whose stack
+grows past the end of RAM. The tests (`Pfs154ExampleTests`) build each example as above and run it in chipsim: the
+button with `--input PA0=high` (the resistor) and presses, the traffic light with
+`--input PA0=high --input PA0=low@2500ms --input PA0=high@2700ms`, as each `Program.cs` says.
+
 ## A new chip: one contract, one suite, chips as data
 
 Every chip is built the same way, so that a new one is data and one runtime, not changes all over ChipSharp:
@@ -1360,9 +1382,9 @@ the Pico:
 | `Tuples` | A crossroads' readings as tuples: the busiest lane and a summary returned together, a light switched on `(light, waiting)`, a grid keyed by `(row, column)`, collection expressions of lanes and of their names | 28.1 KB + heap |
 | `GenericClasses`, `Delegates`, `ArrayMethods`, `Collections` | Generic classes; callbacks, closures and events; `Array.Copy`, `Sort`, `Resize`; `List`, `Dictionary`, `Queue`, `Stack` | 13.8 to 36.6 KB + heap |
 
-**`examples/`** holds projects for the Pico (`pico-*`) and the Arduino Uno (`uno-*`), each a `.csproj` that references
-`ChipSharp.Hardware`, built with `dotnet build -c Release` and then
-`chipsharp build bin\Release\net10.0\<Name>.dll -t pico` (or `-t uno`) in its folder. The Pico's:
+**`examples/`** holds projects for the Pico (`pico-*`), the Arduino Uno (`uno-*`) and the Padauk PFS154 (`pfs154-*`),
+each a `.csproj` that references `ChipSharp.Hardware`, built with `dotnet build -c Release` and then
+`chipsharp build bin\Release\net10.0\<Name>.dll -t pico` (or `-t uno`, `-t pfs154-bare`) in its folder. The Pico's:
 
 | Example | What it does | Pico |
 |---|---|---|
@@ -1381,7 +1403,8 @@ the Pico:
 | `pico-servo` | A servo on GPIO 22 sweeps from 0 to 180 degrees and back with 50 Hz pulses of 1 to 2 ms. No heap | 6.1 KB, 116 bytes of RAM |
 
 The Arduino Uno's examples (the blink, the button, the serial port, a traffic light with an LCD, a clock, a servo) are
-in [Examples for the Uno](#examples-for-the-uno).
+in [Examples for the Uno](#examples-for-the-uno), the Padauk PFS154's (`pfs154-*`: the blinks, the button, a PWM
+fade, a traffic light) in [Examples for the PFS154](#examples-for-the-pfs154).
 
 The traffic lights, the bus examples, the 7-segment counter, the clock, the command prompt, the knob and the servo have a
 `diagram.json` for Wokwi with the whole circuit, wired directly (Wokwi needs no resistors): common-cathode displays,

@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A button on PA0 toggles an LED on PA4 of the Padauk PFS154 through a pin interrupt: build with ChipSharp for the target "pfs154-bare" -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ChipSharp.Hardware\ChipSharp.Hardware.csproj" />
+  </ItemGroup>
+</Project>

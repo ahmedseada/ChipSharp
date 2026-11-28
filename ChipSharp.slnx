@@ -1,5 +1,10 @@
 <Solution>
   <Folder Name="/examples/">
+    <Project Path="examples/pfs154-blink/Pfs154Blink.csproj" />
+    <Project Path="examples/pfs154-button/Pfs154Button.csproj" />
+    <Project Path="examples/pfs154-pwm-fade/Pfs154PwmFade.csproj" />
+    <Project Path="examples/pfs154-timer-blink/Pfs154TimerBlink.csproj" />
+    <Project Path="examples/pfs154-traffic-light/Pfs154TrafficLight.csproj" />
     <Project Path="examples/pico-blink/PicoBlink.csproj" />
     <Project Path="examples/pico-button/PicoButton.csproj" />
     <Project Path="examples/pico-timer-blink/PicoTimerBlink.csproj" />
