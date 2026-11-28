@@ -46,6 +46,11 @@ internal sealed partial record Unsupported
         $"Pin.Input(pin, Pull.Down) needs a pull-down, and the target '{target}' has none (\"pullDown\": false)",
         "Use Pull.Up with a button to ground (every chip has a pull-up), or wire a resistor from the pin to ground.");
 
+    /// <summary>A constant PWM frequency (Pwm.Output) outside what the target's timers make ("pwm.frequency").</summary>
+    public static Unsupported PwmFrequency(string target, int hertz, int lowest, int highest) => Rule(
+        $"a PWM frequency of {hertz} Hz (Pwm.Output's frequency) is not one the target '{target}' makes",
+        $"It makes {lowest} to {highest} Hz.");
+
     /// <summary>A UART the target does not have, given as a constant: "the target 'pico' has no UART2".</summary>
     public static Unsupported NoSuchPort(int port, int ports, string target) => Rule(
         $"the target '{target}' has no UART{port}",

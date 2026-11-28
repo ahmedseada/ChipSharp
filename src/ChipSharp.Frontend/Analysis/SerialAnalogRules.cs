@@ -109,7 +109,9 @@ internal static class SerialAnalogRules
                     : callee.Name == "Duty" && target.Capabilities.TryGetValue("double64", out var double64)
                         && string.Equals(double64, "false", StringComparison.OrdinalIgnoreCase)
                         ? Unsupported.DutyWithoutDouble(target.Name)
-                    : PinProblem(target, "pwm", constant(0), "a PWM output");
+                    : PinProblem(target, "pwm", constant(0), "a PWM output")
+                        ?? (callee.Name == "Output" && callee.ParameterTypes.Count == 2
+                            ? FrequencyProblem(target, constant(1)) : null);
 
             case PinType when callee.Name is "Output" or "Input" or "Write" or "Toggle" or "Read"
                 && callee.ParameterTypes.Count >= 1:
@@ -134,6 +136,17 @@ internal static class SerialAnalogRules
     private static Unsupported? PinProblem(TargetDescription target, string function, int? pin, string role) =>
         pin is { } number && Pins(target, function) is { } pins && !pins.Contains(number)
             ? Unsupported.WrongPin(target, number, role, pins)
+            : null;
+
+    /// <summary>
+    /// The problem with a constant PWM frequency (Pwm.Output's second argument) that the target's "pwm.frequency" range
+    /// (lowest and highest, in Hz) does not hold; null when it is not a constant or the target gives no range.
+    /// </summary>
+    private static Unsupported? FrequencyProblem(TargetDescription target, int? hertz) =>
+        hertz is { } value && target.Settings["pwm"]?["frequency"] is JsonArray { Count: 2 } range
+            && range[0]?.GetValue<int>() is { } lowest && range[1]?.GetValue<int>() is { } highest
+            && (value < lowest || value > highest)
+            ? Unsupported.PwmFrequency(target.Name, value, lowest, highest)
             : null;
 
     /// <summary>A count capability: "uart": 2 is 2, true is 1; false, none or anything else is 0.</summary>
