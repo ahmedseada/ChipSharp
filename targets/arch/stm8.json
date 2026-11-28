@@ -1,0 +1,45 @@
+{
+  // STM8: STMicroelectronics' 8-bit microcontrollers (STM8S, STM8L, STM8AF): the accumulator A, the 16-bit index
+  // registers X and Y, a 16-bit stack pointer, an 8 x 8-bit multiply (mul) and 16-bit divides (div, divw).
+  // Milestone M6: built through C with SDCC (sdcc -mstm8, its medium model: 16-bit code and data addresses, up to 32 KB
+  // of flash; found by $env:CHIPSHARP_SDCC, then Program Files\SDCC\bin, then the PATH); a chip's file
+  // (stm8s103f3.json) adds its memory, pins, peripherals and capabilities
+  "name": "stm8",
+  "backend": "c",
+  "toolchain": "sdcc",
+  "runtime": "stm8",
+  "pointerSize": 2,       // data and code addresses are 16 bits (the medium model); C#'s int stays 32 bits
+  "endian": "big",        // the STM8 keeps the high byte of a 16-bit value first (ldw, the vectors), and SDCC too
+  "capabilities": {
+    "hwMultiply": false,  // an 8 x 8-bit multiply (mul) at most: 16- and 32-bit products call SDCC's helpers
+    "hwDivide": false,    // 16 / 8 and 16 / 16-bit divides (div, divw); C#'s 32-bit divides call SDCC's helpers
+    "fpu": false,         // no float hardware: SDCC's float routines
+    "atomics": "none",    // no atomic read-modify-write: briefly disable interrupts (sim / rim) instead
+    "unalignedAccess": true,  // any address will do
+    "stackCheck": false,  // nothing checks the stack, which grows down from the end of RAM
+    "recursion": true,    // SDCC's stm8 port keeps parameters and locals on the stack (--stack-auto is its default)
+    // SDCC's double is its float, 32 bits: C#'s double has no C type to go to, and the C backend rejects it; float is
+    // IEEE single precision, as in C#
+    "double64": false,
+    "heap": false,        // a chip's file says what it has
+    "console": false,
+    "clock": false
+  },
+  // the sizes of SDCC's C types on this port, in bytes, for the C backend (C's int is 16 bits: arithmetic on two
+  // uint16_t is done in a 16-bit signed int, so the backend widens to 32 bits where C# does)
+  "c": {
+    "int": 2, "long": 4, "longLong": 8, "float": 4, "double": 4,
+    "pointer": 2, "functionPointer": 2,
+    "charSigned": false
+  },
+  "sdcc": {
+    "port": "stm8",               // sdcc -mstm8; its assembler is sdasstm8, its linker sdldstm8
+    "flags": ["--opt-code-size"]  // passed to every sdcc run, compiling and linking: the smallest code
+  },
+  "link": {
+    "code": "flash",              // the vectors (at the start of flash, where the processor reads them), code,
+                                  // constants and the variables' starting values; the toolchain passes --code-loc
+    "data": "ram"                 // the variables (from address 1: none at 0, a null pointer); the stack from its end
+  },
+  "image": "hex"                  // Intel HEX, SDCC's .ihx: what stm8flash and ST's programmer write
+}

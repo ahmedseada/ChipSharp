@@ -16,6 +16,16 @@ public static class MemorySize
         _ => string.Create(CultureInfo.InvariantCulture, $"{bytes / 1024.0:0.0} KB"),
     };
 
+    /// <summary>
+    /// An amount of a region counted in words of <paramref name="wordSize"/> bytes: "1 word", "812 words" (a Padauk
+    /// chip's program memory, two bytes of the .ihx a word); as <see cref="Text(ulong)"/> for a word size of 1.
+    /// </summary>
+    public static string Text(ulong bytes, ulong wordSize) => wordSize <= 1
+        ? Text(bytes)
+        : bytes / wordSize == 1
+            ? "1 word"
+            : string.Create(CultureInfo.InvariantCulture, $"{bytes / wordSize} words");
+
     /// <summary>A memory region's name as messages write it: "RAM" for ram, else the target's own name for it ("flash").</summary>
     public static string RegionName(string name) =>
         string.Equals(name, "ram", StringComparison.OrdinalIgnoreCase) ? "RAM" : name;

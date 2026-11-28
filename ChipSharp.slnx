@@ -35,6 +35,7 @@
     <Project Path="src/ChipSharp.Simulators/ChipSharp.Simulators.csproj" />
     <Project Path="src/ChipSharp.Targets/ChipSharp.Targets.csproj" />
     <Project Path="src/ChipSharp.Toolchain.Clang/ChipSharp.Toolchain.Clang.csproj" />
+    <Project Path="src/ChipSharp.Toolchain.Sdcc/ChipSharp.Toolchain.Sdcc.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ChipSharp.Tests/ChipSharp.Tests.csproj" />

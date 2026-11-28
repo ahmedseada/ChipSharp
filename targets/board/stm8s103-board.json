@@ -1,0 +1,14 @@
+{
+  // The common blue STM8S103F3P6 board ("STM8S103F3P6 minimum system development board"): the chip at 16 MHz from its
+  // internal oscillator (HSI; after reset it runs at HSI / 8, 2 MHz, until the runtime clears CLK_CKDIVR), a 3.3 V
+  // regulator, the LED on PB5 (to 3.3 V through a resistor: on when PB5 is low; PB5 is also I2C's SDA), and the SWIM
+  // header (3.3 V, SWIM = PD1, GND, NRST) for an ST-LINK V2, which stm8flash writes the .hex through
+  "name": "stm8s103-board",
+  "inherits": "stm8s103f3",
+  "clockHz": 16000000,
+  "clock": { "source": "hsi", "divider": 1 },
+  "pins": {
+    "LED": 13                     // PB5
+  },
+  "ledActiveLow": true
+}
