@@ -68,7 +68,7 @@ public sealed class BuildErrorTests : IDisposable
     }
 
     [Theory]
-    [InlineData("c-board", "Target 'c-board' cannot be built: Code generator 'c' is not registered.")]
+    [InlineData("native-board", "Target 'native-board' cannot be built: Code generator 'native' is not registered.")]
     [InlineData("sh-board", "Target 'sh-board' cannot be built: Toolchain 'gcc-sh' is not registered.")]
     [InlineData("esp-board", "Target 'esp-board' cannot be built: Image format 'esp-image' is not registered.")]
     [InlineData("z80-board", "Target 'z80-board' cannot be built: Architecture runtime 'z80' is not registered.")]
@@ -77,7 +77,7 @@ public sealed class BuildErrorTests : IDisposable
     {
         var targets = TargetFiles.Write(Path.Combine(_scratch, "targets"),
             ("pc", """{ "backend": "llvm", "toolchain": "clang", "runtime": "windows-x64", "pointerSize": 8, "endian": "little" }"""),
-            ("c-board", """{ "inherits": "pc", "backend": "c" }"""),
+            ("native-board", """{ "inherits": "pc", "backend": "native" }"""),
             ("sh-board", """{ "inherits": "pc", "toolchain": "gcc-sh" }"""),
             ("esp-board", """{ "inherits": "pc", "image": "esp-image" }"""),
             ("z80-board", """{ "inherits": "pc", "runtime": "z80" }"""),
