@@ -73,9 +73,8 @@ public sealed class CCodeGenerator : ICodeGenerator
         var tags = new HashSet<string>(StringComparer.Ordinal);
         types.Name(module, tags);
         var usesDouble = CheckDouble(module, types, settings, target);
-        var needs = new CNeeds(types, symbols.Taken);
-        var reentrant = CCallGraph.Reentrant(module);
-        needs.UsesReentrant |= reentrant.Count > 0;
+        var reentrant = settings.Reentrant is null ? [] : CCallGraph.Reentrant(module);
+        var needs = new CNeeds(types, symbols.Taken, settings.Reentrant is not null);
 
         // the parts in the order they are worked out: the data (which adds the structs of constant objects), then the
         // functions (which add declarations and helpers); then the file in the order C needs them
@@ -88,7 +87,8 @@ public sealed class CCodeGenerator : ICodeGenerator
 
         var data = new StringBuilder();
         CHeap.WriteDescriptors(data, module, types, symbols, descriptorTypes, settings.ConstQualifier);
-        WriteGlobals(data, structs, checks, module, types, symbols, tags, settings.ConstQualifier);
+        WriteGlobals(data, structs, checks, module, types, symbols, tags, settings.ConstQualifier,
+            target.Endian == Endianness.Big);
         var usesHeap = CHeap.FirstAllocation(module) is not null;
         var (roots, rootCount) = usesHeap
             ? CHeap.WriteRoots(data, module, types, symbols, tags, settings.ConstQualifier)
@@ -98,7 +98,11 @@ public sealed class CCodeGenerator : ICodeGenerator
         var forget = ForgetRegisters(target);
         foreach (var function in module.Functions.Where(f => f.Kind == TirFunctionKind.Defined))
         {
-            functions.Append('\n');
+            if (functions.Length > 0)
+            {
+                functions.Append('\n');
+            }
+
             new CFunctionWriter(function, types, symbols, needs)
             {
                 IsReentrant = reentrant.Contains(function),
@@ -108,21 +112,19 @@ public sealed class CCodeGenerator : ICodeGenerator
 
         if (module.EntryPoint is { } entryPoint)
         {
-            functions.Append('\n').Append(EntryFunction(entryPoint, symbols.Functions[entryPoint],
+            functions.Append(functions.Length > 0 ? "\n" : "").Append(EntryFunction(entryPoint, symbols.Functions[entryPoint],
                 usesHeap ? $"    {needs.Runtime(CHeap.InitializeSymbol)}({roots ?? "0"}, " +
                     $"{rootCount.ToString(CultureInfo.InvariantCulture)});\n" : ""));
         }
 
         var text = new StringBuilder();
-        WriteHead(text, module, target, types, usesDouble, symbols.Taken);
-        if (needs.UsesReentrant)
+        WriteHead(text, module, target, types, settings, usesDouble, symbols.Taken);
+        if (settings.Reentrant is { } keyword)
         {
-            text.Append("/* SDCC keeps the parameters and locals of a function in static memory on these processors, unless it\n" +
-                "   is __reentrant: what a function needs that may run again while it runs, or is called through an address */\n" +
-                "#if defined(__SDCC_pdk13) || defined(__SDCC_pdk14) || defined(__SDCC_pdk15) || defined(__SDCC_mcs51) \\\n" +
-                "    || defined(__SDCC_ds390) || defined(__SDCC_hc08) || defined(__SDCC_s08) || defined(__SDCC_mos6502) \\\n" +
-                "    || defined(__SDCC_mos65c02)\n" +
-                $"#define {ReentrantMacro} __reentrant\n#else\n#define {ReentrantMacro}\n#endif\n\n");
+            text.Append("/* the target's compiler keeps the parameters and locals of a function at fixed addresses in RAM unless it\n" +
+                $"   is {keyword}: what a function needs that may run again while it runs (it calls itself, maybe through\n" +
+                "   others, or runs in an interrupt and outside one) or is called through an address */\n" +
+                $"#define {ReentrantMacro} {keyword}\n\n");
         }
 
         text.Append(structs);
@@ -205,11 +207,18 @@ public sealed class CCodeGenerator : ICodeGenerator
 
     /// <summary>The top of the file: what it is, its headers, and the checks of what it counts on of the compiler.</summary>
     private static void WriteHead(StringBuilder text, TirModule module, TargetDescription target, CTypes types,
-        bool usesDouble, ISet<string> names)
+        CSettings settings, bool usesDouble, ISet<string> names)
     {
         text.Append($"/* {CText.Comment(module.Name)}: C written by ChipSharp's c code generator for target " +
             $"'{CText.Comment(target.Name)}'. */\n\n");
         text.Append("#include <stdint.h>\n#include <stddef.h>\n\n");
+        text.Append("#ifdef __SDCC\n" +
+            "/* SDCC's warnings of what the code below does on purpose: an address of constant data (in code memory) is an\n" +
+            "   ordinary uint8_t * like any other, which nothing writes through (357); a branch whose condition is known,\n" +
+            "   and the code it skips (110, 126); a value a loop carries, which it may take for one read before it is set\n" +
+            "   (84: every variable here starts with a value) */\n" +
+            "#pragma disable_warning 84\n#pragma disable_warning 110\n#pragma disable_warning 126\n" +
+            "#pragma disable_warning 357\n#endif\n\n");
         if (UsesFloats(module))
         {
             text.Append("/* C# rounds a * b + c twice: clang may not contract it into one fused multiply-add */\n")
@@ -227,6 +236,19 @@ public sealed class CCodeGenerator : ICodeGenerator
         if (usesDouble)
         {
             text.Append(CTypes.Check(names, "cs_double_has_64_bits", ["sizeof(double) == 8"])).Append('\n');
+        }
+
+        if (CCallGraph.Addressed(module).Count > 0)
+        {
+            // a function's address is kept as a data address (uint8_t *) and cast back to call it
+            text.Append(CTypes.Check(names, "cs_function_pointer_size", ["sizeof(void (*)(void)) <= sizeof(void *)"]))
+                .Append('\n');
+        }
+
+        if (settings.TypeConditions().ToList() is { Count: > 0 } conditions)
+        {
+            text.Append("/* the C types as the target file says the compiler has them */\n")
+                .Append(CTypes.Check(names, "cs_target_types", conditions)).Append('\n');
         }
 
         text.Append('\n');
@@ -262,7 +284,7 @@ public sealed class CCodeGenerator : ICodeGenerator
     /// <see cref="CHeap.Constant"/>), its bytes with the text they spell, when they do, in a comment.
     /// </summary>
     private static void WriteGlobals(StringBuilder data, StringBuilder structs, List<string> checks, TirModule module,
-        CTypes types, CSymbols symbols, ISet<string> tags, string? qualifier)
+        CTypes types, CSymbols symbols, ISet<string> tags, string? qualifier, bool bigEndian)
     {
         var objectTypes = new Dictionary<int, string>();
         var written = new HashSet<TirGlobal>();
@@ -298,7 +320,7 @@ public sealed class CCodeGenerator : ICodeGenerator
                 var tag = CHeap.ObjectType(structs, objectTypes, global.Data!.Count, types.Layout, tags, checks,
                     symbols.Taken);
                 data.Append(CHeap.Constant("struct " + tag, symbol, qualifier)).Append(" = ")
-                    .Append(CHeap.ObjectValue(global, symbols, types.Layout)).Append(";\n\n");
+                    .Append(CHeap.ObjectValue(global, symbols, types.Layout, bigEndian)).Append(";\n\n");
                 return;
             }
 
@@ -312,7 +334,7 @@ public sealed class CCodeGenerator : ICodeGenerator
                 { Header: { } header } => ObjectValue((TirStructType)global.Type, header, global.FieldValues, types, symbols),
                 { Elements: { } elements } => "{ { " + string.Join(", ", elements.Select(e => CFunctionWriter.Constant(e, types))) + " } }",
                 { InitialValue: { } initial } => CFunctionWriter.Constant(initial, types),
-                _ when global.IsConstant => global.Type.IsAggregate ? "{ 0 }" : "0",
+                _ when global.IsConstant => CTypes.ZeroInitializer(global.Type),
                 _ => null,
             };
             data.Append(definition).Append(value is null ? "" : " = " + value).Append(";\n\n");
@@ -339,7 +361,7 @@ public sealed class CCodeGenerator : ICodeGenerator
                 TirConst constant => CFunctionWriter.Constant(constant, types),
                 TirGlobalAddress address => $"(uint8_t *)&{symbols.Globals[address.Global]}",
                 TirTypeAddress address => $"(uint8_t *)&{symbols.Types[address.TypeDescriptor]}",
-                _ => type.Fields[i].Type.IsAggregate ? "{ 0 }" : "0",
+                _ => CTypes.ZeroInitializer(type.Fields[i].Type),
             });
         }
 
@@ -395,7 +417,7 @@ public sealed class CCodeGenerator : ICodeGenerator
         if (settings.DoubleBits < 64)
         {
             throw new ChipSharpException($"{where} uses double (C#'s 64-bit floating point), and target " +
-                $"'{target.Name}' compiles C whose double has {settings.DoubleBits} bits (\"c.doubleBits\"): the " +
+                $"'{target.Name}' compiles C whose double has {settings.DoubleBits} bits (its \"double64\" is false): the " +
                 "program would compute with less precision than .NET does. Use float instead.");
         }
 

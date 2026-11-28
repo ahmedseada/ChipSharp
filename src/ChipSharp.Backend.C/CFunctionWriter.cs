@@ -129,7 +129,7 @@ internal sealed class CFunctionWriter
         {
             // every slot starts at zero, like the locals of IL's ".locals init"
             text.Append("    ").Append(_types.Declare(slot.Type, _slots[slot]))
-                .Append(slot.Type.IsAggregate ? " = { 0 };\n" : $" = {Zero(slot.Type).Text};\n");
+                .Append(slot.Type.IsAggregate ? $" = {CTypes.ZeroInitializer(slot.Type)};\n" : $" = {Zero(slot.Type).Text};\n");
         }
 
         var blocks = _function.Blocks;
@@ -198,7 +198,7 @@ internal sealed class CFunctionWriter
             case TirZero zero:
                 if (_live.Contains(zero))
                 {
-                    Declare(zero, "{ 0 }");
+                    Declare(zero, CTypes.ZeroInitializer(zero.Type));
                 }
 
                 break;
@@ -549,7 +549,7 @@ internal sealed class CFunctionWriter
         string Amount() => right is TirConst amount
             ? CText.Integer((long)(CText.Unsigned(amount, bits) & (ulong)(bits - 1)))
             : $"({Operand(right, Binary - 1)} & {(bits - 1).ToString(CultureInfo.InvariantCulture)})";
-        return binary.Op switch
+        var text = binary.Op switch
         {
             TirBinaryOp.Add => $"{L()} + {R()}",
             TirBinaryOp.Sub => $"{L()} - {R()}",
@@ -566,6 +566,11 @@ internal sealed class CFunctionWriter
             TirBinaryOp.ShrUnsigned => $"{L()} >> {Amount()}",
             _ => throw Unsupported(binary.Op.ToString()),
         };
+
+        // an int (maybe of 16 bits) whose value may not fit, or a signed result: the cast says its low bits are wanted
+        // (SDCC warns of an implicit conversion of a constant that does not fit otherwise)
+        var signed = binary.Op is TirBinaryOp.Div or TirBinaryOp.Rem or TirBinaryOp.Shr;
+        return promoted || signed ? $"({_types.Of(binary.Type)})({text})" : text;
     }
 
     private string CompareText(TirCompare compare)

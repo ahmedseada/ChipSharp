@@ -10,7 +10,7 @@ namespace ChipSharp.Backend.C;
 /// typedefs of the function pointers that calls through an address cast to, and the small static helpers (a float made
 /// an integer as .NET does, a copy for a value at an address that may not be aligned).
 /// </summary>
-internal sealed class CNeeds(CTypes types, ISet<string> names)
+internal sealed class CNeeds(CTypes types, ISet<string> names, bool reentrant)
 {
     private readonly SortedDictionary<string, string> _library = new(StringComparer.Ordinal);
     private readonly SortedDictionary<string, string> _runtime = new(StringComparer.Ordinal);
@@ -28,9 +28,6 @@ internal sealed class CNeeds(CTypes types, ISet<string> names)
         ["fmod"] = "double fmod(double x, double y);",
         ["fmodf"] = "float fmodf(float x, float y);",
     };
-
-    /// <summary>True when a function is marked <see cref="CCodeGenerator.ReentrantMacro"/>: the file defines the macro.</summary>
-    public bool UsesReentrant { get; set; }
 
     /// <summary>Declares the C library's function <paramref name="name"/> (one of memset, memcpy, memmove, fmod, fmodf).</summary>
     public string Library(string name)
@@ -61,8 +58,8 @@ internal sealed class CNeeds(CTypes types, ISet<string> names)
         {
             name = CTypes.Unique(names, "cs_function_" + _functionTypes.Count.ToString(CultureInfo.InvariantCulture));
             _functionTypes[key] = name;
-            UsesReentrant = true;
-            _functionTypeDefinitions.Add($"typedef {CTypes.Declare(returns, $"(*{name})({list})")} {CCodeGenerator.ReentrantMacro};");
+            var mark = reentrant ? " " + CCodeGenerator.ReentrantMacro : "";
+            _functionTypeDefinitions.Add($"typedef {CTypes.Declare(returns, $"(*{name})({list})")}{mark};");
         }
 
         return name;

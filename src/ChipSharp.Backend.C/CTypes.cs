@@ -109,6 +109,20 @@ internal sealed class CTypes
     /// <summary>A declaration of <paramref name="name"/> as <paramref name="cType"/>, with no space after a <c>*</c>.</summary>
     public static string Declare(string cType, string name) => cType.EndsWith('*') ? cType + name : cType + " " + name;
 
+    /// <summary>
+    /// The initializer that makes a value of <paramref name="type"/> all zeros: <c>0</c>, <c>0.0f</c>, <c>0</c> for an
+    /// address; for a struct or array, braces down to its first scalar, <c>{ { 0 } }</c> (C would let <c>{ 0 }</c> do, but
+    /// SDCC wants the braces of every struct and array the first member is in), the rest zero as C makes it.
+    /// </summary>
+    public static string ZeroInitializer(TirType type) => type switch
+    {
+        TirStructType structType => "{ " + ZeroInitializer(structType.Fields[0].Type) + " }",
+        TirArrayType array => "{ { " + ZeroInitializer(array.Element) + " } }",
+        { Kind: TirTypeKind.F32 } => "0.0f",
+        { Kind: TirTypeKind.F64 } => "0.0",
+        _ => "0",
+    };
+
     /// <summary>The C name of field <paramref name="index"/> of <paramref name="structType"/>, e.g. <c>X</c>, <c>f_type_</c>.</summary>
     public string Field(TirStructType structType, int index) => _fields[(structType, index)];
 

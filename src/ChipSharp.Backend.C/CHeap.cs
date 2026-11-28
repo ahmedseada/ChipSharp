@@ -306,9 +306,11 @@ internal static class CHeap
 
     /// <summary>
     /// The value of a constant object (<see cref="TirModule.AddConstantObject"/>): its header (the descriptor's
-    /// address), its length, zeros, then its elements' bytes.
+    /// address), its length, zeros, then its elements' bytes. TIR's are little-endian, as C# writes constant data; on a
+    /// big-endian target (<paramref name="bigEndian"/>: an STM8) the bytes of each element wider than a byte (a string's
+    /// chars of 2 bytes) are put the other way round, so that the program and the runtime read the same numbers.
     /// </summary>
-    public static string ObjectValue(TirGlobal global, CSymbols symbols, TirLayout layout)
+    public static string ObjectValue(TirGlobal global, CSymbols symbols, TirLayout layout, bool bigEndian)
     {
         var padding = layout.ArrayDataOffset - layout.ArrayLengthOffset - 4;
         var parts = new List<string>
@@ -323,7 +325,18 @@ internal static class CHeap
 
         if (global.Data!.Count > 0)
         {
-            parts.Add(CText.Bytes(global.Data, "    "));
+            var bytes = global.Data.ToArray();
+            var element = global.ObjectType!.ElementType;
+            var size = element is { IsInteger: true } or { IsFloat: true } ? (int)layout.SizeOf(element) : 1;
+            if (bigEndian && size > 1)
+            {
+                for (var at = 0; at + size <= bytes.Length; at += size)
+                {
+                    Array.Reverse(bytes, at, size);
+                }
+            }
+
+            parts.Add(CText.Bytes(bytes, "    "));
         }
 
         return "{ " + string.Join(", ", parts) + " }";

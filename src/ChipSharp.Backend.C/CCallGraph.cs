@@ -3,13 +3,18 @@ using ChipSharp.Ir;
 namespace ChipSharp.Backend.C;
 
 /// <summary>
-/// The functions SDCC must give a frame on the stack (<c>__reentrant</c>) on the processors where it keeps a function's
-/// parameters and locals in static memory by default (a Padauk, an 8051, ...): a function whose locals that would
-/// overwrite while it still needs them, because it can call itself again (it is in a cycle of the program's calls,
-/// through other functions, virtual and interface calls and delegates), and every function called through an address
-/// (SDCC calls those only with their arguments on the stack). The generated file marks them with
-/// <see cref="CCodeGenerator.ReentrantMacro"/>, which is <c>__reentrant</c> with those processors' SDCC and nothing
-/// elsewhere.
+/// The functions that need a frame on the stack (SDCC's <c>__reentrant</c>) on a target whose compiler keeps a
+/// function's parameters and locals at fixed addresses in RAM otherwise (<c>"recursion": "reentrant"</c>: SDCC's pdk14
+/// port), as a function that runs again while it still runs would overwrite them:
+/// <list type="bullet">
+/// <item>every function in a cycle of the program's calls (it can call itself again, through other functions, virtual
+/// and interface calls and delegates);</item>
+/// <item>every function that may run both in an interrupt and outside one: one that the exported functions (an
+/// interrupt handler's entry, which the runtime's vector calls) reach, and that the entry point reaches too;</item>
+/// <item>every function called through an address (SDCC passes arguments through a pointer only on the stack).</item>
+/// </list>
+/// A call through an address may reach every function whose address the program takes, or a method table holds. The
+/// generated file marks these with <see cref="CCodeGenerator.ReentrantMacro"/>.
 /// </summary>
 internal static class CCallGraph
 {
@@ -43,7 +48,34 @@ internal static class CCallGraph
 
         var reentrant = Recursive(defined, callees);
         reentrant.UnionWith(addressed);
+        if (module.EntryPoint is { } entry)
+        {
+            var inInterrupts = Reached(defined.Where(function => function.ExportName is not null), callees);
+            var outside = Reached([entry], callees);
+            reentrant.UnionWith(inInterrupts.Where(outside.Contains));
+        }
+
         return reentrant;
+    }
+
+    /// <summary>The functions <paramref name="roots"/> run: themselves, and every function they call, directly or not.</summary>
+    private static HashSet<TirFunction> Reached(IEnumerable<TirFunction> roots,
+        Dictionary<TirFunction, List<TirFunction>> callees)
+    {
+        var reached = new HashSet<TirFunction>();
+        var work = new Stack<TirFunction>(roots);
+        while (work.TryPop(out var function))
+        {
+            if (reached.Add(function) && callees.TryGetValue(function, out var calls))
+            {
+                foreach (var callee in calls)
+                {
+                    work.Push(callee);
+                }
+            }
+        }
+
+        return reached;
     }
 
     /// <summary>The defined functions a call through an address may reach: those whose address is taken, or in a method table.</summary>
