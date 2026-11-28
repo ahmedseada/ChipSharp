@@ -45,7 +45,7 @@ public sealed class AvrdudeFlasherTests : IDisposable
 
         var registry = DefaultComponents.CreateFlasherRegistry();
         Assert.IsType<AvrdudeFlasher>(registry.Get<IFlasher>("avrdude"));
-        Assert.Equal(["avrdude", "easypdkprog", "esptool", "stm8flash", "uf2-copy"], registry.Names<IFlasher>());
+        Assert.Equal(["avrdude", "easypdkprog", "esptool", "minichlink", "stm8flash", "uf2-copy", "wlink"], registry.Names<IFlasher>());
     }
 
     [Fact]

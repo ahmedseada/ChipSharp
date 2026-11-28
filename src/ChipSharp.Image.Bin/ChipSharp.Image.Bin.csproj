@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The bin image format: a linked .elf (or SDCC's .ihx) in, the raw bytes of the chip's flash out, from its first
+       address (the CH32V003's 0x08000000, which wlink and minichlink write through a WCH-LinkE) -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+    <!-- IntelHexFile, to read a program linked as Intel HEX already -->
+    <ProjectReference Include="..\ChipSharp.Image.Hex\ChipSharp.Image.Hex.csproj" />
+    <!-- ElfFile, the .elf reader the image formats share -->
+    <ProjectReference Include="..\ChipSharp.Image.Uf2\ChipSharp.Image.Uf2.csproj" />
+  </ItemGroup>
+</Project>

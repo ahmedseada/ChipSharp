@@ -4,6 +4,7 @@ using ChipSharp.Flasher.Esptool;
 using ChipSharp.Flasher.Shared;
 using ChipSharp.Flasher.Stm8Flash;
 using ChipSharp.Flasher.Uf2Copy;
+using ChipSharp.Flasher.WchLink;
 using ChipSharp.Tests.Avr;
 using ChipSharp.Tests.Esp32c5;
 using ChipSharp.Tests.Support;
@@ -12,8 +13,9 @@ namespace ChipSharp.Tests.Flash;
 
 /// <summary>
 /// Runs the real <c>chipsharp flash</c>: what it needs (a board whose target names a flasher, the target's image or a
-/// .dll), a .hex through a stand-in avrdude, easypdkprog and stm8flash (<see cref="FakeTool"/>), a .uf2 onto a folder
-/// that stands for the Pico's drive, and a .dll built for the Uno, the PFS154 and the STM8S103, then flashed.
+/// .dll), a .hex through a stand-in avrdude, easypdkprog and stm8flash (<see cref="FakeTool"/>), a .bin through a stand-in
+/// esptool, wlink and minichlink, a .uf2 onto a folder that stands for the Pico's drive, and a .dll built for the Uno, the
+/// PFS154 and the STM8S103, then flashed.
 /// </summary>
 public sealed class FlashCliTests : IDisposable
 {
@@ -296,6 +298,67 @@ public sealed class FlashCliTests : IDisposable
         Assert.Equal([], ChipSharp.Image.Esp.EspIdfBootloaderRules.Check(File.ReadAllBytes(app)));
         Assert.DoesNotContain(image.Segments, s => ChipSharp.Image.Esp.EspIdfBootloaderRules.IsMapped(s.Address));
         Assert.Equal("COM42: written and verified; the esp32c5-devkitc runs it", lines[^1]);
+    }
+
+    [Fact]
+    public async Task Flash_of_a_bin_for_a_CH32V003_board_runs_wlink_at_the_flash_origin()
+    {
+        var bin = Write("Blink.bin", "image");
+        var targets = WchLinkTestBoard.Write(Path.Combine(_scratch, "targets"));
+        var wlink = new FakeTool(Path.Combine(_scratch, "wlink"), "wlink", 0, "14:02:12 [INFO] Flash done");
+        var minichlink = new FakeTool(Path.Combine(_scratch, "minichlink"), "minichlink", 0, "Image written.");
+        var tools = new Dictionary<string, string>
+        {
+            [WlinkFlasher.WlinkVariable] = wlink.Path,
+            [MinichlinkFlasher.MinichlinkVariable] = minichlink.Path,
+        };
+
+        var (exitCode, printed, error) = await ChipSharpCli.RunWithAsync(_scratch, tools,
+            "flash", bin, "-t", WchLinkTestBoard.Name, "--targets", targets);
+
+        Assert.Equal("", error);
+        Assert.Equal(0, exitCode);
+        Assert.Equal($"--chip CH32V003 flash --address 0x08000000 {bin}", wlink.CommandLine);
+        Assert.Equal(
+            [
+                $"WCH-LinkE: wlink --chip CH32V003 flash --address 0x08000000 {ChipSharpCli.Quoted(bin)}",
+                "WCH-LinkE: written, and the CH32V003 restarted; the ch32-test-board runs it",
+            ],
+            Lines(printed));
+
+        // a board file that names minichlink; --port is the WCH-LinkE's serial number
+        (exitCode, printed, error) = await ChipSharpCli.RunWithAsync(_scratch, tools,
+            "flash", bin, "-t", "ch32-test-minichlink", "--targets", targets, "--port", "F93D8F067E10");
+        Assert.True(exitCode == 0, error);
+        Assert.Equal($"-l F93D8F067E10 -w {bin} flash -b", minichlink.CommandLine);
+        Assert.Equal("WCH-LinkE F93D8F067E10: written, and the chip restarted; the ch32-test-minichlink runs it",
+            Lines(printed)[^1]);
+
+        // the board's image is a .bin
+        Assert.Equal((1, $"error: '{Write("Blink.hex", "")}' is not a .bin file, which is what the target 'ch32-test-board' " +
+                "flashes: give the program's .dll (chipsharp flash builds it for the target first) or the .bin chipsharp " +
+                "build -t ch32-test-board wrote."),
+            await Error("flash", Path.Combine(_scratch, "Blink.hex"), "-t", WchLinkTestBoard.Name, "--targets", targets));
+    }
+
+    [Fact]
+    public async Task A_failed_wlink_ends_with_its_error_and_exit_code_1()
+    {
+        var bin = Write("Blink.bin", "image");
+        var wlink = new FakeTool(Path.Combine(_scratch, "wlink"), "wlink", 1,
+            "Error: WCH-Link not found, please check your connection");
+
+        var (exitCode, printed, error) = await ChipSharpCli.RunWithAsync(_scratch,
+            new Dictionary<string, string> { [WlinkFlasher.WlinkVariable] = wlink.Path },
+            "flash", bin, "-t", WchLinkTestBoard.Name, "--targets", WchLinkTestBoard.Write(Path.Combine(_scratch, "targets")));
+
+        // what the hint says depends on the WCH-Links this computer has plugged in
+        Assert.Equal(1, exitCode);
+        Assert.Single(Lines(printed));
+        Assert.StartsWith("error: wlink could not write 'Blink.bin' into the CH32V003 through the WCH-LinkE (exit code 1). ",
+            error);
+        Assert.EndsWith("wlink said:\n  Error: WCH-Link not found, please check your connection",
+            error.ReplaceLineEndings("\n").TrimEnd());
     }
 
     [Fact]
