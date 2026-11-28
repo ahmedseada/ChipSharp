@@ -260,7 +260,7 @@ public sealed class Stm8Cpu
                 return 1;
             case (0x52, 0): // sub sp, #byte
                 SP -= Fetch();
-                return 1;
+                return 2;
             case (0x55, 0): // mov longmem, longmem: 55 source destination
                 var from = Fetch16();
                 Write(Fetch16(), Read(from));
@@ -335,6 +335,11 @@ public sealed class Stm8Cpu
 
         var hi = op >> 4;
         var lo = op & 0xF;
+        if (hi == 0xA && prefix != 0 && !(prefix == 0x90 && lo is 0x3 or 0xE))
+        {
+            throw Illegal(prefix, op); // an immediate takes no prefix, but cpw y and ldw y's 90
+        }
+
         var pointer = prefix is 0x72 or 0x91 or 0x92;
         switch (lo)
         {
@@ -473,11 +478,11 @@ public sealed class Stm8Cpu
         var (address, cycles) = (op, prefix) switch
         {
             (0xBC or 0xBD, 0) => (Fetch24(), 1),
-            (0xBC or 0xBD, 0x92) => (Read24(Fetch16()), 5),
+            (0xBC or 0xBD, 0x92) => (Read24(Fetch16()), op == 0xBC ? 5 : 4),
             (0xA7 or 0xAF, 0) => (Fetch24() + X, 1),
             (0xA7 or 0xAF, 0x90) => (Fetch24() + Y, 1),
-            (0xA7 or 0xAF, 0x92) => (Read24(Fetch16()) + X, 5),
-            (0xA7 or 0xAF, 0x91) => (Read24(Fetch16()) + Y, 5),
+            (0xA7 or 0xAF, 0x92) => (Read24(Fetch16()) + X, op == 0xAF ? 5 : 4),
+            (0xA7 or 0xAF, 0x91) => (Read24(Fetch16()) + Y, op == 0xAF ? 5 : 4),
             _ => throw Illegal(prefix, op),
         };
         if (op is 0xBC or 0xAF)

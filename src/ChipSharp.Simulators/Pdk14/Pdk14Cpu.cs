@@ -118,6 +118,8 @@ public sealed class Pdk14Cpu
                 A = ReadIo(op & 0x3F);
                 SetZero(A);
                 return 1;
+            case 0x01:
+                throw Unknown(op, at);
             case 0x02: // ret k
                 A = (byte)op;
                 Return();
@@ -161,10 +163,12 @@ public sealed class Pdk14Cpu
             case >= 0x30 and <= 0x37: // goto k
                 Pc = op & 0x7FF & _pcMask;
                 return 2;
-            default: // call k
+            case >= 0x38 and <= 0x3F: // call k
                 Push((byte)Pc, (byte)(Pc >> 8));
                 Pc = op & 0x7FF & _pcMask;
                 return 2;
+            default:
+                throw Unknown(op, at);
         }
     }
 
