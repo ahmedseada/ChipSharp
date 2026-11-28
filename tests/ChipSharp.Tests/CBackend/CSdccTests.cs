@@ -79,10 +79,13 @@ public sealed class CSdccTests(ITestOutputHelper output) : IDisposable
 
             static Pair Make(byte low, int high) => new Pair { Low = low, High = (short)high };
 
-            static int Main()
+            static byte result;
+
+            // a void Main: an int one gives chipsharp_entry its 32 bits to pass on, 8 bytes more of the 128
+            static void Main()
             {
                 var pair = Make(Table[5], Fib(7));
-                return (byte)(pair.High - (sbyte)pair.Low);
+                result = (byte)(pair.High - (sbyte)pair.Low);
             }
         }
         """;
@@ -108,6 +111,10 @@ public sealed class CSdccTests(ITestOutputHelper output) : IDisposable
         var c = CSdcc.Required(Program, "Linked", target).C;
 
         Assert.DoesNotContain("CS_REENTRANT", c);
+
+        // SDCC's STM8 gets the address of a struct parameter wrong in a function that returns a struct: it gives it
+        // through a pointer of its own
+        Assert.Contains("static void Program_Make(struct Program_Pair *cs_result, uint8_t p_low, uint32_t p_high);", c);
         Assert.True(File.Exists(CSdcc.Link(Program, "Linked", target, Path.Combine(_scratch, "stm8"))));
     }
 
@@ -124,6 +131,10 @@ public sealed class CSdccTests(ITestOutputHelper output) : IDisposable
                 Assert.Contains("static uint32_t Program_Shared(uint32_t p_x) CS_REENTRANT;", c);
                 Assert.Contains("typedef uint32_t (*cs_function_0)(uint32_t) CS_REENTRANT;", c);
                 Assert.Contains("void chipsharp_isr_irq1(void);", c);
+
+                // what only the interrupt runs keeps locals of its own: SDCC would overlay them with Main's leaves
+                Assert.Contains("#pragma save\n#pragma nooverlay\nvoid chipsharp_isr_irq1(void)\n{", c);
+                Assert.DoesNotContain("#pragma nooverlay\nstatic uint32_t Program_Shared", c);
             }
 
             Assert.True(File.Exists(CSdcc.Link(module, target, Path.Combine(_scratch, "indirect-" + target.Name))));

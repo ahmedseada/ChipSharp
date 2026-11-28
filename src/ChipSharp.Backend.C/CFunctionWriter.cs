@@ -63,6 +63,9 @@ internal sealed class CFunctionWriter
 
     /// <summary>How many written instructions use each instruction's value.</summary>
     private readonly Dictionary<TirInstruction, int> _uses = [];
+
+    /// <summary>The blocks the function reaches (see <see cref="CLiveness.Blocks"/>), in TIR's order: those written.</summary>
+    private List<TirBlock> _blocks = [];
     private List<string> _lines = [];
     private bool _declares;
 
@@ -81,6 +84,32 @@ internal sealed class CFunctionWriter
     /// <summary>The statement that clears the callee-saved registers before a call that collects; null for none.</summary>
     public string? ForgetRegisters { get; init; }
 
+    /// <summary>
+    /// The functions of the file that give their result through a pointer (see <see cref="ResultName"/>): on SDCC's STM8
+    /// every one that returns a struct or an array, and one with a large frame that returns 3 or 4 bytes.
+    /// </summary>
+    public IReadOnlySet<TirFunction> PointerReturns { get; init; } = new HashSet<TirFunction>();
+
+    /// <summary>
+    /// The first parameter of a function that gives its result through a pointer: where the caller wants it. SDCC 4.6
+    /// gets the address of a struct parameter wrong in a function that returns a struct (it forgets the hidden pointer
+    /// it passes the result's place in), and its STM8 port cannot return 3 or 4 bytes from a function whose frame its
+    /// 8-bit offsets do not reach; with a pointer of its own, the result is a store like any other.
+    /// </summary>
+    public const string ResultName = "cs_result";
+
+    /// <summary>The limit the function checks the stack against when it starts (see <see cref="CStackChecks"/>); null for none.</summary>
+    public CStackChecks.Limit? StackLimit { get; init; }
+
+    /// <summary>
+    /// Whether every function that returns a struct gives it through a pointer ("c.structReturn": "pointer"): how a call
+    /// through an address calls one.
+    /// </summary>
+    public bool StructReturnPointer { get; init; }
+
+    /// <summary>The stores a call wrote its result to itself, through the pointer: they are not written again.</summary>
+    private readonly HashSet<TirInstruction> _done = [];
+
     /// <summary>The C names of a function's parameters: <c>p_</c> and the TIR name, made unique among the file's names.</summary>
     public static IReadOnlyList<string> ParameterNames(TirFunction function, ISet<string> fileNames)
     {
@@ -93,13 +122,17 @@ internal sealed class CFunctionWriter
     /// exported or external, and <see cref="CCodeGenerator.ReentrantMacro"/> after it when it is reentrant.
     /// </summary>
     public static string Signature(TirFunction function, CTypes types, string symbol, IReadOnlyList<string> names,
-        bool reentrant)
+        bool reentrant, bool resultPointer = false)
     {
-        var parameters = function.Parameters.Count == 0
-            ? "void"
-            : string.Join(", ", function.Parameters.Select((parameter, i) => types.Declare(parameter.Type, names[i])));
+        List<string> list = [.. function.Parameters.Select((parameter, i) => types.Declare(parameter.Type, names[i]))];
+        if (resultPointer)
+        {
+            list.Insert(0, CTypes.Declare(types.Of(function.ReturnType) + " *", ResultName));
+        }
+
+        var parameters = list.Count == 0 ? "void" : string.Join(", ", list);
         var linkage = function.Kind == TirFunctionKind.Defined && function.ExportName is null ? "static " : "";
-        return linkage + types.Declare(function.ReturnType, $"{symbol}({parameters})") +
+        return linkage + CTypes.Declare(resultPointer ? "void" : types.Of(function.ReturnType), $"{symbol}({parameters})") +
             (reentrant ? " " + CCodeGenerator.ReentrantMacro : "");
     }
 
@@ -138,22 +171,37 @@ internal sealed class CFunctionWriter
             _uses[instruction] = count;
         }
 
+        _blocks = [.. _function.Blocks.Where(liveness.Blocks.Contains)];
+
         var gotos = Gotos();
-        foreach (var block in _function.Blocks.Where(gotos.Contains))
+        foreach (var block in _blocks.Where(gotos.Contains))
         {
             _labels[block] = CTypes.Unique(_labelNames, Label(block.Name));
         }
 
-        text.Append(Signature(_function, _types, _symbols.Functions[_function], parameterNames, IsReentrant)).Append("\n{\n");
+        text.Append(Signature(_function, _types, _symbols.Functions[_function], parameterNames, IsReentrant,
+            PointerReturns.Contains(_function))).Append("\n{\n");
         var usedSlots = UsedSlots();
+        var storedFirst = StoredFirst();
         foreach (var slot in _function.Slots.Where(usedSlots.Contains))
         {
-            // every slot starts at zero, like the locals of IL's ".locals init"
-            text.Append("    ").Append(_types.Declare(slot.Type, _slots[slot]))
-                .Append(slot.Type.IsAggregate ? $" = {CTypes.ZeroInitializer(slot.Type)};\n" : $" = {Zero(slot.Type).Text};\n");
+            // every slot starts at zero, like the locals of IL's ".locals init", but one the function stores to before
+            // anything reads it or takes its address (a parameter's copy): SDCC 4.6 puts such a local where the
+            // parameter it is a copy of is, and so its zero would be written over the parameter before the copy
+            text.Append("    ").Append(_types.Declare(slot.Type, _slots[slot])).Append(storedFirst.Contains(slot)
+                ? ";\n"
+                : slot.Type.IsAggregate ? $" = {CTypes.ZeroInitializer(slot.Type)};\n" : $" = {Zero(slot.Type).Text};\n");
         }
 
-        var blocks = _function.Blocks;
+        if (StackLimit is { } limit)
+        {
+            foreach (var line in CStackChecks.Check(_function, _types, limit, CTypes.Unique(_names, CStackChecks.FrameName)))
+            {
+                text.Append("    ").Append(line).Append('\n');
+            }
+        }
+
+        var blocks = _blocks;
         for (var i = 0; i < blocks.Count; i++)
         {
             var block = blocks[i];
@@ -165,7 +213,7 @@ internal sealed class CFunctionWriter
                 Write(instruction, next);
             }
 
-            if (i > 0 || usedSlots.Count > 0)
+            if (i > 0 || usedSlots.Count > 0 || StackLimit is not null)
             {
                 text.Append('\n');
             }
@@ -207,6 +255,12 @@ internal sealed class CFunctionWriter
 
     private void Write(TirInstruction instruction, TirBlock? next)
     {
+        // what nothing written uses is not computed: neither is what only it uses
+        if (!_live.Contains(instruction))
+        {
+            return;
+        }
+
         switch (instruction)
         {
             case TirConst:
@@ -298,8 +352,8 @@ internal sealed class CFunctionWriter
                 Define(load, _slots[load.Slot]);
                 break;
 
-            case TirStore store when !_live.Contains(store):
-                break; // to a slot nothing reads
+            case TirStore store when !_live.Contains(store) || _done.Contains(store):
+                break; // to a slot nothing reads, or which the call before wrote its result to
 
             case TirStore store:
                 Line($"{_slots[store.Slot]} = {Value(store.Value).Text};");
@@ -395,7 +449,19 @@ internal sealed class CFunctionWriter
                     Line(forget);
                 }
 
+                if (PointerReturns.Contains(call.Callee))
+                {
+                    CallWithResultPointer(call, _symbols.Functions[call.Callee], call.Arguments);
+                    break;
+                }
+
                 Call(call, $"{_symbols.Functions[call.Callee]}({Arguments(call.Arguments)})");
+                break;
+
+            case TirCallIndirect call when call.Type.IsAggregate && StructReturnPointer:
+                var pointerType = _needs.FunctionType("void",
+                    [_types.Of(call.Type) + " *", .. call.Arguments.Select(argument => _types.Of(argument.Type))]);
+                CallWithResultPointer(call, $"(({pointerType}){Operand(call.Callee, Unary)})", call.Arguments);
                 break;
 
             case TirCallIndirect call:
@@ -405,6 +471,15 @@ internal sealed class CFunctionWriter
                 break;
 
             case TirReturn { Value: null }:
+                Line("return;");
+                break;
+
+            case TirReturn { Value: { } value } when PointerReturns.Contains(_function):
+                if (!_done.Contains(Resolve(value)))
+                {
+                    Line($"*{ResultName} = {Value(value).Text};");
+                }
+
                 Line("return;");
                 break;
 
@@ -436,16 +511,17 @@ internal sealed class CFunctionWriter
     /// </summary>
     private void Branch(TirBranch branch, TirBlock? next)
     {
-        var condition = Value(branch.Condition);
-        if (branch.WhenTrue == branch.WhenFalse)
+        if ((CLiveness.Taken(branch) ?? (branch.WhenTrue == branch.WhenFalse ? branch.WhenTrue : null)) is { } only)
         {
-            if (branch.WhenTrue != next)
+            if (only != next)
             {
-                Line($"goto {_labels[branch.WhenTrue]};");
+                Line($"goto {_labels[only]};");
             }
 
             return;
         }
+
+        var condition = Value(branch.Condition);
 
         if (branch.WhenTrue == next)
         {
@@ -464,7 +540,7 @@ internal sealed class CFunctionWriter
     private HashSet<TirBlock> Gotos()
     {
         var targets = new HashSet<TirBlock>();
-        var blocks = _function.Blocks;
+        var blocks = _blocks;
         for (var i = 0; i < blocks.Count; i++)
         {
             var next = i + 1 < blocks.Count ? blocks[i + 1] : null;
@@ -474,10 +550,11 @@ internal sealed class CFunctionWriter
                     targets.Add(jump.Target);
                     break;
 
-                case TirBranch branch when branch.WhenTrue == branch.WhenFalse:
-                    if (branch.WhenTrue != next)
+                case TirBranch branch when (CLiveness.Taken(branch)
+                    ?? (branch.WhenTrue == branch.WhenFalse ? branch.WhenTrue : null)) is { } only:
+                    if (only != next)
                     {
-                        targets.Add(branch.WhenTrue);
+                        targets.Add(only);
                     }
 
                     break;
@@ -500,11 +577,12 @@ internal sealed class CFunctionWriter
         return targets;
     }
 
-
     /// <summary>
     /// True for a struct or array value (a slot's, memory's, a call's) that only the instruction right after it uses, to
-    /// store or return: it is written there, <c>s_temp = s_p;</c>, rather than copied into a temporary first, which SDCC
-    /// keeps in RAM of its own (scarce on a Padauk). Nothing runs between them that could change what it reads.
+    /// store or return, or a slot's that a call later in the block takes as an argument, with nothing in between that
+    /// writes memory or calls: it is written there, <c>s_temp = s_p;</c>, <c>Program_Sum(s_span)</c>,
+    /// rather than copied into a temporary first, which SDCC keeps in RAM of its own (scarce on a Padauk; on an STM8 a
+    /// frame its 8-bit offsets do not reach). Nothing runs between them that could change what it reads.
     /// </summary>
     private bool Forwarded(TirInstruction instruction)
     {
@@ -515,16 +593,83 @@ internal sealed class CFunctionWriter
 
         var instructions = instruction.Block!.Instructions;
         var at = _positions[instruction];
-        return at + 1 < instructions.Count && instructions[at + 1] switch
+        if (at + 1 < instructions.Count && instructions[at + 1] switch
+            {
+                TirStore store => store.Value == instruction,
+                // memory to memory: C's struct assignment wants the two not to overlap but exactly, which a temporary keeps
+                TirPointerStore store => store.Value == instruction && !store.IsUnaligned && instruction is not TirPointerLoad,
+                // return f(...) of a struct: the call writes it where this function's caller wants it (see ResultName)
+                TirReturn ret => ret.Value == instruction && (instruction is not (TirCall or TirCallIndirect)
+                    || PointerReturns.Contains(_function)),
+                _ => false,
+            })
         {
-            TirStore store => store.Value == instruction,
-            // memory to memory: C's struct assignment wants the two not to overlap but exactly, which a temporary keeps
-            TirPointerStore store => store.Value == instruction && !store.IsUnaligned && instruction is not TirPointerLoad,
-            // return f(...) of a struct: SDCC's stm8 code generator fails on it (an internal error), so the call's
-            // result goes through a temporary
-            TirReturn ret => ret.Value == instruction && instruction is not (TirCall or TirCallIndirect),
-            _ => false,
-        };
+            return true;
+        }
+
+        // a slot's alone: SDCC 4.6 passes *(struct S *)p as an argument wrong on the STM8 (the struct of other bytes)
+        if (instruction is not TirLoad)
+        {
+            return false;
+        }
+
+        for (var i = at + 1; i < instructions.Count; i++)
+        {
+            var next = instructions[i];
+            if (next.Operands.Contains(instruction))
+            {
+                return next is TirCall or TirCallIndirect;
+            }
+
+            if (!Reads(next))
+            {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>True for an instruction that only computes a value: it writes no memory and calls nothing.</summary>
+    private static bool Reads(TirInstruction instruction) => instruction is TirConst or TirZero or TirSizeOf
+        or TirSlotAddress or TirGlobalAddress or TirTypeAddress or TirFunctionAddress or TirFieldAddress
+        or TirElementAddress or TirArrayData or TirArrayObject or TirConvert or TirBinary or TirCompare or TirLoad
+        or TirPointerLoad { IsVolatile: false } or TirPtrToInt or TirIntToPtr or TirArrayLength or TirTypeOf;
+
+    /// <summary>
+    /// The slots the function's first block stores to (in code that is written) before it reads them or takes their
+    /// address, and before a call that could read one whose address it took: their zero is never read.
+    /// </summary>
+    private HashSet<TirSlot> StoredFirst()
+    {
+        var stored = new HashSet<TirSlot>();
+        var seen = new HashSet<TirSlot>();
+        foreach (var instruction in _blocks.Count > 0 ? _blocks[0].Instructions : [])
+        {
+            if (!_live.Contains(instruction))
+            {
+                continue;
+            }
+
+            var slot = instruction switch
+            {
+                TirStore store => store.Slot,
+                TirLoad load => load.Slot,
+                TirSlotAddress address => address.Slot,
+                _ => null,
+            };
+            if (slot is not null && seen.Add(slot) && instruction is TirStore)
+            {
+                stored.Add(slot);
+            }
+
+            if (instruction is TirCall or TirCallIndirect && seen.Count > stored.Count)
+            {
+                break;
+            }
+        }
+
+        return stored;
     }
 
     /// <summary>The slots a written instruction loads, stores or takes the address of.</summary>
@@ -588,6 +733,9 @@ internal sealed class CFunctionWriter
             TirBinaryOp.DivUnsigned => $"{L()} / {R()}",
             TirBinaryOp.Rem => $"{Signed(left)} % {Signed(right)}",
             TirBinaryOp.RemUnsigned => $"{L()} % {R()}",
+            TirBinaryOp.And or TirBinaryOp.Or or TirBinaryOp.Xor when bits == 64 =>
+                $"{_needs.Bitwise64(binary.Op switch { TirBinaryOp.And => '&', TirBinaryOp.Or => '|', _ => '^' })}(" +
+                $"{Value(left, typed).Text}, {Value(right, typed).Text})",
             TirBinaryOp.And => $"{L()} & {R()}",
             TirBinaryOp.Or => $"{L()} | {R()}",
             TirBinaryOp.Xor => $"{L()} ^ {R()}",
@@ -812,6 +960,35 @@ internal sealed class CFunctionWriter
     }
 
     private string Arguments(IReadOnlyList<TirValue> arguments) => string.Join(", ", arguments.Select(a => Value(a).Text));
+
+    /// <summary>
+    /// A call of a function that gives its result through a pointer (<see cref="ResultName"/>): to the slot the next
+    /// instruction stores it in, or to this function's own result when it returns it, else to a temporary.
+    /// </summary>
+    private void CallWithResultPointer(TirInstruction call, string callee, IReadOnlyList<TirValue> arguments)
+    {
+        var next = call.Block!.Instructions[_positions[call] + 1];
+        string destination;
+        if (Forwarded(call) && next is TirStore store)
+        {
+            destination = $"&{_slots[store.Slot]}";
+            _done.Add(store);
+        }
+        else if (Forwarded(call) && next is TirReturn && PointerReturns.Contains(_function))
+        {
+            destination = ResultName;
+            _done.Add(call);
+        }
+        else
+        {
+            var name = Temporary(call);
+            Line(_types.Declare(call.Type, name) + ";", declares: true);
+            destination = "&" + name;
+        }
+
+        var list = arguments.Count == 0 ? destination : destination + ", " + Arguments(arguments);
+        Line($"{callee}({list});");
+    }
 
     /// <summary>A call: its result into a temporary when something uses it, else the call alone.</summary>
     private void Call(TirInstruction call, string text)

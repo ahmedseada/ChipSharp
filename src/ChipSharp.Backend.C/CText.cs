@@ -96,7 +96,8 @@ internal static class CText
         if (value == Math.Floor(value) && Math.Abs(value) < whole)
         {
             var sign = value < 0 || (value == 0 && double.IsNegative(value)) ? "-" : "";
-            return $"{sign}{Math.Abs(value).ToString("0", CultureInfo.InvariantCulture)}.0{suffix}";
+            // as a long: a double's custom format "0" keeps only 15 digits (4503599627370496 would be 4503599627370500)
+            return $"{sign}{((long)Math.Abs(value)).ToString(CultureInfo.InvariantCulture)}.0{suffix}";
         }
 
         var hex = isFloat ? HexFloat((float)value) : HexDouble(value);

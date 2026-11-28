@@ -19,6 +19,7 @@
 //   ChipSharp_Runtime_IndexOutOfRange,   one each: an array index outside the array, a division by zero, a TimeSpan too
 //   ... DivideByZero, TimeSpan..., ...   long, an overflow, a span's start or length outside it, the arguments of
 //                                        System.Array's and System.Math's methods (as avr_failures.c lists them)
+//   chipsharp_stack_overflow             a function that checks the stack found it full: "Stack overflow."
 //   chipsharp_fail                       any other failure, its exception and message given (chipsharp_string.c's)
 
 #include "chipsharp_hardware.h"
@@ -408,6 +409,15 @@ CHIPSHARP_NORETURN void ChipSharp_Runtime_Unhandled(const void *text)
 {
     (void)text;
     chipsharp_failure_text("Unhandled exception.");
+    chipsharp_failure_stop();
+}
+
+//@module stack_overflow
+// A function that checks the stack ("stackCheck", the C code generator's CStackChecks) found that one more call of it
+// would not fit: what .NET writes on standard error, its first line, then the failure stop.
+CHIPSHARP_NORETURN void chipsharp_stack_overflow(void)
+{
+    chipsharp_failure_text("Stack overflow.");
     chipsharp_failure_stop();
 }
 

@@ -477,10 +477,60 @@ objects and type descriptors, and the same `chipsharp_entry`. The C means what t
   may name a qualifier more for it (`"c": { "constQualifier": "__code" }`).
 - On the PDK14 the functions that may run again while they run (recursion, a function an interrupt handler and `Main`
   both call) or that are called through an address are `__reentrant`. A program that uses `double` is refused where
-  `double` has 32 bits. On the big-endian STM8 a constant string's 2-byte chars are written high byte first.
+  `double` has 32 bits (`samples/MathFunctions ... uses double (C#'s 64-bit floating point), and target
+  'stm8s103-board' compiles C whose double has 32 bits`): write `float` and `MathF`. On the big-endian STM8 a constant
+  string's 2-byte chars are written high byte first.
+- On the STM8 (`"c": { "structReturn": "pointer" }`) a function that returns a struct (or an array value) gives it
+  through a pointer, its first parameter `cs_result`, which the caller points at the slot it stores the result in, or
+  at its own `cs_result` for `return F(...)`; elsewhere it returns it as C does (on the PDK14 that keeps the copy in
+  SDCC's own code: a function that copies a struct calls `memcpy`, and SDCC overlays the locals only of the functions
+  that call nothing).
+- `chipsharp_entry` returns an `int32_t`, a C# int, as the hardware contract has it. On the PDK14 a function an
+  interrupt runs and Main does not keeps locals of its own (`#pragma nooverlay`): SDCC overlays the locals of the
+  functions that call nothing, and one an interrupt runs would write over Main's.
+- Only what the program can reach is written: a function, a global, a block; and a branch on a constant goes one way
+  only, so the code of `if (typeof(T) == typeof(double))` in an instance of generic code for `int` (which the frontend
+  makes `false`, in ChipSharp.Library's own generic code too) is not written, nor the double it uses: `Array.Sort` of
+  ints needs no double on a chip that has none.
+- SDCC 4.6 makes wrong code of some C, which the C steers around, each found by the conformance suite below and kept
+  by it: `&`, `|` and `^` of two 64-bit values it knows while compiling are worked out in 32 bits
+  (`(uint64_t)-1099511627776 | 255` is 255), so with SDCC they go through a function; on the STM8 its peephole
+  optimizer drops the test after `ld a, xl`, which sets no flags (`(byte)(n % 7) == 0` held for every n), which the
+  toolchain mends with a rule of its own (`--peep-file`); on the STM8 a function that returns a struct gets the
+  address of its struct parameter wrong (hence `cs_result`); a local that copies a parameter is put where the parameter is, so its
+  starting zero overwrote the parameter (a slot the function stores to first gets no zero); a struct passed as
+  `*(struct S *)p` is passed wrong (only a slot is passed as it is, anything else through a copy); and on the STM8 a
+  function whose frame its 8-bit offsets do not reach cannot return 3 or 4 bytes (`"c": { "largeFrame": 255 }`: such
+  a function returns them through a pointer too).
+- `"stackCheck": true` on both chips: the functions that may call themselves (and on the STM8, every frame on its
+  stack, those whose locals and parameters take 256 bytes or more) check, when they start, that one more call of
+  them has room, with the address of a byte of their frame (4 instructions on the STM8, 5 on the PDK14), and past the
+  limit call the runtime's `chipsharp_stack_overflow` ("Stack overflow.", then the failure stop). The PDK14's stack
+  grows up to the end of RAM (`"c": { "stack": "up" }`), the limit 4 bytes before it; the STM8's grows down toward
+  the variables, the limit their end: the program's own, as much again as a quarter of `link.stack` for the runtime's,
+  and that quarter.
+- `"narrowing": true` on both chips: arithmetic in 8 and 16 bits where that gives C#'s result (see
+  [Narrowing](#narrowing)), which SDCC's 8-bit code needs: on the STM8, 4% less flash for the 59 programs of the corpora
+  that fit both ways (137,824 bytes instead of 143,947; ForLoops 652 instead of 1,196, IfElse 812 instead of 1,008), on
+  the PFS154 5% less program memory for its 10 (5,073 words instead of 5,360; Square 309 instead of 463). The suite's
+  `SdccNarrowingTests` measures it.
 - Target `host-c` builds the C for the PC with clang (and `-fno-strict-aliasing`: C# may read memory as another type
   than it wrote, as the LLVM IR allows). Every sample built for it, with narrowing and without, prints what .NET prints;
   every sample that needs neither a heap nor `double` compiles with sdcc for both chips without a warning.
+
+**The backend conformance suite** (`tests/ChipSharp.Tests/Backends`) shows the backends interchangeable: every program of
+every corpus the differential tests compare with .NET (the samples, the language corpora, the library tests, the Uno's,
+the narrowing's edges, and the small chips' own, `Chips/...`, of the features without a heap written without a double)
+goes through every backend of `BackendTargets` (`host`: llvm; `host-c`: C and clang; `pfs154-bare` and
+`stm8s103-board`: C and SDCC, in `chipsim`) and must print what .NET prints, byte for byte. A program a target cannot
+take is skipped, and the suite checks each skip's reason against its list (`BackendSkips`), so that the list can
+neither grow nor keep a program that runs: on the PC none; on the chips those that need a heap (65), use `double` (21),
+call the runtime's float math (6) or fixed text's searches (1), or do not fit (the PFS154: 18 in its 128 bytes of RAM,
+31 in its 2K words; the STM8: 6 in its 8 KB), or whose recursion outgrows the stack (2 and 1). Three run to the end and
+print otherwise, by what the chip is: `nuint` and `nint` have 16 bits (2), and the STM8's `MemoryMarshal` is big-endian
+(`samples/Spans`). On the chips, until their runtimes come, a startup and a console of the tests' own run the program:
+each `Console.Write` reports its value to the test (through two variables and a hook in the simulator), which writes
+its text as .NET does. A new backend adds its targets to the list, and its skips.
 
 The toolchain `sdcc`:
 
@@ -702,7 +752,7 @@ gets no heap at all, even on the Pico. `chipsharp check` tells you for your prog
 | Tuples | `(1, 2.5)`, `(int Min, int Max)`: `System.ValueTuple` of any number of elements, a struct of its elements as .NET lays it out. Named elements and `Item1`..., deconstruction into new and existing variables (`var (min, max) = Range(a);`, `(a, b) = (b, a)`, nested, with `_`), tuples as locals, parameters (`ref` too), return values, fields, static fields and array elements; `==` and `!=`, `Equals`, `CompareTo` and `GetHashCode` (element by element, as the default comparers compare them), `switch` on a tuple (`(light, waiting) switch { (Light.Red, > 3) => ... }`), `ValueTuple.Create`. Only `ToString()` (`(1, a)`) needs a heap |
 | Generics over values | Generic methods, structs and static classes over numbers, bools, enums and structs, with constraints; interfaces implemented by structs and called through a constraint (`static void Run<T>(ref T device) where T : struct, IDevice`, static abstract members too); generic math (`INumber<T>`: operators, `T.Zero`, `T.One`, `MinValue`, `MaxValue`). Each instance is compiled for its type, like a C++ template, so `Max<int>` costs what a hand-written `int` version costs |
 | Arrays | On the stack: a constant size, made in a method and passed down to the methods it calls. In static fields: `static readonly byte[] Digits = { 0x3F, ... };` is a constant table in flash when nothing writes it; `static int[] buffer = new int[16];` a fixed array in RAM; a table whose elements its initializer computes (`static readonly Step[] Steps = [new(Light.Green, 4), new(Light.Red, 2)];` of record structs, tuples, calls) a fixed array the program fills when it starts. `foreach`, `Length`, bounds checks |
-| Spans | `Span<T>` and `ReadOnlySpan<T>` of arrays, of `stackalloc` (a constant size), of constant data (`static ReadOnlySpan<byte> Table => new byte[] { ... };`, in flash) and of variables; indexer, `Slice`, ranges and indices (`s[2..5]`, `s[^1]`), `CopyTo`, `Fill`, `Clear`; `MemoryExtensions` (`IndexOf`, `SequenceEqual`, `StartsWith`, ...), `BinaryPrimitives` and `MemoryMarshal` (`Read`, `Write`, `Cast`, `AsBytes`), at any offset, also on a chip that faults on unaligned words |
+| Spans | `Span<T>` and `ReadOnlySpan<T>` of arrays, of `stackalloc` (a constant size), of constant data (`static ReadOnlySpan<byte> Table => new byte[] { ... };`, in flash) and of variables; indexer, `Slice`, ranges and indices (`s[2..5]`, `s[^1]`), `CopyTo`, `Fill`, `Clear`; `MemoryExtensions` (`IndexOf`, `SequenceEqual`, `StartsWith`, ...), `BinaryPrimitives`, `MemoryMarshal` (`Read`, `Write`, `Cast`, `AsBytes`) and `BitConverter` (`IsLittleEndian`, `SingleToInt32Bits` and the other bits of floats, `TryWriteBytes`, `ToInt32` and the others of a span or an array; `GetBytes` needs a heap), at any offset, also on a chip that faults on unaligned words; `BinaryPrimitives` give .NET's numbers on a big-endian chip too (the STM8), where `MemoryMarshal` and `BitConverter` have the chip's order, as .NET has on such a processor |
 | Fixed text | String literals anywhere a string may be: printed, compared, measured and searched (`Length`, `s[i]`, `==`, `IndexOf`, `StartsWith`, `switch`); each is a constant object in flash (8 bytes and 1 byte per char on the Pico) |
 | Printed text | Text built and printed straight away, with no string ever made (also in the body of a `foreach` over a collection or a `using`, where C# makes it otherwise): `Console.WriteLine($"road : {lane}")`, `Console.Write("lane " + lane + '!')`, `x.ToString()` printed, `Console.WriteLine("{0,4} {1:X2}", a, b)`. Holes of numbers, bools, chars, text, enums (by name, `[Flags]` combined), structs (their `ToString`) and nullables; alignments (`{x,5}`, `{x,-5}`); the formats `D`, `D<n>`, `X<n>`, `x<n>` and `G` of whole numbers, `G` and `R` of floats; dates with every format of theirs (`$"{now:HH:mm:ss}"`, `now.ToString("d")`, `Console.WriteLine(now)`, see [Date and time](#date-and-time)) |
 | Type objects | `typeof(X)`, `typeof(T)`: `Name`, `FullName`, `Namespace`, `ToString()` as .NET 10 writes them, `==`, `IsValueType`, `IsArray`, `IsEnum`, `IsClass`, `IsInterface`, `IsPrimitive`, `IsGenericType` (constant objects in flash) |
@@ -771,6 +821,7 @@ available yet", followed by the list of the library methods it can call (`--deta
 | `MathF.ReciprocalEstimate`, `MathF.ReciprocalSqrtEstimate` | On x64, the processor's estimate instructions (`rcpss`, `rsqrtss`: about 12 bits, different on Intel and AMD) | `1f / x` and `1f / MathF.Sqrt(x)`, what .NET computes without them (and for doubles everywhere) | |
 | `nint` and `nuint` | 64 bits on a 64-bit PC | The chip's address size: 32 bits on the Pico, 16 on the Uno, where -123456 does not fit in an `nint` | `int` or `long` for numbers |
 | `Adc.Read` | (.NET IoT's ADC readings are the converter's own) | The chip's own range: 0 to 4095 (3.3 V) on the Pico, 0 to 1023 (5 V) on the Uno | `Adc.Volts`, the same on both |
+| A value's bytes on the STM8 (`MemoryMarshal`, `BitConverter`) | The PC is little-endian: an `int`'s low byte first, `BitConverter.IsLittleEndian` true | The STM8 is big-endian: its high byte first, `IsLittleEndian` false, as .NET on a big-endian processor (`BinaryPrimitives` of either order give the same numbers on every chip) | `BinaryPrimitives.ReadInt32LittleEndian` and the like, or check `BitConverter.IsLittleEndian` |
 | A struct's bytes (`MemoryMarshal.Read` and `Write`, `sizeof`) | Fields aligned to their size, with padding between: `struct { byte; ushort; int; }` takes 8 bytes | The same on the Pico; on the Uno nothing is aligned, so no padding: 7 bytes | Write and read the fields one by one with `BinaryPrimitives`, or order them from the largest down |
 
 ### What does not compile yet
@@ -1382,7 +1433,7 @@ dotnet build -c Release
 dotnet test -c Release --no-build
 ```
 
-The 3,026 tests (about 7 minutes once the build cache is warm) check each stage on its own (reading IL, the
+The 3,715 tests (about 7 minutes once the build cache is warm) check each stage on its own (reading IL, the
 whole-program pass, TIR, the LLVM code, linking, the `.uf2` and the `.hex`), then compile C# programs and run them: on
 the PC, on the simulated Pico and on the simulated Uno, comparing what they print, byte for byte, with what .NET prints
 for the same program; the library code (collections, `StringBuilder`, sorting, `TimeSpan`, `DateTime` and its formats)
@@ -1407,7 +1458,8 @@ core's ALU are checked an instruction at a time, and C programs run: the arithme
 helpers (each result compared with C's), the timers' interrupts and PWM to the microsecond, inputs on a timeline, UART1
 both ways, and the ways a run stops. The C code generator's tests run every sample, and programs of every operation on
 the values where C and C# part ways, through `host-c` and `host` against C#, and compile and link the C for both chips
-with SDCC.
+with SDCC. The backend conformance suite runs every program of every corpus through every backend, on the PC and
+on both simulated SDCC chips (see [SDCC chips](#sdcc-chips-in-progress)), and measures what narrowing saves there.
 
 The simulator, rp2040js 1.4.1, has one known fault: it sets the overflow flag of `SBCS` wrong when the borrow takes the
 subtrahend to 0x80000000, so a comparison of extreme `long` values, such as `long.MaxValue` with `long.MinValue`, gives

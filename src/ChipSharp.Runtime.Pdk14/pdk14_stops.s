@@ -10,7 +10,8 @@
 ; (.NET's "Unhandled exception. System.IndexOutOfRangeException: ...", which the other chips' failures files write), so
 ; each is the failure stop itself, another name for chipsharp_halt_failure (no word of program memory of its own). The
 ; failures that take parameters are files of their own (Pdk14Runtime's ArgumentFailures): SDCC keeps a function's
-; parameters in RAM, which only a program that can fail so gives them.
+; parameters in RAM, which only a program that can fail so gives them. chipsharp_stack_overflow too, which a function
+; that checks the stack ("stackCheck") calls when one more call of it would not fit (the C code generator's CStackChecks).
 
     .module pdk14_stops
     .globl _chipsharp_halt
@@ -65,6 +66,7 @@ _ChipSharp_Runtime_NegativeNewSize::
 _ChipSharp_Runtime_InvalidOffsetLength::
 _ChipSharp_Runtime_ArithmeticNaN::
 _ChipSharp_Runtime_StackOverflow::
+_chipsharp_stack_overflow::
 _chipsharp_halt_failure::
     call _chipsharp_before_halt
     disgint

@@ -133,6 +133,30 @@ internal sealed class CNeeds(CTypes types, ISet<string> names, bool reentrant)
         return name;
     }
 
+    /// <summary>
+    /// The helper that does <c>a &amp; b</c>, <c>a | b</c> or <c>a ^ b</c> (<paramref name="op"/>) of two 64-bit values,
+    /// <c>cs_or64</c>: SDCC 4.6 works such an operation out in 32 bits when it knows both values while it compiles, and
+    /// drops the high half (<c>(uint64_t)-1099511627776 | 255</c> is 255), so with SDCC a function does it when the
+    /// program runs, whose arguments it does not see into; with any other compiler it is the operator.
+    /// </summary>
+    public string Bitwise64(char op)
+    {
+        var wanted = "cs_" + (op switch { '&' => "and", '|' => "or", _ => "xor" }) + "64";
+        if (_helpers.TryGetValue(wanted, out var name))
+        {
+            return name;
+        }
+
+        name = CTypes.Unique(names, wanted);
+        _helpers[wanted] = name;
+        _helperDefinitions.Add(
+            $"/* a {op} b of 64 bits: SDCC 4.6 works it out in 32 bits when it knows a and b, so it is done as the " +
+            "program runs */\n" +
+            $"#ifdef __SDCC\nstatic uint64_t {name}(uint64_t a, uint64_t b)\n{{\n    return a {op} b;\n}}\n" +
+            $"#else\n#define {name}(a, b) ((a) {op} (b))\n#endif\n");
+        return name;
+    }
+
     /// <summary>Writes the declarations: the C library's, then the runtime's, then the function pointer typedefs.</summary>
     public void WriteDeclarations(StringBuilder text, ISet<string> declaredByModule)
     {

@@ -196,12 +196,11 @@ internal static partial class Specialization
             || instructions[index + 4] is not
             {
                 OpCode: IlOpCode.Call,
-                Operand: IlMethodOperand
-                {
-                    Method: { Name: "op_Equality" or "op_Inequality", Definition: null } comparison,
-                },
+                Operand: IlMethodOperand { Method: { Name: "op_Equality" or "op_Inequality" } comparison },
             }
-            || comparison.DeclaringType is not IlNamedType { FullName: "System.Type" }
+
+            // System.Type's, or in ChipSharp.Library's own generic code its substitute's, which that code calls
+            || comparison.DeclaringType is not IlNamedType { FullName: "System.Type" or "ChipSharp.Library.Type" }
             || Substitution.IsOpen(first) || Substitution.IsOpen(second))
         {
             return null;

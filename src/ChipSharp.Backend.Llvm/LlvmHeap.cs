@@ -27,7 +27,7 @@ internal static class LlvmHeap
     /// <summary><c>void *chipsharp_new_object(const chipsharp_type *type)</c>: a new zeroed object with its header set.</summary>
     public const string NewObjectSymbol = "chipsharp_new_object";
 
-    /// <summary><c>void *chipsharp_new_array(const chipsharp_type *type, int length)</c>: a new array object.</summary>
+    /// <summary><c>void *chipsharp_new_array(const chipsharp_type *type, int32_t length)</c>: a new array object.</summary>
     public const string NewArraySymbol = "chipsharp_new_array";
 
     /// <summary><c>void chipsharp_heap_initialize(const chipsharp_root *roots, uintptr_t count)</c>: sets the heap up.</summary>

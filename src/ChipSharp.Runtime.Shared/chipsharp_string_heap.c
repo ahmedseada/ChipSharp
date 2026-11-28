@@ -39,7 +39,7 @@ typedef struct string
 extern const chipsharp_type chipsharp_string_type;
 extern const chipsharp_type chipsharp_wide_string_type;
 
-void *chipsharp_new_array(const chipsharp_type *type, int length);
+void *chipsharp_new_array(const chipsharp_type *type, __INT32_TYPE__ length);
 __attribute__((noreturn)) void chipsharp_fail(const char *message);
 int ChipSharp_Runtime_CharIsWhiteSpace(int c);
 int ChipSharp_Runtime_CharToUpper(int c);
