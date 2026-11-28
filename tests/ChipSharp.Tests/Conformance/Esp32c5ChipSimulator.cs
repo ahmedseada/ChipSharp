@@ -11,10 +11,11 @@ namespace ChipSharp.Tests.Conformance;
 /// The ESP32-C5-DevKitC-1 (esp32c5-devkitc, milestone M4) in ChipSharp's own simulator (chipsim's "esp32c5", in
 /// process), which loads the .elf (or the ESP image) the build makes and runs it as the ROM leaves the chip. Pins are
 /// GPIO numbers: the program's pins are those the board leaves free (not the strapping pins 2, 3, 7 and 25-28, the
-/// module's flash and PSRAM on 15-22, USB on 13 and 14, the RGB LED on 27); UART0 (GPIO 11 TX, 12 RX) is port 0 and the
-/// console. Its cases are skipped, saying why, until the chip's runtime implements the hardware contract (pins, the
-/// clock and the delays, the console on UART0, the events: M4's wave 1); chipsim does not simulate its ADC, PWM, I2C and
-/// SPI yet (<see cref="Unsimulated"/>).
+/// module's flash and PSRAM on 15-22, USB on 13 and 14, the RGB LED on 27); UART0 (GPIO 11 TX, 12 RX) is serial port 0
+/// and the USB Serial/JTAG port, the console, is port 1 here (<see cref="ConsolePort"/>). Its cases are skipped, saying
+/// why, while the chip's runtime does not implement the hardware contract (it does: pins, the clock and the delays, the
+/// console on USB, UART0, the events); chipsim does not simulate its ADC, PWM, I2C and SPI yet (<see cref="Unsimulated"/>),
+/// which the target does not have either.
 /// </summary>
 internal sealed partial class Esp32c5ChipSimulator() : ChipSimulator("esp32c5-devkitc")
 {
@@ -64,12 +65,15 @@ internal sealed partial class Esp32c5ChipSimulator() : ChipSimulator("esp32c5-de
             PinOutputDefinition().IsMatch(file.Content))
             ? null
             : "The ESP32-C5's runtime does not implement the hardware contract yet (pins, the clock and the delays, the " +
-                "console on UART0, the events: milestone M4, wave 1): 'esp32c5-devkitc' runs the conformance suite in " +
+                "console on USB, the events: milestone M4, wave 1): 'esp32c5-devkitc' runs the conformance suite in " +
                 "chipsim's esp32c5 once it does.";
     }
 
     public override string? MissingFor(IReadOnlyList<string> needs) =>
         needs.Select(need => Unsimulated.GetValueOrDefault(need)).FirstOrDefault(reason => reason is not null) ?? Missing;
+
+    /// <summary>The console is the USB Serial/JTAG port: serial port 1 of this adapter (0 is UART0).</summary>
+    public override int ConsolePort => 1;
 
     public override ChipPins Pins { get; } = new(Output: 6, Second: 8, Pass: 9, Fail: 10, Input: 23)
     {
@@ -90,9 +94,12 @@ internal sealed partial class Esp32c5ChipSimulator() : ChipSimulator("esp32c5-de
                 Image = image,
                 Milliseconds = stimulus.Milliseconds,
                 Inputs = [.. stimulus.Inputs.Select(input => new PinInput(Name(input.Pin), input.High, input.AtMilliseconds))],
-                Sends = [.. stimulus.Sends.Select(send => send.Port == 0
-                    ? new SerialSend(send.Bytes, send.AtMilliseconds, "UART0")
-                    : throw new NotSupportedException("the ESP32-C5's adapter has one serial port, 0 (UART0)."))],
+                Sends = [.. stimulus.Sends.Select(send => send.Port switch
+                {
+                    0 => new SerialSend(send.Bytes, send.AtMilliseconds, "UART0"),
+                    1 => new SerialSend(send.Bytes, send.AtMilliseconds, "USB"),
+                    _ => throw new NotSupportedException("the ESP32-C5's adapter has two serial ports, 0 (UART0) and 1 (USB)."),
+                })],
                 Devices = stimulus.Devices.Count == 0 ? [] : throw new NotSupportedException("chipsim has no ESP32-C5 buses yet."),
                 Analog = stimulus.Analog.Count == 0 ? [] : throw new NotSupportedException("chipsim has no ESP32-C5 ADC yet."),
             });
@@ -103,7 +110,7 @@ internal sealed partial class Esp32c5ChipSimulator() : ChipSimulator("esp32c5-de
                     : ChipStop.TimeUp,
                 Pins = [.. result.Pins.Where(p => p.Pin.StartsWith("GPIO", StringComparison.Ordinal))
                     .Select(p => new ChipPinChange(p.Milliseconds, int.Parse(p.Pin[4..], CultureInfo.InvariantCulture), p.State))],
-                Serial = new Dictionary<int, byte[]> { [0] = result.SerialOf("UART0") },
+                Serial = new Dictionary<int, byte[]> { [0] = result.SerialOf("UART0"), [1] = result.SerialOf("USB") },
                 BaudRates = new Dictionary<int, IReadOnlyList<int>>
                 {
                     [0] = [.. result.After("UART0 baud ").Select(line => int.Parse(line["UART0 baud ".Length..],

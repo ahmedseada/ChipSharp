@@ -52,9 +52,10 @@
   // not in the documents read (it runs from the crystal, 40 or 48 MHz, PCR_CLK_XTAL_FREQ says which): the chip's
   // runtime sets its clocks itself.
   //
-  // What the chip has so far, M4's wave 0: the target, the start-up and a linked .elf. The image (the ESP image the ROM
-  // loads), its flasher (esptool's protocol), the simulator and the runtime (pins, the clock and delays, the console on
-  // UART0, the events) come with wave 1, and with them the capabilities ("console", "clock", ...).
+  // What the runtime has (src/ChipSharp.Runtime.Esp32c5, M4's wave 1): the CPU at 160 MHz, pins (GPIO0-GPIO28), the delays,
+  // the clock and the timer event on SYSTIMER, the pin event on GPIO's edge interrupts, the console on the USB Serial/JTAG
+  // port, UART0, the heap and garbage collector of the RISC-V runtime. I2C, SPI, the ADC and PWM come with wave 2: the
+  // capabilities below say what is there, and chipsharp check refuses the rest.
   "name": "esp32c5",
   "inherits": "riscv32",
   "runtime": "esp32c5",
@@ -76,16 +77,34 @@
   "interrupts": {
     // the events an [Interrupt] method can handle: the CLIC id of the CPU interrupt line the runtime routes the event's
     // source to through the interrupt matrix (line n is id 16 + n), and the runtime function that runs first, which
-    // clears the event (and arms a repeating timer's next time)
-    "timer": { "irq": 17, "clear": "chipsharp_clear_timer_event" },   // line 1: SYSTIMER's alarm (SYSTIMER_TARGET1)
-    "pin": { "irq": 18, "clear": "chipsharp_clear_pin_event" },       // line 2: GPIO's edges
-    "uart": { "irq": 19 }                                             // line 3: bytes arrived on a watched UART
+    // clears the event (and arms a repeating timer's next time). The ids below 20 are the program's, 16 is the delays'
+    // alarm and 20 and 21 the runtime's own (src/ChipSharp.Runtime.Esp32c5/esp32c5_chip.h has them all)
+    "timer": { "irq": 17, "clear": "chipsharp_clear_timer_event" },   // line 1: SYSTIMER's alarm 1 (SYSTIMER_TARGET1, source 62)
+    "pin": { "irq": 18, "clear": "chipsharp_clear_pin_event" },       // line 2: the GPIO source (31), the pins' edges
+    // line 3: bytes arrived on the watched UART0: the source UART0 (47) is routed here while a program watches the port,
+    // and the clear function takes the bytes from the FIFO into the buffer first
+    "uart": { "irq": 19, "clear": "chipsharp_clear_uart_event" }
   },
   "capabilities": {
-    "heap": false,        // the runtime's heap comes later: no objects yet
-    "pullDown": true,     // the GPIO pads have pull-ups and pull-downs (IO_MUX FUN_WPU, FUN_WPD): the runtime of wave 1
-    "console": false,     // UART0 (GPIO 11 TX, GPIO 12 RX): the runtime of wave 1
-    "clock": false        // SYSTIMER's 64-bit count: the runtime of wave 1
+    // the heap's budget: of the 369 KB of SRAM the program has, 16K is the stack (link.stack) and 224K the heap, which
+    // leaves 129 KB for code, constants and variables (the program's and the runtime's)
+    "heap": "224K",
+    "pullDown": true,     // the GPIO pads have pull-ups and pull-downs (IO_MUX FUN_WPU, FUN_WPD): PinInputPull
+    "console": true,      // Console.Write and Console.WriteLine go to the USB Serial/JTAG port, the devkit's "USB" port
+    "consoleInput": true, // Console.Read and Console.ReadLine read it
+    "uart": 1,            // serial ports for Uart: UART0, on GPIO11 TX and GPIO12 RX, the devkit's "UART" port (the bridge)
+    "clock": true,        // a clock for DateTime.Now and Stopwatch: SYSTIMER's 64-bit count, 16 ticks a microsecond
+    // wave 2: not in the runtime yet, so a program that uses them does not build
+    "adc": false,
+    "pwm": false,
+    "i2c": false,
+    "spi": false
+  },
+  "pinFunctions": {
+    // the pins each peripheral can use: chipsharp check holds the pins a program gives as constants to these, and the
+    // runtime every pin. UART0's are the pins of its IO MUX function 0 (the board file has the pins a program may use
+    // as plain pins and watch)
+    "uart0.tx": [11], "uart0.rx": [12]
   },
   // the image ("esp": src/ChipSharp.Image.Esp, esptool's esp32c5 target and bin_image.py): chipId is IMAGE_CHIP_ID, the
   // revisions are esptool's elf2image defaults (--min-rev-full 0, --max-rev-full 65535: any), the SPI flash settings the

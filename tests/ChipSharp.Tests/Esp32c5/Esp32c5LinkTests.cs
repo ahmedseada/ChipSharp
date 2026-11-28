@@ -70,8 +70,8 @@ public sealed class Esp32c5LinkTests : IDisposable
         Assert.Equal(("sram", "sram", "16K"), (board.Setting("link.code"), board.Setting("link.data"), board.Setting("link.stack")));
         Assert.Equal("48", board.Setting("vectors"));
         Assert.Equal("17", board.Setting("interrupts.timer.irq"));
-        Assert.False(board.HasHeap);
-        Assert.False(board.HasConsole);
+        Assert.True(board.HasHeap);
+        Assert.True(board.HasConsole);
         Assert.Equal(("esp", "esptool"), (board.Image, board.Flasher)); // the ESP image, flashed with esptool
         // from the board
         Assert.Equal("27", board.Pins["RGB_LED"]);
@@ -81,7 +81,7 @@ public sealed class Esp32c5LinkTests : IDisposable
     [Fact]
     public void Clang_gets_the_chips_march_and_mabi_and_the_linker_script_puts_everything_in_SRAM_below_the_ROMs_data()
     {
-        var board = Targets.Load("esp32c5-devkitc");
+        var board = Targets.Load("esp32c5-devkitc").WithoutHeap(); // the heap takes its place in the region (a test below)
         var settings = ChipSettings.Read(board);
 
         Assert.Equal(["-march=rv32imac_zicsr_zifencei", "-mabi=ilp32"], settings.ProcessorFlags(ClangDriver.Clang));
@@ -239,7 +239,7 @@ public sealed class Esp32c5LinkTests : IDisposable
             }
             """;
 
-        var program = Esp32c5Build.Build(source, "Objects", _scratch, Esp32c5Build.WithConsole("128K"));
+        var program = Esp32c5Build.Build(source, "Objects", _scratch, Esp32c5Build.WithHeap("128K"));
 
         var elf = program.File;
         Assert.Equal(elf.Symbols["__chipsharp_stack_bottom"], elf.Symbols["__chipsharp_heap_end"]);

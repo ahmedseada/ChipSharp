@@ -13,6 +13,17 @@
   "image": "esp",
   "flasher": "esptool",
   "esp": { "flashSize": "8MB" },
+  // the CPU's clock the runtime sets (esp32c5_runtime.c): 160 MHz, PLL_F160M
+  "clockHz": 160000000,
+  "pinFunctions": {
+    // the pins a program may use as plain pins and watch (chipsharp check holds the pins a program gives as constants to
+    // these; the runtime takes any of GPIO0-GPIO28). Left out: GPIO2, GPIO3, GPIO7 and GPIO25-GPIO28, the chip's strapping
+    // pins (they choose the boot mode at reset: the Boot button is GPIO28, and GPIO27 is the RGB LED's data); GPIO11 and
+    // GPIO12, UART0, the "UART" port's bridge; GPIO13 and GPIO14, the USB Serial/JTAG port (D- and D+), the console;
+    // GPIO15-GPIO22, the module's flash and PSRAM. What is left: GPIO0, 1, 4, 5, 6, 8, 9, 10, 23 and 24
+    "pin": [0, 1, 4, 5, 6, 8, 9, 10, 23, 24],
+    "pinEvent": [0, 1, 4, 5, 6, 8, 9, 10, 23, 24]
+  },
   "pins": {
     // the board's one LED is an addressable RGB LED (a WS2812-like chain of one, "driven by GPIO27"), not a pin an output
     // turns on: a program sends it colors (24 bits, timed pulses). GPIO 27 is a strapping pin too

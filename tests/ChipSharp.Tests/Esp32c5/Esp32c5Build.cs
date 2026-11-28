@@ -20,10 +20,7 @@ internal sealed record Esp32c5Program(string Elf, ElfFile File);
 /// <summary>
 /// Builds C# for the ESP32-C5-DevKitC-1 the whole way to its .elf, as <c>chipsharp build -t esp32c5-devkitc</c> will:
 /// Roslyn (with ChipSharp.Hardware referenced), the whole-program pass, IL to TIR, the llvm code generator for riscv32,
-/// the runtime "esp32c5" on the runtime "riscv32", clang and ld.lld. The chip's runtime has no console yet (M4's wave 1
-/// brings it): a program that prints is built with the shared Console.Write and Console.WriteLine
-/// (chipsharp_console.c, chipsharp_float_text.c) and <see cref="ConsoleSink"/>, which keeps the text in RAM, for a
-/// target with "console" (<see cref="WithConsole"/>).
+/// the runtime "esp32c5" on the runtime "riscv32", clang and ld.lld.
 /// </summary>
 internal static class Esp32c5Build
 {
@@ -35,26 +32,10 @@ internal static class Esp32c5Build
     /// <summary>Where the ROM's stack and data start: the end of what the program may load, and the top of its stack.</summary>
     public const uint SramStart = 0x40800000, LoadEnd = 0x4085c5a0;
 
-    /// <summary>The tests' console: what the program writes goes into a buffer in RAM, which a debugger could read.</summary>
-    public static GeneratedFile ConsoleSink { get; } = new("esp32c5_test_console.c", """
-        // The tests' console, until the ESP32-C5's runtime has its own (UART0): the program's text, kept in RAM.
-        char chipsharp_test_console[4096];
-        volatile unsigned int chipsharp_test_console_count;
-
-        void chipsharp_console_write(const char *bytes, unsigned int count)
-        {
-            for (unsigned int i = 0; i < count; i++)
-            {
-                chipsharp_test_console[chipsharp_test_console_count++ % sizeof chipsharp_test_console] = bytes[i];
-            }
-        }
-        """);
-
-    /// <summary>The board with "console": true (and the "heap" given), for <see cref="ConsoleSink"/>.</summary>
-    public static TargetDescription WithConsole(string? heap = null)
+    /// <summary>The board, with the "heap" given (the board's own when null).</summary>
+    public static TargetDescription WithHeap(string? heap = null)
     {
         var settings = Board.Settings.DeepClone().AsObject();
-        settings["capabilities"]!["console"] = true;
         if (heap is not null)
         {
             settings["capabilities"]!["heap"] = heap;
@@ -78,10 +59,9 @@ internal static class Esp32c5Build
             Pins = target.Pins,
             Capabilities = new Dictionary<string, string>(target.Capabilities, StringComparer.OrdinalIgnoreCase)
             {
-                ["console"] = "true",
-                ["heap"] = heap ?? "false",
+                ["heap"] = heap ?? Board.Capabilities["heap"],
             },
-            HeapSize = heap is null ? null : SizeParser.Parse(heap),
+            HeapSize = SizeParser.Parse(heap ?? Board.Capabilities["heap"]),
             Settings = settings,
             MissingValues = target.MissingValues,
         };
@@ -110,26 +90,10 @@ internal static class Esp32c5Build
             .. runtime.Startup(target).Files,
             .. runtime.InterruptEntry(target).Files,
             .. runtime.Atomics(target).Files,
-            .. target.HasConsole ? Console(target) : [],
         ]);
         var binary = new ClangToolchain(new ClangToolchainOptions { OutputFolder = folder, ProgramName = name })
             .Build(code, target);
         return new Esp32c5Program(binary.Path, ElfFile.Read(binary.Path));
-    }
-
-    /// <summary>The shared console's C (and, without a heap, the text of floats it prints with), and the sink.</summary>
-    private static IEnumerable<GeneratedFile> Console(TargetDescription target)
-    {
-        var shared = Path.Combine(Repository.Root, "src", "ChipSharp.Runtime.Shared");
-        yield return new GeneratedFile("chipsharp_console.c", File.ReadAllText(Path.Combine(shared, "chipsharp_console.c")));
-        if (!target.HasHeap)
-        {
-            // with a heap, the riscv32 runtime has it already
-            yield return new GeneratedFile("chipsharp_float_text.c",
-                File.ReadAllText(Path.Combine(shared, "chipsharp_float_text.c")));
-        }
-
-        yield return ConsoleSink;
     }
 
     /// <summary>Runs an LLVM tool next to clang (llvm-objdump, llvm-readelf) on <paramref name="arguments"/>: its output.</summary>

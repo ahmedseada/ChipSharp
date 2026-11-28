@@ -13,8 +13,9 @@ namespace ChipSharp.Frontend.Analysis;
 /// outputs) and "consoleInput" (true when the console reads too): a call of a class the target has none of is a
 /// problem, and so is Console.ReadLine, which makes a string, on a target without a heap;</item>
 /// <item>"pinFunctions", the pins each can use ("uart1.tx": [4, 8, 20, 24], "adc": [26, 27, 28, 29], "pwm": [...]; and
-/// "pinEvent", the pins Pin.Watch and its kin can watch on a chip that cannot watch every pin, the PFS154's PA0 and
-/// PB0): a pin or a port the program gives as a constant (C# passes it with ldc.i4) that the target does not have for it
+/// "pin", the pins Pin.Output, Input, Write, Toggle and Read can use on a board that keeps some pins for itself (the
+/// ESP32-C5-DevKitC's strapping, flash and USB pins), and "pinEvent", the pins Pin.Watch and its kin can watch on a chip
+/// that cannot watch every pin, the PFS154's PA0 and PB0): a pin or a port the program gives as a constant (C# passes it with ldc.i4) that the target does not have for it
 /// is a problem, before the program runs. The runtime checks every pin and port when it runs, constant or not.</item>
 /// </list>
 /// The whole-program pass applies them when it checks a program for a target; checked without one, a program may use
@@ -110,8 +111,11 @@ internal static class SerialAnalogRules
                         ? Unsupported.DutyWithoutDouble(target.Name)
                     : PinProblem(target, "pwm", constant(0), "a PWM output");
 
-            case PinType when callee.Name == "Input" && callee.ParameterTypes.Count == 2:
-                return constant(1) == PullDown && !target.HasCapability("pullDown") ? Unsupported.NoPullDown(target.Name) : null;
+            case PinType when callee.Name is "Output" or "Input" or "Write" or "Toggle" or "Read"
+                && callee.ParameterTypes.Count >= 1:
+                return PinProblem(target, "pin", constant(0), "a pin a program uses")
+                    ?? (callee.Name == "Input" && callee.ParameterTypes.Count == 2 && constant(1) == PullDown
+                        && !target.HasCapability("pullDown") ? Unsupported.NoPullDown(target.Name) : null);
 
             case PinType when callee.Name is "Watch" or "WatchRising" or "WatchFalling" or "Unwatch"
                 && callee.ParameterTypes.Count == 1:
