@@ -32,7 +32,8 @@ namespace ChipSharp.Toolchain.Sdcc;
 /// same symbol (a chip runtime's chipsharp_chip_init, the architecture's empty one). What sdcc and the assembler make is
 /// kept in the build cache, the clang toolchain's (<see cref="SdccToolchainOptions.UseCache"/>). Every SDCC program runs
 /// with SDCC's folder first on the PATH: SDCC's preprocessor finds its cc1 there when SDCC is not installed where it was
-/// built for.
+/// built for. A C file SDCC 4.6's generalized constant propagation crashes on (an internal error in SDCCgenconstprop.cc,
+/// which random C# finds on the STM8) is compiled again without it (<c>--nogenconstprop</c>).
 /// </remarks>
 public sealed partial class SdccToolchain : IToolchain
 {
@@ -44,6 +45,12 @@ public sealed partial class SdccToolchain : IToolchain
 
     /// <summary>How many tools a process runs at once to compile: one per processor, however many builds there are.</summary>
     private static readonly SemaphoreSlim Compiles = new(Environment.ProcessorCount);
+
+    /// <summary>
+    /// The source file of SDCC's generalized constant propagation, as its internal errors name it: a C file it crashes
+    /// on is compiled again with <c>--nogenconstprop</c>.
+    /// </summary>
+    public const string ConstantPropagationCrash = "SDCCgenconstprop.cc";
 
     private readonly SdccTools _tools;
     private readonly ObjectCache? _cache;
@@ -265,7 +272,16 @@ public sealed partial class SdccToolchain : IToolchain
                 await Compiles.WaitAsync().ConfigureAwait(false);
                 try
                 {
-                    await RunAsync(tool, arguments, folder).ConfigureAwait(false);
+                    try
+                    {
+                        await RunAsync(tool, arguments, folder).ConfigureAwait(false);
+                    }
+                    catch (ChipSharpException e) when (isC && e.Message.Contains(ConstantPropagationCrash, StringComparison.Ordinal))
+                    {
+                        // SDCC 4.6's generalized constant propagation crashes on some functions ("FATAL Compiler Internal
+                        // Error in file '.../src/SDCCgenconstprop.cc' line number '1402'"): the file again without it
+                        await RunAsync(tool, [.. arguments, "--nogenconstprop"], folder).ConfigureAwait(false);
+                    }
                 }
                 finally
                 {

@@ -21,5 +21,7 @@
     <!-- strings and chars, and the text of a substitute's exceptions, shared with the other runtimes -->
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_string.c" LogicalName="chipsharp_string.c" />
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_exceptions.c" LogicalName="chipsharp_exceptions.c" />
+    <!-- fmodf, for C#'s % on floats: SDCC's library has none (shared with the PDK14's runtime) -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_fmodf.c" LogicalName="chipsharp_fmodf.c" />
   </ItemGroup>
 </Project>

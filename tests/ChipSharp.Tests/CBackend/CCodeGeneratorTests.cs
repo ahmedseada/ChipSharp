@@ -211,6 +211,28 @@ public sealed class CCodeGeneratorTests
         Assert.Equal("uint32_t t1 = p_a << 7;", BinaryLine(TirBinaryOp.Shl, TirType.I32, 7));
     }
 
+    /// <summary>
+    /// A shift's type is its left operand's: a constant there is cast to the width, whichever the shift, or C shifts an
+    /// int (16 bits on SDCC's chips), and <c>255UL &gt;&gt;&gt; n</c> was <c>255 &gt;&gt; (n &amp; 63)</c>, undefined
+    /// from 32 on (the PC printed 255 for .NET's 0).
+    /// </summary>
+    [Theory]
+    [InlineData(TirBinaryOp.ShrUnsigned, "uint64_t t1 = (uint64_t)255 >> (p_b & 63);")]
+    [InlineData(TirBinaryOp.Shr, "uint64_t t1 = (uint64_t)((int64_t)255 >> (p_b & 63));")]
+    [InlineData(TirBinaryOp.Shl, "uint64_t t1 = (uint64_t)255 << (p_b & 63);")]
+    public void A_constant_shifted_by_a_value_is_cast_to_its_type(TirBinaryOp op, string line)
+    {
+        var code = Definition(Generate(WithFunction(module =>
+        {
+            var function = module.AddFunction("Program.F", TirType.I64, ("a", TirType.I64), ("b", TirType.I64));
+            var ir = new TirBuilder(function.AddBlock("entry"));
+            ir.Return(ir.Binary(op, ir.Const(TirType.I64, 255), function.Parameters[1]));
+            return function;
+        })), "Program_F");
+
+        Assert.Contains(line, code);
+    }
+
     [Fact]
     public void Constants_are_small_numbers_or_cast_to_their_type_and_floats_are_exact()
     {
