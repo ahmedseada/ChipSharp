@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- The runtime parts every 32-bit RISC-V chip (RV32, machine mode: the ESP32-C5) shares: reset handler, trap entry and
-       its dispatch, 64-bit division and memory functions, float math in software, and how a program stops -->
+       its dispatch, 64-bit division and memory functions, float math in software, and how a program stops; and its
+       E variant's (riscv32e: RV32E, the CH32V003), with the multiplication and division a core without M lacks -->
   <ItemGroup>
     <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
     <!-- compiler-rt's float arithmetic (CompilerRt) and EmbeddedText, which the ARMv6-M runtime ships and this one shares -->
@@ -12,6 +13,8 @@
     <EmbeddedResource Include="riscv32_startup.S" LogicalName="riscv32_startup.S" />
     <EmbeddedResource Include="riscv32_runtime.c" LogicalName="riscv32_runtime.c" />
     <EmbeddedResource Include="riscv32_helpers.c" LogicalName="riscv32_helpers.c" />
+    <!-- the riscv32e runtime's (RV32E, no M): 32-bit multiplication and division, 64-bit multiplication -->
+    <EmbeddedResource Include="riscv32e_arithmetic.c" LogicalName="riscv32e_arithmetic.c" />
     <EmbeddedResource Include="riscv32_failures.c" LogicalName="riscv32_failures.c" />
     <EmbeddedResource Include="riscv32_trap.S" LogicalName="riscv32_trap.S" />
     <!-- objects, the allocator and the garbage collector, shared with the other runtimes; and what they need from the chip -->

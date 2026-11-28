@@ -6,12 +6,15 @@ using ChipSharp.Flasher.EasyPdkProg;
 using ChipSharp.Flasher.Esptool;
 using ChipSharp.Flasher.Stm8Flash;
 using ChipSharp.Flasher.Uf2Copy;
+using ChipSharp.Flasher.WchLink;
+using ChipSharp.Image.Bin;
 using ChipSharp.Image.Esp;
 using ChipSharp.Image.Hex;
 using ChipSharp.Image.Uf2;
 using ChipSharp.Runtime.ArmV6M;
 using ChipSharp.Runtime.Atmega328p;
 using ChipSharp.Runtime.Avr;
+using ChipSharp.Runtime.Ch32v003;
 using ChipSharp.Runtime.Esp32c5;
 using ChipSharp.Runtime.Pdk14;
 using ChipSharp.Runtime.Pfs154;
@@ -72,13 +75,16 @@ public static class DefaultComponents
             .Register(new Atmega328pRuntime())      // runtime "atmega328p": Arduino Uno, on the runtime "avr"
             .Register(new Riscv32Runtime())         // runtime "riscv32": any 32-bit RISC-V chip (RV32, machine mode)
             .Register(new Esp32c5Runtime())         // runtime "esp32c5": the ESP32-C5-DevKitC-1, on the runtime "riscv32"
+            .Register(Riscv32Runtime.Embedded())    // runtime "riscv32e": any RV32E chip (16 registers, no M)
+            .Register(new Ch32v003Runtime())        // runtime "ch32v003": WCH's CH32V003 evaluation board, on "riscv32e"
             .Register(new Pdk14Runtime())           // runtime "pdk14": any Padauk PDK14 chip (PFS154), through SDCC
             .Register(new Pfs154Runtime())          // runtime "pfs154": a PFS154 on its own, on the runtime "pdk14"
             .Register(new Stm8Runtime())            // runtime "stm8": any STM8 chip, through SDCC
             .Register(new Stm8s103Runtime())        // runtime "stm8s103f3": the blue STM8S103 board, on the runtime "stm8"
             .Register(new Uf2ImageFormat())         // image "uf2"
             .Register(new IntelHexImageFormat())    // image "hex": Intel HEX (an AVR's flash; SDCC's .ihx)
-            .Register(new EspImageFormat()));       // image "esp": the ESP application image the ESP32-C5's ROM loads (.bin)
+            .Register(new EspImageFormat())         // image "esp": the ESP application image the ESP32-C5's ROM loads (.bin)
+            .Register(new BinImageFormat()));       // image "bin": the raw bytes of the flash, from its origin (the CH32V003's)
     }
 
     /// <summary>
@@ -89,7 +95,7 @@ public static class DefaultComponents
 
     /// <summary>The file extension of the image format <paramref name="name"/> (without the dot): its name unless it says another.</summary>
     public static string ImageExtension(string name) =>
-        new IImageFormat[] { new Uf2ImageFormat(), new IntelHexImageFormat(), new EspImageFormat() }
+        new IImageFormat[] { new Uf2ImageFormat(), new IntelHexImageFormat(), new EspImageFormat(), new BinImageFormat() }
             .FirstOrDefault(format => string.Equals(format.Name, name, StringComparison.OrdinalIgnoreCase))?.Extension ?? name;
 
     private static ComponentRegistry RegisterFlashers(ComponentRegistry registry) => registry
@@ -97,5 +103,7 @@ public static class DefaultComponents
         .Register(new AvrdudeFlasher())             // flasher "avrdude": the .hex through an Arduino's USB port
         .Register(new EasyPdkProgFlasher())         // flasher "easypdkprog": the .hex into a PFS154 in the Easy PDK programmer
         .Register(new Stm8FlashFlasher())           // flasher "stm8flash": the .hex into an STM8 through an ST-LINK's SWIM
-        .Register(new EsptoolFlasher());            // flasher "esptool": the .bin into an ESP32 board through its USB port
+        .Register(new EsptoolFlasher())             // flasher "esptool": the .bin into an ESP32 board through its USB port
+        .Register(new WlinkFlasher())               // flasher "wlink": the .bin into a CH32V003 through a WCH-LinkE's SWIO
+        .Register(new MinichlinkFlasher());         // flasher "minichlink": the same, with ch32v003fun's minichlink
 }

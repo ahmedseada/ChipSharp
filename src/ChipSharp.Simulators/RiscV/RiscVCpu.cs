@@ -73,8 +73,13 @@ public enum RiscVPrivilege
 /// cm.push and cm.pop 1 a register; a load or store what the bus adds (<see cref="IRiscVBus.AccessCycles"/>); a trap
 /// 3 (4 through the vector table). The pipeline's hazards and the branch predictor's misses are not counted.
 /// </para>
+/// <para>
+/// That is the ESP32-C5's core, <see cref="RiscVCore.Esp32c5"/>. Another configuration (<see cref="RiscVCore"/>) leaves
+/// extensions out (an instruction of one it does not have is illegal), makes it RV32E, adds WCH's XW, makes misaligned
+/// accesses trap, or gives it the QingKe V2's trap model (RiscVCpu.QingKe.cs), as <see cref="RiscVCore.QingKeV2A"/> does.
+/// </para>
 /// </summary>
-public sealed class RiscVCpu
+public sealed partial class RiscVCpu
 {
     /// <summary>mstatus's bits.</summary>
     public const uint MstatusMie = 1u << 3, MstatusMpie = 1u << 7, MstatusMpp = 3u << 11, MstatusMprv = 1u << 17,
@@ -107,18 +112,31 @@ public sealed class RiscVCpu
 
     private readonly IRiscVBus _bus;
     private readonly Dictionary<int, uint> _otherCsrs = [];
+    private readonly bool _embedded, _multiply, _atomic, _zcb, _zcmp, _zcmt, _xwchc, _misalignedTraps, _qingKe;
     private uint _mstatus;
-    private uint _mtvec = 3;
+    private uint _mtvec;
     private uint _mcauseFields;
     private bool _reserved;
     private uint _reservation;
 
-    /// <summary>A core on <paramref name="bus"/>, as after reset: in machine mode, interrupts off, its PC at 0.</summary>
-    public RiscVCpu(IRiscVBus bus)
+    /// <summary>
+    /// A core on <paramref name="bus"/>, as after reset: in machine mode, interrupts off, its PC at 0; the ESP32-C5's
+    /// unless <paramref name="core"/> says otherwise.
+    /// </summary>
+    public RiscVCpu(IRiscVBus bus, RiscVCore? core = null)
     {
         ArgumentNullException.ThrowIfNull(bus);
         _bus = bus;
+        Core = core ?? RiscVCore.Esp32c5;
+        (_embedded, _multiply, _atomic, _zcb, _zcmp, _zcmt, _xwchc, _misalignedTraps) = (Core.Embedded, Core.Multiply,
+            Core.Atomic, Core.Zcb, Core.Zcmp, Core.Zcmt, Core.Xwchc, Core.MisalignedAccessTraps);
+        _qingKe = Core.Traps == RiscVTrapModel.QingKeV2;
+        _mtvec = _qingKe ? 0 : 3u;
+        _mstatus = _qingKe ? MstatusMpp : 0;
     }
+
+    /// <summary>What the core is: its ISA and trap model.</summary>
+    public RiscVCore Core { get; }
 
     /// <summary>The registers x0 to x31 (x0 reads 0 whatever is written).</summary>
     public uint[] X { get; } = new uint[32];
@@ -158,6 +176,13 @@ public sealed class RiscVCpu
         get => _mstatus;
         set
         {
+            if (_qingKe)
+            {
+                // MIE, MPIE, MPOP and MPPOP; MPP reads machine mode, the only one the V2 has
+                _mstatus = (value & (MstatusMie | MstatusMpie | MstatusMpop | MstatusMppop)) | MstatusMpp;
+                return;
+            }
+
             // MPP is one bit wide (user or machine), its two bits tied; UIE and UPIE are hardwired to 0
             var mpp = (value & (1u << 11)) != 0 ? MstatusMpp : 0;
             _mstatus = (value & (MstatusMie | MstatusMpie | MstatusMprv | MstatusTw)) | mpp;
@@ -167,11 +192,14 @@ public sealed class RiscVCpu
     /// <summary>Whether interrupts are on: mstatus.MIE in machine mode; always in user mode.</summary>
     public bool InterruptsEnabled => Privilege == RiscVPrivilege.User || (_mstatus & MstatusMie) != 0;
 
-    /// <summary>mtvec: the base of the trap handler (64-byte aligned) and the mode, hardwired to 3 (CLIC).</summary>
+    /// <summary>
+    /// mtvec: the base of the trap handler (64-byte aligned) and the mode, hardwired to 3 (CLIC); on the QingKe V2, the
+    /// base (bits 31:2) and MODE1 and MODE0 as written.
+    /// </summary>
     public uint Mtvec
     {
         get => _mtvec;
-        set => _mtvec = (value & ~0x3Fu) | 3;
+        set => _mtvec = _qingKe ? value : (value & ~0x3Fu) | 3;
     }
 
     /// <summary>mtvt: the base of the CLIC's vector table, 64-byte aligned.</summary>
@@ -182,9 +210,15 @@ public sealed class RiscVCpu
     /// <summary>mcause: INT, MINHV, MPP and MPIE (mstatus's), MPIL, the code.</summary>
     public uint Mcause
     {
-        get => _mcauseFields | ((_mstatus & MstatusMpp) << 17) | ((_mstatus & MstatusMpie) << 20);
+        get => _qingKe ? _mcauseFields : _mcauseFields | ((_mstatus & MstatusMpp) << 17) | ((_mstatus & MstatusMpie) << 20);
         set
         {
+            if (_qingKe)
+            {
+                _mcauseFields = value; // the interrupt bit and the code, nothing more
+                return;
+            }
+
             _mcauseFields = value & 0xC0FF003Fu;
             Mstatus = (_mstatus & ~(MstatusMpp | MstatusMpie)) | ((value >> 17) & MstatusMpp) | ((value >> 20) & MstatusMpie);
         }
@@ -296,6 +330,11 @@ public sealed class RiscVCpu
         var funct3 = (i >> 12) & 7;
         var next = pc + 4;
         var cycles = 1;
+        if (_embedded && ((rd | rs1 | rs2) & 16) != 0 && NamesHighRegister(i, rd, rs1, rs2, funct3))
+        {
+            throw Illegal(i);
+        }
+
         switch (i & 0x7F)
         {
             case 0x37: // lui
@@ -361,6 +400,11 @@ public sealed class RiscVCpu
                 X[rd] = OpImmediate(funct3, X[rs1], i);
                 break;
             case 0x33:
+                if (!_multiply && (i >> 25) == 1)
+                {
+                    throw Illegal(i); // M's: the core has no multiplier
+                }
+
                 X[rd] = Op(i, X[rs1], X[rs2], ref cycles);
                 break;
             case 0x0F: // fence, fence.i: the core keeps memory in order, and has no cache of its instructions to flush
@@ -372,6 +416,11 @@ public sealed class RiscVCpu
                 _reserved = false;
                 break;
             case 0x2F:
+                if (!_atomic)
+                {
+                    throw Illegal(i);
+                }
+
                 cycles = Atomic(i, rd, rs1, rs2);
                 break;
             case 0x73:
@@ -393,6 +442,22 @@ public sealed class RiscVCpu
         6 => a < b,
         7 => a >= b,
         _ => throw Illegal(i),
+    };
+
+    /// <summary>Whether a 32-bit instruction names one of x16-x31 (RV32E has none): the fields its format has.</summary>
+    private static bool NamesHighRegister(uint i, int rd, int rs1, int rs2, uint funct3) => (i & 0x7F) switch
+    {
+        0x37 or 0x17 or 0x6F => rd >= 16,
+        0x67 or 0x03 or 0x13 => (rd | rs1) >= 16,
+        0x63 or 0x23 => (rs1 | rs2) >= 16,
+        0x33 or 0x2F => (rd | rs1 | rs2) >= 16,
+        0x73 => funct3 switch
+        {
+            1 or 2 or 3 => (rd | rs1) >= 16,
+            5 or 6 or 7 => rd >= 16, // csrrwi, csrrsi, csrrci: rs1 is the immediate
+            _ => false,
+        },
+        _ => false,
     };
 
     private static uint OpImmediate(uint funct3, uint a, uint i)
@@ -558,6 +623,11 @@ public sealed class RiscVCpu
                         throw Illegal(i);
                     }
 
+                    if (_qingKe)
+                    {
+                        return QingKeMret();
+                    }
+
                     Mret();
                     return 3;
                 case 0x10500073: // wfi
@@ -593,11 +663,11 @@ public sealed class RiscVCpu
             throw Illegal(i); // a read-only CSR
         }
 
-        if (csr == Number.Mnxti)
+        if (csr == Number.Mnxti && !_qingKe)
         {
             X[rd] = Mnxt(op, operand, writes);
         }
-        else if (csr is Number.Mscratchcsw or Number.Mscratchcswl && op == 1)
+        else if (csr is Number.Mscratchcsw or Number.Mscratchcswl && op == 1 && !_qingKe)
         {
             X[rd] = ScratchSwap(csr, operand);
         }
@@ -621,6 +691,11 @@ public sealed class RiscVCpu
     /// <summary>Reads (and writes, when <paramref name="write"/>) a CSR; null for one the core does not have.</summary>
     private uint? Csr(int csr, bool write, uint value)
     {
+        if (_qingKe)
+        {
+            return QingKeCsr(csr, write, value);
+        }
+
         switch (csr)
         {
             case Number.Mstatus:
@@ -834,6 +909,11 @@ public sealed class RiscVCpu
     {
         LastException = Describe(cause, value, pc);
         Waiting = false;
+        if (_qingKe)
+        {
+            return TakeQingKeException(cause, pc);
+        }
+
         _reserved = false;
         Mepc = pc;
         Mtval = value;
@@ -852,7 +932,7 @@ public sealed class RiscVCpu
             : throw new ProgramFault($"the program caused {what}, and has no trap handler (mtvec 0x{_mtvec:x8})");
     }
 
-    private static string Describe(int cause, uint value, uint pc)
+    private string Describe(int cause, uint value, uint pc)
     {
         var at = string.Create(CultureInfo.InvariantCulture, $"at pc 0x{pc:x8}");
         return cause switch
@@ -861,10 +941,12 @@ public sealed class RiscVCpu
                 $"an instruction access fault: nothing to run at 0x{value:x8} (mcause 1)"),
             IllegalInstruction => string.Create(CultureInfo.InvariantCulture,
                 $"an illegal instruction 0x{value:x8} {at} (mcause 2)"),
+            LoadAddressMisaligned => string.Create(CultureInfo.InvariantCulture,
+                $"a misaligned load of 0x{value:x8} {at} (mcause 4)"),
             LoadAccessFault => string.Create(CultureInfo.InvariantCulture,
                 $"a load access fault: nothing at 0x{value:x8}, read {at} (mcause 5)"),
             StoreAddressMisaligned => string.Create(CultureInfo.InvariantCulture,
-                $"a misaligned atomic access of 0x{value:x8} {at} (mcause 6)"),
+                $"a misaligned {(_misalignedTraps ? "store" : "atomic access")} of 0x{value:x8} {at} (mcause 6)"),
             StoreAccessFault => string.Create(CultureInfo.InvariantCulture,
                 $"a store access fault: nothing at 0x{value:x8}, written {at} (mcause 7)"),
             EcallFromUser or EcallFromMachine => string.Create(CultureInfo.InvariantCulture,
@@ -882,6 +964,11 @@ public sealed class RiscVCpu
             if ((address & (uint)(size - 1)) == 0)
             {
                 return _bus.Read(address, size);
+            }
+
+            if (_misalignedTraps)
+            {
+                throw new Trap(LoadAddressMisaligned, address);
             }
 
             // misaligned: the core splits it into byte accesses
@@ -910,6 +997,11 @@ public sealed class RiscVCpu
             {
                 _bus.Write(address, size, value);
                 return;
+            }
+
+            if (_misalignedTraps)
+            {
+                throw new Trap(StoreAddressMisaligned, address);
             }
 
             cycles++;
@@ -956,7 +1048,16 @@ public sealed class RiscVCpu
                     case 6: // c.sw
                         Store(X[rs1Prime] + CompressedWordOffset(i), 4, X[rdPrime], ref cycles);
                         break;
-                    case 4: // Zcb: c.lbu, c.lhu, c.lh, c.sb, c.sh
+                    case 1 when _xwchc: // qk.c.lbu
+                        X[rdPrime] = Load(X[rs1Prime] + XwchcByteOffset(i), 1, ref cycles);
+                        break;
+                    case 5 when _xwchc: // qk.c.sb
+                        Store(X[rs1Prime] + XwchcByteOffset(i), 1, X[rdPrime], ref cycles);
+                        break;
+                    case 4 when _xwchc:
+                        XwchcStackAccess(i, rdPrime, ref cycles);
+                        break;
+                    case 4 when _zcb: // Zcb: c.lbu, c.lhu, c.lh, c.sb, c.sh
                         {
                             var byteOffset = ((i >> 4) & 2) | ((i >> 6) & 1);
                             var halfOffset = (i >> 4) & 2;
@@ -993,6 +1094,7 @@ public sealed class RiscVCpu
                 switch (funct3)
                 {
                     case 0: // c.addi, c.nop
+                        CheckRegister(rd, i);
                         X[rd] += (uint)CompressedImmediate(i);
                         break;
                     case 1: // c.jal
@@ -1001,9 +1103,11 @@ public sealed class RiscVCpu
                         cycles = 2;
                         break;
                     case 2: // c.li
+                        CheckRegister(rd, i);
                         X[rd] = (uint)CompressedImmediate(i);
                         break;
                     case 3:
+                        CheckRegister(rd, i);
                         if (rd == 2)
                         {
                             // c.addi16sp
@@ -1063,7 +1167,11 @@ public sealed class RiscVCpu
                             throw Illegal(i); // shamt[5] is reserved on RV32
                         }
 
+                        CheckRegister(rd, i);
                         X[rd] <<= (int)((i >> 2) & 31);
+                        break;
+                    case 1 when _xwchc: // qk.c.lhu
+                        X[rdPrime] = Load(X[rs1Prime] + XwchcHalfOffset(i), 2, ref cycles);
                         break;
                     case 2: // c.lwsp
                         if (rd == 0)
@@ -1071,9 +1179,12 @@ public sealed class RiscVCpu
                             throw Illegal(i);
                         }
 
+                        CheckRegister(rd, i);
                         X[rd] = Load(X[2] + (((i >> 7) & 0x20) | ((i >> 2) & 0x1C) | ((i << 4) & 0xC0)), 4, ref cycles);
                         break;
                     case 4:
+                        CheckRegister(rd, i);
+                        CheckRegister(rs2, i);
                         if ((i & 0x1000) == 0)
                         {
                             if (rs2 == 0)
@@ -1114,9 +1225,13 @@ public sealed class RiscVCpu
                         }
 
                         break;
-                    case 5:
+                    case 5 when _xwchc: // qk.c.sh
+                        Store(X[rs1Prime] + XwchcHalfOffset(i), 2, X[rdPrime], ref cycles);
+                        break;
+                    case 5 when _zcmp || _zcmt:
                         return CompressedMacro(pc, i);
                     case 6: // c.swsp
+                        CheckRegister(rs2, i);
                         Store(X[2] + (((i >> 7) & 0x3C) | ((i >> 1) & 0xC0)), 4, X[rs2], ref cycles);
                         break;
                     default:
@@ -1163,9 +1278,14 @@ public sealed class RiscVCpu
             return;
         }
 
+        if (!_zcb)
+        {
+            throw Illegal(i);
+        }
+
         switch (funct2)
         {
-            case 2: // c.mul
+            case 2 when _multiply: // c.mul
                 X[rd] *= X[rs2];
                 return;
             case 3:
@@ -1182,10 +1302,61 @@ public sealed class RiscVCpu
         }
     }
 
+    /// <summary>On RV32E, a compressed instruction's full register field that names one of x16-x31 is illegal.</summary>
+    private void CheckRegister(int register, uint i)
+    {
+        if (_embedded && register >= 16)
+        {
+            throw Illegal(i);
+        }
+    }
+
+    /// <summary>qk.c.lbu's and qk.c.sb's offset, 0 to 31: imm[0] in bit 12, imm[4:3] in 11:10, imm[2:1] in 6:5.</summary>
+    private static uint XwchcByteOffset(uint i) => ((i >> 12) & 1) | ((i >> 7) & 0x18) | ((i >> 4) & 6);
+
+    /// <summary>qk.c.lhu's and qk.c.sh's offset, 0 to 62: imm[5:3] in bits 12:10, imm[2:1] in 6:5.</summary>
+    private static uint XwchcHalfOffset(uint i) => ((i >> 7) & 0x38) | ((i >> 4) & 6);
+
+    /// <summary>
+    /// qk.c.lbusp, qk.c.sbsp, qk.c.lhusp, qk.c.shsp (quadrant 0, funct3 100, bits 12:11 0; bits 6:5 which: 00, 10, 01,
+    /// 11): a byte at sp + imm[3:0] (bits 10:7), or a halfword at sp + imm[4:1] (imm[4] in bit 7, imm[3:1] in 10:8).
+    /// </summary>
+    private void XwchcStackAccess(uint i, int register, ref int cycles)
+    {
+        if ((i & 0x1800) != 0)
+        {
+            throw Illegal(i);
+        }
+
+        var byteOffset = (i >> 7) & 0xF;
+        var halfOffset = ((i >> 7) & 0xE) | ((i >> 3) & 0x10);
+        switch ((i >> 5) & 3)
+        {
+            case 0:
+                X[register] = Load(X[2] + byteOffset, 1, ref cycles);
+                break;
+            case 2:
+                Store(X[2] + byteOffset, 1, X[register], ref cycles);
+                break;
+            case 1:
+                X[register] = Load(X[2] + halfOffset, 2, ref cycles);
+                break;
+            default:
+                Store(X[2] + halfOffset, 2, X[register], ref cycles);
+                break;
+        }
+    }
+
     /// <summary>Zcmp's cm.push, cm.pop, cm.popret, cm.popretz, cm.mvsa01, cm.mva01s; Zcmt's cm.jt and cm.jalt.</summary>
     private int CompressedMacro(uint pc, uint i)
     {
-        switch ((i >> 10) & 7)
+        var kind = (i >> 10) & 7;
+        if (kind == 0 ? !_zcmt : !_zcmp)
+        {
+            throw Illegal(i);
+        }
+
+        switch (kind)
         {
             case 0: // cm.jt, cm.jalt
                 {

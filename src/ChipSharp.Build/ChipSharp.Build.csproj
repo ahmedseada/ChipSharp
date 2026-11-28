@@ -9,13 +9,16 @@
     <ProjectReference Include="..\ChipSharp.Flasher.Esptool\ChipSharp.Flasher.Esptool.csproj" />
     <ProjectReference Include="..\ChipSharp.Flasher.Stm8Flash\ChipSharp.Flasher.Stm8Flash.csproj" />
     <ProjectReference Include="..\ChipSharp.Flasher.Uf2Copy\ChipSharp.Flasher.Uf2Copy.csproj" />
+    <ProjectReference Include="..\ChipSharp.Flasher.WchLink\ChipSharp.Flasher.WchLink.csproj" />
     <ProjectReference Include="..\ChipSharp.Frontend\ChipSharp.Frontend.csproj" />
+    <ProjectReference Include="..\ChipSharp.Image.Bin\ChipSharp.Image.Bin.csproj" />
     <ProjectReference Include="..\ChipSharp.Image.Esp\ChipSharp.Image.Esp.csproj" />
     <ProjectReference Include="..\ChipSharp.Image.Hex\ChipSharp.Image.Hex.csproj" />
     <ProjectReference Include="..\ChipSharp.Image.Uf2\ChipSharp.Image.Uf2.csproj" />
     <ProjectReference Include="..\ChipSharp.Runtime.ArmV6M\ChipSharp.Runtime.ArmV6M.csproj" />
     <ProjectReference Include="..\ChipSharp.Runtime.Atmega328p\ChipSharp.Runtime.Atmega328p.csproj" />
     <ProjectReference Include="..\ChipSharp.Runtime.Avr\ChipSharp.Runtime.Avr.csproj" />
+    <ProjectReference Include="..\ChipSharp.Runtime.Ch32v003\ChipSharp.Runtime.Ch32v003.csproj" />
     <ProjectReference Include="..\ChipSharp.Runtime.Esp32c5\ChipSharp.Runtime.Esp32c5.csproj" />
     <ProjectReference Include="..\ChipSharp.Runtime.Pdk14\ChipSharp.Runtime.Pdk14.csproj" />
     <ProjectReference Include="..\ChipSharp.Runtime.Pfs154\ChipSharp.Runtime.Pfs154.csproj" />

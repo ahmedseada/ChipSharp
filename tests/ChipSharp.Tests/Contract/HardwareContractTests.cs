@@ -7,6 +7,7 @@ using ChipSharp.Frontend;
 using ChipSharp.Frontend.Il;
 using ChipSharp.Image.Uf2;
 using ChipSharp.Runtime.Atmega328p;
+using ChipSharp.Runtime.Ch32v003;
 using ChipSharp.Runtime.Esp32c5;
 using ChipSharp.Runtime.Pfs154;
 using ChipSharp.Runtime.Rp2040;
@@ -159,6 +160,7 @@ public sealed partial class HardwareContractTests : IDisposable
     [InlineData("pfs154-bare")]
     [InlineData("stm8s103-board")]
     [InlineData("esp32c5-devkitc")]
+    [InlineData("ch32v003-evt")]
     public void A_chip_runtime_ships_the_header_and_each_C_file_that_defines_a_function_of_the_contract_includes_it(
         string name)
     {
@@ -412,6 +414,7 @@ public sealed partial class HardwareContractTests : IDisposable
             "pfs154" => new Pfs154Runtime(),
             "stm8s103f3" => new Stm8s103Runtime(),
             "esp32c5" => new Esp32c5Runtime(),
+            "ch32v003" => new Ch32v003Runtime(),
             _ => throw new InvalidOperationException(target.Runtime),
         };
         return [.. runtime.Startup(target).Files, .. runtime.InterruptEntry(target).Files, .. runtime.Atomics(target).Files];

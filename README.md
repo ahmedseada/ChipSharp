@@ -155,7 +155,8 @@ new board is a few lines of JSON:
 | `stm8s103-board` | The blue STM8S103F3P6 board: STM8 at 16 MHz, 8 KB flash, 1 KB RAM, LED on PB5, through C and SDCC (see [The STM8S103 board](#the-stm8s103-board); inherits `stm8s103f3`, which inherits `stm8`) |
 | `pfs154-bare` | A Padauk PFS154 on its own at 2 MHz (IHRC / 8), through C and SDCC: 2K words of program memory, 128 bytes of RAM, LED on PA4 (see [The PFS154's runtime](#the-pfs154s-runtime); inherits `pfs154`, which inherits `pdk14`) |
 | `esp32c5-devkitc` | Espressif ESP32-C5-DevKitC-1: ESP32-C5 (RISC-V, RV32IMAC, up to 240 MHz), 384 KB of SRAM, an RGB LED on GPIO 27; builds to a flashable `.bin` (see [ESP32-C5](#esp32-c5); inherits `esp32c5`, which inherits `riscv32`) |
-| `rp2040`, `atmega328p`, `pfs154`, `stm8s103f3`, `esp32c5`, `armv6m`, `avr`, `pdk14`, `stm8`, `riscv32`, `x86_64` | Chips and architectures, for target files to inherit; not built for directly |
+| `ch32v003-evt` | WCH's CH32V003 evaluation board (CH32V003F4P6-R0-1v1): CH32V003 (RISC-V, RV32EC, 48 MHz), 16 KB flash, 2 KB SRAM, no heap; builds to a `.bin` of its flash, which wlink writes through a WCH-LinkE (see [CH32V003](#ch32v003); inherits `ch32v003`, which inherits `riscv32e`, which inherits `riscv32`) |
+| `rp2040`, `atmega328p`, `pfs154`, `stm8s103f3`, `esp32c5`, `ch32v003`, `armv6m`, `avr`, `pdk14`, `stm8`, `riscv32`, `riscv32e`, `x86_64` | Chips and architectures, for target files to inherit; not built for directly |
 
 ```
 > chipsharp targets show pico
@@ -561,8 +562,9 @@ The toolchain `sdcc`:
   fails with how much it needs, as on the other chips. The `.hex` is SDCC's `.ihx` in address order (byte addresses:
   a Padauk chip's word n at bytes 2n and 2n + 1, as the Easy PDK programmer reads it).
 - **The simulator, `chipsim`** (`src/ChipSharp.Simulators`, ChipSharp's own instruction-set simulators, in C#): `chipsim
-  pfs154 Blink.ihx --ms 1000` (or `stm8s103`; `esp32c5` runs an `.elf` or an image, see [ESP32-C5](#esp32-c5); without
-  installing, `src\ChipSharp.Simulators\bin\Release\net10.0\chipsim.exe`)
+  pfs154 Blink.ihx --ms 1000` (or `stm8s103`; `esp32c5` runs an `.elf` or an image, see [ESP32-C5](#esp32-c5);
+  `ch32v003` a `.bin`, `.hex` or `.elf`, see [The CH32V003 in chipsim](#the-ch32v003-in-chipsim); without installing,
+  `src\ChipSharp.Simulators\bin\Release\net10.0\chipsim.exe`)
   runs a `.ihx` and prints what the Uno's simulator prints: every pin change (`[   12.000 ms] PA4 high`), UART1's lines
   (`UART1: Hello`) and baud rate, a timer's pin as PWM periods, what the buses do, and `stopped: <why>`.
   `--input PA3=low@100ms` drives a pin, `--send "on\n@100ms"` sends to UART1's RX (the STM8S103's PD6), `--uart1 file`
@@ -947,6 +949,119 @@ What the ESP32-C5 does not do, and what has not been tried on a board. A limit a
 | Frequencies | PWM 1 Hz to 1 MHz (6 outputs on up to 4 different frequencies), I2C 200 Hz to 1 MHz, SPI 46,875 Hz to 26 MHz, UART0 100 to 3,000,000 baud. A constant outside is refused by `check`; one that only the running program knows stops it with a message |
 | Memory | A program that does not fit the SRAM stops the build, saying how much it needs; it does not name the biggest functions, as the SDCC chips' message does |
 | **Not yet tried on a real board** | The start-up on silicon (the ROM loading the image, the watchdog stops, the CLIC), flashing (tested against a stand-in esptool; `write-flash` never run), the ADC's power-up (the modem front end and PWDET registers, as ESP-IDF's sources say), the I2C recovery after a NACK, and the Wokwi diagrams |
+
+## CH32V003
+
+Milestone M5 (under way) is WCH's CH32V003 (`ch32v003-evt`, WCH's own evaluation board CH32V003F4P6-R0-1v1): one
+QingKe V2A core, RV32EC (16 registers, compressed instructions, Zicsr; no multiply or divide instruction, no float),
+48 MHz, 16 KB of flash and 2 KB of SRAM, so no heap. It is built the ESP32-C5's way, through the `llvm` code generator
+(triple `riscv32-unknown-elf`, `-march=rv32ec_zicsr -mabi=ilp32e`: the ilp32e ABI, whose stack is 4-byte aligned)
+and ld.lld, with the chip's facts as data (`targets/chip/ch32v003.json`, each with its source: WCH's reference manual
+V1.5, datasheet V1.8, QingKe V2 processor manual V1.1 and its own start-up files) and its registers from WCH's SVD
+(`chips/ch32v003.json` over `chips/svd/CH32V003xx.svd`, as ch32fun keeps it, into `ch32v003_registers.h`,
+`ch32v003_interrupts.h` and `ch32v003_pins.h`). Wave 0 has the target files, the start-up and the helpers: every
+program of the corpora that makes no object compiles and links for the chip, but five too large for its flash; the
+build writes the image `bin` and `chipsharp flash` writes it through a WCH-LinkE (see
+[Flashing the CH32V003](#flashing-the-ch32v003)). `chipsim ch32v003`, the runtime's pins, clock, console and events,
+and the examples come next.
+
+- **Memory.** The program is linked at the flash, `0x08000000`, where a programmer writes it: the vector table, the trap
+  entry, the code and constants, then `.data`'s starting values. The core starts at the flash's alias, `0x00000000`, and
+  the table's first instructions jump to the reset handler at its flash address, where the program then runs. The SRAM,
+  `0x20000000`, has `.data`, `.bss` and, in its last 512 bytes (`"link.stack"`), the stack. A program that does not fit
+  stops the build and says by how much.
+- **The start-up.** The first 156 bytes of flash are the vector table (`ch32v003_vector_table.S`, the target's
+  `"link.head"`): entries 0 and 1, where the core starts, are an absolute jump to `chipsharp_reset` (`lui`, `jalr`);
+  entries 2 to 38 hold the address of the riscv32 runtime's trap entry, so every interrupt and exception reaches its
+  dispatch by `mcause` (`chipsharp_isr_irq<n>`, the PFIC's 39 numbers: `"vectors": 39`). The chip's first steps
+  (`ch32v003_boot.c`) clear INTSYSCR (no hardware prologue/epilogue, which clang cannot compile handlers for, and no
+  nesting: the trap entry saves the registers), put `mtvec` at the table in vectored mode with the handlers' addresses
+  (`| 3`, WCH's own), and raise the clock from the 8 MHz of reset (the HSI's 24 MHz divided by 3) to 48 MHz: one flash
+  wait state, the AHB prescaler off, the PLL from the HSI, then the PLL as the system clock. Neither watchdog runs at
+  reset (the IWDG only if the option bytes say so; ChipSharp leaves them alone).
+- **The runtime `riscv32e`** is the riscv32 runtime's E variant (`src/ChipSharp.Runtime.Riscv32`): the same start-up,
+  dispatch, failures and compiler-rt float; its trap entry saves RV32E's ten caller-saved registers (40 bytes), and
+  `riscv32e_arithmetic.c` has what LLVM calls without M: `__mulsi3`, `__divsi3`, `__udivsi3`, `__modsi3`, `__umodsi3`
+  and `__muldi3` (a division by zero gives what M's would: the code generator checks first). WCH's XW instructions
+  (compressed byte and half-word loads and stores, clang's `xwchc`) would take 1.2% off the corpora's code and are not
+  used.
+- **Tests.** The target files and the flags, the linker script; the `.elf` of a program (the vector table's words at
+  `0x08000000`, the code in flash and the variables in SRAM, RV32EC code with no M instruction and no register above x15
+  as `llvm-objdump` reads it, the ilp32e stack alignment in its attributes, the start-up, the 40-byte trap frame, the
+  chip's first steps, helpers that call nothing); every corpus program; the helpers built for the PC against .NET's
+  arithmetic; WCH's SVD and the headers, compiled with clang for RV32EC. The conformance suite has the chip's slot
+  (`Ch32v003ChipSimulator`), skipped until its simulator and runtime come.
+
+### Flashing the CH32V003
+
+`chipsharp build ... -t ch32v003-evt` writes `Name.bin`, the image format `bin`: the raw bytes of the chip's 16 KB
+of flash from 0x08000000, the sections at their load addresses (`.data`'s starting values in flash) and the gaps 0xFF,
+as erased flash reads (what `llvm-objcopy -O binary --gap-fill 0xff` writes). A program bigger than the flash is
+refused, saying by how much; so is one that loads a byte outside it. `chipsharp flash <Name.dll | Name.bin> -t
+ch32v003-evt` then writes it through a **WCH-LinkE**, WCH's own debug probe (about $5), with
+[wlink](https://github.com/ch32-rs/wlink):
+
+```
+wlink --chip CH32V003 flash --address 0x08000000 Name.bin
+```
+
+wlink checks that the chip on the wire is a CH32V003, unprotects a read-protected chip by itself (which erases it),
+writes the flash and resets the chip, which runs the program.
+
+- **The hardware.** A WCH-LinkE in its RISC-V mode (USB `1a86:8010`; its ARM mode, `1a86:8012`, cannot program a
+  RISC-V chip: `wlink mode-switch --rv`, or WCH-LinkUtility, switches it). Three wires: its **SWDIO** to the chip's
+  **SWIO, PD1** (the CH32V003 has one debug wire), **GND** to GND, and **3V3** (or **5V**: the chip runs on 2.7-5.5 V)
+  to the board's VCC unless the board has power of its own. The LinkE's **RX** to the chip's USART1 TX (**PD5**) brings
+  the console to the LinkE's own USB serial port, which `chipsharp flash` names after writing a board with a console.
+- **wlink on Windows.** Download `wlink-<version>-win-x64.zip` from [its releases](https://github.com/ch32-rs/wlink/releases)
+  and unpack it into `D:\Tools\wlink` (or put it on the PATH, or set `CHIPSHARP_WLINK` to `wlink.exe` or its folder;
+  `cargo install --git https://github.com/ch32-rs/wlink` puts it in Cargo's bin, where ChipSharp looks too). The LinkE's
+  interface 0 (the probe) needs a driver: WCH's own, which
+  [WCH-LinkUtility](https://www.wch-ic.com/downloads/WCH-LinkUtility_ZIP.html) and MounRiver Studio install, or WinUSB,
+  with [Zadig](https://zadig.akeo.ie) (Options > List All Devices, the WCH-Link's Interface 0, WinUSB). Its serial port
+  is a standard USB serial device, which Windows 10 and 11 drive themselves (`usbser`).
+- **Why wlink.** A prebuilt Windows program; it works with WCH's driver as well as WinUSB (so WCH-LinkUtility
+  keeps working next to it); it reads the `.bin` (and a `.hex` or `.elf`), checks the chip, and unprotects it.
+  ch32v003fun's [minichlink](https://github.com/cnlohr/ch32v003fun/tree/master/minichlink) (`minichlink -w Name.bin
+  flash -b`) is supported too, for a board file that names it (`{ "inherits": "ch32v003-evt", "flasher":
+  "minichlink" }`; `CHIPSHARP_MINICHLINK`, the PATH, `D:\Tools\minichlink`), but it reads raw `.bin` files alone, needs
+  the Visual C++ runtime and, on Windows, WinUSB on the LinkE's interface 0 in place of WCH's driver (Zadig, or the
+  `.inf` in ch32v003fun's `misc\drivers_for_WCH-LinkE`), and it writes no read-protected chip until `minichlink -u`
+  clears it.
+- **The port.** The WCH-LinkE is a USB device, not a serial port: wlink finds it itself; `--port` names one when more
+  than one is plugged in (`-d`: its index or serial number, as `wlink list` shows them; minichlink's `-l`, its serial).
+- **When it fails**, the error says what is likely wrong, from what wlink printed and the WCH-Links plugged in: none
+  (with their USB ids), one in its ARM mode, one Windows has no driver for, another chip on the wire, the chip not
+  answering (the wires, its power; a program that turns the debug pin off or sleeps at once is reached by
+  `wlink --chip CH32V003 erase --method power-off`, with the board powered from the LinkE), or a protected chip wlink
+  could not unprotect (`wlink --chip CH32V003 unprotect`); then the tool's last lines.
+- **Not yet tried on a real board.** wlink and minichlink are tested against stand-ins that print what the real ones
+  print; neither has written a chip from ChipSharp yet.
+
+### The CH32V003 in chipsim
+
+`chipsim ch32v003 Name.bin --ms 1000` (or a `.hex`, at 0x08000000 or at the alias 0, or an `.elf`) loads the flash and
+starts at 0, as reset leaves the chip: the core at 8 MHz (HSI / 3), the option bytes as WCH ships them (IWDG off,
+PD7 NRST), mtvec 0. `src/ChipSharp.Simulators/Ch32v003` has what WCH's reference manual (V1.6), datasheet and QingKe V2
+manual give:
+
+- **The core**: the C5's RISC-V core configured as the QingKe V2A (`RiscVCore.QingKeV2A`): RV32EC, Zicsr, Zifencei and
+  WCH's XW (`-march=rv32ec_zicsr_xwchc`: clang compresses byte and halfword accesses into them); x16-x31, M (clang calls
+  `__mulsi3`, `__divsi3` and their kin: the runtime has them), A and the counters are illegal, a misaligned access
+  traps. The PFIC (enables, pending, IPRIOR's preemption bit, the threshold, 2 levels of nesting, the 2 VTF channels,
+  SYSRESET), mtvec's modes (WCH's start-up: a table of addresses at 0, MODE 3; exceptions through entry 3), the HPE
+  (INTSYSCR's HWSTKEN: x1, x5-x7, x10-x15 pushed 48 bytes down, popped by mret, 2 levels), SysTick (32 bits up, HCLK or
+  HCLK / 8, STRE, SWIE). Its cycles are the C5 core's (WCH does not publish the V2A's), a load or store one more, and
+  with a flash wait state one more for each flash word fetched; it runs some 15 million instructions a second.
+- **The peripherals**: RCC (HSI, the PLL × 2 to 48 MHz, HPRE, the clock enables: a register used with its clock off
+  stops the run, as the chip would ignore it), FLASH_ACTLR (48 MHz without its wait state stops the run), GPIOA/C/D
+  (`PA1`, `PA2`, `PC0`-`PC7`, `PD0`-`PD7`: CFGLR's modes, the pulls by OUTDR, BSHR, BCR, LCKR; PD7 as NRST and PD1 as
+  SWIO refuse to be outputs), AFIO (USART1's remap, EXTICR), EXTI, USART1 (`USART1: Hello`, `--send`, `--usart1 file`;
+  what it sends leaves the chip only through an alternate-function TX pin), IWDG and WWDG. TIM1, TIM2, I2C1, SPI1, ADC1
+  and DMA1 come with M5's wave 2: a program that touches them stops, saying so.
+- **The stops**: `ebreak` (the failure stop), a trap with no handler, a watchdog or a software reset fail (exit code
+  3); `wfi` with interrupts off ends the run once USART1 has sent what it holds, and with interrupts on once nothing
+  can come.
 
 ## A new chip: one contract, one suite, chips as data
 
@@ -1671,7 +1786,7 @@ period differs from the one before, rather than edge by edge:
 | Command | What it does |
 |---|---|
 | `chipsharp build <program.dll> [-t <target>] [-o <folder>] [--keep] [--verify-heap] [--no-cache] [--quiet-notes]` | Compiles the program for a target (default `host`) into `chipsharp-output\<target>\` (or `-o`): prints the file (`.exe`, `.uf2`) and what it takes of the chip. `--keep` also writes the TIR (`.tir`) and LLVM IR (`.ll`) there, and for a chip the `.elf` |
-| `chipsharp flash <program.dll \| image> -t <board> [--port <port>]` | Puts the program onto a board with its target's flasher: a `.dll` is built first (as `build` does, with its options), an image (`.hex`, `.uf2`) is flashed as it is. The Uno: avrdude through its USB port (`--port COM5`, or the one serial port that looks like an Arduino's); the Pico: a copy to its `RPI-RP2` drive (or `--port E:\`); the PFS154: easypdkprog, in the Easy PDK programmer (`--port COM7`, or the one port with its USB ids); the STM8S103: stm8flash, through an ST-LINK (`--port` its serial number) |
+| `chipsharp flash <program.dll \| image> -t <board> [--port <port>]` | Puts the program onto a board with its target's flasher: a `.dll` is built first (as `build` does, with its options), an image (`.hex`, `.uf2`) is flashed as it is. The Uno: avrdude through its USB port (`--port COM5`, or the one serial port that looks like an Arduino's); the Pico: a copy to its `RPI-RP2` drive (or `--port E:\`); the PFS154: easypdkprog, in the Easy PDK programmer (`--port COM7`, or the one port with its USB ids); the STM8S103: stm8flash, through an ST-LINK (`--port` its serial number); the CH32V003: wlink, through a WCH-LinkE (`--port` its index or serial number) |
 | `chipsharp check <program.dll> [-t <target>] [--details] [--quiet-notes]` | Whether ChipSharp compiles the program (for that target), and the methods it uses; if not, each feature it does not compile yet, where, and what to write instead. `--details`: every place on a line of its own, and every library method it can call |
 | `chipsharp tir <program.dll> [--method Type.Method] [-t <target>]` | The program in TIR, after the whole-program pass |
 | `chipsharp il <program.dll> [--method Type.Method]` | The IL of each method, ildasm style |
@@ -1689,6 +1804,8 @@ period differs from the one before, rather than edge by edge:
 | `CHIPSHARP_SDCC` | SDCC (`sdcc.exe` or its folder), for the Padauk and STM8 chips (default: `C:\Program Files\SDCC\bin`, then the PATH) |
 | `CHIPSHARP_EASYPDKPROG` | easypdkprog (`easypdkprog.exe` or its folder), for `flash -t pfs154-bare` (default: the PATH, then `D:\Tools\easypdkprog` and the usual install folders) |
 | `CHIPSHARP_STM8FLASH` | stm8flash (`stm8flash.exe` or its folder), for `flash -t stm8s103-board` (default: the PATH, then `D:\Tools\stm8flash`, then sduino's copy) |
+| `CHIPSHARP_WLINK` | wlink (`wlink.exe` or its folder), for flashing a CH32V003 board (default: the PATH, then `D:\Tools\wlink`, then Cargo's bin) |
+| `CHIPSHARP_MINICHLINK` | minichlink (`minichlink.exe` or its folder), for a board file that names it (default: the PATH, then `D:\Tools\minichlink`) |
 
 **Notes.** `build` and `check` write a note on standard error (`note: ...`) where a program uses one of .NET's
 culture-sensitive text methods (`CompareTo`, `string.Compare(a, b)`, `StartsWith(string)`, `ToUpper()`, `Parse`,
@@ -1789,9 +1906,9 @@ and `npm ci` in `tools\rp2040-sim` (the Uno's, Zig and `npm ci` in `tools\avr-si
 without them. The example projects are built with `dotnet build` and `chipsharp build` and run in the simulators, with
 what their circuits would give them: the traffic lights with the button pressed, the clocks with a simulated LCD and
 DS1307, the servo with a knob turned; and their Wokwi circuits are checked, wire by wire.
-`chipsharp flash` runs no real tool in the tests: avrdude, easypdkprog and stm8flash are batch files that keep the
-command line they were given and print what the real ones print (their failures included), the serial ports and
-ST-LINKs are records as the registry would give them, and the Pico's drive a folder.
+`chipsharp flash` runs no real tool in the tests: avrdude, easypdkprog, stm8flash, esptool, wlink and minichlink are
+batch files that keep the command line they were given and print what the real ones print (their failures included),
+the serial ports, ST-LINKs and WCH-LinkEs are records as the registry would give them, and the Pico's drive a folder.
 The SDCC chips' tests build hand-written C and assembly for the PFS154 and the STM8S103 with SDCC (skipped without it)
 and compare the `.hex` and the memory report with SDCC's own map; the PFS154's runtime tests build C# for it and run it
 in `chipsim` (a blink, a button, the timer event, PWM, the clock). The hardware contract's tests keep its header, its
@@ -1830,11 +1947,11 @@ allow for both. Its TWI takes no time on the bus: the I2C transfers' timing is t
 | `src/ChipSharp.Toolchain.Clang` | The `clang` toolchain: LLVM IR and runtime sources in, a linked program out; as the `zig` toolchain, the same with the clang and ld.lld inside Zig (AVR) |
 | `src/ChipSharp.Toolchain.Sdcc` | The `sdcc` toolchain: C in, SDCC's Intel HEX (`.ihx`) and map out, for the Padauk and STM8 chips |
 | `src/ChipSharp.Simulators` | `chipsim`: the PFS154 (PDK14) and STM8S103 simulators, their peripherals, the devices of their buses (`Devices`: the LCDs, the DS1307, the MPU-6050, the BMP280, the 74HC595, a loopback; the Pico's and the Uno's, in C#), and the command |
-| `src/ChipSharp.Chips`, `chips` | Chips as data: the model of a chip's registers, interrupts, pins and memory, its readers (ChipSharp's JSON, CMSIS-SVD, both together), the C headers it writes, and in `Generated` the SDCC chips' and the ESP32-C5's headers; `chips` holds the descriptions (see [A new chip](#a-new-chip-one-contract-one-suite-chips-as-data)) |
+| `src/ChipSharp.Chips`, `chips` | Chips as data: the model of a chip's registers, interrupts, pins and memory, its readers (ChipSharp's JSON, CMSIS-SVD, both together), the C headers it writes, and in `Generated` the SDCC chips', the ESP32-C5's and the CH32V003's headers; `chips` holds the descriptions (see [A new chip](#a-new-chip-one-contract-one-suite-chips-as-data)) |
 | `src/ChipSharp.Image.Esp`, `src/ChipSharp.Flasher.Esptool` | The ESP image (`.bin`: headers, segments, checksum, SHA-256; and its reader) and the flasher that runs esptool on it, with its port detection by USB ids |
-| `src/ChipSharp.Runtime.*` | The runtimes, in C: `Shared` (console, text, floats, heap and collector, and `chipsharp_hardware.h`, the hardware contract every chip runtime implements), `Windows` (the PC), `ArmV6M` and `Rp2040` (start-up, UART0, timers, pins, interrupts), `Avr` (any AVR chip's start-up, multiply and divide helpers, soft float), `Atmega328p` (the Uno's pins, Timer1's clock and delays, the pin and timer events, USART0, the TWI, SPI, the ADC and PWM), `Pdk14` (any Padauk PDK14 chip's start-up, interrupt handler and stops, for SDCC), `Pfs154` (its pins, T16's delays and clock, the timer and pin events, PWM; mostly assembly), `Stm8` (any STM8 chip's start-up, stops, failures and 64-bit multiply, for SDCC, and the modules a file is cut into), `Stm8s103` (its pins, TIM1's clock, delays and timer event, the pin event, UART1's console and serial port, I2C, SPI, the ADC and TIM2's PWM), `Riscv32` (any 32-bit RISC-V chip's start-up, trap entry and dispatch, 64-bit division, memory functions, soft float, stops) and `Esp32c5` (its first steps: the watchdogs, the CLIC's trap mode) |
-| `src/ChipSharp.Image.Uf2`, `src/ChipSharp.Image.Hex`, `src/ChipSharp.Build`, `src/ChipSharp.Cli` | The `.uf2` and `.hex` images, the build pipeline, and the `chipsharp` command |
-| `src/ChipSharp.Flasher.*` | The flashers: `Avrdude` (the Uno), `Uf2Copy` (the Pico), `EasyPdkProg` (the PFS154), `Stm8Flash` (the STM8S103), and `Shared`, what those that run a programmer's tool share (finding and running it, the serial ports and USB devices plugged in) |
+| `src/ChipSharp.Runtime.*` | The runtimes, in C: `Shared` (console, text, floats, heap and collector, and `chipsharp_hardware.h`, the hardware contract every chip runtime implements), `Windows` (the PC), `ArmV6M` and `Rp2040` (start-up, UART0, timers, pins, interrupts), `Avr` (any AVR chip's start-up, multiply and divide helpers, soft float), `Atmega328p` (the Uno's pins, Timer1's clock and delays, the pin and timer events, USART0, the TWI, SPI, the ADC and PWM), `Pdk14` (any Padauk PDK14 chip's start-up, interrupt handler and stops, for SDCC), `Pfs154` (its pins, T16's delays and clock, the timer and pin events, PWM; mostly assembly), `Stm8` (any STM8 chip's start-up, stops, failures and 64-bit multiply, for SDCC, and the modules a file is cut into), `Stm8s103` (its pins, TIM1's clock, delays and timer event, the pin event, UART1's console and serial port, I2C, SPI, the ADC and TIM2's PWM), `Riscv32` (any 32-bit RISC-V chip's start-up, trap entry and dispatch, 64-bit division, memory functions, soft float, stops; and its E variant, `riscv32e`, with the multiplication and division a core without M lacks), `Esp32c5` (its first steps: the watchdogs, the CLIC's trap mode) and `Ch32v003` (its vector table and first steps: INTSYSCR, `mtvec`, the 48 MHz clock) |
+| `src/ChipSharp.Image.Uf2`, `src/ChipSharp.Image.Hex`, `src/ChipSharp.Image.Bin`, `src/ChipSharp.Build`, `src/ChipSharp.Cli` | The `.uf2`, `.hex` and `.bin` (the raw flash, from its origin) images, the build pipeline, and the `chipsharp` command |
+| `src/ChipSharp.Flasher.*` | The flashers: `Avrdude` (the Uno), `Uf2Copy` (the Pico), `EasyPdkProg` (the PFS154), `Stm8Flash` (the STM8S103), `WchLink` (the CH32V003: wlink and minichlink, through a WCH-LinkE), and `Shared`, what those that run a programmer's tool share (finding and running it, the serial ports and USB devices plugged in, with their interfaces' drivers) |
 | `src/ChipSharp.Hardware` | The library programs reference for pins, timing, the clock, registers, interrupts, serial ports, analog inputs, PWM and the I2C and SPI buses |
 | `src/ChipSharp.Components` | Drivers of parts connected to a chip (the character LCD, the 7-segment display, the DS1307 real-time clock), plain C# that ChipSharp compiles with the program |
 | `src/ChipSharp.Abstractions`, `src/ChipSharp.Targets` | The contracts (code generator, toolchain, image, runtime) and the target files' reader |
@@ -2036,5 +2153,5 @@ of its own (`src/ChipSharp.Backend.Llvm/LlvmStackChecks.cs`).
 | M6 (done) | C backend through SDCC: the Padauk PFS154 (2K words, 128 bytes of RAM) and the STM8S103 (8 KB, 1 KB), no heap, 32-bit `double` refused; the chips as data, a hardware contract with a conformance suite, the runtimes, `chipsim`, the flashers (`easypdkprog`, `stm8flash`) and examples (see [PFS154 and STM8S103](#pfs154-and-stm8s103-through-c-and-sdcc)) |
 | M7 (done) | Arduino Uno: the ATmega328P, an 8-bit AVR with 2 KB of RAM and no heap, through the LLVM in Zig; constants in flash, 8- and 16-bit arithmetic, its pins, timers, clock, serial port, I2C, SPI, ADC and PWM, `chipsharp flash` with avrdude, Wokwi circuits and examples (see [Arduino Uno](#arduino-uno)) |
 | M4 (done) | ESP32-C5 (RISC-V): its target files, the llvm code generator for riscv32, the start-up, Espressif's SVD through the shared generator, `chipsim esp32c5`, the ESP image (byte for byte esptool's) and the esptool flasher, the runtime (pins with pulls, events, the SYSTIMER clock, the USB Serial/JTAG console, UART0, a 224 KB heap with the collector, I2C, SPI, the ADC and PWM), the whole corpus on the simulated chip and 8 examples; not yet tried on a board (see [ESP32-C5](#esp32-c5)) |
-| M5 | CH32V003, C# on a 10-cent chip with 2 KB of RAM: M2-style code and the M3 pieces that need no heap (generics over values, spans, fixed and printed text, record structs) |
+| M5 (under way) | CH32V003, C# on a 10-cent chip with 2 KB of RAM: M2-style code and the M3 pieces that need no heap (generics over values, spans, fixed and printed text, record structs). Done: its target files, the riscv32e runtime and the start-up, WCH's SVD through the shared generator, every corpus program linked (see [CH32V003](#ch32v003)) |
 | Later | Catching exceptions (`try`/`catch`); more chips, and an interpreter mode for the smallest |

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
 namespace ChipSharp.Flasher.Shared;
@@ -11,6 +12,15 @@ namespace ChipSharp.Flasher.Shared;
 /// </summary>
 public sealed record UsbDeviceInfo(int VendorId, int ProductId, string? Description = null, string? Driver = null)
 {
+    private static readonly IReadOnlyDictionary<int, string?> NoInterfaces = new Dictionary<int, string?>();
+
+    /// <summary>
+    /// On Windows, the drivers of a composite device's interfaces, by number (its key VID_1A86&amp;PID_8010&amp;MI_00 is
+    /// interface 0): "WinUSB", "WCHLinkDrv", "usbser"; null for one Windows has no driver for. Empty when not known (Linux;
+    /// a device that is not composite, whose <see cref="Driver"/> is its own).
+    /// </summary>
+    public IReadOnlyDictionary<int, string?> InterfaceDrivers { get; init; } = NoInterfaces;
+
     /// <summary>"STM32 STLink (USB 0483:3748)".</summary>
     public override string ToString() => string.Create(CultureInfo.InvariantCulture,
         $"{Description ?? "a USB device"} (USB {VendorId:x4}:{ProductId:x4})");
@@ -20,7 +30,7 @@ public sealed record UsbDeviceInfo(int VendorId, int ProductId, string? Descript
 /// The USB devices plugged in now, for a flasher whose programmer is a USB device of its own rather than a serial port
 /// (an ST-LINK, which stm8flash finds itself): to say which kind is there, or that none is.
 /// </summary>
-public static class UsbDevices
+public static partial class UsbDevices
 {
     /// <summary>CM_Locate_DevNode's answer for a device that is plugged in.</summary>
     private const int Found = 0;
@@ -28,8 +38,9 @@ public static class UsbDevices
     /// <summary>
     /// The devices of the vendor <paramref name="vendorId"/> there are now, one for each (not one for each of its
     /// interfaces); null when this computer cannot say (macOS; a registry or folder that may not be read). On Windows:
-    /// the registry's USB devices (Enum\USB, every device ever plugged in), those plugged in now (CM_Locate_DevNode);
-    /// on Linux /sys/bus/usb/devices.
+    /// the registry's USB devices (Enum\USB, every device ever plugged in), those plugged in now (CM_Locate_DevNode),
+    /// each with the drivers of its interfaces plugged in now (<see cref="UsbDeviceInfo.InterfaceDrivers"/>); on Linux
+    /// /sys/bus/usb/devices.
     /// </summary>
     public static IReadOnlyList<UsbDeviceInfo>? List(int vendorId)
     {
@@ -49,20 +60,22 @@ public static class UsbDevices
         }
     }
 
+    /// <summary>The interface number in a device's name: 0 for VID_1A86&amp;PID_8010&amp;MI_00; null for a device's own name.</summary>
+    internal static int? InterfaceNumber(string deviceName)
+    {
+        var match = InterfacePattern().Match(deviceName);
+        return match.Success ? int.Parse(match.Groups[1].Value, NumberStyles.HexNumber, CultureInfo.InvariantCulture) : null;
+    }
+
     [SupportedOSPlatform("windows")]
     private static List<UsbDeviceInfo> WindowsDevices(int vendorId)
     {
-        var devices = new List<UsbDeviceInfo>();
         using var root = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Enum\USB");
-        foreach (var deviceName in root?.GetSubKeyNames() ?? [])
-        {
-            // VID_0483&PID_374B is the device; VID_0483&PID_374B&MI_00 one of its interfaces
-            if (SerialPorts.UsbIds(deviceName) is not { } ids || ids.Vendor != vendorId
-                || deviceName.Contains("&MI_", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
+        var names = root?.GetSubKeyNames() ?? [];
 
+        // the instances plugged in now of a device or interface key, each with its name and driver (its service)
+        IEnumerable<(string? Name, string? Driver)> Present(string deviceName)
+        {
             using var device = root!.OpenSubKey(deviceName);
             foreach (var instanceName in device?.GetSubKeyNames() ?? [])
             {
@@ -75,8 +88,41 @@ public static class UsbDevices
                 var name = instance?.GetValue("FriendlyName") as string
                     ?? (instance?.GetValue("DeviceDesc") as string)?.Split(';')[^1];
                 var driver = instance?.GetValue("Service") as string;
-                devices.Add(new UsbDeviceInfo(ids.Vendor, ids.Product, string.IsNullOrWhiteSpace(name) ? null : name.Trim(),
-                    string.IsNullOrWhiteSpace(driver) ? null : driver));
+                yield return (string.IsNullOrWhiteSpace(name) ? null : name.Trim(), string.IsNullOrWhiteSpace(driver) ? null : driver);
+            }
+        }
+
+        // VID_1A86&PID_8010 is the device; VID_1A86&PID_8010&MI_00 its interface 0, with a driver of its own
+        var interfaces = new Dictionary<(int Vendor, int Product), Dictionary<int, string?>>();
+        foreach (var deviceName in names)
+        {
+            if (SerialPorts.UsbIds(deviceName) is { } ids && ids.Vendor == vendorId && InterfaceNumber(deviceName) is { } number)
+            {
+                foreach (var (_, driver) in Present(deviceName))
+                {
+                    if (!interfaces.TryGetValue(ids, out var drivers))
+                    {
+                        drivers = new Dictionary<int, string?>();
+                        interfaces[ids] = drivers;
+                    }
+
+                    drivers[number] = driver;
+                }
+            }
+        }
+
+        var devices = new List<UsbDeviceInfo>();
+        foreach (var deviceName in names)
+        {
+            if (SerialPorts.UsbIds(deviceName) is not { } ids || ids.Vendor != vendorId || InterfaceNumber(deviceName) is not null)
+            {
+                continue;
+            }
+
+            foreach (var (name, driver) in Present(deviceName))
+            {
+                var device = new UsbDeviceInfo(ids.Vendor, ids.Product, name, driver);
+                devices.Add(interfaces.TryGetValue(ids, out var drivers) ? device with { InterfaceDrivers = drivers } : device);
             }
         }
 
@@ -110,4 +156,7 @@ public static class UsbDevices
     [DllImport("cfgmgr32.dll", CharSet = CharSet.Unicode)]
     [SupportedOSPlatform("windows")]
     private static extern int CM_Locate_DevNodeW(out uint devInst, string deviceId, uint flags);
+
+    [GeneratedRegex(@"&MI_([0-9A-Fa-f]{2})", RegexOptions.IgnoreCase)]
+    private static partial Regex InterfacePattern();
 }
