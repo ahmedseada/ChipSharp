@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Blinks an LED on PD0 of WCH's CH32V003 evaluation board: build with ChipSharp for the target "ch32v003-evt", flash
+       the .bin with chipsharp flash and a WCH-LinkE -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ChipSharp.Hardware\ChipSharp.Hardware.csproj" />
+  </ItemGroup>
+</Project>
