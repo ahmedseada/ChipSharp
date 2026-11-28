@@ -1,0 +1,50 @@
+{
+  // Padauk PDK14: the 8-bit processor of Padauk's PFS154, PMS154C, PFS172, ...: 14-bit instruction words, one
+  // accumulator, no multiply, at most 2K words of program memory and 128 bytes of RAM, one interrupt vector.
+  // Milestone M6: built through C with SDCC (sdcc -mpdk14, found by $env:CHIPSHARP_SDCC, then Program Files\SDCC\bin,
+  // then the PATH); a chip's file (pfs154.json) adds its memory, pins, registers and capabilities
+  "name": "pdk14",
+  "backend": "c",
+  "toolchain": "sdcc",
+  "runtime": "pdk14",
+  // SDCC's generic pointer: 2 bytes, bit 15 set for program memory (a constant there is read with "ret k"
+  // instructions); a pointer to RAM alone (__near) is 1 byte. C#'s nint follows the generic pointer; int stays 32 bits
+  "pointerSize": 2,
+  "endian": "little",     // SDCC keeps the low byte of a multi-byte value first
+  "capabilities": {
+    "hwMultiply": false,  // no multiply instruction: every product calls SDCC's helper (_muluchar, _mulint, ...)
+    "hwDivide": false,    // no divide instruction
+    "fpu": false,         // no float hardware: SDCC's float routines, slow and large in 2K words
+    "atomics": "none",    // no atomic instructions: briefly disable interrupts (disgint / engint) instead
+    "unalignedAccess": true,  // an 8-bit processor reads and writes byte by byte
+    "stackCheck": false,  // nothing checks the stack, which grows up from the end of the variables
+    // SDCC's pdk14 port keeps a function's parameters and locals at fixed RAM addresses (there is no --stack-auto
+    // library): only a function marked __reentrant has them on the stack. The C backend marks those that may call
+    // themselves, or run in an interrupt and outside one, __reentrant; the others share RAM where SDCC can overlay them
+    "recursion": "reentrant",
+    // SDCC's double is its float, 32 bits (sdcc warns "types 'double', 'long double' not supported. Assuming 'float'"):
+    // C#'s double has no C type to go to, and the C backend rejects it; float is IEEE single precision, as in C#
+    "double64": false,
+    "heap": false,        // a chip's file says what it has
+    "console": false,
+    "clock": false
+  },
+  // the sizes of SDCC's C types on this port, in bytes, for the C backend (C's int is 16 bits: arithmetic on two
+  // uint16_t is done in a 16-bit signed int, so the backend widens to 32 bits where C# does)
+  "c": {
+    "int": 2, "long": 4, "longLong": 8, "float": 4, "double": 4,
+    "pointer": 2, "nearPointer": 1, "functionPointer": 2,
+    "charSigned": false
+  },
+  "sdcc": {
+    "port": "pdk14",          // sdcc -mpdk14; its assembler is sdaspdk14, its linker sdldpdk
+    // passed to every sdcc run, compiling and linking: the smallest code (2K words go fast)
+    "flags": ["--opt-code-size"]
+  },
+  "link": {
+    "code": "program",            // the reset vector (word 0), the interrupt vector (word 0x10), code and constants
+    "data": "ram",                // the variables (after SDCC's pseudo-register p at 0-1), then the stack, growing up
+    "stack": "16"                 // RAM the variables must leave for the stack: 2 bytes a call, 4 more an interrupt
+  },
+  "image": "hex"                  // Intel HEX, SDCC's .ihx: what the Easy PDK programmer (easypdkprog) writes
+}

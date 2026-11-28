@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Builds programs with SDCC: C in, an Intel HEX file (.ihx) out, for the Padauk (pdk14) and STM8 chips -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+    <ProjectReference Include="..\ChipSharp.Targets\ChipSharp.Targets.csproj" />
+    <!-- the build cache (ObjectCache), which the clang toolchain and this one share -->
+    <ProjectReference Include="..\ChipSharp.Toolchain.Clang\ChipSharp.Toolchain.Clang.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ChipSharp.Tests" />
+  </ItemGroup>
+</Project>

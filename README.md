@@ -149,7 +149,8 @@ new board is a few lines of JSON:
 | `pico` | Raspberry Pi Pico: RP2040, 2 MB flash, LED on GPIO 25 (inherits `rp2040`, which inherits `armv6m`) |
 | `pico-w` | Pico W: like the Pico, but its LED is wired to the Wi-Fi chip |
 | `uno` | Arduino Uno: ATmega328P at 16 MHz, 32 KB flash, 2 KB RAM, LED on D13 (see [Arduino Uno](#arduino-uno); inherits `atmega328p`, which inherits `avr`) |
-| `rp2040`, `atmega328p`, `armv6m`, `avr`, `x86_64` | Chips and architectures, for target files to inherit; not built for directly |
+| `pfs154-bare`, `stm8s103-board` | In progress (M6): a Padauk PFS154 at 2 MHz and the blue STM8S103F3P6 board, through C and SDCC (see [SDCC chips](#sdcc-chips-in-progress)) |
+| `rp2040`, `atmega328p`, `pfs154`, `stm8s103f3`, `armv6m`, `avr`, `pdk14`, `stm8`, `x86_64` | Chips and architectures, for target files to inherit; not built for directly |
 
 ```
 > chipsharp targets show pico
@@ -443,6 +444,26 @@ above its SCL, A4 to the left of A5), two wires cross each other. In the simulat
 (`node tools\avr-sim\run.mjs ...`, as each `Program.cs` says): the traffic light with
 `--input D2=low@2500ms --input D2=high@2700ms --i2c 0:0x27=lcd1602`, the clock with `--i2c 0:0x27=lcd1602
 --i2c 0:0x68=ds1307`, the servo with `--adc A0=2.5V`.
+
+## SDCC chips (in progress)
+
+Milestone M6 builds for chips no LLVM supports through C: a code generator writes C, and the toolchain `sdcc` compiles
+it with [SDCC](https://sdcc.sourceforge.net/) 4.6, the Small Device C Compiler, into an Intel HEX file. The first two
+are the Padauk PFS154 (`pfs154-bare`: PDK14, 2K words of 14-bit program memory, 128 bytes of RAM) and the STM8S103F3
+(`stm8s103-board`, the blue board: 8 KB of flash, 1 KB of RAM, the LED on PB5). Their target files give the chips as
+data: memory, pins, ports, registers or peripherals, interrupts, the sizes of SDCC's C types (`"c"`), and what SDCC
+lacks (`"double64": false`: its `double` is 32 bits; on the PDK14, `"recursion": "reentrant"`). The C code generator and
+the runtimes are still to come.
+
+- SDCC is found by the environment variable `CHIPSHARP_SDCC` (`sdcc.exe` or its folder), then its install folder
+  `C:\Program Files\SDCC\bin`, then the PATH. It runs with its own folder first on the PATH, where its preprocessor
+  finds `cc1`.
+- Each `.c` file is compiled on its own (`sdcc -mstm8 --opt-code-size -c`), each `.s` assembled (`sdasstm8`), into a
+  `.rel` kept in the build cache; the file with `main()` is linked first (SDCC puts the start-up code there).
+- The memory report comes from SDCC's map: `flash 175 bytes of 8 KB (2.1%), RAM 10 bytes of 1 KB (stack 256 bytes
+  reserved)`, and on a Padauk chip in words, two bytes of the `.ihx` each: `program 89 words of 2048 words (4.3%), RAM
+  14 bytes of 128 bytes (stack 16 bytes reserved)`. A program too big for the target's memory fails with how much it
+  needs, as on the other chips.
 
 ## What C# compiles today
 
@@ -1058,6 +1079,7 @@ period differs from the one before, rather than edge by edge:
 | `CHIPSHARP_NARROWING` | `on` or `off`: [narrowing](#narrowing) for every target, whatever its file says (to compare a program's results with and without it) |
 | `CHIPSHARP_ZIG` | Zig (`zig.exe` or its folder), for the Uno (default: `D:\Tools\zig\zig.exe`, then the PATH) |
 | `CHIPSHARP_AVRDUDE` | avrdude (`avrdude.exe` or its folder), for `flash -t uno` (default: the PATH, then the Arduino IDE's copy) |
+| `CHIPSHARP_SDCC` | SDCC (`sdcc.exe` or its folder), for the Padauk and STM8 chips (default: `C:\Program Files\SDCC\bin`, then the PATH) |
 
 **Notes.** `build` and `check` write a note on standard error (`note: ...`) where a program uses one of .NET's
 culture-sensitive text methods (`CompareTo`, `string.Compare(a, b)`, `StartsWith(string)`, `ToUpper()`, `Parse`,
@@ -1172,6 +1194,7 @@ allow for both. Its TWI takes no time on the bus: the I2C transfers' timing is t
 | `src/ChipSharp.Library` | ChipSharp's own C# for library types (`TimeSpan`, `List<T>`, `StringBuilder`, the exceptions, ...), compiled together with the programs that use them |
 | `src/ChipSharp.Backend.Llvm` | The `llvm` code generator: TIR in, LLVM IR text out |
 | `src/ChipSharp.Toolchain.Clang` | The `clang` toolchain: LLVM IR and runtime sources in, a linked program out; as the `zig` toolchain, the same with the clang and ld.lld inside Zig (AVR) |
+| `src/ChipSharp.Toolchain.Sdcc` | The `sdcc` toolchain: C in, SDCC's Intel HEX (`.ihx`) and map out, for the Padauk and STM8 chips (M6, in progress) |
 | `src/ChipSharp.Runtime.*` | The runtimes, in C: `Shared` (console, text, floats, heap and collector), `Windows` (the PC), `ArmV6M` and `Rp2040` (start-up, UART0, timers, pins, interrupts), `Avr` (any AVR chip's start-up, multiply and divide helpers, soft float) and `Atmega328p` (the Uno's pins, Timer1's clock and delays, the pin and timer events, USART0, the TWI, SPI, the ADC and PWM) |
 | `src/ChipSharp.Image.Uf2`, `src/ChipSharp.Image.Hex`, `src/ChipSharp.Build`, `src/ChipSharp.Cli` | The `.uf2` and `.hex` images, the build pipeline, and the `chipsharp` command |
 | `src/ChipSharp.Hardware` | The library programs reference for pins, timing, the clock, registers, interrupts, serial ports, analog inputs, PWM and the I2C and SPI buses |

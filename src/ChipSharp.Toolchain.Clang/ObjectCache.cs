@@ -47,14 +47,22 @@ internal sealed class ObjectCache
     public string Folder { get; }
 
     /// <summary>The cache <paramref name="options"/> ask for, or null when they turn it off.</summary>
-    public static ObjectCache? For(ClangToolchainOptions options, Func<string, string?> environment)
+    public static ObjectCache? For(ClangToolchainOptions options, Func<string, string?> environment) =>
+        For(options.UseCache, options.CacheFolder, environment);
+
+    /// <summary>
+    /// The cache in <paramref name="cacheFolder"/> (when not set: the environment variable <see cref="FolderVariable"/>,
+    /// then <see cref="DefaultFolder"/>), or null when <paramref name="useCache"/> is false. Every toolchain that keeps
+    /// what it compiles (clang's, SDCC's) keeps it here.
+    /// </summary>
+    public static ObjectCache? For(bool useCache, string? cacheFolder, Func<string, string?> environment)
     {
-        if (!options.UseCache)
+        if (!useCache)
         {
             return null;
         }
 
-        var folder = options.CacheFolder;
+        var folder = cacheFolder;
         if (string.IsNullOrWhiteSpace(folder) && environment(FolderVariable) is { } variable
             && !string.IsNullOrWhiteSpace(variable))
         {

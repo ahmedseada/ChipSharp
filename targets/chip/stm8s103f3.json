@@ -1,0 +1,90 @@
+{
+  // ST STM8S103F3 (STM8S103F3P6: TSSOP20): STM8 at up to 16 MHz, 8 KB flash, 1 KB RAM, 640 bytes of data EEPROM, 16 I/O
+  // pins, UART1, I2C, SPI, a 10-bit ADC (5 inputs on this package), the timers TIM1 (16-bit, advanced), TIM2 (16-bit)
+  // and TIM4 (8-bit); programmed and debugged through SWIM (PD1) with an ST-LINK. Its runtime is still to come
+  // (milestone M6, wave 1), from the peripherals, ports and interrupts below (the reference manual RM0016 and the
+  // datasheet).
+  // Pins by number: port * 8 + bit, so PA1 is 1, PB5 13, PC3 19 and PD6 30
+  "name": "stm8s103f3",
+  "inherits": "stm8",
+  "memory": {
+    "flash":  { "origin": "0x8000", "size": "8K" },    // the 32 interrupt vectors (4 bytes each) first, at 0x8000
+    "ram":    { "origin": "0x0", "size": "1K" },
+    "eeprom": { "origin": "0x4000", "size": "640" },   // data EEPROM
+    "option": { "origin": "0x4800", "size": "11" }     // the option bytes (read-out protection, alternate functions)
+  },
+  "link": {
+    "stack": "256"                // of the 1 KB of RAM, the stack's, at its end (SP starts at 0x03ff after reset)
+  },
+  // the interrupt vector table's entries, reset and trap included: 0x8000 + 4 * (2 + irq) for each interrupt below
+  "vectors": 32,
+  // the interrupts (IRQ numbers; SDCC's __interrupt(n)), RM0016 / the datasheet's interrupt vector mapping
+  "irqs": {
+    "tli": 0,                     // top-level interrupt (PC3)
+    "awu": 1,                     // auto wake-up from halt
+    "clk": 2,                     // clock controller
+    "extiA": 3, "extiB": 4, "extiC": 5, "extiD": 6, "extiE": 7,   // a pin of port A-E changed (EXTI_CR1, EXTI_CR2)
+    "spi": 10,                    // end of transfer
+    "tim1Update": 11,             // TIM1 update, overflow, underflow, trigger, break
+    "tim1Capture": 12,            // TIM1 capture or compare
+    "tim2Update": 13,             // TIM2 update, overflow
+    "tim2Capture": 14,            // TIM2 capture or compare
+    "uart1Tx": 17,                // UART1 transmit data register empty, transmission complete
+    "uart1Rx": 18,                // UART1 receive register full
+    "i2c": 19,
+    "adc1": 22,                   // ADC1 end of conversion, analog watchdog
+    "tim4Update": 23,             // TIM4 update, overflow
+    "flash": 24                   // end of programming, write to a protected page
+  },
+  // the peripherals' first registers (RM0016's register map; this chip has no TIM3, CAN or UART2)
+  "peripherals": {
+    "flash": "0x505a", "exti": "0x50a0", "rst": "0x50b3", "clk": "0x50c0", "wwdg": "0x50d1", "iwdg": "0x50e0",
+    "awu": "0x50f0", "beep": "0x50f3", "spi": "0x5200", "i2c": "0x5210", "uart1": "0x5230", "tim1": "0x5250",
+    "tim2": "0x5300", "tim4": "0x5340", "adc1": "0x53e0", "cfg": "0x7f60", "itc": "0x7f70", "swim": "0x7f80"
+  },
+  // the ports: each has five registers from its address on, ODR (output data), IDR (input data), DDR (1: output), CR1
+  // (input: pull-up; output: push-pull) and CR2 (input: interrupt; output: fast); and the port's pins this package has.
+  // PB4 and PB5 are true open-drain outputs (they can only pull low)
+  "ports": {
+    "A": { "address": "0x5000", "pins": [1, 2, 3] },
+    "B": { "address": "0x5005", "pins": [4, 5] },
+    "C": { "address": "0x500a", "pins": [3, 4, 5, 6, 7] },
+    "D": { "address": "0x500f", "pins": [1, 2, 3, 4, 5, 6] }
+  },
+  "portRegisters": { "odr": 0, "idr": 1, "ddr": 2, "cr1": 3, "cr2": 4 },
+  "pinNames": [
+    "", "PA1", "PA2", "PA3", "", "", "", "",
+    "", "", "", "", "PB4", "PB5", "", "",
+    "", "", "", "PC3", "PC4", "PC5", "PC6", "PC7",
+    "", "PD1", "PD2", "PD3", "PD4", "PD5", "PD6", ""
+  ],
+  "capabilities": {
+    "heap": false,                // 1 KB of RAM: structs, static fields and stack arrays, no objects
+    "console": false,             // true once the runtime sends Console.Write to UART1 (PD5)
+    "uart": 1,                    // serial ports for Uart: UART1 (TX PD5, RX PD6)
+    "adc": 5,                     // analog inputs for Adc: AIN2 (PC4), AIN3 (PD2), AIN4 (PD3), AIN5 (PD5), AIN6 (PD6)
+    "pwm": 5,                     // PWM outputs: TIM1 channels 3 and 4 (PC3, PC4), TIM2 channels 1-3 (PD4, PD3, PA3)
+    "i2c": true,                  // the I2C controller, bus 0 on PB5 (SDA) and PB4 (SCL)
+    "spi": true,                  // the SPI controller, bus 0 on PC5 (SCK), PC6 (MOSI) and PC7 (MISO)
+    "eeprom": true,               // 640 bytes that keep their values without power
+    "timers": 3,                  // TIM1, TIM2, TIM4
+    "clock": false                // true once the runtime counts time with TIM4
+  },
+  "pinFunctions": {
+    // the pins each peripheral can use without remapping (the option byte AFR): chipsharp check holds the pins a
+    // program gives as constants to these. The chip's UART1 is ChipSharp's port 0
+    "uart0.tx": [29], "uart0.rx": [30],
+    "adc": [20, 26, 27, 29, 30],
+    "pwm": [3, 19, 20, 27, 28]
+  },
+  // the buses: the clocks they make from a 16 MHz master clock, lowest and highest, in hertz, and the pins of bus 0.
+  // I2C: 16 MHz / (2 * CCR) in standard mode, CCR 12 bits, up to 400 kHz in fast mode; SPI: 16 MHz / 2 to 256
+  "i2c": {
+    "frequency": [1954, 400000],
+    "buses": [ { "sda": [13], "scl": [12] } ]
+  },
+  "spi": {
+    "frequency": [62500, 8000000],
+    "buses": [ { "sck": [21], "tx": [22], "rx": [23] } ]
+  }
+}
