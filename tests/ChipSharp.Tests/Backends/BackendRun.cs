@@ -7,6 +7,7 @@ using ChipSharp.Frontend.Il;
 using ChipSharp.Frontend.Lowering;
 using ChipSharp.Ir;
 using ChipSharp.Simulators;
+using ChipSharp.Tests.Ch32v003;
 using ChipSharp.Tests.Lowering;
 using ChipSharp.Tests.Sdcc;
 using ChipSharp.Tests.Strings;
@@ -27,8 +28,9 @@ internal sealed record BackendOutcome(string? Skipped, string? Why, ProgramRun? 
 
 /// <summary>
 /// Builds a program for a target of <see cref="BackendTargets"/> and runs it: on the PC as chipsharp build does it, for
-/// the target's code generator, and with .NET; on a chip through the C code generator and SDCC with the tests' startup
-/// and console (<see cref="ChipConsole"/>), in chipsim, in process.
+/// the target's code generator, and with .NET; on an SDCC chip through the C code generator and SDCC with the tests'
+/// startup and console (<see cref="ChipConsole"/>), on the ESP32-C5 and the CH32V003 through llvm, in chipsim, in
+/// process.
 /// </summary>
 internal static class BackendRun
 {
@@ -45,6 +47,7 @@ internal static class BackendRun
         {
             null => await OnThePcAsync(target, file, source, folder),
             "esp32c5" => OnTheEsp32c5(target, file, source, folder),
+            "ch32v003" => OnTheCh32v003(target, file, source, folder),
             _ => OnTheChip(target, file, source, folder),
         };
         if (outcome.Skipped is not null)
@@ -148,6 +151,40 @@ internal static class BackendRun
         var ended = run.Stopped.StartsWith("stopped: the program has finished", StringComparison.Ordinal);
         var errors = ended && run.ExitCode == 0 ? "" : $"{run.Stopped} (exit code {run.ExitCode}){Environment.NewLine}{run.Output}";
         return new BackendOutcome(null, null, new ProgramRun(run.SerialOf("USB"), ended ? run.ExitCode : 1, errors), null);
+    }
+
+    /// <summary>
+    /// The program built for the CH32V003 as chipsharp build builds it (the llvm code generator for riscv32 with the ilp32e
+    /// ABI, the riscv32e and ch32v003 runtimes), and run in chipsim's ch32v003: what it writes to USART1, the console, is
+    /// what it prints. A stack check that finds the 2 KB run out (chipsharp_stack_overflow) is the reason the chip does
+    /// not take it.
+    /// </summary>
+    private static BackendOutcome OnTheCh32v003(BackendTarget target, string file, string source, string folder)
+    {
+        var assembly = CSharpCompiler.Compile(source, file);
+        var description = Ch32v003Build.Board;
+        var analysis = Ch32v003Build.Check(assembly, file, description);
+        if (!analysis.IsSupported)
+        {
+            return BackendOutcome.Skip(BackendSkips.Classify(analysis), analysis.Summary);
+        }
+
+        Ch32v003Program program;
+        try
+        {
+            program = Ch32v003Build.Build(assembly, file, Path.Combine(folder, target.Name), description);
+        }
+        catch (ChipSharpException e) when (BackendSkips.Classify(e.Message) is var reason && reason != BackendSkips.Other)
+        {
+            return BackendOutcome.Skip(reason, e.Message);
+        }
+
+        var run = Ch32v003Build.Run(program, ChipMilliseconds, CStackChecks.OverflowSymbol);
+        var errors = run.Ended ? "" : $"{run.Simulation.Stopped} (exit code {run.Simulation.ExitCode}){Environment.NewLine}" +
+            run.Simulation.Output;
+        return run.Called.Contains(CStackChecks.OverflowSymbol)
+            ? BackendOutcome.Skip(BackendSkips.Stack, errors)
+            : new BackendOutcome(null, null, new ProgramRun(run.Output, run.Ended ? 0 : 1, errors), null);
     }
 
     private static BackendOutcome OnTheChip(BackendTarget target, string file, string source, string folder)

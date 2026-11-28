@@ -162,6 +162,21 @@ internal static partial class BackendSkips
                 // two static structs of 321 bytes, and one more passed by value
                 (Stack, ["Structs/Large"]),
             ]),
+
+            // 2 KB of SRAM (no heap), 16 KB of flash
+            ["ch32v003-evt"] = Skips(
+            [
+                (Heap, WithObjects),
+                // the flash they need: 37.0 KB (a sort of doubles through a comparer), 16.5 KB (MathF's functions, 544
+                // bytes over), 20.3 and 32.6 KB (DateTime's members and formats), 42.5 KB (TimeSpan's), 44.7 KB (Math's)
+                (ProgramMemory,
+                [
+                    "ArrayMethods/Sorting", "Chips/MathFunctions", "DateTime/Members", "DateTime/Text", "TimeSpan/Members",
+                    "samples/MathFunctions",
+                ]),
+                // a frame of 40 KB (an array of 10,000 ints), twenty times the SRAM: the stack check stops it
+                (Stack, ["Arrays/BigArrays"]),
+            ]),
         };
 
     /// <summary>

@@ -436,7 +436,7 @@ public sealed class Ch32v003Chip : SimulatedChip, IRiscVBus
     {
         var shift = (int)(address & 3) * 8;
         var flash = FlashOffset(address);
-        if (flash + (uint)size <= Ch32v003Map.FlashSize)
+        if ((ulong)flash + (uint)size <= (ulong)Ch32v003Map.FlashSize)
         {
             return ReadBytes(_flash, flash, size);
         }
@@ -467,13 +467,13 @@ public sealed class Ch32v003Chip : SimulatedChip, IRiscVBus
         }
 
         var sram = address - Ch32v003Map.SramStart;
-        if (sram + (uint)size <= Ch32v003Map.SramSize)
+        if ((ulong)sram + (uint)size <= (ulong)Ch32v003Map.SramSize)
         {
             return ReadBytes(_sram, sram, size);
         }
 
         var options = address - Ch32v003Map.OptionBytes;
-        if (options + (uint)size <= Ch32v003Map.OptionBytesSize)
+        if ((ulong)options + (uint)size <= (ulong)Ch32v003Map.OptionBytesSize)
         {
             return ReadBytes(_optionBytes, options, size);
         }
@@ -521,7 +521,7 @@ public sealed class Ch32v003Chip : SimulatedChip, IRiscVBus
         }
 
         var sram = address - Ch32v003Map.SramStart;
-        if (sram + (uint)size <= Ch32v003Map.SramSize)
+        if ((ulong)sram + (uint)size <= (ulong)Ch32v003Map.SramSize)
         {
             WriteBytes(_sram, sram, size, value);
             return;

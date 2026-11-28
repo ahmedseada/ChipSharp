@@ -9,8 +9,8 @@ namespace ChipSharp.Tests.Ch32v003;
 /// program that makes no object compiles with the llvm code generator for riscv32 with the ilp32e ABI, and links with
 /// the riscv32e and ch32v003 runtimes (with the console on USART1) into the 16 KB of flash and the 2 KB of SRAM, or,
 /// one of <see cref="TooLarge"/>, is refused by the build for its size, with the memory report's numbers; one that makes
-/// objects is refused, as the chip has no heap, with the whole-program pass saying so place by place. They run in
-/// chipsim's ch32v003 in the backend conformance suite.
+/// objects is refused, as the chip has no heap, with the whole-program pass saying so place by place. The backend
+/// conformance suite runs them in chipsim's ch32v003 against .NET (<see cref="BackendConformanceTests"/>).
 /// </summary>
 public sealed class Ch32v003ProgramTests : IDisposable
 {

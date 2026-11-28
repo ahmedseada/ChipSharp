@@ -83,6 +83,13 @@ internal sealed class LlvmFunctionWriter
     /// <summary>True when LLVM must not inline the function: on an AVR, a large one with a loop (see <see cref="LlvmAvrCalls"/>).</summary>
     public bool StaysOutOfLine { get; init; }
 
+    /// <summary>
+    /// True on a target without unaligned access, where MemoryMarshal.Cast checks that a span starts where its new
+    /// elements may be: an array on the stack (stackalloc, newarr of a constant length) is then aligned as the heap
+    /// aligns every object, for elements of any type (see <see cref="SlotAlignment"/>).
+    /// </summary>
+    public bool AlignsArrays { get; init; }
+
     public void Write()
     {
         var allocas = Unique("allocas");
@@ -114,7 +121,7 @@ internal sealed class LlvmFunctionWriter
         _text.Append(allocas).Append(":\n");
         foreach (var slot in _function.Slots)
         {
-            Line($"{_slots[slot]} = alloca {_types.Of(slot.Type)}, align {_types.Alignment(slot.Type)}");
+            Line($"{_slots[slot]} = alloca {_types.Of(slot.Type)}, align {SlotAlignment(slot)}");
         }
 
         foreach (var slot in _function.Slots)
@@ -551,6 +558,16 @@ internal sealed class LlvmFunctionWriter
 
     /// <summary>A slot as the address of a load or store, e.g. "ptr %s.sum, align 4".</summary>
     private string Address(TirSlot slot) => $"ptr {_slots[slot]}, align {_types.Alignment(slot.Type)}";
+
+    /// <summary>
+    /// The alignment of a slot: its type's; for an array where <see cref="AlignsArrays"/>, also that of the most aligned
+    /// value (8 bytes), as an array on the heap has it, so that MemoryMarshal.Cast of a span of it to longs or doubles
+    /// finds it aligned for them, as .NET's stackalloc is. On a chip whose stack is aligned less (RV32E's 4 bytes),
+    /// LLVM aligns the frame of such a function itself.
+    /// </summary>
+    private int SlotAlignment(TirSlot slot) => AlignsArrays && slot.Type is TirArrayType
+        ? Math.Max(_types.Alignment(slot.Type), _types.Alignment(TirType.I64))
+        : _types.Alignment(slot.Type);
 
     private string Label(TirBlock block) => $"label %{_labels[block]}";
 

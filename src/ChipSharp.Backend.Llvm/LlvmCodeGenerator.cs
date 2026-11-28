@@ -143,6 +143,7 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
         var stackChecks = LlvmStackChecks.Find(module, target, types.Layout);
         var forgetRegisters = LlvmCollectCalls.ForgetRegisters(target);
         var isAvr = LlvmTypes.IsAvr(target);
+        var alignsArrays = !target.HasCapability("unalignedAccess");
         foreach (var function in module.Functions.Where(f => f.Kind == TirFunctionKind.Defined))
         {
             text.Append('\n');
@@ -154,6 +155,7 @@ public sealed class LlvmCodeGenerator : ICodeGenerator
                 HasFrame = isAvr && LlvmAvrCalls.NeedsFrame(function, types),
                 IsAvr = isAvr,
                 StaysOutOfLine = isAvr && LlvmAvrCalls.StaysOutOfLine(function),
+                AlignsArrays = alignsArrays,
             }.Write();
         }
 

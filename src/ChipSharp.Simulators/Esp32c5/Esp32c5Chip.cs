@@ -599,19 +599,19 @@ public sealed class Esp32c5Chip : SimulatedChip, IRiscVBus
         }
 
         var lp = address - Esp32c5Map.LpSramStart;
-        if (lp + (uint)size <= LpSramSize)
+        if ((ulong)lp + (uint)size <= (ulong)LpSramSize)
         {
             return Narrow(ReadBytes(_lpSram, lp, size), 0, size);
         }
 
         var flash = address - Esp32c5Map.FlashMapStart;
-        if (flash + (uint)size <= _flash.Length)
+        if ((ulong)flash + (uint)size <= (ulong)_flash.Length)
         {
             return Narrow(ReadBytes(_flash, flash, size), 0, size);
         }
 
         var sram = address - Esp32c5Map.SramStart;
-        if (sram + (uint)size <= SramSize)
+        if ((ulong)sram + (uint)size <= (ulong)SramSize)
         {
             return Narrow(ReadBytes(_sram, sram, size), 0, size);
         }
@@ -644,14 +644,14 @@ public sealed class Esp32c5Chip : SimulatedChip, IRiscVBus
         }
 
         var lp = address - Esp32c5Map.LpSramStart;
-        if (lp + (uint)size <= LpSramSize)
+        if ((ulong)lp + (uint)size <= (ulong)LpSramSize)
         {
             WriteBytes(_lpSram, lp, size, value);
             return;
         }
 
         var sram = address - Esp32c5Map.SramStart;
-        if (sram + (uint)size <= SramSize)
+        if ((ulong)sram + (uint)size <= (ulong)SramSize)
         {
             WriteBytes(_sram, sram, size, value);
             return;

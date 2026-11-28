@@ -11,7 +11,7 @@ namespace ChipSharp.Toolchain.Clang;
 /// "mmcu", (RISC-V) "march" and "mabi", "clang.flags", Zig's name of the target ("zig.target", for the toolchain "zig"),
 /// and the "link" settings: the entry point, which memory region holds the code ("link.code") and which the variables and
 /// the stack ("link.data": the same region on a chip that runs from RAM, as the ESP32-C5 does), how much RAM the stack
-/// needs ("link.stack"), the vector table's alignment ("link.vectorAlign"),
+/// needs ("link.stack") and the margin of its checks ("link.stackMargin"), the vector table's alignment ("link.vectorAlign"),
 /// sections that must come first in the code region ("link.head"), more linker arguments ("link.flags") and what the
 /// .elf adds to the data region's addresses ("link.dataOffset"); and from the capabilities, how much RAM the heap
 /// takes ("heap", 0 for none).
@@ -22,6 +22,10 @@ namespace ChipSharp.Toolchain.Clang;
 /// rv32imac_zicsr_zifencei; null elsewhere.
 /// </param>
 /// <param name="Mabi">The ABI, as clang's -mabi names it ("mabi"): RISC-V's ilp32 (no float registers); null elsewhere.</param>
+/// <param name="StackMargin">
+/// How far above the stack's bottom the functions that check the stack stop the program ("link.stackMargin"); when the
+/// target does not say, <see cref="LinkerScript.StackMargin"/> of "link.stack" (a quarter of it, at most 1 KB).
+/// </param>
 /// <param name="ZigTarget">Zig's name of the target (zig cc's --target), e.g. avr-freestanding-none; null when not given.</param>
 /// <param name="DataOffset">
 /// What the .elf adds to the data region's addresses ("link.dataOffset"): 0x800000 on AVR, whose RAM and flash are two
@@ -43,7 +47,8 @@ internal sealed record ChipSettings(
     string? ZigTarget = null,
     ulong DataOffset = 0,
     string? March = null,
-    string? Mabi = null)
+    string? Mabi = null,
+    ulong? StackMargin = null)
 {
     /// <summary>True for an AVR chip (the triple's processor is avr): the linker script lays it out as avr-gcc's does.</summary>
     public bool IsAvr => Triple.Split('-')[0].Equals("avr", StringComparison.OrdinalIgnoreCase);
@@ -206,6 +211,13 @@ internal sealed record ChipSettings(
                 $"of {data.Name} ('link.data') it is kept in.");
         }
 
+        var stackMargin = Size(link["stackMargin"], "link.stackMargin", LinkerScript.StackMargin(stack));
+        if (stackMargin > data.Region.Size)
+        {
+            throw Error($"'link.stackMargin' is {MemorySize.Text(stackMargin)}, more than the " +
+                $"{MemorySize.Text(data.Region.Size)} of {data.Name} ('link.data') the stack is in.");
+        }
+
         var dataOffset = Size(link["dataOffset"], "link.dataOffset", 0);
         if (dataOffset > uint.MaxValue - data.Region.End)
         {
@@ -252,7 +264,8 @@ internal sealed record ChipSettings(
             zigTarget,
             dataOffset,
             OptionalText(target.Settings["march"], "march"),
-            OptionalText(target.Settings["mabi"], "mabi"));
+            OptionalText(target.Settings["mabi"], "mabi"),
+            stackMargin);
     }
 }
 

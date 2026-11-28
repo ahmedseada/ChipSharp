@@ -86,9 +86,15 @@
   "link": {
     "code": "flash",
     "data": "sram",
-    // a quarter of the 2 KB, as the Uno keeps of its 2 KB: room for the deepest call chain of the runtime's float text
-    // (a double is written with 64-bit arithmetic in its locals) and an interrupt's 40-byte frame on top
+    // a quarter of the 2 KB, as the Uno keeps of its 2 KB: the RAM the variables must leave for the stack, which has all
+    // they leave (there is no heap)
     "stack": "512",
+    // where the functions that check the stack (the recursive ones, those with frames of 256 bytes or more) stop the
+    // program with "Stack overflow.": this far above the variables, not a quarter of "stack" (128 bytes), as the deepest
+    // the runtime goes below such a function is the text of a double, some 790 bytes on RV32E (chipsharp_float_text.c's
+    // big numbers take a frame of 668), and an interrupt's 40-byte frame and its handler may come on top of that. With
+    // 128, a recursion that printed a double near the limit ran through the variables, and the console's among them
+    "stackMargin": 896,
     // the vector table, at the start of flash (0x08000000, 1 KB aligned as mtvec needs): 39 entries of 4 bytes
     "head": [ { "section": ".ch32v003_vectors", "size": 156 } ],
     // the trap entry: the table holds its address, so 4 bytes (riscv32's 64 is for a CLIC's mtvec)

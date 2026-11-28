@@ -1,6 +1,7 @@
 using ChipSharp.Abstractions;
 using ChipSharp.Backend.Llvm;
 using ChipSharp.Ir;
+using ChipSharp.Targets;
 using ChipSharp.Tests.Tir;
 using static ChipSharp.Tests.Llvm.LlvmSamples;
 
@@ -264,13 +265,34 @@ public sealed class LlvmMemoryTests
             """), define);
     }
 
+    /// <summary>
+    /// On a chip without unaligned access, whose MemoryMarshal.Cast checks where a span starts, an array on the stack is
+    /// aligned as an object on the heap is, for elements of any type: 8 bytes, also on RV32E, whose stack is aligned to 4
+    /// (LLVM aligns such a frame itself), as .NET's stackalloc is; with unaligned access (the PC), and on an AVR, which
+    /// aligns nothing, its elements' alignment.
+    /// </summary>
+    [Fact]
+    public void An_array_on_the_stack_is_aligned_for_elements_of_any_type_on_a_chip_without_unaligned_access()
+    {
+        string Squares(TargetDescription target) => DefineOf(TirMemorySamples.AddSumOfSquares, "Program_SumOfSquares", target);
+
+        Assert.Contains("%s.squares = alloca [10 x i32], align 4\n", Squares(LlvmTargets.Host));
+        Assert.Contains("%s.squares = alloca [10 x i32], align 8\n", Squares(LlvmTargets.Pico));
+        Assert.Contains("%s.squares = alloca [10 x i32], align 8\n", Squares(new TargetLoader(
+            Path.Combine(AppContext.BaseDirectory, "targets")).Load("ch32v003-evt")));
+        Assert.Contains("%s.squares = alloca [10 x i32], align 1\n", Squares(LlvmTargets.Make("uno", "avr", 2)));
+
+        // a scalar slot keeps its own
+        Assert.Contains("%s.sum = alloca i32, align 4\n", Squares(LlvmTargets.Pico));
+    }
+
     [Fact]
     public void Element_indexes_keep_their_width_and_nested_fields_chain()
     {
         var define = DefineOf(AddAddresses, "Program_Addresses", LlvmTargets.Make("test", null, 4));
 
         Assert.Contains(Text("""
-              %s.lines = alloca [4 x %struct.Program_Line], align 4
+              %s.lines = alloca [4 x %struct.Program_Line], align 8
             """), define);
         Assert.Contains(Text("""
             entry:
@@ -441,9 +463,9 @@ public sealed class LlvmMemoryTests
               %s.local8 = alloca ptr, align 4
               %s.local9 = alloca %struct.Program_Point, align 4
               %s.local10 = alloca %struct.Program_Line, align 4
-              %s.local11 = alloca [10 x i32], align 4
-              %s.local12 = alloca [3 x %struct.Program_Point], align 4
-              %s.local13 = alloca [2 x [3 x i1]], align 1
+              %s.local11 = alloca [10 x i32], align 8
+              %s.local12 = alloca [3 x %struct.Program_Point], align 8
+              %s.local13 = alloca [2 x [3 x i1]], align 8
               store i1 false, ptr %s.local0, align 1
             """), define);
         Assert.Contains(Text("""
