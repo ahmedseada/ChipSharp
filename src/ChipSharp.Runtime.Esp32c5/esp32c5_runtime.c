@@ -26,6 +26,7 @@
 // for that would bring the SPLL up through the analog I2C, as ESP-IDF's rtc_clk does, which is not done here). The
 // simulator runs the program as the ROM leaves the chip and switches at once.
 
+#include "chipsharp_hardware.h"
 #include "esp32c5_chip.h"
 
 #define PCR_SOC_CLK_PLL_F160M 2u

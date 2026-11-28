@@ -19,7 +19,7 @@ public sealed class PullCheckTests
         {
             static void Main()
             {
-                Pin.Input(3);
+                Pin.Input(6);
                 Pin.Input(4, Pull.None);
                 Pin.Input(5, Pull.Up);
             }

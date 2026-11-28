@@ -23,6 +23,7 @@
 // one) and raises SERIAL_OUT_RECV_PKT, which is the interrupt source USB_SERIAL_JTAG (routed to CLIC id 21, whose handler
 // ends the wait). The host sends its next packet as the FIFO empties, so no byte is lost while the program is busy.
 
+#include "chipsharp_hardware.h"
 #include "esp32c5_chip.h"
 
 #define WAIT_MICROSECONDS 50000u

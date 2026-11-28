@@ -30,6 +30,7 @@
 // A port that does not exist, pins it cannot use, a speed it cannot run at, or a port used before Open stop the program
 // (chipsharp_hardware_failure, esp32c5_failures.c) with a message that says what to do.
 
+#include "chipsharp_hardware.h"
 #include "esp32c5_chip.h"
 
 #define PORT_COUNT 1

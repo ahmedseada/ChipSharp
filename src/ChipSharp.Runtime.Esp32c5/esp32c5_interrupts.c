@@ -17,6 +17,7 @@
 // Every interrupt has the same level, and a handler runs with interrupts off, so one never interrupts another: each runs
 // to its end first.
 
+#include "chipsharp_hardware.h"
 #include "esp32c5_chip.h"
 
 // The longest time of the timer event, so that two times compare by the sign of their difference: 2147483 ms, about 35
