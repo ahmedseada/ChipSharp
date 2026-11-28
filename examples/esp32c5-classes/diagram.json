@@ -1,0 +1,172 @@
+{
+  "version": 1,
+  "author": "ChipSharp",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-c5-devkitc-1",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "green2",
+      "top": -10,
+      "left": 170,
+      "attrs": {
+        "color": "green",
+        "label": "24"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "yellow2",
+      "top": 40,
+      "left": 170,
+      "attrs": {
+        "color": "yellow",
+        "label": "23"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "red1",
+      "top": 90,
+      "left": 170,
+      "attrs": {
+        "color": "red",
+        "label": "4"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "yellow1",
+      "top": 140,
+      "left": 170,
+      "attrs": {
+        "color": "yellow",
+        "label": "5"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "green1",
+      "top": 60,
+      "left": -90,
+      "attrs": {
+        "color": "green",
+        "label": "6"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "red2",
+      "top": 110,
+      "left": -90,
+      "attrs": {
+        "color": "red",
+        "label": "10"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn",
+      "top": 170,
+      "left": -90,
+      "attrs": {
+        "color": "green",
+        "label": "cut green",
+        "bounce": "0"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "esp:24",
+      "green2:A",
+      "green",
+      []
+    ],
+    [
+      "esp:23",
+      "yellow2:A",
+      "gold",
+      []
+    ],
+    [
+      "esp:4",
+      "red1:A",
+      "red",
+      []
+    ],
+    [
+      "esp:5",
+      "yellow1:A",
+      "gold",
+      []
+    ],
+    [
+      "esp:6",
+      "green1:A",
+      "green",
+      []
+    ],
+    [
+      "esp:10",
+      "red2:A",
+      "red",
+      []
+    ],
+    [
+      "esp:9",
+      "btn:2.r",
+      "blue",
+      []
+    ],
+    [
+      "green2:C",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "yellow2:C",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "red1:C",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "yellow1:C",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "green1:C",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "red2:C",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "btn:1.l",
+      "esp:GND.1",
+      "black",
+      []
+    ]
+  ],
+  "dependencies": {}
+}

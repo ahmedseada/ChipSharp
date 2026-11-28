@@ -45,6 +45,9 @@ public sealed partial class SimulationOptions
     /// <summary>The voltages on its analog inputs (--adc).</summary>
     public IReadOnlyList<AnalogInput> Analog { get; init; } = [];
 
+    /// <summary>The ESP32-C5's SPLL is running when the program starts (--pll-running): a bootloader powered and calibrated it.</summary>
+    public bool PllRunning { get; init; }
+
     /// <summary>
     /// The options of the command line after the chip: the image, --ms, --uart0, --uart1, --usb, --input, --send, --i2c,
     /// --spi and --adc
@@ -60,6 +63,7 @@ public sealed partial class SimulationOptions
         var sends = new List<SerialSend>();
         var devices = new List<BusDevice>();
         var analog = new List<AnalogInput>();
+        var pllRunning = false;
         for (var i = 0; i < arguments.Count; i++)
         {
             var argument = arguments[i];
@@ -75,9 +79,15 @@ public sealed partial class SimulationOptions
             }
 
             if (argument is not ("--ms" or "--uart0" or "--uart1" or "--usb" or "--input" or "--send" or "--i2c" or "--spi"
-                or "--adc"))
+                or "--adc" or "--pll-running"))
             {
                 throw new UsageException($"unknown option '{argument}'.");
+            }
+
+            if (argument == "--pll-running")
+            {
+                pllRunning = true;
+                continue;
             }
 
             if (++i == arguments.Count)
@@ -139,6 +149,7 @@ public sealed partial class SimulationOptions
             Sends = sends,
             Devices = devices,
             Analog = analog,
+            PllRunning = pllRunning,
         };
 
         static double? Time(Group group) =>
@@ -292,6 +303,7 @@ public static partial class Simulation
                                                      [--send [<port>=]<text>[@<simulated milliseconds>ms]]...
                                                      [--i2c 0:<address>=<device>]... [--spi 0=<device>[@<pin>]]...
                                                      [--adc <pin>=<volts>V|<reading>[@<simulated milliseconds>ms]]...
+                                                     [--pll-running]
 
         Runs an image on a simulated chip and prints what the program does, each with the simulated time: an Intel HEX
         image (as SDCC writes it: sdcc -mpdk14, sdcc -mstm8) on a Padauk PFS154 or an STM8S103, an ELF file (as ld.lld
@@ -368,6 +380,11 @@ public static partial class Simulation
         }
 
         var chip = load(options.Image);
+        if (options.PllRunning && chip is Esp32c5Chip c5)
+        {
+            c5.PllRunning = true;
+        }
+
         var lines = new List<string>();
         void Log(string line)
         {

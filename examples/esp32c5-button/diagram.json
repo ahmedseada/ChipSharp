@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "author": "ChipSharp",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-c5-devkitc-1",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led",
+      "top": 70,
+      "left": 170,
+      "attrs": {
+        "color": "red",
+        "label": "4"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn",
+      "top": 140,
+      "left": 170,
+      "attrs": {
+        "color": "green",
+        "label": "toggle",
+        "bounce": "0"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "esp:4",
+      "led:A",
+      "green",
+      []
+    ],
+    [
+      "led:C",
+      "esp:GND.4",
+      "black",
+      []
+    ],
+    [
+      "esp:5",
+      "btn:2.r",
+      "blue",
+      []
+    ],
+    [
+      "btn:1.l",
+      "esp:GND.3",
+      "black",
+      []
+    ]
+  ],
+  "dependencies": {}
+}

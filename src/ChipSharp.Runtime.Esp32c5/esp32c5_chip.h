@@ -29,9 +29,7 @@
 #include "esp32c5_interrupts.h"
 #include "esp32c5_pins.h"
 
-// The CPU's clock, which chipsharp_chip_init sets (esp32c5_runtime.c), and SYSTIMER's: 16 ticks a microsecond (CNT_CLK,
-// the crystal over 3; TRM 14.1)
-#define C5_CPU_HZ 160000000u
+// SYSTIMER's ticks: 16 a microsecond (CNT_CLK, the crystal over 3; TRM 14.1)
 #define C5_TICKS_PER_MICROSECOND 16u
 
 // The interrupt ids of the runtime (above)

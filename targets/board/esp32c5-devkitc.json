@@ -13,32 +13,60 @@
   "image": "esp",
   "flasher": "esptool",
   "esp": { "flashSize": "8MB" },
-  // the CPU's clock the runtime sets (esp32c5_runtime.c): 160 MHz, PLL_F160M
-  "clockHz": 160000000,
+  // the CPU's clock: the crystal's 48 MHz, as the ROM leaves it and the runtime keeps it (esp32c5_runtime.c says why the PLL is
+  // not turned on by itself). 160000000 is the opt-in for an image started with the PLL already running: the runtime then
+  // moves the CPU to PLL_F160M (AHB divider 4), and stops with a message when the PLL is not running
+  "clockHz": 48000000,
   "pinFunctions": {
-    // the pins a program may use as plain pins and watch (chipsharp check holds the pins a program gives as constants to
-    // these; the runtime takes any of GPIO0-GPIO28). Left out: GPIO2, GPIO3, GPIO7 and GPIO25-GPIO28, the chip's strapping
-    // pins (they choose the boot mode at reset: the Boot button is GPIO28, and GPIO27 is the RGB LED's data); GPIO11 and
-    // GPIO12, UART0, the "UART" port's bridge; GPIO13 and GPIO14, the USB Serial/JTAG port (D- and D+), the console;
-    // GPIO15-GPIO22, the module's flash and PSRAM. What is left: GPIO0, 1, 4, 5, 6, 8, 9, 10, 23 and 24
-    "pin": [0, 1, 4, 5, 6, 8, 9, 10, 23, 24],
-    "pinEvent": [0, 1, 4, 5, 6, 8, 9, 10, 23, 24],
-    // the analog inputs the board leaves a program (ADC1's channels on GPIO1-GPIO6, less the strapping GPIO2 and GPIO3),
+    // The pins a program may use as plain pins and watch: chipsharp check holds the pins a program gives as constants to
+    // these (the runtime takes any of GPIO0-GPIO28). Sources: the ESP32-C5 datasheet (documentation.espressif.com/
+    // esp32-c5_datasheet_en.html: Table 2-1 pin functions, section 2.6 on the SPI flash/PSRAM pins, section 3 and Table 3-1
+    // strapping pins) and the ESP32-C5-DevKitC-1 user guide (docs.espressif.com/projects/esp-dev-kits/en/latest/esp32c5/
+    // esp32-c5-devkitc-1/user_guide.html: header pins J1 and J3, with their strapping and JTAG labels).
+    //
+    // Left out, because a program that used them would break the board:
+    //   GPIO13, GPIO14   USB_D- and USB_D+: the USB Serial/JTAG port, the console and a way to flash (datasheet: enabled by
+    //                    default)
+    //   GPIO15           SPICS1, the PSRAM's chip select: "not available in modules with SPI PSRAM", as this board's
+    //                    ESP32-C5-WROOM-1 (N8R8) has (user guide, J3)
+    //   GPIO16-GPIO22    SPICS0, SPIQ, SPIWP, VDD_SPI, SPIHD, SPICLK, SPID: the module's SPI flash and PSRAM (datasheet 2.6:
+    //                    not for other uses); the board does not break them out
+    // Everything else is free for plain I/O, with these caveats (a pin that is a strapping pin is read at reset, so what is
+    // connected to it must not hold it at a level that picks another boot mode, or the program is not what starts):
+    //   GPIO0, GPIO1     XTAL_32K_P and _N: free unless a 32 kHz crystal is fitted (the user guide does not say one is)
+    //   GPIO2, 3, 4, 5   MTMS, MTDI, MTCK, MTDO: the JTAG pins, labelled so on the board. JTAG is on USB by default; the
+    //                    pins are JTAG's only when the eFuses (EFUSE_DIS_PAD_JTAG, EFUSE_JTAG_SEL_ENABLE) and GPIO7 select it.
+    //                    GPIO2 and GPIO3 (MTMS, MTDI) are also strapping pins (MTDI with GPIO25 chooses the SDIO clock edges)
+    //   GPIO7            strapping (the JTAG signal source); has no internal pull resistors, so it floats at reset unless
+    //                    something drives it
+    //   GPIO11, GPIO12   U0TXD and U0RXD, which the board's USB-to-UART bridge is on (the "UART" port): free when that port
+    //                    is not used, and a program's Uart.Open(0, ...) takes them
+    //   GPIO25, GPIO26   strapping (the SDIO clock edge, with MTDI; the boot mode, with GPIO27 and GPIO28)
+    //   GPIO27           strapping (the boot mode and the ROM's messages on UART0) and the data pin of the board's RGB LED,
+    //                    an addressable LED, which reads what a program drives as colors (see "pins" below)
+    //   GPIO28           strapping (the boot mode, with GPIO26 and GPIO27); the board's Boot button is on the strapping pin
+    //                    that picks the download mode (the user guide does not number it; the earlier board notes say GPIO28):
+    //                    read it freely, but an output would fight the button
+    "pin": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 23, 24, 25, 26, 27, 28],
+    "pinEvent": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 23, 24, 25, 26, 27, 28],
+    // the analog inputs the board leaves a program: ADC1's channels, GPIO1-GPIO6 (GPIO2 and GPIO3 are strapping pins; see above),
     // and the PWM outputs: the same pins as plain pins, since the LEDC and the buses reach any pin through the GPIO matrix
-    "adc": [1, 4, 5, 6],
-    "pwm": [0, 1, 4, 5, 6, 8, 9, 10, 23, 24]
+    "adc": [1, 2, 3, 4, 5, 6],
+    "pwm": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 23, 24, 25, 26, 27, 28]
   },
   // the buses on the pins the board leaves a program (bus 0 each, as the chip's table says)
   "i2c": {
-    "buses": [ { "sda": [0, 1, 4, 5, 6, 8, 9, 10, 23, 24], "scl": [0, 1, 4, 5, 6, 8, 9, 10, 23, 24] } ]
+    "buses": [ { "sda": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 23, 24, 25, 26, 27, 28],
+                 "scl": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 23, 24, 25, 26, 27, 28] } ]
   },
   "spi": {
-    "buses": [ { "sck": [0, 1, 4, 5, 6, 8, 9, 10, 23, 24], "tx": [0, 1, 4, 5, 6, 8, 9, 10, 23, 24],
-                 "rx": [0, 1, 4, 5, 6, 8, 9, 10, 23, 24] } ]
+    "buses": [ { "sck": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 23, 24, 25, 26, 27, 28],
+                 "tx": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 23, 24, 25, 26, 27, 28],
+                 "rx": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 23, 24, 25, 26, 27, 28] } ]
   },
   "pins": {
     // the board's one LED is an addressable RGB LED (a WS2812-like chain of one, "driven by GPIO27"), not a pin an output
-    // turns on: a program sends it colors (24 bits, timed pulses). GPIO 27 is a strapping pin too
+    // turns on: a program sends it colors (24 bits, timed pulses). GPIO 27 is a strapping pin too (datasheet Table 3-1)
     "RGB_LED": 27
   }
 }
