@@ -204,6 +204,10 @@ public sealed class Esp32c5Chip : SimulatedChip, IRiscVBus
         Write(Esp32c5Map.LpWdt + 0x04, 4, (uint)(9L * Esp32c5Map.RcSlowHz / 2));
         Write(Esp32c5Map.LpWdt, 4, 0x8000_0000u | (4u << 28) | 0x1_2214u);
         Write(Esp32c5Map.LpWdt + 0x18, 4, 0);
+        // bootloader_super_wdt_auto_feed: the super watchdog feeds itself
+        Write(Esp32c5Map.LpWdt + 0x20, 4, Esp32c5Map.WatchdogKey);
+        Write(Esp32c5Map.LpWdt + 0x1C, 4, Read(Esp32c5Map.LpWdt + 0x1C, 4) | (1u << 18));
+        Write(Esp32c5Map.LpWdt + 0x20, 4, 0);
         Write(Esp32c5Map.Timg0 + 0x64, 4, Esp32c5Map.WatchdogKey);
         Write(Esp32c5Map.Timg0 + 0x48, 4, (Read(Esp32c5Map.Timg0 + 0x48, 4) & ~(1u << 14)) | (1u << 22));
         Write(Esp32c5Map.Timg0 + 0x64, 4, 0);

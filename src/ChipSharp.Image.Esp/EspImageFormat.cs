@@ -13,7 +13,9 @@ namespace ChipSharp.Image.Esp;
 /// the entry is the .elf's. The target's "esp" settings give the chip id ("esp.chipId", 23 for the C5, esptool's
 /// IMAGE_CHIP_ID), the revisions it runs on ("esp.minRevFull", "esp.maxRevFull") and the SPI flash's mode
 /// ("esp.flashMode": dio), size ("esp.flashSize": 8MB) and frequency ("esp.flashFreq": 40m), which esptool
-/// keeps when it writes the image. The file is <c>&lt;program&gt;.bin</c> (<see cref="Extension"/>).
+/// keeps when it writes the image. The file is <c>&lt;program&gt;.bin</c> (<see cref="Extension"/>). The same file is an
+/// app for ESP-IDF's second-stage bootloader, at flash offset 0x10000 (<see cref="Make"/> says how, and
+/// <see cref="EspIdfBootloaderRules"/> checks it).
 /// </summary>
 public sealed class EspImageFormat : IImageFormat
 {

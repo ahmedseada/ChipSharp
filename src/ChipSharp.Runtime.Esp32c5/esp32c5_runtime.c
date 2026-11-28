@@ -17,8 +17,12 @@
 //   ChipSharp_Runtime_Register...      ChipSharp.Hardware.Registers: 32-bit reads and writes of any address
 //   chipsharp_c5_sleep, ..._wake       waiting for an interrupt without a race (esp32c5_chip.h)
 //
-// The CPU clock. No ESP-IDF bootloader runs before this program (the image is what the ROM loads), so nothing is assumed
-// of the PLL: the ROM leaves the CPU on the crystal (PCR_SYSCLK_CONF.SOC_CLK_SEL 0, 48 MHz on the devkit), and the 480 MHz
+// The CPU clock. Two things can start this program, and nothing is assumed of the PLL for either: the ROM, which loads
+// the image from flash offset 0x2000 and leaves the CPU on the crystal; or ESP-IDF's second-stage bootloader (Wokwi, a
+// devkit with its factory bootloader: the image as an app at 0x10000), whose bootloader_clock_configure (rtc_clk_init) has
+// put the CPU on the PLL at 160 MHz (CPU_CLK_FREQ_MHZ_BTLD) and leaves it there. Nothing below depends on the CPU's
+// frequency (SYSTIMER, the UART and the buses run from the crystal), so both work with the default. The ROM leaves the CPU
+// on the crystal (PCR_SYSCLK_CONF.SOC_CLK_SEL 0, 48 MHz on the devkit), and the 480 MHz
 // SPLL behind PLL_F160M and PLL_F240M is powered (PMU_IMM_HP_CK_POWER's XPD_BBPLL bits) and calibrated through the analog
 // I2C (REGI2C_WRITE of I2C_BBPLL's dividers, then the calibration handshake on I2C_ANA_MST_ANA_CONF0) by ESP-IDF's
 // rtc_clk_bbpll_enable and rtc_clk_bbpll_configure (components/esp_hw_support/port/esp32c5/rtc_clk.c, with

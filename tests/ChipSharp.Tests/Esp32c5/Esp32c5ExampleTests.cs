@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using ChipSharp.Image.Esp;
 using ChipSharp.Simulators;
 using ChipSharp.Tests.Pico;
 using ChipSharp.Tests.Support;
@@ -275,6 +276,28 @@ public sealed partial class Esp32c5ExampleTests(ITestOutputHelper output) : IDis
             segments.Select(pin => IsHigh(run.Pins, "GPIO" + pin.ToString(CultureInfo.InvariantCulture), 1500)).ToArray());
     }
 
+    /// <summary>
+    /// The same LCD traffic light started as ESP-IDF's bootloader starts an app (chipsim --idf-bootloader: the image passes
+    /// the bootloader's checks, the CPU is on the PLL at 160 MHz, the RTC watchdog runs and resets the chip after 9 s
+    /// unless the program turns it off, the registers are the bootloader's): it prints and shows exactly what the ROM
+    /// start does, the lines and LCD texts in the same order, for 15.5 s (past the watchdog's 9 s).
+    /// </summary>
+    [PicoFact]
+    [RunsLong]
+    public async Task The_LCD_traffic_light_started_as_the_IDF_bootloader_leaves_the_chip_does_the_same()
+    {
+        var example = await BuildAsync("esp32c5-lcd-traffic-light");
+
+        var run = Run(example, 15_500, "--i2c", "0:0x27=lcd1602", "--input", "GPIO10=high@2500ms", "--input", "GPIO10=low@2700ms",
+            "--idf-bootloader");
+
+        Assert.Equal(PicoConsole, Text(run).Split("\r\n", StringSplitOptions.RemoveEmptyEntries));
+        Assert.Equal(PicoLcd, run.After("LCD 0x27: "));
+        Assert.Contains("stopped: 15500 ms of simulated time have passed", run.Stopped);
+        Assert.True(IsHigh(run.Pins, "GPIO9", 1000) && !IsHigh(run.Pins, "GPIO6", 1000), $"{example}\n{run}");
+        Assert.InRange(Led(run, 23).Count, 30, 32);
+    }
+
     /// <summary>The servo on GPIO 6 sweeps 0 to 180 degrees and back: pulses of 1 to 2 ms, 50 times a second.</summary>
     [PicoFact]
     [RunsLong]
@@ -403,6 +426,9 @@ public sealed partial class Esp32c5ExampleTests(ITestOutputHelper output) : IDis
         Assert.Equal(2, lines.Length);
         Assert.Equal(Path.GetFileNameWithoutExtension(project) + ".bin", Path.GetFileName(lines[0]));
         Assert.True(MemoryReport().IsMatch(lines[1]), lines[1]);
+
+        // behind ESP-IDF's bootloader too (Wokwi, a devkit with its factory bootloader): every rule it checks holds
+        Assert.Equal([], EspIdfBootloaderRules.Check(File.ReadAllBytes(lines[0])));
         var built = new BuiltExample(example, lines[0], lines[1], new FileInfo(lines[0]).Length);
         output.WriteLine(built.ToString());
         return built;

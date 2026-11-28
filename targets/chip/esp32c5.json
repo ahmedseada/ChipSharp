@@ -133,6 +133,16 @@
         "rx": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28] }
     ]
   },
+  // The image is also an app for ESP-IDF's second-stage bootloader (Wokwi runs an uploaded .bin as an app at flash offset
+  // 0x10000 behind its own bootloader, as a devkit does that still has its factory one). That bootloader (esp-idf
+  // release/v5.5: bootloader_support esp_image_format.c, bootloader_common_loader.c, bootloader_utility.c; the C5's
+  // bootloader.ld) wants: an esp_app_desc_t at the start of the first segment's data (link.head above: magic 0xABCD5432,
+  // eFuse block revisions 0 and 65535 = any, MMU page size 2^16); the copied segments clear of its own SRAM (it occupies
+  // 0x4084bba0 up to the ROM's stack at 0x4085e5a0: an image that loads further is a build error); chip id 23 and chip
+  // revisions any; the checksum and SHA-256; and, because the C5's flash address space is shared for data and
+  // instructions (SOC_MMU_DI_VADDR_SHARED), exactly two segments mapped from flash (0x42000000-0x43ffffff), which this
+  // image has as two zero-length ones (EspImageFormat: "mappedSegments" "false" leaves them out). EspIdfBootloaderRules has each rule.
+  //
   // the image ("esp": src/ChipSharp.Image.Esp, esptool's esp32c5 target and bin_image.py): chipId is IMAGE_CHIP_ID, the
   // revisions are esptool's elf2image defaults (--min-rev-full 0, --max-rev-full 65535: any), the SPI flash settings the
   // header's bytes 2 and 3 (mode dio; frequency 40m, which esptool's write-flash keeps); the board gives the flash size
