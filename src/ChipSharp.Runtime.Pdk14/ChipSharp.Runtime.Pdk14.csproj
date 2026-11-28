@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The runtime parts every Padauk PDK14 chip (PFS154, PMS154C, PFS172) shares, for SDCC: the start-up, the one
+       interrupt handler, the stops and failures, the copies of the reentrant functions' parameters, the defaults -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+    <!-- EmbeddedText, which the ARMv6-M runtime ships and the others share -->
+    <ProjectReference Include="..\ChipSharp.Runtime.ArmV6M\ChipSharp.Runtime.ArmV6M.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- the hardware contract, which every chip runtime's C includes (src/ChipSharp.Runtime.Shared) -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_hardware.h" LogicalName="chipsharp_hardware.h" />
+    <EmbeddedResource Include="pdk14_runtime.h" LogicalName="pdk14_runtime.h" />
+    <EmbeddedResource Include="pdk14_startup.c" LogicalName="pdk14_startup.c" />
+    <EmbeddedResource Include="pdk14_interrupt.s" LogicalName="pdk14_interrupt.s" />
+    <EmbeddedResource Include="pdk14_stops.s" LogicalName="pdk14_stops.s" />
+    <EmbeddedResource Include="pdk14_arguments.s" LogicalName="pdk14_arguments.s" />
+    <EmbeddedResource Include="pdk14_argument_8.s" LogicalName="pdk14_argument_8.s" />
+    <EmbeddedResource Include="pdk14_result_8.s" LogicalName="pdk14_result_8.s" />
+    <EmbeddedResource Include="pdk14_chip_init.c" LogicalName="pdk14_chip_init.c" />
+    <EmbeddedResource Include="pdk14_before_halt.c" LogicalName="pdk14_before_halt.c" />
+    <EmbeddedResource Include="pdk14_failure_write.c" LogicalName="pdk14_failure_write.c" />
+    <EmbeddedResource Include="pdk14_local_utc_offset.s" LogicalName="pdk14_local_utc_offset.s" />
+    <EmbeddedResource Include="pdk14_hardware_failure.c" LogicalName="pdk14_hardware_failure.c" />
+  </ItemGroup>
+</Project>

@@ -30,6 +30,11 @@ internal sealed partial record Unsupported
         $"Console.ReadLine makes a string, which needs a heap, and the target '{target}' has no heap",
         "Read the line char by char with Console.Read, into a span of a constant size (stackalloc char[64]).");
 
+    /// <summary>Pwm.Duty, which takes a double, on a target whose C has no 64-bit double (SDCC's: the PFS154's).</summary>
+    public static Unsupported DutyWithoutDouble(string target) => Rule(
+        $"Pwm.Duty takes a double, and the target '{target}' has no 64-bit double (\"double64\": false)",
+        "Give the time high instead: Pwm.PulseMicroseconds(pin, microseconds), from the start of each period.");
+
     /// <summary>A UART the target does not have, given as a constant: "the target 'pico' has no UART2".</summary>
     public static Unsupported NoSuchPort(int port, int ports, string target) => Rule(
         $"the target '{target}' has no UART{port}",

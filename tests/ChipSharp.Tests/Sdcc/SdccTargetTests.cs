@@ -21,7 +21,8 @@ public sealed class SdccTargetTests
 
         Assert.Equal(["pfs154-bare", "pfs154", "pdk14"], pfs.InheritanceChain);
         Assert.True(pfs.IsComplete);
-        Assert.Equal(("c", "sdcc", "pdk14", "hex"), (pfs.Backend, pfs.Toolchain, pfs.Runtime, pfs.Image));
+        // the chip's runtime, on the pdk14 one (src/ChipSharp.Runtime.Pfs154, src/ChipSharp.Runtime.Pdk14)
+        Assert.Equal(("c", "sdcc", "pfs154", "hex"), (pfs.Backend, pfs.Toolchain, pfs.Runtime, pfs.Image));
         Assert.Null(pfs.Triple);
         Assert.Equal((2, Endianness.Little), (pfs.PointerSize, pfs.Endian));
         // 2K words of program memory, two bytes of the .ihx each; 128 bytes of RAM

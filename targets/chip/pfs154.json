@@ -2,11 +2,13 @@
   // Padauk PFS154: PDK14, 2K words of re-programmable (MTP) program memory, 128 bytes of RAM, 14 I/O pins (PA0,
   // PA3-PA7, PB0-PB7), the 16-bit timer T16, the 8-bit timers TM2 and TM3 (with PWM), three 11-bit PWM generators
   // (PWMG0-2), a comparator; no UART, ADC or multiplier. Programmed with the Easy PDK programmer (easypdkprog), which also
-  // trims the internal oscillator (IHRC) when it writes the program. Its runtime is still to come (milestone M6, wave 1),
-  // from the registers, ports and interrupts below.
-  // Pins by number: port * 8 + bit, so PA0-PA7 are 0-7 and PB0-PB7 are 8-15
+  // trims the internal oscillator (IHRC) when it writes the program.
+  // The PDK14 runtime and this chip's (src/ChipSharp.Runtime.Pdk14, src/ChipSharp.Runtime.Pfs154): pins by number,
+  // port * 8 + bit, so PA0-PA7 are 0-7 and PB0-PB7 are 8-15; T16 counting microseconds (IHRC / 16) for the delays and
+  // the clock; TM2 for the timer event; TM3 (and TM2 while the timer event is off) for PWM; no console
   "name": "pfs154",
   "inherits": "pdk14",
+  "runtime": "pfs154",
   "memory": {
     // as SDCC's .ihx addresses it: two bytes for each 14-bit word (word n in bytes 2n and 2n + 1, low byte first, the
     // top 2 bits 0), so the 2K words are 4 KB of addresses; the memory report counts words ("wordSize")
@@ -59,13 +61,27 @@
     // CLKMD's system clocks: IHRC / 2, 4, 8, 16, 32 or 64; ILRC / 1, 4 or 16; or an external crystal (EOSCR)
     "ihrcDividers": [2, 4, 8, 16, 32, 64]
   },
+  "interrupts": {
+    // the events an [Interrupt] method can handle. The chip has one vector for all its interrupts: the runtime's handler
+    // (pdk14_interrupt.s) finds which asked and calls the method's entry, chipsharp_isr_irq<n> by the numbers here, the
+    // request bits of INTRQ that bring each event
+    "pin": { "irq": 0 },          // PA0's edges (INTRQ bit 0) and PB0's (bit 1): the two pins with an interrupt
+    "timer": { "irq": 6 }         // TM2 (INTRQ bit 6), at the times Every and After give
+  },
   "capabilities": {
     "heap": false,                // 128 bytes of RAM: static fields and stack variables, no objects
-    "console": false,             // no UART: true once the runtime has a software UART
+    "console": false,             // no UART, and no software one: the failure messages go nowhere
     "uart": 0,
     "adc": 0,                     // no ADC: the comparator against its internal reference (GPCC) is the nearest thing
+    "pwm": 2,                     // PWM outputs at once: one on TM3 (PB5, PB6 or PB7), one on TM2 (PA3, PB2 or PB4)
     "timers": 3,                  // T16 (16-bit), TM2 and TM3 (8-bit, with PWM); and the three PWM generators
     "comparator": true,
-    "clock": false                // true once the runtime counts time with T16
+    "clock": true                 // a clock for DateTime.Now and Stopwatch: T16's microseconds, 2^48 of them
+  },
+  "pinFunctions": {
+    // the pins each can use: chipsharp check holds the pins a program gives as constants to these, and the runtime
+    // every pin. TM2's output pins are PWM outputs only while the timer event is off (it runs on TM2)
+    "pwm": [3, 10, 12, 13, 14, 15],
+    "pinEvent": [0, 8]            // Pin.Watch, WatchRising and WatchFalling: PA0 and PB0
   }
 }

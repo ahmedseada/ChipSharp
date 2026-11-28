@@ -11,9 +11,10 @@ namespace ChipSharp.Frontend.Analysis;
 /// <item>the capabilities "uart" (how many serial ports), "adc" (how many analog inputs), "pwm" (how many PWM
 /// outputs) and "consoleInput" (true when the console reads too): a call of a class the target has none of is a
 /// problem, and so is Console.ReadLine, which makes a string, on a target without a heap;</item>
-/// <item>"pinFunctions", the pins each can use ("uart1.tx": [4, 8, 20, 24], "adc": [26, 27, 28, 29], "pwm": [...]): a
-/// pin or a port the program gives as a constant (C# passes it with ldc.i4) that the target does not have for it is a
-/// problem, before the program runs. The runtime checks every pin and port when it runs, constant or not.</item>
+/// <item>"pinFunctions", the pins each can use ("uart1.tx": [4, 8, 20, 24], "adc": [26, 27, 28, 29], "pwm": [...]; and
+/// "pinEvent", the pins Pin.Watch and its kin can watch on a chip that cannot watch every pin, the PFS154's PA0 and
+/// PB0): a pin or a port the program gives as a constant (C# passes it with ldc.i4) that the target does not have for it
+/// is a problem, before the program runs. The runtime checks every pin and port when it runs, constant or not.</item>
 /// </list>
 /// The whole-program pass applies them when it checks a program for a target; checked without one, a program may use
 /// what any target has.
@@ -23,6 +24,7 @@ internal static class SerialAnalogRules
     private const string Uart = "ChipSharp.Hardware.Uart";
     private const string Adc = "ChipSharp.Hardware.Adc";
     private const string Pwm = "ChipSharp.Hardware.Pwm";
+    private const string PinType = "ChipSharp.Hardware.Pin";
 
     /// <summary>
     /// Adds a problem to <paramref name="problems"/> for each place in the program's own <paramref name="methods"/> that
@@ -101,7 +103,14 @@ internal static class SerialAnalogRules
 
             case Pwm:
                 return Count(target, "pwm") == 0 ? Unsupported.NoHardware(Pwm, "PWM outputs", target.Name)
+                    : callee.Name == "Duty" && target.Capabilities.TryGetValue("double64", out var double64)
+                        && string.Equals(double64, "false", StringComparison.OrdinalIgnoreCase)
+                        ? Unsupported.DutyWithoutDouble(target.Name)
                     : PinProblem(target, "pwm", constant(0), "a PWM output");
+
+            case PinType when callee.Name is "Watch" or "WatchRising" or "WatchFalling" or "Unwatch"
+                && callee.ParameterTypes.Count == 1:
+                return PinProblem(target, "pinEvent", constant(0), "watched (the pin event)");
 
             default:
                 return null;
