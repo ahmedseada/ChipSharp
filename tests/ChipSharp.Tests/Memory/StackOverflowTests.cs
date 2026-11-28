@@ -24,10 +24,7 @@ public sealed class StackOverflowTests(ITestOutputHelper output) : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     /// <summary>A recursion with no end (whose result is not a sum LLVM could turn into a loop), after a line.</summary>

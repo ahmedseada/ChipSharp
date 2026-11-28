@@ -2,6 +2,7 @@ using System.Text;
 using ChipSharp.Abstractions;
 using ChipSharp.Targets;
 using ChipSharp.Tests.Build;
+using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Pico;
 
@@ -17,10 +18,7 @@ public sealed class Ds1307SimulatorTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     private TargetDescription NoHeap => new TargetLoader(TargetFiles.WithShipped(Path.Combine(_scratch, "targets"),

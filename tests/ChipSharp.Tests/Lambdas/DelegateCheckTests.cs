@@ -22,10 +22,7 @@ public sealed class DelegateCheckTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     /// <summary>A Pico without a heap ("pico-no-heap"), and the shipped targets.</summary>

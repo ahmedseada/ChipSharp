@@ -3,6 +3,7 @@ using System.Globalization;
 using ChipSharp.Abstractions;
 using ChipSharp.Runtime.Windows;
 using ChipSharp.Targets;
+using ChipSharp.Tests.Support;
 using ChipSharp.Toolchain.Clang;
 
 namespace ChipSharp.Tests.Host;
@@ -18,10 +19,7 @@ public sealed class ClangToolchainTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [HostFact]

@@ -1,6 +1,7 @@
 using System.Reflection;
 using ChipSharp.Ir;
 using ChipSharp.Tests.Host;
+using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Lowering;
 
@@ -15,10 +16,7 @@ public sealed class SampleProgramTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     public static TheoryData<string> SampleNames => [.. Names()];

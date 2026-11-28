@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
 using ChipSharp.Image.Uf2;
+using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Pico;
 
@@ -16,10 +17,7 @@ public sealed partial class SerialAnalogSimulatorTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [SimulatorFact]

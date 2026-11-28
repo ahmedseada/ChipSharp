@@ -5,6 +5,7 @@ using ChipSharp.Targets;
 using ChipSharp.Tests.Build;
 using ChipSharp.Tests.Lowering;
 using ChipSharp.Tests.Pico;
+using ChipSharp.Tests.Support;
 using Microsoft.CodeAnalysis;
 
 namespace ChipSharp.Tests.Strings;
@@ -67,10 +68,7 @@ public sealed class StringCheckTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     /// <summary>The Pico without its heap: a console, no heap.</summary>

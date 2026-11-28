@@ -3,6 +3,7 @@ using System.Text;
 using ChipSharp.Abstractions;
 using ChipSharp.Build;
 using ChipSharp.Image.Hex;
+using ChipSharp.Tests.Support;
 using ChipSharp.Toolchain.Sdcc;
 
 namespace ChipSharp.Tests.Sdcc;
@@ -18,10 +19,7 @@ public sealed class SdccBuildTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [SdccFact]

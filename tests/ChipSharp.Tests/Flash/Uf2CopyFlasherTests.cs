@@ -2,6 +2,7 @@ using ChipSharp.Abstractions;
 using ChipSharp.Build;
 using ChipSharp.Flasher.Uf2Copy;
 using ChipSharp.Targets;
+using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Flash;
 
@@ -17,10 +18,7 @@ public sealed class Uf2CopyFlasherTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [Fact]

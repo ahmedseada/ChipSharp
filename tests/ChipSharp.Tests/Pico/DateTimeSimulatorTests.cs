@@ -21,10 +21,7 @@ public sealed class DateTimeSimulatorTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     /// <summary>The Pico with "heap": false: what needs no heap compiles for it, and nothing else does.</summary>

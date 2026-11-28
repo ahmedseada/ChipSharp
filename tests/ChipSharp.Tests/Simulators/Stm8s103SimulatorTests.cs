@@ -1,6 +1,7 @@
 using System.Text;
 using ChipSharp.Simulators;
 using ChipSharp.Tests.Sdcc;
+using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Simulators;
 
@@ -61,10 +62,7 @@ public sealed class Stm8s103SimulatorTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [SdccFact]

@@ -1,6 +1,7 @@
 using ChipSharp.Simulators;
 using ChipSharp.Simulators.Pdk14;
 using ChipSharp.Tests.Sdcc;
+using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Simulators;
 
@@ -39,10 +40,7 @@ public sealed class Pfs154SimulatorTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [SdccFact]

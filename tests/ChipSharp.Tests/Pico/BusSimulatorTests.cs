@@ -2,6 +2,7 @@ using System.Text;
 using ChipSharp.Image.Uf2;
 using ChipSharp.Targets;
 using ChipSharp.Tests.Build;
+using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Pico;
 
@@ -16,10 +17,7 @@ public sealed class BusSimulatorTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [SimulatorFact]

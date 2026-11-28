@@ -31,10 +31,7 @@ public sealed class NarrowingProgramTests(ITestOutputHelper output) : IDisposabl
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     // Random100, Random108 and Random114: LLVM 22 got their large functions wrong on the AVR, narrowed or not (see

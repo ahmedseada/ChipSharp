@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using ChipSharp.Tests.Pico;
+using ChipSharp.Tests.Support;
 using Xunit.Abstractions;
 
 namespace ChipSharp.Tests.Memory;
@@ -17,10 +18,7 @@ public sealed class GcLatencySimulatorTests(ITestOutputHelper output) : IDisposa
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     public const string Program = """

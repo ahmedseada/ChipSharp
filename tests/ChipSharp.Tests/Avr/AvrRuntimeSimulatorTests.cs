@@ -2,6 +2,7 @@ using System.Globalization;
 using ChipSharp.Abstractions;
 using ChipSharp.Image.Hex;
 using ChipSharp.Runtime.Avr;
+using ChipSharp.Tests.Support;
 using ChipSharp.Toolchain.Clang;
 
 namespace ChipSharp.Tests.Avr;
@@ -18,10 +19,7 @@ public sealed class AvrRuntimeSimulatorTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [AvrSimulatorFact]

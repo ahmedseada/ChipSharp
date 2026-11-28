@@ -25,10 +25,7 @@ public sealed class CultureNoteTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     /// <summary>The method each case calls, as the note names it, and what the note says.</summary>

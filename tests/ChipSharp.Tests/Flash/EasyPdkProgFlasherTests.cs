@@ -4,6 +4,7 @@ using ChipSharp.Flasher.EasyPdkProg;
 using ChipSharp.Flasher.Shared;
 using ChipSharp.Targets;
 using ChipSharp.Tests.Build;
+using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Flash;
 
@@ -30,10 +31,7 @@ public sealed class EasyPdkProgFlasherTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [Fact]

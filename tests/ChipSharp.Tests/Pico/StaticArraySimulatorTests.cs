@@ -29,10 +29,7 @@ public sealed class StaticArraySimulatorTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     public static TheoryData<string> ProgramNames => [.. StaticArrayPrograms.All.Select(program => program.Name)];

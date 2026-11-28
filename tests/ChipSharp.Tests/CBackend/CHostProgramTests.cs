@@ -1,6 +1,7 @@
 using ChipSharp.Tests.Host;
 using ChipSharp.Tests.Lowering;
 using ChipSharp.Targets;
+using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.CBackend;
 
@@ -16,10 +17,7 @@ public sealed class CHostProgramTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     public static TheoryData<string> Programs => ["IntegerArithmetic", "IntegerComparisons", "IntegerConversions", "Floats", "Memory"];

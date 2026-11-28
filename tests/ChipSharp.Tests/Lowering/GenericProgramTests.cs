@@ -21,10 +21,7 @@ public sealed class GenericProgramTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     /// <summary>Each program's name, compiled in Release (false) and in Debug (true).</summary>

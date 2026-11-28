@@ -1,4 +1,5 @@
 using System.Text;
+using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Conformance;
 
@@ -14,10 +15,7 @@ public abstract class ConformanceTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
 
         GC.SuppressFinalize(this);
     }

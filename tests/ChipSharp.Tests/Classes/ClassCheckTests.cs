@@ -24,10 +24,7 @@ public sealed class ClassCheckTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     public static TheoryData<string, bool> ProgramsInReleaseAndDebug => ClassPrograms.InReleaseAndDebug();

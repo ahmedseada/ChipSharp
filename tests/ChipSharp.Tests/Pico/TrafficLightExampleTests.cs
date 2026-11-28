@@ -249,10 +249,7 @@ public sealed class TrafficLightExampleTests(TrafficLightExampleTests.Builds bui
 
         public void Dispose()
         {
-            if (Directory.Exists(_scratch))
-            {
-                Directory.Delete(_scratch, recursive: true);
-            }
+            Scratch.Delete(_scratch);
         }
 
         internal Task<Build> GetAsync(string example) =>

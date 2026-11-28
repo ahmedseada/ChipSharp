@@ -6,6 +6,7 @@ using ChipSharp.Frontend;
 using ChipSharp.Frontend.Il;
 using ChipSharp.Ir;
 using ChipSharp.Tests.Host;
+using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Lowering;
 
@@ -20,10 +21,7 @@ public sealed partial class IlToTirOpCodeTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [Fact]

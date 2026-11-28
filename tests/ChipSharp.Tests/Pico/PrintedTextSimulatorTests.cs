@@ -21,10 +21,7 @@ public sealed class PrintedTextSimulatorTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     public static TheoryData<string> ProgramNames => [.. PrintedTextPrograms.All.Select(program => program.Name)];

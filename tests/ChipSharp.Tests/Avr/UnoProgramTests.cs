@@ -18,10 +18,7 @@ public sealed class UnoProgramTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     public static TheoryData<string> ProgramNames => [.. UnoPrograms.All.Select(program => program.Name)];

@@ -6,6 +6,7 @@ using ChipSharp.Ir;
 using ChipSharp.Runtime.Rp2040;
 using ChipSharp.Tests.Host;
 using ChipSharp.Tests.Pico;
+using ChipSharp.Tests.Support;
 using ChipSharp.Tests.Tir;
 using ChipSharp.Toolchain.Clang;
 
@@ -28,10 +29,7 @@ public sealed class LlvmMemoryProgramTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [HostFact]

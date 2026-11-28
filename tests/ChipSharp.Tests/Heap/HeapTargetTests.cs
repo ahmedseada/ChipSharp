@@ -4,6 +4,7 @@ using ChipSharp.Runtime.Rp2040;
 using ChipSharp.Runtime.Windows;
 using ChipSharp.Targets;
 using ChipSharp.Tests.Build;
+using ChipSharp.Tests.Support;
 using ChipSharp.Toolchain.Clang;
 
 namespace ChipSharp.Tests.Heap;
@@ -18,10 +19,7 @@ public sealed class HeapTargetTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     private TargetLoader Targets() => new(TargetFiles.WithShipped(_scratch,

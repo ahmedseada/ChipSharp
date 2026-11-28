@@ -25,10 +25,7 @@ public sealed class SpanCheckTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     public static TheoryData<string> ProgramNames => [.. SpanPrograms.All.Select(program => program.Name)];

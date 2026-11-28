@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using ChipSharp.Runtime.ArmV6M;
 using ChipSharp.Tests.Host;
+using ChipSharp.Tests.Support;
 using ChipSharp.Toolchain.Clang;
 
 namespace ChipSharp.Tests.Pico;
@@ -36,10 +37,7 @@ public sealed partial class ArmV6MHelperTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     [HostFact]

@@ -1,6 +1,7 @@
 using System.Text;
 using ChipSharp.Tests.Sdcc;
 using ChipSharp.Tests.Stm8;
+using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Backends;
 
@@ -15,10 +16,7 @@ public sealed class SdccStackCheckTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     private const string Recursion = """

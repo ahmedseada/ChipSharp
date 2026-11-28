@@ -19,10 +19,7 @@ public sealed class InterruptSimulatorTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     private static string Example(string folder) => File.ReadAllText(Path.Combine(Repository.Examples, folder, "Program.cs"));

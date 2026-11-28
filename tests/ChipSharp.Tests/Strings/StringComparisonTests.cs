@@ -3,6 +3,7 @@ using ChipSharp.Frontend.Lowering;
 using ChipSharp.Tests.Host;
 using ChipSharp.Tests.Lowering;
 using ChipSharp.Tests.Pico;
+using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Strings;
 
@@ -56,10 +57,7 @@ public sealed class StringComparisonTests : IDisposable
 
     public void Dispose()
     {
-        if (Directory.Exists(_scratch))
-        {
-            Directory.Delete(_scratch, recursive: true);
-        }
+        Scratch.Delete(_scratch);
     }
 
     /// <summary>What .NET throws for: a null value, a start past the end, a value that is no StringComparison.</summary>
