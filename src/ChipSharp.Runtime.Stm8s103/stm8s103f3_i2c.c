@@ -23,14 +23,56 @@
 #define FREQUENCY_MAX 400000
 #define STANDARD_MAX 100000
 
-static u8 open;
-static u8 continuing; // the transfer before was a write without a stop: this one starts with a repeated start
-static u16 ccr;       // CCRH:CCRL, fast mode's FS (bit 15) included
-static u8 trise;
-static u16 limit; // the most microseconds an event may take: two bytes at the bus's clock, and some
+// The bus's state and helpers: the part "bus"'s, which the others use. The STM8 runtime cuts this file at its
+// "//@module" lines, as SDCC's linker takes a module whole: a program that only writes has no reads. Their names in C
+// are the runtime's own.
+#define open chipsharp_i2c_open
+#define continuing chipsharp_i2c_continuing
+#define ccr chipsharp_i2c_ccr
+#define trise chipsharp_i2c_trise
+#define limit chipsharp_i2c_limit
+#define check_number chipsharp_i2c_check_number
+#define set_up chipsharp_i2c_set_up
+#define check_bus chipsharp_i2c_check_bus
+#define wait chipsharp_i2c_wait
+#define stop chipsharp_i2c_stop
+#define begin chipsharp_i2c_begin
+
+extern u8 open;
+extern u8 continuing; // the transfer before was a write without a stop: this one starts with a repeated start
+extern u16 ccr;       // CCRH:CCRL, fast mode's FS (bit 15) included
+extern u8 trise;
+extern u16 limit; // the most microseconds an event may take: two bytes at the bus's clock, and some
+void check_number(chipsharp_i32 bus);
+void set_up(void);
+void check_bus(chipsharp_i32 bus, chipsharp_i32 address);
+u16 wait(u8 mask);
+chipsharp_i32 stop(chipsharp_i32 result);
+chipsharp_i32 begin(chipsharp_i32 address, u8 read);
+
+// Waits for one of the SR1 events of mask, or a refusal (AF); 0 when the time runs out: the bus is reset.
+#define REFUSED 0x100u
+#define TIME_UP 0u
+
+//@module bus
+u8 open;
+u8 continuing;
+u16 ccr;
+u8 trise;
+u16 limit;
+
+// The messages are short (the STM8S103F3 has 8 KB of flash), .NET's exceptions all the same.
+void check_number(chipsharp_i32 bus)
+{
+    if (bus != 0)
+    {
+        chipsharp_hardware_failure("System.ArgumentException: I2C bus {0} does not exist: the STM8S103F3 has bus 0. "
+            "(Parameter 'bus')", bus, 0, 0, 0);
+    }
+}
 
 // The controller set up (again) at the clock Open chose: 16 MHz in FREQR, CCR, the rise time, then on.
-static void set_up(void)
+void set_up(void)
 {
     I2C_CR1 = 0;
     I2C_FREQR = (u8)(MASTER_HZ / 1000000ul);
@@ -41,30 +83,27 @@ static void set_up(void)
     I2C_CR1 = I2C_CR1_PE_MASK;
 }
 
+//@module open
 void ChipSharp_Runtime_I2cOpen(chipsharp_i32 bus, chipsharp_i32 sda, chipsharp_i32 scl, chipsharp_i32 hertz)
 {
-    if (bus != 0)
-    {
-        chipsharp_hardware_failure("System.ArgumentException: I2C bus {0} does not exist: the STM8S103F3 has bus 0 (SDA "
-            "13, PB5; SCL 12, PB4). (Parameter 'bus')", bus, 0, 0, 0);
-    }
+    check_number(bus);
 
     if (sda != STM8S103F3_I2C_SDA_PIN)
     {
-        chipsharp_hardware_failure("System.ArgumentException: Pin {0} is not the SDA pin of I2C0: on the STM8S103F3 it is "
-            "pin 13 (PB5). (Parameter 'sda')", sda, 0, 0, 0);
+        chipsharp_hardware_failure("System.ArgumentException: Pin {0} is not I2C0's SDA: it is pin 13 (PB5). "
+            "(Parameter 'sda')", sda, 0, 0, 0);
     }
 
     if (scl != STM8S103F3_I2C_SCL_PIN)
     {
-        chipsharp_hardware_failure("System.ArgumentException: Pin {0} is not the SCL pin of I2C0: on the STM8S103F3 it is "
-            "pin 12 (PB4). (Parameter 'scl')", scl, 0, 0, 0);
+        chipsharp_hardware_failure("System.ArgumentException: Pin {0} is not I2C0's SCL: it is pin 12 (PB4). "
+            "(Parameter 'scl')", scl, 0, 0, 0);
     }
 
     if (hertz < FREQUENCY_MIN || hertz > FREQUENCY_MAX)
     {
-        chipsharp_hardware_failure("System.ArgumentException: An I2C clock of {0} Hz is not one the STM8S103F3 makes: it "
-            "makes 1954 Hz to 400 kHz. (Parameter 'frequency')", hertz, 0, 0, 0);
+        chipsharp_hardware_failure("System.ArgumentException: I2C0 makes 1954 Hz to 400 kHz, not {0} Hz. "
+            "(Parameter 'frequency')", hertz, 0, 0, 0);
     }
 
     // the controller's pins are its own once it is on: inputs until then, not pulled low by their ODR
@@ -88,13 +127,10 @@ void ChipSharp_Runtime_I2cOpen(chipsharp_i32 bus, chipsharp_i32 sda, chipsharp_i
     set_up();
 }
 
-static void check_bus(chipsharp_i32 bus, chipsharp_i32 address)
+//@module transfer
+void check_bus(chipsharp_i32 bus, chipsharp_i32 address)
 {
-    if (bus != 0)
-    {
-        chipsharp_hardware_failure("System.ArgumentException: I2C bus {0} does not exist: the STM8S103F3 has bus 0 (SDA "
-            "13, PB5; SCL 12, PB4). (Parameter 'bus')", bus, 0, 0, 0);
-    }
+    check_number(bus);
 
     if (!open)
     {
@@ -104,16 +140,12 @@ static void check_bus(chipsharp_i32 bus, chipsharp_i32 address)
 
     if (address < 0 || address > 0x7f)
     {
-        chipsharp_hardware_failure("System.ArgumentException: I2C address {0} does not exist: a 7-bit address is 0 to "
-            "127. (Parameter 'address')", address, 0, 0, 0);
+        chipsharp_hardware_failure("System.ArgumentException: I2C address {0} is not one of 7 bits (0 to 127). "
+            "(Parameter 'address')", address, 0, 0, 0);
     }
 }
 
-// Waits for one of the SR1 events of mask, or a refusal (AF); 0 when the time runs out: the bus is reset.
-#define REFUSED 0x100u
-#define TIME_UP 0u
-
-static u16 wait(u8 mask)
+u16 wait(u8 mask)
 {
     u16 from = chipsharp_clock_count();
     for (;;)
@@ -143,7 +175,7 @@ static u16 wait(u8 mask)
 }
 
 // The stop after the last byte, and its end (STOP clears once the controller has made it).
-static chipsharp_i32 stop(chipsharp_i32 result)
+chipsharp_i32 stop(chipsharp_i32 result)
 {
     I2C_CR2 |= I2C_CR2_STOP_MASK;
     u16 from = chipsharp_clock_count();
@@ -158,7 +190,7 @@ static chipsharp_i32 stop(chipsharp_i32 result)
 
 // A start (repeated when the write before kept the bus) and the address with the direction; 1 once it answered
 // (ADDR, not yet cleared), 0 when it did not (the stop is made) or the time ran out.
-static chipsharp_i32 begin(chipsharp_i32 address, u8 read)
+chipsharp_i32 begin(chipsharp_i32 address, u8 read)
 {
     if (!continuing)
     {
@@ -197,6 +229,7 @@ static chipsharp_i32 begin(chipsharp_i32 address, u8 read)
     return 1;
 }
 
+//@module write
 chipsharp_i32 ChipSharp_Runtime_I2cWrite(chipsharp_i32 bus, chipsharp_i32 address, const chipsharp_u8 *data,
     chipsharp_i32 count, chipsharp_i32 with_stop)
 {
@@ -244,6 +277,7 @@ chipsharp_i32 ChipSharp_Runtime_I2cWrite(chipsharp_i32 bus, chipsharp_i32 addres
     return 1;
 }
 
+//@module read
 chipsharp_i32 ChipSharp_Runtime_I2cRead(chipsharp_i32 bus, chipsharp_i32 address, chipsharp_u8 *data,
     chipsharp_i32 count)
 {

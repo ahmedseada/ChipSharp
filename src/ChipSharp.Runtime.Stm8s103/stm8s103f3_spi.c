@@ -1,5 +1,5 @@
 // ChipSharp runtime for the STM8S103F3: ChipSharp.Hardware.Spi, the chip's SPI controller as bus 0: SCK on PC5 (pin 21),
-// TX (MOSI) on PC6 (22), RX (MISO) on PC7 (23), as controller, 8 bits a word, most significant bit first; modes 0 to 3, at
+// TX (MOSI) on PC6 (22), RX (MISO) on PC7 (23), either -1 for none (a 74HC595 sends nothing back), as controller, 8 bits a word, most significant bit first; modes 0 to 3, at
 // 16 MHz / 2, 4, 8, ..., 256 (8 MHz to 62.5 kHz), the fastest at or below the frequency asked for. A chip select is the
 // program's own pin: the controller's NSS is managed in software (SSM, SSI), so no pin of its own makes it a device.
 // Each byte goes out once the one before has (TXE), and comes back with what the device sent (RXNE).
@@ -8,6 +8,7 @@
 #include "stm8s103f3_runtime.h"
 
 #define FREQUENCY_MIN 62500
+#define NO_PIN (-1)
 
 static u8 open;
 
@@ -40,16 +41,16 @@ void ChipSharp_Runtime_SpiOpen(chipsharp_i32 bus, chipsharp_i32 sck, chipsharp_i
             "pin 21 (PC5). (Parameter 'sck')", sck, 0, 0, 0);
     }
 
-    if (tx != STM8S103F3_SPI_MOSI_PIN)
+    if (tx != STM8S103F3_SPI_MOSI_PIN && tx != NO_PIN)
     {
         chipsharp_hardware_failure("System.ArgumentException: Pin {0} is not the TX pin of SPI0: on the STM8S103F3 it is "
-            "pin 22 (PC6, MOSI). (Parameter 'tx')", tx, 0, 0, 0);
+            "pin 22 (PC6, MOSI), or -1 for none. (Parameter 'tx')", tx, 0, 0, 0);
     }
 
-    if (rx != STM8S103F3_SPI_MISO_PIN)
+    if (rx != STM8S103F3_SPI_MISO_PIN && rx != NO_PIN)
     {
         chipsharp_hardware_failure("System.ArgumentException: Pin {0} is not the RX pin of SPI0: on the STM8S103F3 it is "
-            "pin 23 (PC7, MISO). (Parameter 'rx')", rx, 0, 0, 0);
+            "pin 23 (PC7, MISO), or -1 for none. (Parameter 'rx')", rx, 0, 0, 0);
     }
 
     if (hertz < FREQUENCY_MIN)
@@ -71,10 +72,12 @@ void ChipSharp_Runtime_SpiOpen(chipsharp_i32 bus, chipsharp_i32 sck, chipsharp_i
         rate++;
     }
 
-    // SCK and TX outputs (push-pull, fast), RX an input, as the controller takes them
-    PC_DDR = (u8)((PC_DDR | STM8S103F3_PIN_PC5_MASK | STM8S103F3_PIN_PC6_MASK) & (u8)~STM8S103F3_PIN_PC7_MASK);
-    PC_CR1 = (u8)((PC_CR1 | STM8S103F3_PIN_PC5_MASK | STM8S103F3_PIN_PC6_MASK) & (u8)~STM8S103F3_PIN_PC7_MASK);
-    PC_CR2 |= (u8)(STM8S103F3_PIN_PC5_MASK | STM8S103F3_PIN_PC6_MASK);
+    // SCK and TX outputs (push-pull, fast), RX an input, as the controller takes them (TX only when it is 22, RX 23)
+    u8 outputs = (u8)(STM8S103F3_PIN_PC5_MASK | (tx == NO_PIN ? 0u : STM8S103F3_PIN_PC6_MASK));
+    u8 inputs = rx == NO_PIN ? 0u : STM8S103F3_PIN_PC7_MASK;
+    PC_DDR = (u8)((PC_DDR | outputs) & (u8)~inputs);
+    PC_CR1 = (u8)((PC_CR1 | outputs) & (u8)~inputs);
+    PC_CR2 |= outputs;
     SPI_CR1 = 0;
     SPI_CR2 = SPI_CR2_SSM_MASK | SPI_CR2_SSI_MASK;
     u8 settings = (u8)(SPI_CR1_MSTR_MASK | (u8)(rate << SPI_CR1_BR_POS) | (mode & 2 ? SPI_CR1_CPOL_MASK : 0u)

@@ -168,6 +168,7 @@ SHARED u32 at(const string *s, s32 i)
     return is_wide(s) ? READ(unsigned short, (const unsigned short *)data + i) : READ(unsigned char, data + i);
 }
 
+//@module same_chars
 // True when the chars of a from start, count of them, are those of b from 0.
 SHARED s32 same_chars(const string *a, s32 start, const string *b, s32 count)
 {

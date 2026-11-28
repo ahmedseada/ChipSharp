@@ -19,18 +19,22 @@
 // The clock: TIM1, prescaled to 1 MHz (16 MHz / 16), counts microseconds from 0 to 0xffff and round again (every 65.536
 // ms); its update interrupt counts the rounds in 32 bits: 48 bits of microseconds, which go round after 8.9 years. TIM1's
 // compare 1 is the timer event's (stm8s103f3_timer.c), without a pin. TIM2 makes the PWM outputs (stm8s103f3_pwm.c);
-// TIM4 is the program's.
+// TIM4 is the program's. The clock's readings are modules of their own (the STM8 runtime cuts the file at its
+// "//@module" lines), which a program without the clock or the timer event does not have.
 
 #include "chipsharp_hardware.h"
 #include "stm8s103f3_runtime.h"
+
+// The rounds TIM1 has counted: its update interrupt adds one each time it goes from 0xffff to 0.
+extern volatile u32 chipsharp_clock_rounds;
+
+//@module core
+volatile u32 chipsharp_clock_rounds;
 
 void (*volatile chipsharp_timer_hook)(void);
 void (*volatile chipsharp_pin_hook)(u8 port);
 void (*volatile chipsharp_uart_hook)(void);
 volatile u8 chipsharp_uart1_sent;
-
-// The rounds TIM1 has counted: its update interrupt adds one each time it goes from 0xffff to 0.
-static volatile u32 rounds;
 
 void chipsharp_chip_init(void)
 {
@@ -50,9 +54,10 @@ void chipsharp_chip_init(void)
 STM8S103F3_HANDLER(TIM1_UPD_OVF)
 {
     TIM1_SR1 = (u8)~TIM1_SR1_UIF_MASK; // rc_w0: a 0 clears the flag, a 1 leaves the others
-    rounds++;
+    chipsharp_clock_rounds++;
 }
 
+//@module clock_read
 // TIM1's 16-bit count is read high byte first, which holds the low byte for the read after it. A round TIM1 has just
 // finished, whose interrupt has not come yet (interrupts are off, or this runs in a handler), is counted here: the
 // update flag is set, and the count is low.
@@ -61,7 +66,7 @@ void chipsharp_clock_read(u32 *rounds_now, u16 *count_now)
     u8 cc = chipsharp_interrupts_off();
     u8 high = TIM1_CNTRH;
     u8 low = TIM1_CNTRL;
-    u32 counted = rounds;
+    u32 counted = chipsharp_clock_rounds;
     if ((TIM1_SR1 & TIM1_SR1_UIF_MASK) != 0 && high < 0x80u)
     {
         counted++;
@@ -72,6 +77,7 @@ void chipsharp_clock_read(u32 *rounds_now, u16 *count_now)
     *count_now = (u16)((u16)high << 8 | low);
 }
 
+//@module clock_count
 u16 chipsharp_clock_count(void)
 {
     u8 cc = chipsharp_interrupts_off();
@@ -81,6 +87,7 @@ u16 chipsharp_clock_count(void)
     return (u16)((u16)high << 8 | low);
 }
 
+//@module handlers
 // Polling UART1 (interrupts may be off already): the last byte has gone out once TC is set. Then every port's inputs
 // lose their interrupt (CR2: an output's bit there is its fast mode, which stays).
 void chipsharp_before_halt(void)

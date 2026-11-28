@@ -151,7 +151,8 @@ new board is a few lines of JSON:
 | `pico` | Raspberry Pi Pico: RP2040, 2 MB flash, LED on GPIO 25 (inherits `rp2040`, which inherits `armv6m`) |
 | `pico-w` | Pico W: like the Pico, but its LED is wired to the Wi-Fi chip |
 | `uno` | Arduino Uno: ATmega328P at 16 MHz, 32 KB flash, 2 KB RAM, LED on D13 (see [Arduino Uno](#arduino-uno); inherits `atmega328p`, which inherits `avr`) |
-| `pfs154-bare`, `stm8s103-board` | In progress (M6): a Padauk PFS154 at 2 MHz and the blue STM8S103F3P6 board, through C and SDCC (see [SDCC chips](#sdcc-chips-in-progress)) |
+| `stm8s103-board` | The blue STM8S103F3P6 board: STM8 at 16 MHz, 8 KB flash, 1 KB RAM, LED on PB5, through C and SDCC (see [The STM8S103 board](#the-stm8s103-board); inherits `stm8s103f3`, which inherits `stm8`) |
+| `pfs154-bare` | In progress (M6): a Padauk PFS154 at 2 MHz, through C and SDCC (see [SDCC chips](#sdcc-chips-in-progress)) |
 | `rp2040`, `atmega328p`, `pfs154`, `stm8s103f3`, `armv6m`, `avr`, `pdk14`, `stm8`, `x86_64` | Chips and architectures, for target files to inherit; not built for directly |
 
 ```
@@ -454,8 +455,8 @@ it with [SDCC](https://sdcc.sourceforge.net/) 4.6, the Small Device C Compiler, 
 are the Padauk PFS154 (`pfs154-bare`: PDK14, 2K words of 14-bit program memory, 128 bytes of RAM) and the STM8S103F3
 (`stm8s103-board`, the blue board: 8 KB of flash, 1 KB of RAM, the LED on PB5). Their target files give the chips as
 data: memory, pins, ports, registers or peripherals, interrupts, the sizes of SDCC's C types (`"c"`), and what SDCC
-lacks (`"double64": false`: its `double` is 32 bits; on the PDK14, `"recursion": "reentrant"`). The runtimes are still
-to come.
+lacks (`"double64": false`: its `double` is 32 bits; on the PDK14, `"recursion": "reentrant"`). The STM8S103's runtime
+is done ([below](#the-stm8s103-board)); the PFS154's is still to come.
 
 The C code generator (`"backend": "c"`, `src/ChipSharp.Backend.C`) is the `llvm` one's twin behind the same contract:
 one `.c` file of C99 per program, with the same symbols for the runtime's functions, the same layout of structs,
@@ -488,6 +489,11 @@ The toolchain `sdcc`:
   finds `cc1`.
 - Each `.c` file is compiled on its own (`sdcc -mstm8 --opt-code-size -c`), each `.s` assembled (`sdasstm8`), into a
   `.rel` kept in the build cache; the file with `main()` is linked first (SDCC puts the start-up code there).
+- SDCC's linker keeps every object it is given whole (it has no sections to drop), but takes a module of a library
+  only when the program uses a symbol of it. So `main()`'s object and the program's (the C file that defines
+  `chipsharp_entry`) are linked as they are, and the runtime's objects are a library, `<name>.lib` (made with `sdar`):
+  a program gets only the runtime's modules it uses. A module of the library may stand in for a function the program
+  may define (the default of an `[Interrupt]` method's entry): the linker takes it only when the program has none.
 - The memory report comes from SDCC's map: `flash 238 bytes of 8 KB (2.9%), RAM 12 bytes of 1 KB (stack 256 bytes
   reserved)` for the tests' blink in C, and on a Padauk chip in words, two bytes of the `.ihx` each: `program 174 words
   of 2048 words (8.5%), RAM 27 bytes of 128 bytes (stack 16 bytes reserved)`. A program too big for the target's memory
@@ -496,16 +502,22 @@ The toolchain `sdcc`:
 - **The simulator, `chipsim`** (`src/ChipSharp.Simulators`, ChipSharp's own instruction-set simulators, in C#): `chipsim
   pfs154 Blink.ihx --ms 1000` (or `stm8s103`; without installing, `src\ChipSharp.Simulators\bin\Release\net10.0\chipsim.exe`)
   runs a `.ihx` and prints what the Uno's simulator prints: every pin change (`[   12.000 ms] PA4 high`), UART1's lines
-  (`UART1: Hello`) and baud rate, a timer's pin as PWM periods, and `stopped: <why>`. `--input PA3=low@100ms` drives a pin,
-  `--send "on\n@100ms"` sends to UART1's RX (the STM8S103's PD6), `--uart1 file` keeps what it sent. A run ends after
+  (`UART1: Hello`) and baud rate, a timer's pin as PWM periods, what the buses do, and `stopped: <why>`.
+  `--input PA3=low@100ms` drives a pin, `--send "on\n@100ms"` sends to UART1's RX (the STM8S103's PD6), `--uart1 file`
+  keeps what it sent; the Pico's and the Uno's devices, in C# (`src/ChipSharp.Simulators/Devices`, from
+  `tools/rp2040-sim/devices`, for any chip of chipsim's), go on the STM8S103's buses as they go on theirs:
+  `--i2c 0:0x27=lcd1602`, `--i2c 0:0x68=ds1307@2026-11-27T18:00:00`, `--i2c 0:0x68=mpu6050`, `--spi 0=74hc595@PC4`,
+  `--spi 0=loopback`; and `--adc PD3=1.65V@10ms` sets an analog input (or a reading, `PD3=512`). A run ends after
   `--ms`, or when the program has finished (it sleeps with nothing left to wake it: `stopsys`, `stopexe`; `halt`, `wfi`),
   or as a failure, exit code 3: the PFS154's `reset` instruction (the PDK14 has no breakpoint: a runtime's fatal error)
   or its watchdog (on after reset), the STM8's `break`, an instruction or address the chip does not have, memory the
   image does not fill, an interrupt with no handler. The PFS154: the whole PDK14 instruction set but `mul`, Timer16,
   Timer2 and Timer3 (PWM), the PA0 and PB0 interrupts, the system clocks of CLKMD (the IHRC at 16 MHz, the ILRC at about
   55 kHz), the ports with their pull-ups. The STM8S103: every instruction and addressing mode, the interrupt controller
-  and its priorities, EXTI, TIM1, TIM2 (PWM), TIM4, UART1, the clock's dividers (2 MHz after reset) and the LSI, the
-  IWDG. Cycles are the datasheets'; the tests run it in process (`Simulation.Run`).
+  and its priorities, EXTI, TIM1, TIM2 (PWM), TIM4, UART1, the I2C controller (RM0016's events: SB, ADDR, AF, TXE, BTF,
+  RXNE with ACK and POS, STOP, SWRST, each step at the bus's clock), the SPI controller, ADC1 (AIN2-AIN6 against
+  3.3 V), the clock's dividers (2 MHz after reset) and the LSI, the IWDG. Cycles are the datasheets'; the tests run it
+  in process (`Simulation.Run`).
 
 ### Flashing the PFS154 and the STM8S103
 
