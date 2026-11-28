@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- The runtime of ESP32-C5 programs (the ESP32-C5-DevKitC-1): the chip's first steps, the 160 MHz clock, pins, SYSTIMER's
-       delays and clock, the console on the USB Serial/JTAG port, UART0 and the events; on top of the RISC-V runtime -->
+       delays and clock, the console on the USB Serial/JTAG port, UART0, the events, I2C, SPI, the ADC and PWM; on top of the RISC-V runtime -->
   <ItemGroup>
     <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
     <ProjectReference Include="..\ChipSharp.Runtime.Riscv32\ChipSharp.Runtime.Riscv32.csproj" />
@@ -15,6 +15,11 @@
     <EmbeddedResource Include="esp32c5_usb.c" LogicalName="esp32c5_usb.c" />
     <EmbeddedResource Include="esp32c5_uart.c" LogicalName="esp32c5_uart.c" />
     <EmbeddedResource Include="esp32c5_failures.c" LogicalName="esp32c5_failures.c" />
+    <EmbeddedResource Include="esp32c5_bus.h" LogicalName="esp32c5_bus.h" />
+    <EmbeddedResource Include="esp32c5_i2c.c" LogicalName="esp32c5_i2c.c" />
+    <EmbeddedResource Include="esp32c5_spi.c" LogicalName="esp32c5_spi.c" />
+    <EmbeddedResource Include="esp32c5_adc.c" LogicalName="esp32c5_adc.c" />
+    <EmbeddedResource Include="esp32c5_pwm.c" LogicalName="esp32c5_pwm.c" />
     <!-- Console.Write and Console.WriteLine, and float and double as text, shared with the other runtimes -->
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_console.c" LogicalName="chipsharp_console.c" />
     <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_text.c" LogicalName="chipsharp_float_text.c" />

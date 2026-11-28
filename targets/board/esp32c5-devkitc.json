@@ -22,7 +22,19 @@
     // GPIO12, UART0, the "UART" port's bridge; GPIO13 and GPIO14, the USB Serial/JTAG port (D- and D+), the console;
     // GPIO15-GPIO22, the module's flash and PSRAM. What is left: GPIO0, 1, 4, 5, 6, 8, 9, 10, 23 and 24
     "pin": [0, 1, 4, 5, 6, 8, 9, 10, 23, 24],
-    "pinEvent": [0, 1, 4, 5, 6, 8, 9, 10, 23, 24]
+    "pinEvent": [0, 1, 4, 5, 6, 8, 9, 10, 23, 24],
+    // the analog inputs the board leaves a program (ADC1's channels on GPIO1-GPIO6, less the strapping GPIO2 and GPIO3),
+    // and the PWM outputs: the same pins as plain pins, since the LEDC and the buses reach any pin through the GPIO matrix
+    "adc": [1, 4, 5, 6],
+    "pwm": [0, 1, 4, 5, 6, 8, 9, 10, 23, 24]
+  },
+  // the buses on the pins the board leaves a program (bus 0 each, as the chip's table says)
+  "i2c": {
+    "buses": [ { "sda": [0, 1, 4, 5, 6, 8, 9, 10, 23, 24], "scl": [0, 1, 4, 5, 6, 8, 9, 10, 23, 24] } ]
+  },
+  "spi": {
+    "buses": [ { "sck": [0, 1, 4, 5, 6, 8, 9, 10, 23, 24], "tx": [0, 1, 4, 5, 6, 8, 9, 10, 23, 24],
+                 "rx": [0, 1, 4, 5, 6, 8, 9, 10, 23, 24] } ]
   },
   "pins": {
     // the board's one LED is an addressable RGB LED (a WS2812-like chain of one, "driven by GPIO27"), not a pin an output

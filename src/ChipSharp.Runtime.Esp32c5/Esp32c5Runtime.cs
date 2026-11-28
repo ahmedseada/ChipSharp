@@ -26,9 +26,12 @@ namespace ChipSharp.Runtime.Esp32c5;
 /// failure messages); <see cref="ConsoleFileName"/> makes the text, shared with the other runtimes.</item>
 /// <item><see cref="UartFileName"/>: UART0 (ChipSharp.Hardware's Uart) with a receive buffer, and the uart event.</item>
 /// <item><see cref="FailuresFileName"/>: what the program does where .NET would throw, said on the console.</item>
+/// <item><see cref="I2cFileName"/>, <see cref="SpiFileName"/>, <see cref="AdcFileName"/>, <see cref="PwmFileName"/>: the
+/// I2C controller, GP-SPI2, the SAR ADC1 (one-shot) and the LEDC, as ChipSharp.Hardware's I2c, Spi, Adc and Pwm, with the
+/// pins through the GPIO matrix (<see cref="BusHeaderFileName"/> has what they share).</item>
 /// </list>
 /// The program runs from SRAM, where the ROM loads it: the image at flash offset 0x2000, every segment in SRAM, its entry
-/// <c>chipsharp_reset</c> (targets/chip/esp32c5.json says how and why). I2C, SPI, the ADC and PWM are the chip's next part.
+/// <c>chipsharp_reset</c> (targets/chip/esp32c5.json says how and why).
 /// </summary>
 public sealed class Esp32c5Runtime : IArchRuntime
 {
@@ -62,6 +65,21 @@ public sealed class Esp32c5Runtime : IArchRuntime
     /// <summary>The C file with what the program does where .NET would throw, said on the console.</summary>
     public const string FailuresFileName = "esp32c5_failures.c";
 
+    /// <summary>What the files of the buses and the analog parts share: the crystal's speed, pins through the GPIO matrix.</summary>
+    public const string BusHeaderFileName = "esp32c5_bus.h";
+
+    /// <summary>The C file with the I2C controller (I2c).</summary>
+    public const string I2cFileName = "esp32c5_i2c.c";
+
+    /// <summary>The C file with GP-SPI2 (Spi).</summary>
+    public const string SpiFileName = "esp32c5_spi.c";
+
+    /// <summary>The C file with the SAR ADC1 and the temperature sensor (Adc).</summary>
+    public const string AdcFileName = "esp32c5_adc.c";
+
+    /// <summary>The C file with the LEDC (Pwm).</summary>
+    public const string PwmFileName = "esp32c5_pwm.c";
+
     /// <summary>The C file with Console.Write and Console.WriteLine, shared with the other runtimes (src/ChipSharp.Runtime.Shared).</summary>
     public const string ConsoleFileName = "chipsharp_console.c";
 
@@ -87,7 +105,8 @@ public sealed class Esp32c5Runtime : IArchRuntime
             .. riscv32,
             Source(RegistersFileName), Source(InterruptsFileName), Source(PinsFileName), Source(ChipHeaderFileName),
             Source(BootFileName), Source(SourceFileName), Source(InterruptsSourceFileName), Source(UsbFileName),
-            Source(UartFileName), Source(FailuresFileName), Source(ConsoleFileName),
+            Source(UartFileName), Source(FailuresFileName), Source(ConsoleFileName), Source(BusHeaderFileName),
+            Source(I2cFileName), Source(SpiFileName), Source(AdcFileName), Source(PwmFileName),
             .. riscv32.Any(file => file.FileName == FloatTextFileName) ? [] : new[] { Source(FloatTextFileName) },
         ]);
     }

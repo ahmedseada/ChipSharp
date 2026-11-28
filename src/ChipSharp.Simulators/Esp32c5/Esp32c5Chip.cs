@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Globalization;
+using ChipSharp.Simulators.Devices;
 using ChipSharp.Simulators.RiscV;
 
 namespace ChipSharp.Simulators.Esp32c5;
@@ -43,7 +44,8 @@ public sealed class Esp32c5Chip : SimulatedChip, IRiscVBus
     private const uint SramSize = Esp32c5Map.SramEnd - Esp32c5Map.SramStart;
     private const uint LpSramSize = Esp32c5Map.LpSramEnd - Esp32c5Map.LpSramStart;
     private const int PeripheralCycles = 3;
-    private const uint PcrSysclk = 0x110, PcrCpuFreq = 0x118, PcrBusClockUpdate = 0x144;
+    private const uint PcrSysclk = 0x110, PcrCpuFreq = 0x118, PcrBusClockUpdate = 0x144, PcrI2cSclk = 0x024, PcrLedcConf = 0x048,
+        PcrLedcSclk = 0x04C, PcrSpi2Clkm = 0x0C8;
 
     private static readonly Dictionary<uint, uint> PcrResets = new()
     {
@@ -72,6 +74,11 @@ public sealed class Esp32c5Chip : SimulatedChip, IRiscVBus
     private readonly Esp32c5Uart _uart;
     private readonly Esp32c5UsbSerialJtag _usb;
     private readonly Esp32c5Gpio _gpio;
+    private readonly Esp32c5I2c _i2c;
+    private readonly Esp32c5Spi _spi;
+    private readonly Esp32c5Adc _adc;
+    private readonly Esp32c5Ledc _ledc;
+    private readonly AnalogInputs _analog = new(Esp32c5Adc.Pins, 3.3, 4096);
     private readonly Esp32c5Mwdt _mwdt0;
     private readonly Esp32c5Mwdt _mwdt1;
     private readonly Esp32c5LpWdt _lpWdt;
@@ -116,6 +123,16 @@ public sealed class Esp32c5Chip : SimulatedChip, IRiscVBus
         _uart = new Esp32c5Uart(this, "UART0", () => _pcr[0x004]) { Changed = () => _replan = true };
         _usb = new Esp32c5UsbSerialJtag(this) { Changed = () => _replan = true };
         _gpio = new Esp32c5Gpio(this) { Changed = () => _replan = true };
+        _i2c = new Esp32c5I2c(this, new I2cBus("I2C0", Print), () => _pcr.GetValueOrDefault(PcrI2cSclk));
+        _spi = new Esp32c5Spi(this, new SpiBus("SPI0", Print), () => _pcr.GetValueOrDefault(PcrSpi2Clkm),
+            () => _gpio.InputRouted(57));
+        _adc = new Esp32c5Adc(this, _analog);
+        _ledc = new Esp32c5Ledc(this)
+        {
+            ClocksOn = () => (_pcr.GetValueOrDefault(PcrLedcConf) & 1) != 0 && (_pcr.GetValueOrDefault(PcrLedcSclk) & (1u << 22)) != 0,
+            Changed = _gpio.SignalChanged,
+        };
+        _gpio.Ledc = _ledc;
         _mwdt0 = new Esp32c5Mwdt(this, 0, () => _pcr[0x05C], Fail);
         _mwdt1 = new Esp32c5Mwdt(this, 1, () => _pcr[0x068], Fail);
         _lpWdt = new Esp32c5LpWdt(this, Fail);
@@ -141,6 +158,12 @@ public sealed class Esp32c5Chip : SimulatedChip, IRiscVBus
     public override IReadOnlyList<ISerialInput> SerialInputs => [_uart, _usb];
 
     public override IReadOnlyList<SerialMonitor> SerialOutputs => [_uart.Output, _usb.Output];
+
+    public override IReadOnlyList<I2cBus> I2cBuses => [_i2c.Bus];
+
+    public override IReadOnlyList<SpiBus> SpiBuses => [_spi.Bus];
+
+    public override AnalogInputs Analog => _analog;
 
     public override int ImageBytes => _imageBytes;
 
@@ -641,6 +664,14 @@ public sealed class Esp32c5Chip : SimulatedChip, IRiscVBus
                 }
 
                 return _uart.Read(address - Esp32c5Map.Uart0);
+            case >= Esp32c5Map.I2c0 and < Esp32c5Map.I2c0 + 0x1000:
+                return _i2c.Read(address - Esp32c5Map.I2c0);
+            case >= Esp32c5Map.Ledc and < Esp32c5Map.Ledc + 0x1000:
+                return _ledc.Read(address - Esp32c5Map.Ledc);
+            case >= Esp32c5Map.ApbSaradc and < Esp32c5Map.ApbSaradc + 0x1000:
+                return _adc.Read(address - Esp32c5Map.ApbSaradc);
+            case >= Esp32c5Map.Spi2 and < Esp32c5Map.Spi2 + 0x1000:
+                return _spi.Read(address - Esp32c5Map.Spi2);
             case >= Esp32c5Map.Timg0 and < Esp32c5Map.Timg0 + 0x1000:
                 return _mwdt0.Read(address - Esp32c5Map.Timg0);
             case >= Esp32c5Map.Timg1 and < Esp32c5Map.Timg1 + 0x1000:
@@ -684,6 +715,18 @@ public sealed class Esp32c5Chip : SimulatedChip, IRiscVBus
         {
             case >= Esp32c5Map.Uart0 and < Esp32c5Map.Uart0 + 0x1000:
                 _uart.Write(address - Esp32c5Map.Uart0, value);
+                return;
+            case >= Esp32c5Map.I2c0 and < Esp32c5Map.I2c0 + 0x1000:
+                _i2c.Write(address - Esp32c5Map.I2c0, value);
+                return;
+            case >= Esp32c5Map.Ledc and < Esp32c5Map.Ledc + 0x1000:
+                _ledc.Write(address - Esp32c5Map.Ledc, value);
+                return;
+            case >= Esp32c5Map.ApbSaradc and < Esp32c5Map.ApbSaradc + 0x1000:
+                _adc.Write(address - Esp32c5Map.ApbSaradc, value);
+                return;
+            case >= Esp32c5Map.Spi2 and < Esp32c5Map.Spi2 + 0x1000:
+                _spi.Write(address - Esp32c5Map.Spi2, value);
                 return;
             case >= Esp32c5Map.Timg0 and < Esp32c5Map.Timg0 + 0x1000:
                 _mwdt0.Write(address - Esp32c5Map.Timg0, value);

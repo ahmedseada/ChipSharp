@@ -32,7 +32,8 @@ public static class Esp32c5Map
 
     public const uint Uart0 = 0x6000_0000, Timg0 = 0x6000_8000, Timg1 = 0x6000_9000, Systimer = 0x6000_A000,
         UsbSerialJtag = 0x6000_F000, InterruptMatrix = 0x6001_0000, IoMux = 0x6009_0000, Gpio = 0x6009_1000,
-        Pcr = 0x6009_6000, LpWdt = 0x600B_1C00, Intpri = 0x600C_5000;
+        Pcr = 0x6009_6000, LpWdt = 0x600B_1C00, Intpri = 0x600C_5000, I2c0 = 0x6000_4000, Ledc = 0x6000_7000,
+        ApbSaradc = 0x6000_E000, Spi2 = 0x6008_1000;
 
     /// <summary>The interrupt sources the simulator raises (ETS_..._SOURCE), by ESP-IDF's names.</summary>
     public const int LpWdtSource = 18, FromCpu0Source = 23, GpioSource = 31, Uart0Source = 47, UsbSerialJtagSource = 54,
@@ -56,7 +57,7 @@ public static class Esp32c5Map
     {
         ["UART0"] = Uart0, ["TIMG0"] = Timg0, ["TIMG1"] = Timg1, ["SYSTIMER"] = Systimer, ["USB_DEVICE"] = UsbSerialJtag,
         ["INTERRUPT_CORE0"] = InterruptMatrix, ["IO_MUX"] = IoMux, ["GPIO"] = Gpio, ["PCR"] = Pcr, ["LP_WDT"] = LpWdt,
-        ["INTPRI"] = Intpri,
+        ["INTPRI"] = Intpri, ["I2C0"] = I2c0, ["LEDC"] = Ledc, ["APB_SARADC"] = ApbSaradc, ["SPI2"] = Spi2,
     };
 
     /// <summary>The interrupt sources the simulator raises, by the SVD's names of its &lt;interrupt&gt;s.</summary>
