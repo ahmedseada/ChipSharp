@@ -87,7 +87,7 @@ public sealed class Esp32c5Runtime : IArchRuntime
             .. riscv32,
             Source(RegistersFileName), Source(InterruptsFileName), Source(PinsFileName), Source(ChipHeaderFileName),
             Source(BootFileName), Source(SourceFileName), Source(InterruptsSourceFileName), Source(UsbFileName),
-            Source(UartFileName), Source(FailuresFileName), Source(ConsoleFileName),
+            Source(UartFileName), Source(FailuresFileName), Source(ConsoleFileName), ClockHeader(target),
             .. riscv32.Any(file => file.FileName == FloatTextFileName) ? [] : new[] { Source(FloatTextFileName) },
         ]);
     }
@@ -97,6 +97,34 @@ public sealed class Esp32c5Runtime : IArchRuntime
 
     /// <summary>The RISC-V runtime's: nothing.</summary>
     public RuntimeSources Atomics(TargetDescription target) => _riscv32.Atomics(target);
+
+    /// <summary>The file with what the runtime builds the CPU's clock from: <see cref="ClockHeaderFileName"/>.</summary>
+    public const string ClockHeaderFileName = "esp32c5_clock.h";
+
+    /// <summary>The crystal's frequency, which a board's "clockHz" says the CPU runs at when the PLL is not used.</summary>
+    public const long CrystalHertz = 48_000_000;
+
+    /// <summary>The CPU frequency of the PLL's PLL_F160M output (a board's opt-in "clockHz").</summary>
+    public const long PllHertz = 160_000_000;
+
+    /// <summary>
+    /// <see cref="ClockHeaderFileName"/>, written for <paramref name="target"/>: <c>C5_CPU_ON_PLL</c> is 1 when its "clockHz"
+    /// is <see cref="PllHertz"/> (the runtime moves the CPU to the PLL, which must be running already: see
+    /// esp32c5_runtime.c) and 0 for <see cref="CrystalHertz"/> (the CPU stays as the ROM left it).
+    /// </summary>
+    public static GeneratedFile ClockHeader(TargetDescription target)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        var text = target.Setting("clockHz") ?? throw new ChipSharpException(
+            $"Target '{target.Name}': 'clockHz' is missing: the CPU's clock the board runs at, {CrystalHertz} (the crystal) or " +
+            $"{PllHertz} (PLL_F160M, for a program started with the PLL running).");
+        var onPll = text == PllHertz.ToString(System.Globalization.CultureInfo.InvariantCulture) ? 1
+            : text == CrystalHertz.ToString(System.Globalization.CultureInfo.InvariantCulture) ? 0
+            : throw new ChipSharpException($"Target '{target.Name}': 'clockHz' is \"{text}\"; the esp32c5 runtime runs the CPU at " +
+                $"{CrystalHertz} (the crystal, the ROM's) or {PllHertz} (PLL_F160M, needs the PLL running already).");
+        return new GeneratedFile(ClockHeaderFileName,
+            $"// The CPU's clock, from the target's \"clockHz\" {text}, written by the esp32c5 runtime.\n#define C5_CPU_ON_PLL {onPll}\n");
+    }
 
     /// <summary>One of this runtime's source files by name, e.g. <see cref="BootFileName"/>.</summary>
     public static GeneratedFile Source(string fileName) => new(fileName, EmbeddedText.Read(typeof(Esp32c5Runtime), fileName));

@@ -52,7 +52,7 @@
   // not in the documents read (it runs from the crystal, 40 or 48 MHz, PCR_CLK_XTAL_FREQ says which): the chip's
   // runtime sets its clocks itself.
   //
-  // What the runtime has (src/ChipSharp.Runtime.Esp32c5, M4's wave 1): the CPU at 160 MHz, pins (GPIO0-GPIO28), the delays,
+  // What the runtime has (src/ChipSharp.Runtime.Esp32c5, M4's wave 1): the CPU on the crystal (160 MHz on the PLL as an opt-in), pins (GPIO0-GPIO28), the delays,
   // the clock and the timer event on SYSTIMER, the pin event on GPIO's edge interrupts, the console on the USB Serial/JTAG
   // port, UART0, the heap and garbage collector of the RISC-V runtime. I2C, SPI, the ADC and PWM come with wave 2: the
   // capabilities below say what is there, and chipsharp check refuses the rest.

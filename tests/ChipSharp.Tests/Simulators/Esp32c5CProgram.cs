@@ -209,7 +209,7 @@ internal sealed class Esp32c5CProgram
         : throw new XunitException($"The program has no '{symbol}'.");
 
     public SimulationResult Run(double milliseconds, IReadOnlyList<PinInput>? inputs = null,
-        IReadOnlyList<SerialSend>? sends = null, Action<SimulatedChip>? setUp = null) =>
+        IReadOnlyList<SerialSend>? sends = null, Action<SimulatedChip>? setUp = null, bool pllRunning = false) =>
         Simulation.Run(new SimulationOptions
         {
             Chip = "esp32c5",
@@ -217,15 +217,16 @@ internal sealed class Esp32c5CProgram
             Milliseconds = milliseconds,
             Inputs = inputs ?? [],
             Sends = sends ?? [],
+            PllRunning = pllRunning,
         }, setUp: setUp);
 
     /// <summary>Runs the program and reads its variable out (<paramref name="size"/> bytes) each time it calls report().</summary>
-    public (SimulationResult Run, List<ulong> Values) RunReports(double milliseconds, int size = 4)
+    public (SimulationResult Run, List<ulong> Values) RunReports(double milliseconds, int size = 4, bool pllRunning = false)
     {
         var values = new List<ulong>();
         var report = (int)Address("report");
         var output = Address("out");
-        var run = Run(milliseconds, setUp: chip => chip.Hooks = new Dictionary<int, Action<SimulatedChip>>
+        var run = Run(milliseconds, pllRunning: pllRunning, setUp: chip => chip.Hooks = new Dictionary<int, Action<SimulatedChip>>
         {
             [report] = c =>
             {

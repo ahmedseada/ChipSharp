@@ -6,7 +6,8 @@
 // targets/chip/esp32c5.json; esp32c5_chip.h says how the interrupts are routed.
 //
 //   chipsharp_chip_init                start-up (called by chipsharp_start before the program, interrupts off): the CPU
-//                                      at 160 MHz, SYSTIMER's unit 0 counting and its alarms 0 and 1 ready, no interrupt
+//                                      clock (the crystal's, or the PLL's 160 MHz when the board says so), SYSTIMER's
+//                                      unit 0 counting and its alarms 0 and 1 ready, no interrupt
 //                                      the ROM left routed or enabled, then interrupts on
 //   ChipSharp_Runtime_Pin...           ChipSharp.Hardware.Pin: GPIO0-GPIO28 through the GPIO matrix and the IO MUX
 //                                      (Output or Input first, then Write, Toggle, Read; other numbers are ignored)
@@ -16,20 +17,34 @@
 //   ChipSharp_Runtime_Register...      ChipSharp.Hardware.Registers: 32-bit reads and writes of any address
 //   chipsharp_c5_sleep, ..._wake       waiting for an interrupt without a race (esp32c5_chip.h)
 //
-// The CPU clock. The ROM leaves the core on the crystal (48 MHz on the devkit); this runtime runs it at 160 MHz, the
-// PLL's PLL_F160M output (the 480 MHz SPLL over 3) with no divider: PCR_SYSCLK_CONF's SOC_CLK_SEL 2, CPU_DIV_NUM 0, taking
-// effect when PCR_BUS_CLK_UPDATE is written (ESP-IDF's clk_ll_cpu_clk_src_set and clk_ll_bus_update). 160 MHz, not the
-// 240 the chip can reach, because it is the clock the chip's peripherals are specified with in every bus ratio (the
-// crystal and PLL_F160M are whole multiples of the 80 MHz the APB bus and the UART use) and takes less power; programs
-// that compute and want 240 write PCR_SYSCLK_CONF and call the bus update through Registers. The PLL must be locked
-// before the switch: the ROM's boot from flash leaves it so (it does not on an image loaded by a debugger; a runtime
-// for that would bring the SPLL up through the analog I2C, as ESP-IDF's rtc_clk does, which is not done here). The
-// simulator runs the program as the ROM leaves the chip and switches at once.
+// The CPU clock. No ESP-IDF bootloader runs before this program (the image is what the ROM loads), so nothing is assumed
+// of the PLL: the ROM leaves the CPU on the crystal (PCR_SYSCLK_CONF.SOC_CLK_SEL 0, 48 MHz on the devkit), and the 480 MHz
+// SPLL behind PLL_F160M and PLL_F240M is powered (PMU_IMM_HP_CK_POWER's XPD_BBPLL bits) and calibrated through the analog
+// I2C (REGI2C_WRITE of I2C_BBPLL's dividers, then the calibration handshake on I2C_ANA_MST_ANA_CONF0) by ESP-IDF's
+// rtc_clk_bbpll_enable and rtc_clk_bbpll_configure (components/esp_hw_support/port/esp32c5/rtc_clk.c, with
+// esp_hal_clock/esp32c5/include/hal/clk_tree_ll.h) before it moves the CPU to a PLL output. That sequence is not short
+// and goes through ESP-IDF's regi2c layer (the ROM's functions, the modem's analog I2C master), which cannot be tried on silicon here,
+// so it is not done here, and the chip has no register that says whether the SPLL is locked. So:
+//
+//   - by default (the board's "clockHz" 48000000) the runtime leaves the CPU as it found it, which is on the crystal after
+//     the ROM (and on whatever a bootloader chose, if one ran: nothing below depends on the CPU's frequency, only on the
+//     crystal's and SYSTIMER's);
+//   - with "clockHz" 160000000 (opt-in, for an image a bootloader started that left the CPU on a PLL: the SPLL is then
+//     certainly running) the CPU goes to PLL_F160M with no divider and the AHB divider 4, as ESP-IDF's
+//     rtc_clk_cpu_freq_to_pll_160_mhz does (clk_ll_cpu_set_divider, clk_ll_ahb_set_divider: f_ahb <= 48 MHz,
+//     clk_ll_cpu_set_src, clk_ll_bus_update). When the CPU is not on a PLL at start-up there is no way to know the SPLL runs,
+//     and the program stops with a message instead of stopping its own clock.
+//
+// What depends on a clock: the delays, the clock and the timer event on SYSTIMER (16 ticks a microsecond whatever the
+// CPU runs at), UART0 on the crystal (the frequency PCR_SYSCLK_CONF says), USB on its own 48 MHz. The CPU's frequency
+// changes only how fast the program runs, and "clockHz" is how fast the board says it does.
 
 #include "chipsharp_hardware.h"
 #include "esp32c5_chip.h"
+#include "esp32c5_clock.h"
 
 #define PCR_SOC_CLK_PLL_F160M 2u
+#define PCR_AHB_DIVIDER_AT_160M 4u // clk_ll_ahb_set_divider(4): 160 / 4 = 40 MHz
 
 // The CSRs: mepc (to restart a wait), mintthresh (the CLIC's threshold level)
 #define CSR_MEPC "0x341"
@@ -39,13 +54,27 @@
 
 static void start_cpu_clock(void)
 {
+#if C5_CPU_ON_PLL
+    unsigned int source = (PCR_SYSCLK_CONF & PCR_SYSCLK_CONF_SOC_CLK_SEL_MASK) >> PCR_SYSCLK_CONF_SOC_CLK_SEL_POS;
+    if (source < 2u)
+    {
+        // on the crystal or RC_FAST: nothing says the SPLL is running
+        chipsharp_hardware_failure("System.InvalidOperationException: The board asks for a 160 MHz CPU clock (\"clockHz\" "
+            "160000000), which needs the PLL running, and the CPU is not on it: nothing powered the PLL before this "
+            "program. Use \"clockHz\" 48000000, or start the program from a bootloader that leaves the CPU on the PLL.",
+            0, 0, 0, 0);
+    }
+
     PCR_CPU_FREQ_CONF = (PCR_CPU_FREQ_CONF & ~PCR_CPU_FREQ_CONF_CPU_DIV_NUM_MASK) | 0u; // no divider
+    PCR_AHB_FREQ_CONF = (PCR_AHB_FREQ_CONF & ~PCR_AHB_FREQ_CONF_AHB_DIV_NUM_MASK)
+        | PCR_AHB_FREQ_CONF_AHB_DIV_NUM(PCR_AHB_DIVIDER_AT_160M - 1u);
     PCR_SYSCLK_CONF = (PCR_SYSCLK_CONF & ~PCR_SYSCLK_CONF_SOC_CLK_SEL_MASK)
         | (PCR_SOC_CLK_PLL_F160M << PCR_SYSCLK_CONF_SOC_CLK_SEL_POS);
     PCR_BUS_CLK_UPDATE = PCR_BUS_CLK_UPDATE_BUS_CLOCK_UPDATE_MASK;
     while ((PCR_BUS_CLK_UPDATE & PCR_BUS_CLK_UPDATE_BUS_CLOCK_UPDATE_MASK) != 0)
     {
     }
+#endif
 }
 
 // The count of unit 0 when the program started, so that the uptime starts at 0 (the ROM has run for a while)
@@ -90,9 +119,9 @@ static void quiet_interrupts(void)
 
 void chipsharp_chip_init(void)
 {
-    start_cpu_clock();
     quiet_interrupts();
-    start_systimer();
+    start_systimer(); // before the clock: a failure of the clock says so on the console, which waits on SYSTIMER
+    start_cpu_clock();
     __asm__ volatile("csrsi mstatus, 8" : : : "memory");
 }
 

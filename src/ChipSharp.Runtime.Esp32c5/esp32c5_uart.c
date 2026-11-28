@@ -38,7 +38,7 @@
 #define RX_PIN ESP32C5_U0RXD_PIN
 
 // UART0's function clock (the crystal) and the speeds it can make
-#define FUNCTION_CLOCK_HZ 48000000u
+// (the crystal's frequency is read when the port opens: PCR_SYSCLK_CONF.CLK_XTAL_FREQ, in MHz; 48 on the devkit)
 #define BAUD_MIN 100
 #define BAUD_MAX 3000000
 #define MAX_BAUD_DIVIDER 4095u
@@ -162,13 +162,19 @@ void ChipSharp_Runtime_UartOpen(chipsharp_i32 port, chipsharp_i32 tx, chipsharp_
     }
 
     // the speed: the crystal over a whole number, so that the baud divider (in sixteenths) fits its 12 bits
-    unsigned int sclk_divider = (FUNCTION_CLOCK_HZ / (unsigned int)baud + MAX_BAUD_DIVIDER - 1u) / MAX_BAUD_DIVIDER;
+    unsigned int function_clock_hz = ((PCR_SYSCLK_CONF & PCR_SYSCLK_CONF_CLK_XTAL_FREQ_MASK) >> PCR_SYSCLK_CONF_CLK_XTAL_FREQ_POS) * 1000000u;
+    if (function_clock_hz == 0)
+    {
+        function_clock_hz = 48000000u;
+    }
+
+    unsigned int sclk_divider = (function_clock_hz / (unsigned int)baud + MAX_BAUD_DIVIDER - 1u) / MAX_BAUD_DIVIDER;
     if (sclk_divider < 1u)
     {
         sclk_divider = 1u;
     }
 
-    unsigned int sixteenths = (unsigned int)(((unsigned long long)FUNCTION_CLOCK_HZ * 16u / sclk_divider
+    unsigned int sixteenths = (unsigned int)(((unsigned long long)function_clock_hz * 16u / sclk_divider
         + (unsigned int)baud / 2u) / (unsigned int)baud);
     PCR_UART0_SCLK_CONF = PCR_UART0_SCLK_CONF_UART0_SCLK_SEL(0) | PCR_UART0_SCLK_CONF_UART0_SCLK_EN_MASK
         | PCR_UART0_SCLK_CONF_UART0_SCLK_DIV_NUM(sclk_divider - 1u);
