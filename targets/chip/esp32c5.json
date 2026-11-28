@@ -31,6 +31,16 @@
   // (0x4085c5a0)"): the program has the 0x5c5a0 bytes before them ("sram" below), its loaded segments first, then .bss
   // and the stack. The start-up calls no ROM function, and takes over everything once the ROM has jumped to it.
   //
+  // The image the ROM loads, made from the .elf (esptool's firmware image format, docs.espressif.com/projects/esptool,
+  // esp32c5, advanced-topics/firmware-image-format): one segment per ELF program header of type PT_LOAD with file bytes
+  // (p_filesz > 0), loaded at its p_paddr (= p_vaddr: the program runs where it is loaded), all in 0x40800000-0x4085c5a0;
+  // .bss, the heap and the stack are not in it (the start-up zeroes .bss). The header: 0xE9, the number of segments,
+  // the SPI flash mode and the flash size and frequency (byte 3: size in the high nibble, frequency in the low), the
+  // entry point (the ELF's e_entry, chipsharp_reset); the extended header: WP pin 0xEE (none), the drive settings, the
+  // chip id 23 (2 bytes), the minimum and maximum chip revisions (major * 100 + minor), hash_appended 1; each segment
+  // its address, its length (a multiple of 4) and its bytes; zeros up to 15 mod 16, the checksum byte (0xEF xor every
+  // segment byte), then the SHA-256 of all before it.
+  //
   // What the ROM leaves running: the watchdogs of a boot from flash (ESP-IDF's bootloader_config_wdt: "the flashboot
   // protection of RWDT and MWDT0 will have been automatically enabled") and the super watchdog. The runtime's
   // chipsharp_chip_boot stops them first thing (esp32c5_boot.c, ESP-IDF's sequence): the RTC watchdog (LP_WDT,

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The runtime of ESP32-C5 programs (the ESP32-C5-DevKitC-1): the chip's first steps (the watchdogs, the CLIC's trap
+       mode) and its registers; on top of the RISC-V runtime -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+    <ProjectReference Include="..\ChipSharp.Runtime.Riscv32\ChipSharp.Runtime.Riscv32.csproj" />
+    <!-- EmbeddedText, which the ARMv6-M runtime ships and the others share -->
+    <ProjectReference Include="..\ChipSharp.Runtime.ArmV6M\ChipSharp.Runtime.ArmV6M.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="esp32c5_boot.c" LogicalName="esp32c5_boot.c" />
+    <!-- the chip's registers, interrupt sources and pins, as ChipSharp.Chips writes them from Espressif's SVD and
+         chips/esp32c5.json -->
+    <EmbeddedResource Include="..\ChipSharp.Chips\Generated\esp32c5_registers.h" LogicalName="esp32c5_registers.h" />
+    <EmbeddedResource Include="..\ChipSharp.Chips\Generated\esp32c5_interrupts.h" LogicalName="esp32c5_interrupts.h" />
+    <EmbeddedResource Include="..\ChipSharp.Chips\Generated\esp32c5_pins.h" LogicalName="esp32c5_pins.h" />
+  </ItemGroup>
+</Project>

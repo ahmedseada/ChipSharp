@@ -38,6 +38,10 @@ internal static class BackendTargets
         // the SDCC chips: the C code generator and SDCC, in chipsim, with the tests' startup and console
         new("pfs154-bare", "c", "pfs154"),
         new("stm8s103-board", "c", "stm8s103"),
+
+        // the ESP32-C5 (M4): the llvm code generator for riscv32 and the esp32c5 runtime, in the chip's simulator, once
+        // the simulator and the runtime's console come (wave 1): new("esp32c5-devkitc", "llvm", "esp32c5"), run by the
+        // build pipeline as the PC's are. Until then its programs compile and link (Esp32c5ProgramTests)
     ];
 
     public static BackendTarget Get(string name) => All.Single(target => target.Name == name);

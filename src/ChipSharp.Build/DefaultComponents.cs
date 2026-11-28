@@ -10,8 +10,10 @@ using ChipSharp.Image.Uf2;
 using ChipSharp.Runtime.ArmV6M;
 using ChipSharp.Runtime.Atmega328p;
 using ChipSharp.Runtime.Avr;
+using ChipSharp.Runtime.Esp32c5;
 using ChipSharp.Runtime.Pdk14;
 using ChipSharp.Runtime.Pfs154;
+using ChipSharp.Runtime.Riscv32;
 using ChipSharp.Runtime.Rp2040;
 using ChipSharp.Runtime.Stm8;
 using ChipSharp.Runtime.Stm8s103;
@@ -66,6 +68,8 @@ public static class DefaultComponents
             .Register(new Rp2040Runtime())          // runtime "rp2040": Raspberry Pi Pico
             .Register(new AvrRuntime())             // runtime "avr": any AVR chip (ATmega328P: Arduino Uno)
             .Register(new Atmega328pRuntime())      // runtime "atmega328p": Arduino Uno, on the runtime "avr"
+            .Register(new Riscv32Runtime())         // runtime "riscv32": any 32-bit RISC-V chip (RV32, machine mode)
+            .Register(new Esp32c5Runtime())         // runtime "esp32c5": the ESP32-C5-DevKitC-1, on the runtime "riscv32"
             .Register(new Pdk14Runtime())           // runtime "pdk14": any Padauk PDK14 chip (PFS154), through SDCC
             .Register(new Pfs154Runtime())          // runtime "pfs154": a PFS154 on its own, on the runtime "pdk14"
             .Register(new Stm8Runtime())            // runtime "stm8": any STM8 chip, through SDCC

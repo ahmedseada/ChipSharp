@@ -8,14 +8,20 @@ namespace ChipSharp.Toolchain.Clang;
 
 /// <summary>
 /// What the target file says about building a program for a chip (no operating system): the triple, "cpu" and (AVR)
-/// "mmcu", "clang.flags", Zig's name of the target ("zig.target", for the toolchain "zig"), and the "link" settings:
-/// the entry point, which memory region holds the code ("link.code") and which the variables and the stack
-/// ("link.data"), how much RAM the stack needs ("link.stack"), the vector table's alignment ("link.vectorAlign"),
+/// "mmcu", (RISC-V) "march" and "mabi", "clang.flags", Zig's name of the target ("zig.target", for the toolchain "zig"),
+/// and the "link" settings: the entry point, which memory region holds the code ("link.code") and which the variables and
+/// the stack ("link.data": the same region on a chip that runs from RAM, as the ESP32-C5 does), how much RAM the stack
+/// needs ("link.stack"), the vector table's alignment ("link.vectorAlign"),
 /// sections that must come first in the code region ("link.head"), more linker arguments ("link.flags") and what the
 /// .elf adds to the data region's addresses ("link.dataOffset"); and from the capabilities, how much RAM the heap
 /// takes ("heap", 0 for none).
 /// </summary>
 /// <param name="Mmcu">The AVR microcontroller, as avr-gcc and clang name it (-mmcu), e.g. atmega328p; null elsewhere.</param>
+/// <param name="March">
+/// The instruction set, as clang's -march names it ("march"): a RISC-V chip's base and extensions, e.g.
+/// rv32imac_zicsr_zifencei; null elsewhere.
+/// </param>
+/// <param name="Mabi">The ABI, as clang's -mabi names it ("mabi"): RISC-V's ilp32 (no float registers); null elsewhere.</param>
 /// <param name="ZigTarget">Zig's name of the target (zig cc's --target), e.g. avr-freestanding-none; null when not given.</param>
 /// <param name="DataOffset">
 /// What the .elf adds to the data region's addresses ("link.dataOffset"): 0x800000 on AVR, whose RAM and flash are two
@@ -35,13 +41,16 @@ internal sealed record ChipSettings(
     ulong HeapSize = 0,
     string? Mmcu = null,
     string? ZigTarget = null,
-    ulong DataOffset = 0)
+    ulong DataOffset = 0,
+    string? March = null,
+    string? Mabi = null)
 {
     /// <summary>True for an AVR chip (the triple's processor is avr): the linker script lays it out as avr-gcc's does.</summary>
     public bool IsAvr => Triple.Split('-')[0].Equals("avr", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// The flags that pick the processor, after --target: -mcpu (the target's "cpu") and, for an AVR, -mmcu (its "mmcu").
+    /// The flags that pick the processor, after --target: -mcpu (the target's "cpu"), for an AVR -mmcu (its "mmcu"), for a
+    /// RISC-V chip -march and -mabi (its "march" and "mabi": its extensions, as LLVM has no -mcpu for the ESP32-C5's core).
     /// zig cc needs both for an AVR: it takes the processor from -mcpu alone (given only -mmcu, it builds for a generic
     /// avr2, without the multiply and the jmp and call instructions), and clang warns "no target microcontroller
     /// specified" without -mmcu. So with Zig an AVR's -mcpu is its "mmcu" when it gives no "cpu": LLVM names its AVR
@@ -61,8 +70,21 @@ internal sealed record ChipSettings(
             flags.Add($"-mmcu={Mmcu}");
         }
 
+        if (March is not null)
+        {
+            flags.Add($"-march={March}");
+        }
+
+        if (Mabi is not null)
+        {
+            flags.Add($"-mabi={Mabi}");
+        }
+
         return flags;
     }
+
+    /// <summary>True for a RISC-V chip (the triple's processor is riscv32 or riscv64).</summary>
+    public bool IsRiscV => Triple.StartsWith("riscv", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>True when the target is a chip: its "link" settings name the memory region for the code.</summary>
     public static bool Applies(TargetDescription target) =>
@@ -228,7 +250,9 @@ internal sealed record ChipSettings(
             heap,
             mmcu,
             zigTarget,
-            dataOffset);
+            dataOffset,
+            OptionalText(target.Settings["march"], "march"),
+            OptionalText(target.Settings["mabi"], "mabi"));
     }
 }
 

@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The runtime parts every 32-bit RISC-V chip (RV32, machine mode: the ESP32-C5) shares: reset handler, trap entry and
+       its dispatch, 64-bit division and memory functions, float math in software, and how a program stops -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+    <!-- compiler-rt's float arithmetic (CompilerRt) and EmbeddedText, which the ARMv6-M runtime ships and this one shares -->
+    <ProjectReference Include="..\ChipSharp.Runtime.ArmV6M\ChipSharp.Runtime.ArmV6M.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- the hardware contract, which every chip runtime's C includes (src/ChipSharp.Runtime.Shared) -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_hardware.h" LogicalName="chipsharp_hardware.h" />
+    <EmbeddedResource Include="riscv32_startup.S" LogicalName="riscv32_startup.S" />
+    <EmbeddedResource Include="riscv32_runtime.c" LogicalName="riscv32_runtime.c" />
+    <EmbeddedResource Include="riscv32_helpers.c" LogicalName="riscv32_helpers.c" />
+    <EmbeddedResource Include="riscv32_failures.c" LogicalName="riscv32_failures.c" />
+    <EmbeddedResource Include="riscv32_trap.S" LogicalName="riscv32_trap.S" />
+    <!-- objects, the allocator and the garbage collector, shared with the other runtimes; and what they need from the chip -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_heap.c" LogicalName="chipsharp_heap.c" />
+    <EmbeddedResource Include="riscv32_heap.c" LogicalName="riscv32_heap.c" />
+    <!-- strings, C#'s throw, fmod, the Math methods and floats as text, shared with the other runtimes -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_string.c" LogicalName="chipsharp_string.c" />
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_string_heap.c" LogicalName="chipsharp_string_heap.c" />
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_text.c" LogicalName="chipsharp_float_text.c" />
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_exceptions.c" LogicalName="chipsharp_exceptions.c" />
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_math.c" LogicalName="chipsharp_float_math.c" />
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_math.c" LogicalName="chipsharp_math.c" />
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_math_musl.c" LogicalName="chipsharp_math_musl.c" />
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_math_amd.c" LogicalName="chipsharp_math_amd.c" />
+  </ItemGroup>
+</Project>

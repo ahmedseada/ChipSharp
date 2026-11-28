@@ -26,6 +26,8 @@ namespace ChipSharp.Toolchain.Clang;
 /// above the heap, or, without a heap, the end of the variables (so the stack has all the RAM they leave)</description></item>
 /// <item><term>__chipsharp_stack_limit</term><description>the bottom and a margin (<see cref="StackMargin"/>): the
 /// functions that check the stack stop the program with "Stack overflow." below it</description></item>
+/// <item><term>__global_pointer$</term><description>on a RISC-V chip, what the start-up puts in gp: 0x800 bytes into
+/// the small variables (.sdata), as RISC-V's ABI has it</description></item>
 /// </list>
 /// The link fails, saying why, when a head section is not exactly its size; when the program does not fit, ld.lld says
 /// by how much each region overflowed (see <see cref="MemoryOverflow"/>).
@@ -60,6 +62,9 @@ internal static class LinkerScript
     public const string StackBottom = "__chipsharp_stack_bottom";
     public const string StackLimit = "__chipsharp_stack_limit";
 
+    /// <summary>RISC-V's global pointer, which the start-up puts in gp (the ABI's name for it).</summary>
+    public const string GlobalPointer = "__global_pointer$";
+
     /// <summary>The memory region of the stack: the last "link.stack" bytes of the data region.</summary>
     public const string StackRegion = "stack";
 
@@ -91,8 +96,8 @@ internal static class LinkerScript
                 $"{Hex(settings.DataOffset)} (link.dataOffset) */");
         }
 
-        var codeLength = data == code ? variables : settings.Code.Region.Size;
-        Line($"  {code} (rx) : ORIGIN = {Hex(settings.Code.Region.Origin)}, LENGTH = {Hex(codeLength)}");
+        var (codeLength, codeAccess) = data == code ? (variables, "rwx") : (settings.Code.Region.Size, "rx");
+        Line($"  {code} ({codeAccess}) : ORIGIN = {Hex(settings.Code.Region.Origin)}, LENGTH = {Hex(codeLength)}");
         if (data != code)
         {
             Line($"  {data} (rwx) : ORIGIN = {Hex(dataOrigin)}, LENGTH = {Hex(variables)}");
@@ -155,10 +160,18 @@ internal static class LinkerScript
         return text.ToString();
     }
 
-    /// <summary>The sections of a chip with one address space (ARM, RISC-V): the constants in flash with the code.</summary>
+    /// <summary>
+    /// The sections of a chip with one address space (ARM, RISC-V): the constants in flash with the code. A RISC-V chip
+    /// has its small constants and variables (.srodata, .sdata) with the others, and the global pointer (gp,
+    /// <see cref="GlobalPointer"/>) 0x800 bytes into its small variables, as RISC-V's ABI has it. A chip whose code and
+    /// variables are in one region (link.code and link.data the same: the ESP32-C5's SRAM, which the boot ROM loads the
+    /// program into) has .data's starting values where .data is: the start-up's copy has nothing to do.
+    /// </summary>
     private static void Sections(Action<string> line, string code, string data, ChipSettings settings)
     {
-        line("  /* the vector table: the initial stack pointer, the reset handler, then the other exception handlers */");
+        line(settings.IsRiscV
+            ? "  /* the trap entry, which mtvec points at: every exception, and every interrupt (the runtime's dispatch) */"
+            : "  /* the vector table: the initial stack pointer, the reset handler, then the other exception handlers */");
         line($"  .vectors : ALIGN({Hex(settings.VectorAlign)})");
         line("  {");
         line("    KEEP(*(.vectors))");
@@ -167,20 +180,37 @@ internal static class LinkerScript
         line("  .text :");
         line("  {");
         line("    *(.text .text.*)");
-        line("    *(.rodata .rodata.*)");
+        line(settings.IsRiscV ? "    *(.rodata .rodata.* .srodata .srodata.*)" : "    *(.rodata .rodata.*)");
         line("    . = ALIGN(4);");
         line($"  }} > {code}");
         line("");
-        line("  .ARM.exidx :");
-        line("  {");
-        line("    *(.ARM.exidx .ARM.exidx.*)");
-        line($"  }} > {code}");
-        line("");
-        line($"  /* variables with a starting value: in {data}, their starting values in {code}, copied at start-up */");
+        if (!settings.IsRiscV)
+        {
+            line("  .ARM.exidx :");
+            line("  {");
+            line("    *(.ARM.exidx .ARM.exidx.*)");
+            line($"  }} > {code}");
+            line("");
+        }
+
+        line(code == data
+            ? $"  /* variables with a starting value: in {data}, loaded there with the code */"
+            : $"  /* variables with a starting value: in {data}, their starting values in {code}, copied at start-up */");
         line("  .data : ALIGN(4)");
         line("  {");
         line($"    {DataStart} = .;");
-        line("    *(.data .data.* .sdata .sdata.*)");
+        if (settings.IsRiscV)
+        {
+            line("    *(.data .data.*)");
+            line("    /* the small variables, which the global pointer (gp) is 0x800 bytes into */");
+            line($"    {GlobalPointer} = . + 0x800;");
+            line("    *(.sdata .sdata.*)");
+        }
+        else
+        {
+            line("    *(.data .data.* .sdata .sdata.*)");
+        }
+
         line("    . = ALIGN(4);");
         line($"    {DataEnd} = .;");
         line($"  }} > {data} AT > {code}");
