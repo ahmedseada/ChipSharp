@@ -146,6 +146,7 @@ new board is a few lines of JSON:
 | Target | What it is |
 |---|---|
 | `host` | Your PC: a Windows x64 console program, with no C runtime (inherits `x86_64`) |
+| `host-c` | Your PC again, its programs written in C by the `c` code generator and compiled by clang: the C backend checked against .NET (inherits `host`) |
 | `pico` | Raspberry Pi Pico: RP2040, 2 MB flash, LED on GPIO 25 (inherits `rp2040`, which inherits `armv6m`) |
 | `pico-w` | Pico W: like the Pico, but its LED is wired to the Wi-Fi chip |
 | `uno` | Arduino Uno: ATmega328P at 16 MHz, 32 KB flash, 2 KB RAM, LED on D13 (see [Arduino Uno](#arduino-uno); inherits `atmega328p`, which inherits `avr`) |
@@ -452,8 +453,34 @@ it with [SDCC](https://sdcc.sourceforge.net/) 4.6, the Small Device C Compiler, 
 are the Padauk PFS154 (`pfs154-bare`: PDK14, 2K words of 14-bit program memory, 128 bytes of RAM) and the STM8S103F3
 (`stm8s103-board`, the blue board: 8 KB of flash, 1 KB of RAM, the LED on PB5). Their target files give the chips as
 data: memory, pins, ports, registers or peripherals, interrupts, the sizes of SDCC's C types (`"c"`), and what SDCC
-lacks (`"double64": false`: its `double` is 32 bits; on the PDK14, `"recursion": "reentrant"`). The C code generator and
-the runtimes are still to come.
+lacks (`"double64": false`: its `double` is 32 bits; on the PDK14, `"recursion": "reentrant"`). The runtimes are still
+to come.
+
+The C code generator (`"backend": "c"`, `src/ChipSharp.Backend.C`) is the `llvm` one's twin behind the same contract:
+one `.c` file of C99 per program, with the same symbols for the runtime's functions, the same layout of structs,
+objects and type descriptors, and the same `chipsharp_entry`. The C means what the C# means whatever the compiler's
+`int` (16 bits with SDCC):
+
+- Only fixed-width types: every integer is the unsigned type of its width, so `+`, `-` and `*` wrap around as in C#;
+  8- and 16-bit products and left shifts are done as `unsigned` (C would make them a signed `int`, which may overflow);
+  a signed division, remainder, shift right or comparison casts its operands to the signed type. Shift amounts are
+  masked below the width, as C# masks them. A float becomes an integer through a helper that saturates as .NET does
+  (C leaves a value out of range undefined); `%` on floats is `fmod`.
+- A struct is a C struct, an array a struct around a C array (so it is a value in C too). The file checks, when it is
+  compiled, that the compiler lays each out as TIR does, and that it has two's complement, an arithmetic shift right and
+  an `int` of at most 32 bits (and the C type sizes the target file gives): a compiler that differs stops with the
+  check's name rather than running a program that reads the wrong bytes.
+- Constant data (string literals, tables, type descriptors) is `static const`: SDCC keeps it in code memory on the
+  PDK14 and reads it through its generic pointers (bit 15 set), so an address of it is an ordinary `uint8_t *`. A target
+  may name a qualifier more for it (`"c": { "constQualifier": "__code" }`).
+- On the PDK14 the functions that may run again while they run (recursion, a function an interrupt handler and `Main`
+  both call) or that are called through an address are `__reentrant`. A program that uses `double` is refused where
+  `double` has 32 bits. On the big-endian STM8 a constant string's 2-byte chars are written high byte first.
+- Target `host-c` builds the C for the PC with clang (and `-fno-strict-aliasing`: C# may read memory as another type
+  than it wrote, as the LLVM IR allows). Every sample built for it, with narrowing and without, prints what .NET prints;
+  every sample that needs neither a heap nor `double` compiles with sdcc for both chips without a warning.
+
+The toolchain `sdcc`:
 
 - SDCC is found by the environment variable `CHIPSHARP_SDCC` (`sdcc.exe` or its folder), then its install folder
   `C:\Program Files\SDCC\bin`, then the PATH. It runs with its own folder first on the PATH, where its preprocessor
@@ -1192,7 +1219,8 @@ and compare the `.hex` and the memory report with SDCC's own map. On `chipsim`, 
 assemblers encode is decoded to its length (and the STM8's to its listed cycles), the flags of each core's ALU are
 checked an instruction at a time, and C programs run: the arithmetic of every width through SDCC's helpers (each result
 compared with C's), the timers' interrupts and PWM to the microsecond, inputs on a timeline, UART1 both ways, and the
-ways a run stops.
+ways a run stops. The C code generator's tests run every sample, and programs of every operation on the values where C
+and C# part ways, through `host-c` and `host` against C#, and compile and link the C for both chips with SDCC.
 
 The simulator, rp2040js 1.4.1, has one known fault: it sets the overflow flag of `SBCS` wrong when the borrow takes the
 subtrahend to 0x80000000, so a comparison of extreme `long` values, such as `long.MaxValue` with `long.MinValue`, gives
@@ -1213,6 +1241,7 @@ allow for both. Its TWI takes no time on the bus: the I2C transfers' timing is t
 | `src/ChipSharp.Ir` | TIR (Typed Intermediate Representation), which every code generator reads: its verifier, printer and builder, and in `Optimizations` the value-range analysis and narrowing |
 | `src/ChipSharp.Library` | ChipSharp's own C# for library types (`TimeSpan`, `List<T>`, `StringBuilder`, the exceptions, ...), compiled together with the programs that use them |
 | `src/ChipSharp.Backend.Llvm` | The `llvm` code generator: TIR in, LLVM IR text out |
+| `src/ChipSharp.Backend.C` | The `c` code generator: TIR in, portable C99 out, for the chips that only have a C compiler (SDCC's) and the PC (`host-c`) |
 | `src/ChipSharp.Toolchain.Clang` | The `clang` toolchain: LLVM IR and runtime sources in, a linked program out; as the `zig` toolchain, the same with the clang and ld.lld inside Zig (AVR) |
 | `src/ChipSharp.Toolchain.Sdcc` | The `sdcc` toolchain: C in, SDCC's Intel HEX (`.ihx`) and map out, for the Padauk and STM8 chips (M6, in progress) |
 | `src/ChipSharp.Simulators` | `chipsim`: the PFS154 (PDK14) and STM8S103 simulators, their peripherals, and the command |
