@@ -15,6 +15,7 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/ChipSharp.Abstractions/ChipSharp.Abstractions.csproj" />
+    <Project Path="src/ChipSharp.Backend.C/ChipSharp.Backend.C.csproj" />
     <Project Path="src/ChipSharp.Backend.Llvm/ChipSharp.Backend.Llvm.csproj" />
     <Project Path="src/ChipSharp.Build/ChipSharp.Build.csproj" />
     <Project Path="src/ChipSharp.Cli/ChipSharp.Cli.csproj" />

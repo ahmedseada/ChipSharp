@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\ChipSharp.Backend.C\ChipSharp.Backend.C.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Backend.Llvm\ChipSharp.Backend.Llvm.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Build\ChipSharp.Build.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Cli\ChipSharp.Cli.csproj" />

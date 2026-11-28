@@ -1,0 +1,14 @@
+{
+  // The PC again, its programs written in C by the "c" code generator (the one for the chips that only have a C
+  // compiler, SDCC's) and compiled by clang with the windows-x64 runtime: what the C backend writes, run on the PC and
+  // checked against .NET, as the host is
+  "name": "host-c",
+  "inherits": "host",
+  "backend": "c",
+  "clang": {
+    // the host's, and -fno-strict-aliasing: the C reads memory as another type than it wrote at times (a span's bytes
+    // read as an int), as C# may; the llvm code generator's IR has no type-based aliasing either
+    "flags": ["-O2", "-nostdlib", "-fuse-ld=lld", "-ffunction-sections", "-fdata-sections", "-Wno-override-module",
+      "-fno-strict-aliasing"]
+  }
+}
