@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text;
 using ChipSharp.Simulators;
 using ChipSharp.Simulators.Ch32v003;
+using ChipSharp.Tests.Ch32v003;
 using ChipSharp.Tests.Support;
 using Xunit.Abstractions;
 
@@ -193,10 +194,63 @@ public sealed class Ch32v003SimulatorTests(ITestOutputHelper output) : IDisposab
             });
 
             Assert.True(run.ExitCode == 0 && run.Stopped.Contains("has finished", StringComparison.Ordinal), run.ToString());
-            Assert.Equal(["CPU clock 48 MHz"], run.After("CPU clock"));
+            Assert.Equal(["CPU clock 24 MHz", "CPU clock 48 MHz"], run.After("CPU clock")); // HPRE /1 first, then the PLL
             Assert.Equal(["up"], run.SerialLines);
             Assert.Equal([0x0800_0003u, 0], reports);
         }
+    }
+
+    /// <summary>
+    /// C# built for ch32v003-evt as the build pipeline builds it (the target's start-up, the riscv32 runtime on RV32E,
+    /// its multiply and divide helpers): it runs from 0 to its end at 48 MHz, the start-up's clock, its .bin as its ELF;
+    /// what it writes (the tests' console sink, in RAM, until the runtime has USART1) is what .NET writes; and a failure
+    /// stops at ebreak.
+    /// </summary>
+    [Ch32v003Fact]
+    public void A_C_sharp_program_runs_its_target_s_start_up_to_its_end_and_a_failure_stops_at_ebreak()
+    {
+        var ended = Ch32v003Build.Build("""
+            using System;
+            static class Program
+            {
+                static volatile int seven = 7;
+                static int Main()
+                {
+                    long big = 1234567L * (89 + seven - 7);
+                    Console.Write(big / 13);
+                    Console.Write(' ');
+                    Console.Write(7.25 / (seven - 5));
+                    Console.Write(' ');
+                    Console.Write(-1234567 % (1000 + seven - 7));
+                    return 0;
+                }
+            }
+            """, "ended", Path.Combine(_scratch, "ended"), Ch32v003Build.WithConsole());
+        var failed = Ch32v003Build.Build("""
+            using System;
+            class Program { static int Main() { Span<int> values = stackalloc int[3]; int i = 3; return values[i]; } }
+            """, "failed", Path.Combine(_scratch, "failed"));
+        var bin = Path.Combine(_scratch, "ended.bin");
+        File.WriteAllBytes(bin, ChipSharp.Image.Bin.BinImageFormat.Make(ended.File, Ch32v003Build.Board, bin));
+
+        foreach (var image in new[] { ended.Elf, bin })
+        {
+            var run = Simulation.Run(new SimulationOptions { Chip = "ch32v003", Image = image, Milliseconds = 200 });
+
+            Assert.True(run.ExitCode == 0, run.ToString());
+            Assert.StartsWith("stopped: the program has finished", run.Stopped, StringComparison.Ordinal);
+            Assert.Equal(["CPU clock 24 MHz", "CPU clock 48 MHz"], run.After("CPU clock")); // HPRE /1 first, then the PLL
+            var chip = (Ch32v003Chip)run.Chip;
+            Assert.Equal(0u, chip.Read(ended.File.Symbols["chipsharp_exit_code"], 4));
+            var sink = ended.File.Symbols["chipsharp_test_console"];
+            var count = (int)chip.Read(ended.File.Symbols["chipsharp_test_console_count"], 4);
+            var text = Encoding.ASCII.GetString([.. Enumerable.Range(0, count).Select(i => (byte)chip.Read(sink + (uint)i, 1))]);
+            Assert.Equal($"{1234567L * 89 / 13} {7.25 / 2} {-1234567 % 1000}", text);
+        }
+
+        var failure = Simulation.Run(new SimulationOptions { Chip = "ch32v003", Image = failed.Elf, Milliseconds = 100 });
+        Assert.True(failure.ExitCode == 3, failure.ToString());
+        Assert.StartsWith("stopped: the program hit a breakpoint (ebreak)", failure.Stopped, StringComparison.Ordinal);
     }
 
     [Ch32v003Fact]

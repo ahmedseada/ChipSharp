@@ -18,9 +18,9 @@ internal static class ChipFiles
 
     /// <summary>
     /// The chips whose headers are generated and kept: the chip's target, built with SDCC (the PFS154, the STM8S103) or
-    /// with clang (the ESP32-C5, whose description takes its registers from Espressif's SVD).
+    /// with clang (the ESP32-C5 and the CH32V003, whose descriptions take their registers from Espressif's and WCH's SVD).
     /// </summary>
-    public static IReadOnlyList<string> Generated { get; } = ["pfs154", "stm8s103f3", "esp32c5"];
+    public static IReadOnlyList<string> Generated { get; } = ["pfs154", "stm8s103f3", "esp32c5", "ch32v003"];
 
     public static string Folder => Path.Combine(Repository.Root, ChipCatalog.FolderName);
 
@@ -30,6 +30,9 @@ internal static class ChipFiles
 
     /// <summary>Espressif's SVD file of the ESP32-C5, which chips/esp32c5.json takes the registers from.</summary>
     public static string Esp32c5Svd => Path.Combine(Folder, "svd", "esp32c5.svd");
+
+    /// <summary>WCH's SVD file of the CH32V003 (as ch32fun keeps it), which chips/ch32v003.json takes the registers from.</summary>
+    public static string Ch32v003Svd => Path.Combine(Folder, "svd", "CH32V003xx.svd");
 
     /// <summary>The description of the chip target <paramref name="name"/>, as the catalog finds it.</summary>
     public static ChipDescription Read(string name) =>

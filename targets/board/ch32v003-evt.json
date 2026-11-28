@@ -1,0 +1,25 @@
+{
+  // WCH's CH32V003 evaluation board, CH32V003F4P6-R0-1v1 (the board of WCH's CH32V003 EVT kit, sold with the WCH-LinkE
+  // that programs it; openwch/ch32v003: SCHPCB/CH32V003F4P6-R0-1v1, and EVT/PUB/CH32V00xSCH.pdf and "CH32V00x Evaluation
+  // Board Reference" V1.3). The board WCH's examples are written for and its documents describe, the reference others
+  // copy: a CH32V003F4P6 (TSSOP20), a USB-C port for power only (no USB function), a power switch, a reset button,
+  // two LEDs, the MCU's pins on headers, and the debug header (SWIO on PD1, VCC, GND) for the WCH-LinkE, the only way
+  // to program it ("only WCH-LinkE is supported").
+  //   - The LEDs: LED1 and LED2, each with 1K to VCC, their other ends on the header P4 ("LEDs are connected to the main
+  //     chip I/O port via LED row pins"): no pin drives them until a wire does, and a pin then lights one by going low.
+  //     WCH's GPIO_Toggle example toggles PD0 (EVT/EXAM/GPIO/GPIO_Toggle).
+  //   - The reset button S1 is on PD7 (NRST), which resets the chip only while the option bytes' RST_MODE is not 11.
+  //   - PA1 and PA2 are wired to a 24 MHz crystal (Y1, C7, C8); their resistors to the header (R4, R5) are not
+  //     fitted, so they are not the board's pins unless the crystal is taken off.
+  //   - PD1 is SWIO, the debug and programming pin.
+  // So the board leaves a program PC0-PC7 and PD0, PD2-PD6 (the runtime's pins come with M5's wave 1). The CPU runs at
+  // 48 MHz, the HSI's 24 MHz through the PLL (the crystal is not used).
+  "name": "ch32v003-evt",
+  "inherits": "ch32v003",
+  // chipsharp build writes the raw flash (Name.bin, from 0x08000000), chipsharp flash writes it with wlink through the
+  // WCH-LinkE on the debug header (SWIO, PD1), checking that the chip on the wire is a CH32V003
+  "image": "bin",
+  "flasher": "wlink",
+  "wlink": { "chip": "CH32V003" },
+  "clockHz": 48000000
+}

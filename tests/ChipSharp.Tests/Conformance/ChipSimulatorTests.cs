@@ -82,8 +82,8 @@ public sealed class ChipSimulatorTests : IDisposable
             #include "ch32.h"
             int main(void)
             {
-                pin_output(2, 0);                 /* PC0: the adapter's Output, 16 */
-                pin_write(2, 0, 1);
+                pin_output(3, 0);                 /* PD0: the adapter's Output, 24 */
+                pin_write(3, 0, 1);
                 usart_init(8000000, 115200);
                 usart_print("ok\n");
                 usart_flush();
@@ -98,12 +98,6 @@ public sealed class ChipSimulatorTests : IDisposable
         Assert.Contains(run.Pins, change => change.Pin == chip.Pins.Uart0!.Value.Tx && change.State == "high"); // PD5: TX idle
         Assert.Equal("ok\n"u8.ToArray(), run.SerialOf(0));
         Assert.Equal([115942], run.BaudRates[0]);
-        if (!chip.TargetExists)
-        {
-            Assert.Contains("is not in ChipSharp yet", chip.Missing, StringComparison.Ordinal);
-            Assert.True(chip.Has("chip"));
-            Assert.False(chip.Has("uart"));
-        }
     }
 
     [SdccFact]

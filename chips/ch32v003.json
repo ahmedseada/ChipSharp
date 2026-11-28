@@ -1,0 +1,87 @@
+{
+  // ChipSharp's description of the WCH CH32V003 (src/ChipSharp.Chips reads it; the tests make its C headers,
+  // src/ChipSharp.Chips/Generated/ch32v003_*.h, from it). The peripherals, registers, fields and interrupts are WCH's SVD
+  // file (svd/CH32V003xx.svd: WCH's "CH32V00xxx" SVD, version 1.2, as cnlohr/ch32fun keeps it, misc/CH32V003xx.svd,
+  // commit 4d544ed, under ch32fun's MIT license, which carries WCH's copyright line; WCH publishes it without a
+  // license). This file adds what the SVD does not say: the memory, the core's own interrupts (the SVD has only the
+  // peripherals', 16-38), the pins and their ports, and the constants the start-up needs. Sources, named where each is
+  // used: the CH32V003 Reference Manual (RM, CH32V003RM V1.5), the CH32V003 Datasheet (DS, CH32V003DS0 V1.8) and the
+  // QingKe V2 Microprocessor Manual (QKV2, QingKeV2_Processor_Manual V1.1), all WCH's (wch-ic.com). The facts the
+  // build uses are in the target file, targets/chip/ch32v003.json.
+  "name": "ch32v003",
+  "svd": "svd/CH32V003xx.svd",
+  "description": "CH32V003: QingKe V2A (RV32EC) at up to 48 MHz, 16 KB flash, 2 KB SRAM",
+  "cpu": "rv32ec",
+  "memory": {
+    // RM 1.2 (Figure 1-2, the memory map) and 1.2.1; RM 16.1 (Table 16-1, flash organization: 256 pages of 64 bytes)
+    "flash": { "origin": "0x08000000", "size": "16K", "access": "rx",
+      "description": "CodeFlash; also at 0x00000000 when booting from it (the alias the core runs from, where it starts)" },
+    "sram": { "origin": "0x20000000", "size": "2K", "access": "rwx", "description": "SRAM, byte, half-word and word access" },
+    "boot": { "origin": "0x1FFFF000", "size": "1920", "access": "rx",
+      "description": "System FLASH: WCH's factory bootloader (BOOT_1920B), at 0x00000000 instead when it boots" },
+    "vendor": { "origin": "0x1FFFF7C0", "size": "64", "access": "r",
+      "description": "vendor configuration words and the electronic signature (ESIG_FLACAP 0x1FFFF7E0, the UID)" },
+    "option": { "origin": "0x1FFFF800", "size": "64", "access": "r",
+      "description": "user option bytes: RDPR, USER (IWDG_SW, STANDBY_RST, RST_MODE, START_MODE), DATA0-1, WRPR0-1" }
+  },
+  // the core's own interrupts (RM 6.3, Table 6-1; QKV2 Table 3-1), which the SVD leaves out: their numbers are their
+  // entries in the vector table (mtvec's base + 4 * number) and mcause's exception code
+  "interrupts": {
+    "NMI": { "number": 2, "description": "non-maskable interrupt" },
+    "HardFault": { "number": 3, "description": "exceptions: every synchronous exception (illegal instruction, ebreak, ...)" },
+    "SysTick": { "number": 12, "peripheral": "PFIC", "description": "the system timer (STK, PFIC_STK_*)" },
+    "SW": { "number": 14, "peripheral": "PFIC", "description": "software interrupt (PFIC_STK_CTLR.SWIE)" }
+  },
+  // the GPIO ports (RM 7.3.1): CFGLR has four bits per pin (MODEy, CNFy: input, output, alternate function), OUTDR the
+  // output levels (and an input's pull: 1 up, 0 down), BSHR sets (bits 0-7) and clears (bits 16-23) outputs, BCR clears
+  // them, INDR reads the pins. Port B does not exist; C and D are derived from A in the SVD
+  "ports": {
+    "A": { "registers": { "config": "GPIOA_CFGLR", "in": "GPIOA_INDR", "out": "GPIOA_OUTDR", "set": "GPIOA_BSHR", "clear": "GPIOA_BCR" } },
+    "C": { "registers": { "config": "GPIOC_CFGLR", "in": "GPIOC_INDR", "out": "GPIOC_OUTDR", "set": "GPIOC_BSHR", "clear": "GPIOC_BCR" } },
+    "D": { "registers": { "config": "GPIOD_CFGLR", "in": "GPIOD_INDR", "out": "GPIOD_OUTDR", "set": "GPIOD_BSHR", "clear": "GPIOD_BCR" } }
+  },
+  // the CH32V003F4P6's (TSSOP20) 18 pins: PA1-PA2, PC0-PC7, PD0-PD7 (DS 1.4.16 and 2.1, Table 2-1), each numbered
+  // 8 * its port's letter (A 0, C 2, D 3) + its bit, with its functions after reset (DS Table 2-1's "default
+  // alternate function", without the AFIO remaps). PD1 is SWIO, the 1-wire debug interface, on after every reset (DS
+  // 1.4.18; AFIO_PCFR1.SWCFG); PD7 is NRST while the option bytes' RST_MODE is not 11 (RM 16.5, Table 16-4); PA1 and
+  // PA2 are OSCI and OSCO for a crystal (HSE), plain pins without one
+  "pins": {
+    "PA1": { "functions": ["TIM1_CH2", "ADC_A1", "OPA_N0", "OSCI"] },
+    "PA2": { "functions": ["TIM1_CH2N", "ADC_A0", "OPA_P0", "OSCO"] },
+    "PC0": { "functions": ["TIM2_CH3"] },
+    "PC1": { "functions": ["I2C1_SDA", "SPI1_NSS"] },
+    "PC2": { "functions": ["I2C1_SCL", "USART1_RTS", "TIM1_BKIN"] },
+    "PC3": { "functions": ["TIM1_CH3"] },
+    "PC4": { "functions": ["TIM1_CH4", "MCO", "ADC_A2"] },
+    "PC5": { "functions": ["SPI1_SCK", "TIM1_ETR"] },
+    "PC6": { "functions": ["SPI1_MOSI"] },
+    "PC7": { "functions": ["SPI1_MISO"] },
+    "PD0": { "functions": ["TIM1_CH1N", "OPA_N1"] },
+    "PD1": { "functions": ["SWIO", "TIM1_CH3N", "ADC_ETR2"] },
+    "PD2": { "functions": ["TIM1_CH1", "ADC_A3"] },
+    "PD3": { "functions": ["ADC_A4", "TIM2_CH2", "ADC_ETR", "USART1_CTS"] },
+    "PD4": { "functions": ["USART1_CK", "TIM2_CH1ETR", "ADC_A7", "OPA_OUT"] },
+    "PD5": { "functions": ["USART1_TX", "ADC_A5"] },
+    "PD6": { "functions": ["USART1_RX", "ADC_A6"] },
+    "PD7": { "functions": ["NRST", "TIM2_CH4", "OPA_P1"] }
+  },
+  "constants": {
+    // the vector table (RM 6.3, Table 6-1): 39 entries, 0 (reset) to 38 (TIM2), 4 bytes each
+    "VECTORS": { "value": 39, "description": "the vector table's entries, 0 (the reset) to 38 (TIM2)" },
+    // QKV2 3.2 and RM 6.5.3: the core's CSRs the start-up writes
+    "CSR_INTSYSCR": { "value": "0x804", "description": "INTSYSCR: HWSTKEN (bit 0, HPE) and INESTEN (bit 1, nesting), both 0 after reset" },
+    "INTSYSCR_HWSTKEN": { "value": "0x1", "description": "INTSYSCR: the hardware prologue/epilogue (HPE)" },
+    "INTSYSCR_INESTEN": { "value": "0x2", "description": "INTSYSCR: interrupt nesting" },
+    "MTVEC_VECTORED": { "value": "0x1", "description": "mtvec MODE0: the entry is the base + 4 * the number (0: one entry for all)" },
+    "MTVEC_ADDRESSES": { "value": "0x2", "description": "mtvec MODE1: the table holds the handlers' addresses (0: instructions)" },
+    "MTVEC_ALIGN": { "value": "0x400", "description": "the vector table's base must be 1 KB aligned (QKV2 2.2, mtvec)" },
+    // RM 3.4.2: RCC_CFGR0's SW and SWS
+    "RCC_SW_HSI": { "value": 0, "description": "RCC_CFGR0.SW and SWS: the HSI (24 MHz) is the system clock" },
+    "RCC_SW_PLL": { "value": 2, "description": "RCC_CFGR0.SW and SWS: the PLL (HSI or HSE * 2) is the system clock" },
+    // RM 16.3.1: FLASH_ACTLR.LATENCY
+    "FLASH_LATENCY_24MHZ": { "value": 0, "description": "FLASH_ACTLR.LATENCY: 0 wait states, for SYSCLK up to 24 MHz" },
+    "FLASH_LATENCY_48MHZ": { "value": 1, "description": "FLASH_ACTLR.LATENCY: 1 wait state, for SYSCLK from 24 to 48 MHz" },
+    "HSI_HZ": { "value": 24000000, "description": "the internal RC oscillator, the system clock after reset (RM 3.3.2)" },
+    "PLL_HZ": { "value": 48000000, "description": "the PLL from the HSI: 2 * 24 MHz, the most the chip runs at (RM 3.3.1)" }
+  }
+}

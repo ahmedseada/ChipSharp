@@ -8,13 +8,13 @@ using ChipSharp.Tests.Pico;
 namespace ChipSharp.Tests.Conformance;
 
 /// <summary>
-/// The CH32V003 board (ch32v003-evt, milestone M5) in ChipSharp's own simulator (chipsim's "ch32v003", in process),
-/// which loads the image the build makes (the image format bin, from 0x0800_0000; Intel HEX or ELF too) into the flash
-/// and runs it from 0 as reset leaves the chip. Pins are numbered port × 8 + bit (PA1 1, PC0 16, PD5 29), as the target's "pinNames" name them when it has
-/// them: the program's pins are on ports C and D away from what later waves need (USART1's PD5 and PD6, PD1 the debug
-/// pin SWIO, PD7 NRST, PA1 and PA2 a crystal's, I2C1's PC1 and PC2, SPI1's PC5-PC7); USART1 (PD5 TX, PD6 RX) is serial
-/// port 0 and the console. Its cases are skipped, saying why, while the target or the chip's runtime (one that
-/// implements the hardware contract: milestone M5, wave 1) is not in ChipSharp.
+/// WCH's CH32V003 evaluation board (ch32v003-evt, milestone M5) in ChipSharp's own simulator (chipsim's "ch32v003", in
+/// process), which loads the image the build makes (the image format bin, the flash from 0x0800_0000; Intel HEX or ELF
+/// too) and runs it from 0 as reset leaves the chip. Pins are ChipSharp's numbers, 8 * the port's letter + the bit (PC0
+/// 16, PD0 24; the target's "pinNames" when it has them): the program's are among those the board leaves free (PC0-PC7,
+/// PD0, PD2-PD6: PD1 is SWIO, PD7 NRST, PA1 and PA2 the crystal's), PD0 the output WCH's examples blink; USART1 (PD5 TX,
+/// PD6 RX) is serial port 0 and the console. Its cases are skipped, saying why, until the chip's runtime implements the
+/// hardware contract (wave 1: pins, the delays and the clock, the console on USART1, the events).
 /// </summary>
 internal sealed partial class Ch32v003ChipSimulator() : ChipSimulator("ch32v003-evt")
 {
@@ -69,8 +69,8 @@ internal sealed partial class Ch32v003ChipSimulator() : ChipSimulator("ch32v003-
                 "chipsim's ch32v003 once it does.";
     }
 
-    // PC0, PC3, PD0, PD4 and PD2 (port C is 2, D 3); USART1 on PD5 and PD6
-    public override ChipPins Pins { get; } = new(Output: 16, Second: 19, Pass: 24, Fail: 28, Input: 26)
+    // PD0, PC0, PC3, PD2 and PD3 (port C is 2, D 3); USART1 on PD5 and PD6
+    public override ChipPins Pins { get; } = new(Output: 24, Second: 16, Pass: 19, Fail: 26, Input: 27)
     {
         Uart0 = (29, 30),
     };

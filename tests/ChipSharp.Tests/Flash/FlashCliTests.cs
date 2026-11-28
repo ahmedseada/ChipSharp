@@ -30,8 +30,8 @@ public sealed class FlashCliTests : IDisposable
     public async Task Flash_needs_a_board_whose_target_names_a_flasher_and_that_boards_image()
     {
         var hex = Write("Blink.hex", ":00000001FF\r\n");
-        const string Boards = "the boards with a flasher: esp32c5-devkitc (esptool), pfs154-bare (easypdkprog), pico (uf2-copy), pico-w (uf2-copy), " +
-            "stm8s103-board (stm8flash), uno (avrdude).";
+        const string Boards = "the boards with a flasher: ch32v003-evt (wlink), esp32c5-devkitc (esptool), " +
+            "pfs154-bare (easypdkprog), pico (uf2-copy), pico-w (uf2-copy), stm8s103-board (stm8flash), uno (avrdude).";
 
         Assert.Equal((1, $"error: chipsharp flash needs the board to flash, with -t (e.g. -t uno): {Boards}"),
             await Error("flash", hex));

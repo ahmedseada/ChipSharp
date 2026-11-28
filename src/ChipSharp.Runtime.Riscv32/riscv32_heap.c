@@ -3,9 +3,9 @@
 //
 //   chipsharp_heap_memory         the heap region of the linker script (__chipsharp_heap_start to _end), the
 //                                 target's "heap" bytes between the variables and the stack
-//   chipsharp_scan_stack          stores the callee-saved registers (s0-s11) on the stack, then scans from there to the
-//                                 top of the stack (__chipsharp_stack_top): the program runs on that one stack, its
-//                                 interrupts' handlers too
+//   chipsharp_scan_stack          stores the callee-saved registers (s0-s11; on RV32E s0 and s1) on the stack, then
+//                                 scans from there to the top of the stack (__chipsharp_stack_top): the program runs on
+//                                 that one stack, its interrupts' handlers too
 //   chipsharp_heap_lock, _unlock  interrupts off (mstatus.MIE), and back as they were: around the compare and store of an
 //                                 event's add and remove (Interlocked.CompareExchange, see DelegateFunctions), so that
 //                                 no handler stores the field in between. The collector itself runs with interrupts on
@@ -36,6 +36,16 @@ void chipsharp_heap_memory(char **start, char **end)
 
 void chipsharp_scan_stack(void (*scan)(uintptr_t *from, uintptr_t *to))
 {
+#ifdef __riscv_e
+    // RV32E has two callee-saved registers, s0 and s1
+    uintptr_t registers[2];
+    __asm__ volatile(
+        "sw s0, 0(%0)\n\t"
+        "sw s1, 4(%0)"
+        :
+        : "r"(registers)
+        : "memory");
+#else
     uintptr_t registers[12];
     __asm__ volatile(
         "sw s0, 0(%0)\n\t"
@@ -53,6 +63,7 @@ void chipsharp_scan_stack(void (*scan)(uintptr_t *from, uintptr_t *to))
         :
         : "r"(registers)
         : "memory");
+#endif
     scan(registers, __chipsharp_stack_top);
 
     // the registers stay in this frame until scan is done: no tail call may pop it first

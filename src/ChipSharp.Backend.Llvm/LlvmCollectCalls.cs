@@ -43,8 +43,10 @@ internal static class LlvmCollectCalls
 
         if (triple.StartsWith("riscv32", StringComparison.Ordinal))
         {
-            // s0-s11: x8, x9 and x18-x27 (s0 is the frame pointer a function of ChipSharp's never needs)
-            int[] saved = [8, 9, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27];
+            // s0-s11: x8, x9 and x18-x27 (s0 is the frame pointer a function of ChipSharp's never needs); RV32E (its
+            // "march" rv32e...) has x0-x15 alone, and s0 and s1 are its callee-saved registers
+            var embedded = target.Setting("march") is { } march && march.StartsWith("rv32e", StringComparison.OrdinalIgnoreCase);
+            int[] saved = embedded ? [8, 9] : [8, 9, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27];
             return "call void asm sideeffect \"" + string.Join("\\0A", saved.Select(x => $"li x{x}, 0")) + "\", \"" +
                 string.Join(",", saved.Select(x => $"~{{x{x}}}")) + "\"()";
         }

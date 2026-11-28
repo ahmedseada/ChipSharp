@@ -49,6 +49,11 @@ internal static class BackendTargets
         // the ESP32-C5 (M4): the llvm code generator for riscv32 and the esp32c5 runtime, built as chipsharp build builds
         // it, in chipsim's esp32c5 (the console is the USB Serial/JTAG port)
         new("esp32c5-devkitc", "llvm", "esp32c5"),
+
+        // the CH32V003 (M5): the llvm code generator for riscv32 (ilp32e) and the ch32v003 runtime, in chipsim's
+        // ch32v003, once the simulator (wave 0) and the runtime's console on USART1 (wave 1) come: new("ch32v003-evt",
+        // "llvm", "ch32v003"), with the programs too large for its 16 KB (Ch32v003ProgramTests.TooLarge) in
+        // BackendSkips. Until then its programs compile and link (Ch32v003ProgramTests)
     ];
 
     public static BackendTarget Get(string name) => All.Single(target => target.Name == name);
