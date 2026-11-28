@@ -181,6 +181,46 @@ public sealed class Esp32c5Chip : SimulatedChip, IRiscVBus
     /// </summary>
     public bool PllRunning { get; set; }
 
+    /// <summary>
+    /// Starts the program as ESP-IDF's second-stage bootloader leaves the chip when it jumps to an app (chipsim's
+    /// --idf-bootloader; components/bootloader_support: bootloader_clock_configure, bootloader_config_wdt, set_cache_and_start_app):
+    /// the CPU on PLL_F160M (the SPLL powered and calibrated, the AHB divider 4: <see cref="PllRunning"/>), the RTC watchdog
+    /// running with its stage 0 a reset after 9 s (CONFIG_BOOTLOADER_WDT_TIME_MS; the flash boot protection of RWDT and
+    /// MWDT0 off), the stack and registers the bootloader's call to the entry point leaves (not the ROM's), and the
+    /// image's flash-mapped segments (zero length: nothing to load) in place. The program has to turn the RTC watchdog off
+    /// itself, as it does when the ROM starts it.
+    /// </summary>
+    public void StartLikeIdfBootloader()
+    {
+        PllRunning = true;
+        WritePcr(PcrCpuFreq, 0);
+        WritePcr(PcrAhbFreq, 3);
+        WritePcr(PcrSysclk, (_pcr[PcrSysclk] & ~0x3_0000u) | (2u << 16));
+        WritePcr(PcrBusClockUpdate, 1);
+
+        // bootloader_config_wdt: RWDT's flash boot protection off, RWDT initialised (stage 0 resets the system after
+        // 9 s of RTC_SLOW_CLK; stage 0's timeout counts twice) and enabled, MWDT0's flash boot protection off
+        Write(Esp32c5Map.LpWdt + 0x18, 4, Esp32c5Map.WatchdogKey);
+        Write(Esp32c5Map.LpWdt + 0x04, 4, (uint)(9L * Esp32c5Map.RcSlowHz / 2));
+        Write(Esp32c5Map.LpWdt, 4, 0x8000_0000u | (4u << 28) | 0x1_2214u);
+        Write(Esp32c5Map.LpWdt + 0x18, 4, 0);
+        // bootloader_super_wdt_auto_feed: the super watchdog feeds itself
+        Write(Esp32c5Map.LpWdt + 0x20, 4, Esp32c5Map.WatchdogKey);
+        Write(Esp32c5Map.LpWdt + 0x1C, 4, Read(Esp32c5Map.LpWdt + 0x1C, 4) | (1u << 18));
+        Write(Esp32c5Map.LpWdt + 0x20, 4, 0);
+        Write(Esp32c5Map.Timg0 + 0x64, 4, Esp32c5Map.WatchdogKey);
+        Write(Esp32c5Map.Timg0 + 0x48, 4, (Read(Esp32c5Map.Timg0 + 0x48, 4) & ~(1u << 14)) | (1u << 22));
+        Write(Esp32c5Map.Timg0 + 0x64, 4, 0);
+
+        // the bootloader's stack and what its call left in the registers
+        _cpu.X[2] = 0x4085_C380;   // sp, in the bootloader's stack
+        _cpu.X[1] = 0x4084_E5A4;   // ra, in the bootloader (unpack_load_app's caller)
+        _cpu.X[3] = 0x4085_5C00;   // gp, the bootloader's
+        _cpu.X[10] = 0x4085_AFFC;
+        _cpu.X[11] = 0x1;
+        _replan = true;
+    }
+
     /// <summary>The CPU's clock, in hertz.</summary>
     public long CpuHertz => _cpuHertz;
 

@@ -49,6 +49,12 @@ public sealed partial class SimulationOptions
     public bool PllRunning { get; init; }
 
     /// <summary>
+    /// The ESP32-C5 program is an ESP image started as ESP-IDF's second-stage bootloader starts an app (--idf-bootloader): the
+    /// image must pass the bootloader's checks, and the chip is left as the bootloader leaves it (PLL, watchdog).
+    /// </summary>
+    public bool IdfBootloader { get; init; }
+
+    /// <summary>
     /// The options of the command line after the chip: the image, --ms, --uart0, --uart1, --usb, --input, --send, --i2c,
     /// --spi and --adc
     /// (see <see cref="Simulation.Usage"/>). Throws <see cref="UsageException"/> when they are wrong.
@@ -64,6 +70,7 @@ public sealed partial class SimulationOptions
         var devices = new List<BusDevice>();
         var analog = new List<AnalogInput>();
         var pllRunning = false;
+        var idfBootloader = false;
         for (var i = 0; i < arguments.Count; i++)
         {
             var argument = arguments[i];
@@ -79,7 +86,7 @@ public sealed partial class SimulationOptions
             }
 
             if (argument is not ("--ms" or "--uart0" or "--uart1" or "--usb" or "--input" or "--send" or "--i2c" or "--spi"
-                or "--adc" or "--pll-running"))
+                or "--adc" or "--pll-running" or "--idf-bootloader"))
             {
                 throw new UsageException($"unknown option '{argument}'.");
             }
@@ -87,6 +94,12 @@ public sealed partial class SimulationOptions
             if (argument == "--pll-running")
             {
                 pllRunning = true;
+                continue;
+            }
+
+            if (argument == "--idf-bootloader")
+            {
+                idfBootloader = true;
                 continue;
             }
 
@@ -150,6 +163,7 @@ public sealed partial class SimulationOptions
             Devices = devices,
             Analog = analog,
             PllRunning = pllRunning,
+            IdfBootloader = idfBootloader,
         };
 
         static double? Time(Group group) =>
@@ -303,7 +317,7 @@ public static partial class Simulation
                                                      [--send [<port>=]<text>[@<simulated milliseconds>ms]]...
                                                      [--i2c 0:<address>=<device>]... [--spi 0=<device>[@<pin>]]...
                                                      [--adc <pin>=<volts>V|<reading>[@<simulated milliseconds>ms]]...
-                                                     [--pll-running]
+                                                     [--pll-running] [--idf-bootloader]
 
         Runs an image on a simulated chip and prints what the program does, each with the simulated time: an Intel HEX
         image (as SDCC writes it: sdcc -mpdk14, sdcc -mstm8) on a Padauk PFS154 or an STM8S103, an ELF file (as ld.lld
@@ -383,10 +397,25 @@ public static partial class Simulation
             throw new UsageException($"there is no chip '{options.Chip}': {string.Join(", ", Chips.Keys)}.");
         }
 
+        if (options.IdfBootloader)
+        {
+            if (!options.Chip.Equals("esp32c5", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new UsageException("--idf-bootloader is for the esp32c5.");
+            }
+
+            Esp32c5Image.CheckForIdfBootloader(options.Image);
+        }
+
         var chip = load(options.Image);
         if (options.PllRunning && chip is Esp32c5Chip c5)
         {
             c5.PllRunning = true;
+        }
+
+        if (options.IdfBootloader && chip is Esp32c5Chip started)
+        {
+            started.StartLikeIdfBootloader();
         }
 
         var lines = new List<string>();

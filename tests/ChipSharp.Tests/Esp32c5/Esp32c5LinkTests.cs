@@ -111,9 +111,14 @@ public sealed class Esp32c5LinkTests : IDisposable
         Assert.Equal(243, elf.Machine); // EM_RISCV
         Assert.Equal(elf.Symbols["chipsharp_reset"], elf.Entry);
 
-        // the trap entry first, at SRAM's start; then the code and constants; then .data, loaded where it runs
+        // ESP-IDF's application description first, at SRAM's start (its 256 bytes are the image's first segment's first
+        // bytes, where the bootloader reads them); then the trap entry, then the code and constants, then .data, loaded
+        // where it runs
+        var description = Assert.Single(elf.Sections, s => s.Name == ".esp_app_desc");
+        Assert.Equal((Esp32c5Build.SramStart, 256u), (description.Address, description.Size));
+        Assert.Equal(elf.Symbols["chipsharp_esp_app_desc"], description.Address);
         var vectors = Assert.Single(elf.Sections, s => s.Name == ".vectors");
-        Assert.Equal(Esp32c5Build.SramStart, vectors.Address);
+        Assert.Equal(description.Address + 256, vectors.Address);
         Assert.Equal(elf.Symbols["chipsharp_trap"], vectors.Address);
         var text = Assert.Single(elf.Sections, s => s.Name == ".text");
         Assert.True(text.Address >= vectors.Address + vectors.Size);

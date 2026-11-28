@@ -34,9 +34,7 @@ chipsharp build bin\Release\net10.0\Esp32c5Serial.dll -t esp32c5-devkitc
 chipsharp flash bin\Release\net10.0\Esp32c5Serial.dll -t esp32c5-devkitc
 ```
 
-It takes **21.3 KB** of the 8 MB of flash (`build` says `SRAM 22.6 KB + heap 224 KB of 369.4 KB`). `build` writes `Esp32c5Serial.bin`, the ESP image the chip's ROM
-loads from flash offset `0x2000` (there is no second-stage bootloader: the program is the image, and it runs from the
-chip's SRAM). `flash` writes it with esptool through either USB-C port of the board, the one marked **USB** (the chip's
+It takes **21.3 KB** of the 8 MB of flash (`build` says `SRAM 22.6 KB + heap 224 KB of 369.4 KB`). `build` writes `Esp32c5Serial.bin`, the ESP image: the one file for every way to boot it (it runs from the chip's SRAM). `flash` writes it at flash offset `0x2000`, where the chip's ROM loads it directly (no bootloader), with esptool through either USB-C port of the board, the one marked **USB** (the chip's
 own USB Serial/JTAG) or the one marked **UART** (the bridge); `--port COM6` says which when both are plugged in. If
 esptool cannot connect, hold **BOOT**, press and release **RESET**, release **BOOT**, and flash again; the program
 starts at the next reset. The console is the **USB** port's, so that is the one to type on (the **UART** port is the bridge to `Uart`, GPIO 11 and 12: the console is silent there).
@@ -54,3 +52,5 @@ It prints each line the console sends (`USB: > LED on`, `USB: > LED blinking eve
 Wokwi has a part for this board (`board-esp32-c5-devkitc-1`, marked beta), and `diagram.json` here is the circuit, wired
 directly (Wokwi needs no resistors). It has **not been tried in Wokwi**: it was written from the part's pin names
 (`esp:4`, `esp:GND.3`) alone, so a wire may need nudging.
+
+To run the program in Wokwi, upload the plain `Esp32c5Serial.bin` (F1, "Upload Firmware and Start Simulation..."; nothing to merge): Wokwi's board puts an uploaded `.bin` at `0x10000` behind ESP-IDF's own bootloader, which accepts it (the image starts with ESP-IDF's application description, and its segments stay clear of the bootloader's memory), so the same file that `chipsharp flash` writes at `0x2000` runs there as an app. `chipsim esp32c5 Esp32c5Serial.bin --idf-bootloader` runs it as that bootloader leaves the chip.

@@ -13,6 +13,8 @@ namespace ChipSharp.Runtime.Esp32c5;
 /// <item><see cref="BootFileName"/>: <c>chipsharp_chip_boot</c>, the chip's first steps (before .data and .bss): the
 /// watchdogs the ROM leaves running stopped (the RTC watchdog, both timer groups', the super watchdog set to feed
 /// itself), and mtvec in CLIC mode.</item>
+/// <item><see cref="AppDescFileName"/>: the 256-byte <c>esp_app_desc_t</c> ESP-IDF's bootloader reads from the start of an app
+/// image, the first bytes of the program (the target's "link.head"); the ROM ignores it.</item>
 /// <item><see cref="RegistersFileName"/>, <see cref="InterruptsFileName"/>, <see cref="PinsFileName"/>: the chip's
 /// registers, interrupt sources and pins, as ChipSharp.Chips writes them from Espressif's SVD and chips/esp32c5.json
 /// (src/ChipSharp.Chips/Generated); <see cref="ChipHeaderFileName"/> has what the runtime's C files share.</item>
@@ -37,6 +39,9 @@ public sealed class Esp32c5Runtime : IArchRuntime
 {
     /// <summary>The C file with the chip's first steps, chipsharp_chip_boot.</summary>
     public const string BootFileName = "esp32c5_boot.c";
+
+    /// <summary>The C file with the application description (ESP-IDF's esp_app_desc_t) at the start of the image.</summary>
+    public const string AppDescFileName = "esp32c5_app_desc.c";
 
     /// <summary>The chip's registers (ChipSharp.Chips, from Espressif's SVD and chips/esp32c5.json).</summary>
     public const string RegistersFileName = "esp32c5_registers.h";
@@ -104,7 +109,7 @@ public sealed class Esp32c5Runtime : IArchRuntime
         [
             .. riscv32,
             Source(RegistersFileName), Source(InterruptsFileName), Source(PinsFileName), Source(ChipHeaderFileName),
-            Source(BootFileName), Source(SourceFileName), Source(InterruptsSourceFileName), Source(UsbFileName),
+            Source(BootFileName), Source(AppDescFileName), Source(SourceFileName), Source(InterruptsSourceFileName), Source(UsbFileName),
             Source(UartFileName), Source(FailuresFileName), Source(ConsoleFileName), ClockHeader(target),
             Source(BusHeaderFileName), Source(I2cFileName), Source(SpiFileName), Source(AdcFileName), Source(PwmFileName),
             .. riscv32.Any(file => file.FileName == FloatTextFileName) ? [] : new[] { Source(FloatTextFileName) },

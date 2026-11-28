@@ -798,11 +798,26 @@ chipsim esp32c5 chipsharp-output\esp32c5-devkitc\Esp32c5Blink.bin --ms 1600  # o
   the interrupt matrix routes the 84 peripheral sources), the watchdogs the ROM leaves running, the boot flow. Its
   registers come from Espressif's SVD through `src/ChipSharp.Chips` (`chips/esp32c5.json`), into
   `esp32c5_registers.h`, `esp32c5_interrupts.h` and `esp32c5_pins.h`.
-- **The boot.** The ROM reads the image at flash offset `0x2000`, checks its header (chip id 23), loads its segments
-  into SRAM and jumps to its entry. ESP-IDF's second-stage bootloader is not used: ChipSharp's program is that image,
-  every segment in SRAM (no flash cache or MMU to set up), up to `0x4085c5a0`, where the ROM keeps its stack and data
-  while it boots. The linker script has code and variables in one region (`"link.code"` and `"link.data"` both
-  `sram`), so `.data` is loaded where it runs, then `.bss` and the stack (16 KB) up to `0x4085c5a0`.
+- **The boot.** One `.bin` boots two ways. **Directly:** the ROM reads the image at flash offset `0x2000`, checks its
+  header (chip id 23), loads its segments into SRAM and jumps to its entry; ESP-IDF's second-stage bootloader is not
+  used (`chipsharp flash` writes it there). **As an app behind ESP-IDF's bootloader**, at `0x10000` (what Wokwi always
+  does with an uploaded `.bin`, and what a devkit that still has its factory bootloader and partition table does): the
+  bootloader checks the image (below), copies its SRAM segment and calls the entry. Either way every byte loaded is in
+  SRAM (no flash cache or MMU to set up), up to `0x4085c5a0`, where the ROM keeps its stack and data while it boots
+  (`0x4084bba0` when ESP-IDF's bootloader runs: its own code is there until it jumps). The linker script has code and
+  variables in one region (`"link.code"` and `"link.data"` both `sram`), so `.data` is loaded where it runs, then `.bss`
+  and the stack (16 KB) up to `0x4085c5a0`.
+- **The application description.** The first 256 bytes of the program, at `0x40800000`, are ESP-IDF's `esp_app_desc_t`
+  (`esp32c5_app_desc.c`, the target's `"link.head"`): magic `0xABCD5432`, secure version 0, version `1.0`, the project
+  name (the program's name, filled in by the image writer), the compile time and date (fixed text, `00:00:00` and
+  `Jan  1 1970`, so a build is reproducible), `ChipSharp` as the IDF version, the SHA-256 of the `.elf`, eFuse block
+  revisions 0 to 65535 (both mean "any"), MMU page size 2^16. ESP-IDF's bootloader reads it from the image's first
+  segment (`esp_image_format.c`) and refused an image that had program code there ("Image requires efuse blk rev >=
+  v176.67"); the ROM ignores it. After the SRAM segment the image has two zero-length segments at flash-mapped
+  addresses (`0x42...`), because the C5's bootloader asserts that an app has exactly two (`unpack_load_app`); the
+  target's `"esp": { "mappedSegments": "false" }` leaves them out. `EspIdfBootloaderRules` checks every rule of the
+  bootloader (header, chip and eFuse revisions, the segments' addresses against the bootloader's own SRAM,
+  checksum, SHA-256, the mapped segments); a program that loads past `0x4084bba0` is a build error.
 - **The image `esp`** (`src/ChipSharp.Image.Esp`): `chipsharp build -t esp32c5-devkitc` writes `Name.bin`, the ESP
   application image the ROM loads, as esptool's `elf2image` writes it: the 8-byte header (`0xE9`, the segment count,
   SPI flash mode `dio`, the flash size (8 MB, the module's) and frequency (40 MHz) in byte 3, the entry point,
@@ -810,7 +825,8 @@ chipsim esp32c5 chipsharp-output\esp32c5-devkitc\Esp32c5Blink.bin --ms 1600  # o
   maximum 65535, hash appended); each segment (load address, length, bytes, padded to 4); zeros up to byte 15 of a
   16-byte block, the checksum (`0xEF` xor every segment byte); the SHA-256 of all before it. A segment outside
   `0x40800000-0x4085c59f` is a build error. The values are the target's `"esp"` settings; `EspImage.Read` parses and
-  verifies an image. The memory report reads `SRAM 5.2 KB of 369.4 KB (1.4%) (stack 16 KB reserved)`.
+  verifies an image. `esptool image-info` shows it valid, with its three segments (the two mapped ones empty); it prints
+  an "Application information" only for a flash-mapped segment with data, which this image does not have. The memory report reads `SRAM 5.2 KB of 369.4 KB (1.4%) (stack 16 KB reserved)`.
 - **Flashing.** `chipsharp flash Name.dll -t esp32c5-devkitc` (or the `.bin`) runs
   `esptool --chip esp32c5 -p <port> -b 460800 write-flash 0x2000 Name.bin` (`write_flash` for esptool 4: `esptool
   version` says which). esptool is found through `CHIPSHARP_ESPTOOL` (the file or its folder), the PATH (`esptool`,
@@ -819,7 +835,13 @@ chipsim esp32c5 chipsharp-output\esp32c5-devkitc\Esp32c5Blink.bin --ms 1600  # o
   flash` takes first) or the one marked **UART** (the CP2102N bridge, `10C4:EA60`; CH343 `1A86:55D3` and CH340
   `1A86:7523` too); say which with `--port COM6` when both are plugged in. esptool puts the chip into the ROM's
   download mode itself; if it cannot connect, hold **BOOT**, press and release **RESET**, release **BOOT**, and flash
-  again. The chip then runs the program from reset.
+  again. The chip then runs the program from reset. Flashing at `0x2000` replaces ESP-IDF's bootloader; to keep one,
+  write the same `.bin` at `0x10000` of a flash that has the bootloader and the partition table.
+- **Wokwi.** Upload the plain `Name.bin` ("Upload Firmware and Start Simulation..."): Wokwi's C5 board always runs it as
+  an app at `0x10000` behind ESP-IDF's own bootloader, so a merged whole-flash image gains nothing. The bootloader's log
+  (`load:0x408556c0`, `entry 0x4084bba0`) is its own. `chipsim esp32c5 Name.bin --idf-bootloader` runs the image as that
+  bootloader leaves the chip (the PLL on and the CPU at 160 MHz, the RTC watchdog running for 9 s, the bootloader's
+  registers) after checking the image against the bootloader's rules.
 - **The runtime `riscv32`** (`src/ChipSharp.Runtime.Riscv32`), every RV32 chip's: `chipsharp_reset` (gp, the stack,
   interrupts off, mtvec at the trap entry, the chip's first steps, `chipsharp_chip_boot`, then .data, .bss,
   `chipsharp_chip_init` and the program); the trap entry (`.vectors`, 64-byte aligned) and its dispatch by interrupt id
@@ -894,7 +916,7 @@ pins the board leaves a program (the board's own LED is a WS2812, not a pin to s
 | `esp32c5-lcd-clock` | A DS1307 and a 16x2 LCD on I2C bus 0 (SDA 4, SCL 5) show the date and the time, with `DateTime` | 25.5 KB, 26.0 KB + heap |
 
 Wokwi has a part for the board (`board-esp32-c5-devkitc-1`, beta), so each example has a `diagram.json`, wired directly;
-they have not been tried in Wokwi.
+their circuits have not been tried in Wokwi (upload the example's `.bin`, see the Wokwi line of the ESP32-C5 chapter).
 
 ### The ESP32-C5 limits
 

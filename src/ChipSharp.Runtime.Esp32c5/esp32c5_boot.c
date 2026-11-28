@@ -16,7 +16,14 @@
 //      64-byte aligned (link.vectorAlign). Every exception and every interrupt not vectored (SHV clear in its CLIC
 //      INT_CTRL register, all of ChipSharp's) comes there, its id in mcause's bits 11-0; mtvt is not used.
 //
-// The CPU's clock stays as the ROM left it (the crystal's); interrupts stay off: the chip's runtime sets its clocks
+// The same steps serve both ways the program is started. ESP-IDF's second-stage bootloader (the image as an app at 0x10000)
+// has already switched off the flash boot protection of RWDT and MWDT0 (bootloader_config_wdt) and runs the RTC watchdog
+// itself for 9 s (CONFIG_BOOTLOADER_WDT_ENABLE: stage 0 resets the system), and has the super watchdog feed itself; step 1
+// stops each of them as it would have the ROM's, whichever is running. Its registers (sp, gp, ra), its mtvec, its CPU
+// clock (the PLL at 160 MHz) and its MMU and cache mapping are left alone or replaced: the reset handler sets sp and gp,
+// step 2 mtvec, and the program touches no flash address.
+//
+// The CPU's clock stays as it was found (the ROM's crystal, or the bootloader's PLL); interrupts stay off: the chip's runtime sets its clocks
 // and turns interrupts on in chipsharp_chip_init. No ROM function is called, here or later.
 
 #include "esp32c5_registers.h"

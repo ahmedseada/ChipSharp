@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Globalization;
 using System.Security.Cryptography;
 using ChipSharp.Abstractions;
+using ChipSharp.Image.Esp;
 using ChipSharp.Image.Uf2;
 
 namespace ChipSharp.Simulators.Esp32c5;
@@ -78,6 +79,35 @@ public sealed class Esp32c5Image
         }
 
         throw new ImageException($"'{path}' is neither an ELF file nor an ESP image (0xE9).");
+    }
+
+    /// <summary>
+    /// What ESP-IDF's second-stage bootloader does with the image at <paramref name="path"/> before it starts it:
+    /// <see cref="EspIdfBootloaderRules"/>' checks (for an app at flash offset 0x10000). A file that is not an ESP image,
+    /// or that the bootloader would refuse, is an <see cref="ImageException"/> naming each reason.
+    /// </summary>
+    public static void CheckForIdfBootloader(string path)
+    {
+        byte[] bytes;
+        try
+        {
+            bytes = File.ReadAllBytes(path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            throw new ImageException($"cannot read '{path}': {e.Message}");
+        }
+
+        if (bytes.Length == 0 || bytes[0] != 0xE9)
+        {
+            throw new ImageException($"'{path}' is not an ESP image (0xE9): ESP-IDF's bootloader starts an app from one.");
+        }
+
+        var violations = EspIdfBootloaderRules.Check(bytes);
+        if (violations.Count > 0)
+        {
+            throw new ImageException($"ESP-IDF's bootloader would refuse '{path}': {string.Join("; ", violations)}.");
+        }
     }
 
     /// <summary>

@@ -9,5 +9,7 @@
   <ItemGroup>
     <!-- the ELF reader, for the ESP32-C5's images -->
     <ProjectReference Include="..\ChipSharp.Image.Uf2\ChipSharp.Image.Uf2.csproj" />
+    <!-- the ESP image's rules (ESP-IDF's bootloader), for the bootloader check of chipsim: idf-bootloader -->
+    <ProjectReference Include="..\ChipSharp.Image.Esp\ChipSharp.Image.Esp.csproj" />
   </ItemGroup>
 </Project>

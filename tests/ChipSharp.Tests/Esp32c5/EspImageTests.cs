@@ -27,7 +27,7 @@ public sealed class EspImageTests : IDisposable
     }
 
     /// <summary>An .elf with these loadable segments (load address = run address, all bytes in the file) and entry point.</summary>
-    private static ElfFile Elf(uint entry, params (uint Address, byte[] Data)[] segments)
+    internal static ElfFile Elf(uint entry, params (uint Address, byte[] Data)[] segments)
     {
         var bytes = new List<byte>();
         void U16(int value) => bytes.AddRange(BitConverter.GetBytes((ushort)value));
@@ -227,11 +227,19 @@ public sealed class EspImageTests : IDisposable
         Assert.Equal(program.File.Entry, image.Entry);
         Assert.Equal(program.File.Symbols["chipsharp_reset"], image.Entry);
         Assert.Equal(23, image.ChipId);
-        // the ELF's segments in address order, those that touch made one: the same bytes at the same addresses
-        Assert.Equal(program.File.Segments.Sum(s => s.Data.Length), image.Segments.Sum(s => s.Data.Length));
-        Assert.Equal(program.File.Segments.Min(s => s.PhysicalAddress), image.Segments[0].Address);
-        Assert.Equal(program.File.Segments.OrderBy(s => s.PhysicalAddress).SelectMany(s => s.Data), image.Segments.SelectMany(s => s.Data));
-        Assert.All(image.Segments, s => Assert.InRange(s.Address + (ulong)s.Data.Length, 0x40800001UL, 0x4085c5a0UL));
+        // the ELF's segments in address order, those that touch made one: the same bytes at the same addresses, but for the
+        // application description's project name and the .elf's hash, which the image writer fills in; after them the two
+        // zero-length segments mapped from flash that ESP-IDF's bootloader insists on
+        var copied = image.Segments.Where(s => !EspIdfBootloaderRules.IsMapped(s.Address)).ToList();
+        Assert.Equal(2, image.Segments.Count - copied.Count);
+        Assert.All(image.Segments.Where(s => EspIdfBootloaderRules.IsMapped(s.Address)), s => Assert.Empty(s.Data));
+        Assert.Equal(program.File.Segments.Sum(s => s.Data.Length), copied.Sum(s => s.Data.Length));
+        Assert.Equal(program.File.Segments.Min(s => s.PhysicalAddress), copied[0].Address);
+        var elfBytes = program.File.Segments.OrderBy(s => s.PhysicalAddress).SelectMany(s => s.Data).ToArray();
+        Assert.Equal(
+            EspAppDescription.Fill(elfBytes, name, SHA256.HashData(File.ReadAllBytes(program.Elf))),
+            copied.SelectMany(s => s.Data).ToArray());
+        Assert.All(copied, s => Assert.InRange(s.Address + (ulong)s.Data.Length, 0x40800001UL, 0x4084bba0UL));
         Assert.Equal(0L, new FileInfo(path).Length % 16);
     }
 
@@ -251,6 +259,27 @@ public sealed class EspImageTests : IDisposable
             }
         }
         """;
+
+    /// <summary>Runs <paramref name="code"/> in esptool's own Python (isolated), with <paramref name="argument"/> as sys.argv[1].</summary>
+    private static string EsptoolPython(string code, string argument)
+    {
+        var tool = EsptoolTheoryAttribute.Tool!;
+        var python = Path.Combine(Path.GetDirectoryName(tool.Path)!, OperatingSystem.IsWindows() ? "python.exe" : "python3");
+        var start = new System.Diagnostics.ProcessStartInfo(File.Exists(python) ? python : "python3")
+        {
+            RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false,
+        };
+        start.ArgumentList.Add("-I");
+        start.ArgumentList.Add("-c");
+        start.ArgumentList.Add(code);
+        start.ArgumentList.Add(argument);
+        using var process = System.Diagnostics.Process.Start(start)!;
+        var error = process.StandardError.ReadToEndAsync();
+        var output = process.StandardOutput.ReadToEnd();
+        process.WaitForExit();
+        Assert.True(process.ExitCode == 0, $"python: {output}{error.Result}");
+        return output;
+    }
 
     /// <summary>Runs the real esptool (never a write to a board) and returns what it printed.</summary>
     private static string Esptool(params string[] arguments)
@@ -284,6 +313,9 @@ public sealed class EspImageTests : IDisposable
             new EspImageFormat().Package(new LinkedBinary(program.Elf), Esp32c5Build.Board, output);
         }
 
+        // the bootloader's rules, the app at the default partition table's 0x10000
+        Assert.Equal([], EspIdfBootloaderRules.Check(File.ReadAllBytes(path)));
+
         // image-info: the header, the chip id, the checksum and the SHA-256 are valid
         var info = Esptool("--chip", "esp32c5", "image-info", path);
         Assert.Contains("ESP32-C5", info, StringComparison.OrdinalIgnoreCase);
@@ -294,12 +326,33 @@ public sealed class EspImageTests : IDisposable
         Assert.Contains("Flash size: 8MB", info);
         Assert.Contains("Flash freq: 40m", info);
         Assert.Contains("Flash mode: DIO", info);
+        // the two zero-length segments mapped from flash, which esptool takes for DROM and IROM
+        Assert.Contains("DROM, IROM", info);
 
-        // esptool's own elf2image of the same ELF (from its segments, which is what the ROM loads): the same bytes
+        // esptool shows the application description of a DROM segment only (ours is in the first segment the bootloader
+        // copies), so its own parser, cmds._parse_app_info, is given the first segment's 256 bytes
+        var segmentFile = Path.Combine(_scratch, "first-segment.bin");
+        File.WriteAllBytes(segmentFile, EspImage.Read(File.ReadAllBytes(path)).Segments[0].Data[..256]);
+        var parsed = EsptoolPython("from esptool.cmds import _parse_app_info; import sys; "
+            + "d = _parse_app_info(open(sys.argv[1], \"rb\").read()); "
+            + "print(d[\"project_name\"], d[\"version\"], d[\"idf_ver\"], d[\"date\"], d[\"time\"], d[\"app_elf_sha256\"], "
+            + "d[\"min_efuse_blk_rev_full\"], d[\"max_efuse_blk_rev_full\"], d[\"mmu_page_size\"], d[\"secure_version\"], sep=\"|\")",
+            segmentFile);
+        Assert.Equal(
+            $"{name}|1.0|ChipSharp|Jan  1 1970|00:00:00|{Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(program.Elf))).ToLowerInvariant()}|0.0|655.35|64 KB|0",
+            parsed.Trim());
+
+        // esptool's own elf2image of the same ELF (from its segments, which is what the ROM loads), the elf's hash put
+        // into the description as ours does: the same bytes, but for the project name and the mapped segments
         var reference = Path.Combine(_scratch, "reference.bin");
         Esptool("--chip", "esp32c5", "elf2image", "--use-segments", "--flash-mode", "dio", "--flash-freq", "40m",
-            "--flash-size", "8MB", "-o", reference, program.Elf);
-        var mine = File.ReadAllBytes(path);
+            "--flash-size", "8MB", "--elf-sha256-offset", "0xb0", "-o", reference, program.Elf);
+        var plain = EspImageFormat.Make(program.File, Esp32c5Build.Board, program.Elf, null, SHA256.HashData(File.ReadAllBytes(program.Elf)));
+        var mine = new EspImage
+        {
+            FlashMode = plain.FlashMode, FlashSizeAndFrequency = plain.FlashSizeAndFrequency, Entry = plain.Entry, ChipId = plain.ChipId,
+            Segments = [.. plain.Segments.Where(s => !EspIdfBootloaderRules.IsMapped(s.Address))],
+        }.Write();
         var theirs = File.ReadAllBytes(reference);
         string Segs(byte[] b) => string.Join(" ", EspImage.Read(b).Segments.Select(x => $"{x.Address:x8}+{x.Data.Length}"));
         Assert.Equal(Segs(theirs), Segs(mine));
