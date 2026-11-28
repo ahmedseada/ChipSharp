@@ -1,4 +1,3 @@
-using ChipSharp.Abstractions;
 using ChipSharp.Tests.Backends;
 using ChipSharp.Tests.Support;
 
@@ -6,10 +5,9 @@ namespace ChipSharp.Tests.Esp32c5;
 
 /// <summary>
 /// The samples and the test corpora (<see cref="ConformancePrograms"/>) for the ESP32-C5, up to the linked .elf: every
-/// program that makes no object compiles with the llvm code generator for riscv32, and links with the riscv32 and
-/// esp32c5 runtimes (and the tests' console, <see cref="Esp32c5Build.ConsoleSink"/>) into SRAM; one that makes objects is
-/// refused, as the chip has no heap yet, with the whole-program pass saying so place by place. They run once the
-/// chip's simulator and runtime come (M4's wave 1: the backend conformance suite's slot for the chip).
+/// program, with or without objects, compiles with the llvm code generator for riscv32, and links with the riscv32 and
+/// esp32c5 runtimes (the console, the heap and the garbage collector among them) into SRAM. They run in the chip's
+/// simulator in the backend conformance suite's slot for the chip.
 /// </summary>
 public sealed class Esp32c5ProgramTests : IDisposable
 {
@@ -24,18 +22,13 @@ public sealed class Esp32c5ProgramTests : IDisposable
 
     [Esp32c5Theory]
     [MemberData(nameof(ProgramNames))]
-    public void Each_program_without_objects_links_into_SRAM_and_each_with_objects_is_refused_for_the_heap(string name)
+    public void Each_program_links_into_SRAM_with_the_runtime(string name)
     {
         var file = name.Replace('/', '_');
         var assembly = CSharpCompiler.Compile(ConformancePrograms.Source(name), file);
-        var target = Esp32c5Build.WithConsole();
+        var target = Esp32c5Build.Board;
         var check = Esp32c5Build.Check(assembly, file, target);
-        if (!check.IsSupported)
-        {
-            Assert.All(check.Groups, group => Assert.Matches("needs? a heap, and the target 'esp32c5-devkitc' " +
-                @"\([0-9.]+ KB RAM\) has no heap", group.Line));
-            return;
-        }
+        Assert.True(check.IsSupported, string.Join("\n", check.Groups.Select(group => group.Line)));
 
         var program = Esp32c5Build.Build(assembly, file, Path.Combine(_scratch, "esp32c5"), target);
 

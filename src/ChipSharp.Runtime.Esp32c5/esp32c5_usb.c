@@ -40,6 +40,7 @@ static void usb_send(void)
 {
     if (usb_pending)
     {
+        USB_DEVICE_INT_CLR = USB_DEVICE_INT_CLR_SERIAL_IN_EMPTY_INT_CLR_MASK;
         USB_DEVICE_EP1_CONF = USB_DEVICE_EP1_CONF_WR_DONE_MASK;
         usb_pending = 0;
     }
@@ -101,10 +102,20 @@ void chipsharp_failure_write(const char *text, chipsharp_count count)
     chipsharp_c5_usb_write(text, count);
 }
 
-// The program stops (it ended, or failed): what the FIFO holds goes out, and the host takes it while the core sleeps.
+// The program stops (it ended, or failed): what the FIFO holds goes out, and the host takes it (SERIAL_IN_EMPTY), unless
+// there is no host: the core then sleeps for good, and a debugger or the simulator sees the bytes taken.
 void chipsharp_before_halt(void)
 {
     usb_send();
+    if (!usb_listening)
+    {
+        return;
+    }
+
+    unsigned long long end = chipsharp_c5_ticks() + (unsigned long long)WAIT_MICROSECONDS * C5_TICKS_PER_MICROSECOND;
+    while ((USB_DEVICE_INT_RAW & USB_DEVICE_INT_RAW_SERIAL_IN_EMPTY_INT_RAW_MASK) == 0 && chipsharp_c5_ticks() < end)
+    {
+    }
 }
 
 // ---- Console.Read ------------------------------------------------------------------------------------------------

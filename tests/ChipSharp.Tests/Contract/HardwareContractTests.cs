@@ -157,6 +157,7 @@ public sealed partial class HardwareContractTests : IDisposable
     [InlineData("uno")]
     [InlineData("pfs154-bare")]
     [InlineData("stm8s103-board")]
+    [InlineData("esp32c5-devkitc")]
     public void A_chip_runtime_ships_the_header_and_each_C_file_that_defines_a_function_of_the_contract_includes_it(
         string name)
     {
