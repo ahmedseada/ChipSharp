@@ -6,8 +6,8 @@
 // ChipSharp for the target "stm8s103-board", then flash the .hex with an ST-LINK V2 (see README.md):
 //
 //     dotnet build -c Release
-//     chipsharp build bin\Release\net10.0\Stm8Blink.dll -t stm8s103-board     # chipsharp-output\stm8s103-board\Stm8Blink.hex
-//     chipsharp flash bin\Release\net10.0\Stm8Blink.dll -t stm8s103-board     # builds it, then stm8flash -c stlinkv2
+//     chipsharp build bin\Release\net10.0\Stm8Blink.dll -t stm8s103-board   # chipsharp-output\...\Stm8Blink.hex
+//     chipsharp flash bin\Release\net10.0\Stm8Blink.dll -t stm8s103-board   # builds it, then stm8flash -c stlinkv2
 //
 // (Run on .NET, Pin.Output throws.) Without a board, chipsim runs the .hex and prints PB5's changes:
 //     chipsim stm8s103 chipsharp-output\stm8s103-board\Stm8Blink.hex --ms 2000

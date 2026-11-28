@@ -36,7 +36,7 @@ public sealed partial class Stm8ExampleTests(ITestOutputHelper output) : IDispos
         }
     }
 
-    /// <summary>The board's LED on PB5, lit while low: Pin.Output lights it, each toggle lets it go or lights it again.</summary>
+    /// <summary>The board's LED on PB5, lit while low: Pin.Output lights it, each toggle lets it go or lights it.</summary>
     [SdccFact]
     [RunsLong]
     public async Task The_blink_toggles_the_boards_LED_on_PB5_every_half_second()
@@ -47,7 +47,8 @@ public sealed partial class Stm8ExampleTests(ITestOutputHelper output) : IDispos
 
         // PB5 is true open-drain: "input" is the pin let go (the LED dark, its resistor to 3.3 V)
         var led = run.Pins.Where(p => p.Pin == "PB5").ToList();
-        Assert.True(led.Select(p => p.State).SequenceEqual(["low", "input", "low", "input", "low"]), $"{example}\n{run}");
+        Assert.True(led.Select(p => p.State).SequenceEqual(["low", "input", "low", "input", "low"]),
+            $"{example}\n{run}");
         Assert.InRange(led[1].Milliseconds - led[0].Milliseconds, 0, 0.1); // Pin.Output, then the first toggle at once
         for (var i = 2; i < led.Count; i++)
         {
@@ -58,8 +59,9 @@ public sealed partial class Stm8ExampleTests(ITestOutputHelper output) : IDispos
     }
 
     /// <summary>
-    /// The prompt: on, status, off, a line with a backspace and status again, ended as terminals end them ("\r\n", "\r",
-    /// "\n"): each char comes back as it is typed, each command is answered, and PB5 (the LED, lit while low) follows.
+    /// The prompt: on, status, off, a line with a backspace and status again, ended as terminals end them ("\r\n",
+    /// "\r", "\n"): each char comes back as it is typed, each command is answered, and PB5 (the LED, lit while low)
+    /// follows.
     /// </summary>
     [SdccFact]
     [RunsLong]
@@ -135,8 +137,8 @@ public sealed partial class Stm8ExampleTests(ITestOutputHelper output) : IDispos
     }
 
     /// <summary>
-    /// The LCD at 0x27 on the board's I2C bus (PB5, PB4) shows the knob on PD3: 0 V, 1.65 V and 3.3 V are the readings 0,
-    /// 512 and 1023, written over the row's digits as the knob turns.
+    /// The LCD at 0x27 on the board's I2C bus (PB5, PB4) shows the knob on PD3: 0 V, 1.65 V and 3.3 V are the
+    /// readings 0, 512 and 1023, written over the row's digits as the knob turns.
     /// </summary>
     [SdccFact]
     [RunsLong]
@@ -250,11 +252,12 @@ public sealed partial class Stm8ExampleTests(ITestOutputHelper output) : IDispos
         var run = Simulation.Run(SimulationOptions.Parse("stm8s103",
             [example.Hex, "--ms", milliseconds.ToString(CultureInfo.InvariantCulture), .. options]));
         Assert.True(run.ExitCode == 0, $"{example}\n{run}");
-        Assert.True(run.Stopped.EndsWith(" ms of simulated time have passed", StringComparison.Ordinal), $"{example}\n{run}");
+        Assert.True(run.Stopped.EndsWith(" ms of simulated time have passed", StringComparison.Ordinal),
+            $"{example}\n{run}");
         return run;
     }
 
-    /// <summary>True when the last high or low of <paramref name="pin"/> at or before <paramref name="at"/> ms was high.</summary>
+    /// <summary>True when the pin's last high or low at or before <paramref name="at"/> ms was high.</summary>
     private static bool IsHigh(IReadOnlyList<PinChange> pins, string pin, double at) =>
         pins.LastOrDefault(p => p.Pin == pin && p.Milliseconds <= at && p.State is "low" or "high")?.State == "high";
 
@@ -265,7 +268,7 @@ public sealed partial class Stm8ExampleTests(ITestOutputHelper output) : IDispos
         return Array.IndexOf(Digits, (byte)segments);
     }
 
-    /// <summary>A PWM period's pulse in microseconds ("1000.00 Hz, duty 2.00% (20.00 us high)"), or -1 for a steady pin.</summary>
+    /// <summary>A PWM period's pulse in microseconds ("... (20.00 us high)"), or -1 for a steady pin.</summary>
     private static double Pulse(string period)
     {
         var match = PulseText().Match(period);
