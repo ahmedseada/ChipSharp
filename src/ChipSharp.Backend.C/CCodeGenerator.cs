@@ -118,9 +118,16 @@ public sealed class CCodeGenerator : ICodeGenerator
                     $"{rootCount.ToString(CultureInfo.InvariantCulture)});\n" : ""));
         }
 
+        // the runtime's functions that the hardware contract (chipsharp_hardware.h) makes reentrant, as the runtime
+        // defines them: a handler may call one while Main is in it
+        var runtimeReentrant = settings.Reentrant is null
+            ? []
+            : module.Functions.Where(f => f.Kind == TirFunctionKind.External && reachable.Functions.Contains(f)
+                && HardwareContract.Find(symbols.Functions[f]) is { Reentrant: true }).ToHashSet();
         var text = new StringBuilder();
         WriteHead(text, module, target, types, settings, usesDouble, symbols.Taken);
-        if (settings.Reentrant is { } keyword && (needs.HasFunctionTypes || reentrant.Any(reachable.Functions.Contains)))
+        if (settings.Reentrant is { } keyword
+            && (needs.HasFunctionTypes || reentrant.Any(reachable.Functions.Contains) || runtimeReentrant.Count > 0))
         {
             text.Append("/* the target's compiler keeps the parameters and locals of a function at fixed addresses in RAM unless it\n" +
                 $"   is {keyword}: what a function needs that may run again while it runs (it calls itself, maybe through\n" +
@@ -151,7 +158,8 @@ public sealed class CCodeGenerator : ICodeGenerator
             foreach (var function in runtime)
             {
                 var names = CFunctionWriter.ParameterNames(function, new HashSet<string>(StringComparer.Ordinal));
-                text.Append(CFunctionWriter.Signature(function, types, symbols.Functions[function], names, reentrant: false))
+                text.Append(CFunctionWriter.Signature(function, types, symbols.Functions[function], names,
+                        runtimeReentrant.Contains(function)))
                     .Append(";\n");
             }
 

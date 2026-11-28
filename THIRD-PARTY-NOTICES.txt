@@ -6,7 +6,7 @@ program ChipSharp builds (only the functions a program uses are linked), so a pr
 its notice too. Each source file keeps its own copyright lines and license text as well.
 
   1. LLVM compiler-rt: soft-float arithmetic (Apache-2.0 WITH LLVM-exception)
-  2. Raspberry Pi Pico SDK: the RP2040's second-stage bootloaders, boot2 (BSD-3-Clause)
+  2. Raspberry Pi Pico SDK: the RP2040's second-stage bootloaders, boot2, and its SVD file (BSD-3-Clause)
   3. musl libc: math functions (MIT, with the notices of the code it derives from)
   4. AMD AOCL-LibM (aocl-libm-ose): math functions (BSD-3-Clause)
   5. .NET runtime (dotnet/runtime): library code ported to C# in ChipSharp.Library (MIT)
@@ -24,14 +24,16 @@ Software are embedded into an Object form of such source code, you may redistrib
 Object form without complying with the conditions of Sections 4(a), 4(b) and 4(d) of the License."
 
 
-2. Raspberry Pi Pico SDK: boot2
--------------------------------
+2. Raspberry Pi Pico SDK: boot2 and the RP2040's SVD
+----------------------------------------------------
 
 Where: src/ChipSharp.Runtime.Rp2040/Boot2 (boot2_w25q080.S, boot2_generic_03h.S, boot2_helpers, boot_stage2.ld and the
-.bin files assembled from them), with their license in LICENSE.TXT there.
+.bin files assembled from them), with their license in LICENSE.TXT there; and chips/svd/RP2040.svd (pico-sdk 2.1.1,
+src/rp2040/hardware_regs/RP2040.svd, unchanged: the RP2040's registers, which src/ChipSharp.Chips reads and the tests
+check the runtime's addresses against), which carries its own copyright line and SPDX identifier.
 License: BSD-3-Clause.
 
-Copyright (c) 2019-2021 Raspberry Pi (Trading) Ltd.
+Copyright (c) 2019-2021 Raspberry Pi (Trading) Ltd. (boot2); Copyright (c) 2024 Raspberry Pi Ltd. (RP2040.svd)
 
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
 following conditions are met:

@@ -270,6 +270,37 @@ public sealed partial class HardwareContractTests : IDisposable
         }
     }
 
+    [Fact]
+    public void The_C_code_generator_declares_the_runtimes_functions_reentrant_where_the_contract_does_on_the_Padauk()
+    {
+        const string source = """
+            using ChipSharp.Hardware;
+
+            Pin.Output(4);
+            while (true)
+            {
+                Pin.Toggle(4);
+                Timing.DelayMilliseconds(500);
+            }
+            """;
+        string Generated(string target)
+        {
+            var description = Targets.Load(target);
+            var bytes = ChipSharp.Tests.Support.CSharpCompiler.Compile([source], [typeof(ChipSharp.Hardware.Pin).Assembly.Location], "Blink");
+            var module = ChipSharp.Frontend.Lowering.IlToTir.Lower(ChipSharp.Frontend.Analysis.WholeProgramPass.Analyze(
+                IlAssembly.Load(bytes, "Blink.dll"), description));
+            return Assert.Single(new ChipSharp.Backend.C.CCodeGenerator().Generate(module, description).Files).Content;
+        }
+
+        // SDCC's pdk14 keeps a function's parameters at fixed addresses unless it is __reentrant: the program's
+        // prototype must say what the runtime's definition (CHIPSHARP_REENTRANT) does, or the call passes them wrong
+        var padauk = Generated("pfs154-bare");
+        Assert.Matches(@"void ChipSharp_Runtime_PinToggle\(u?int32_t \w+\) CS_REENTRANT;", padauk);
+        Assert.Matches(@"void ChipSharp_Runtime_DelayMilliseconds\(u?int32_t \w+\);", padauk);
+        Assert.Contains("#define CS_REENTRANT __reentrant", padauk);
+        Assert.Matches(@"void ChipSharp_Runtime_PinToggle\(u?int32_t \w+\);", Generated("stm8s103-board"));
+    }
+
     /// <summary>
     /// A program that references every function <paramref name="target"/>'s runtime must define, and every clear
     /// function its interrupts table names, linked with the runtime: a function missing, or defined with other types than
