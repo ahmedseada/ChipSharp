@@ -132,7 +132,7 @@ chipsharp build bin\Release\net10.0\UnoBlink.dll -t uno
 
 ```
 ...\chipsharp-output\uno\UnoBlink.hex
-flash 1.2 KB of 31.5 KB (3.7%), RAM 15 bytes of 2 KB (stack 512 bytes reserved)
+flash 1.2 KB of 31.5 KB (3.7%), RAM 17 bytes of 2 KB (stack 512 bytes reserved)
 ```
 
 Run it in the simulator (`node tools\avr-sim\run.mjs chipsharp-output\uno\UnoBlink.hex --ms 3000`), in
@@ -228,7 +228,7 @@ chipsharp build bin\Release\net10.0\UnoBlink.dll -t uno
 
 ```
 ...\chipsharp-output\uno\UnoBlink.hex
-flash 1.2 KB of 31.5 KB (3.7%), RAM 15 bytes of 2 KB (stack 512 bytes reserved)
+flash 1.2 KB of 31.5 KB (3.7%), RAM 17 bytes of 2 KB (stack 512 bytes reserved)
 ```
 
 The program has 31.5 KB of flash: the Uno's bootloader (optiboot), through which a program is uploaded over USB,
@@ -256,7 +256,7 @@ flash's contents, the starting values of the variables included.
   ```
   > chipsharp flash bin\Release\net10.0\UnoBlink.dll -t uno --port COM5
   ...\chipsharp-output\uno\UnoBlink.hex
-  flash 1.2 KB of 31.5 KB (3.7%), RAM 15 bytes of 2 KB (stack 512 bytes reserved)
+  flash 1.2 KB of 31.5 KB (3.7%), RAM 17 bytes of 2 KB (stack 512 bytes reserved)
   COM5: avrdude -c arduino -p atmega328p -P COM5 -b 115200 -D -U flash:w:...\chipsharp-output\uno\UnoBlink.hex:i
   COM5: written and verified; the uno runs it
   ```
@@ -1301,8 +1301,8 @@ The full list, with the pins and ranges, is [The ESP32-C5 limits](#the-esp32-c5-
 heap region and none of the collector's code, on the PC no memory taken from Windows. `chipsharp build` says which:
 
 ```
-flash 5.7 KB of 2048 KB (0.3%), RAM 20 bytes of 264 KB (stack 8 KB reserved)                    examples/pico-traffic-light
-flash 17.3 KB of 2048 KB (0.8%), RAM 1.1 KB + heap 224 KB of 264 KB (stack 8 KB reserved)        examples/pico-traffic-light-m3
+flash 5.1 KB of 2048 KB (0.2%), RAM 20 bytes of 264 KB (stack 8 KB reserved)                    examples/pico-traffic-light
+flash 16.9 KB of 2048 KB (0.8%), RAM 1.1 KB + heap 224 KB of 264 KB (stack 8 KB reserved)        examples/pico-traffic-light-m3
 ```
 
 Flash holds the code, the constants (string literals, constant tables, type descriptors and type objects) and the

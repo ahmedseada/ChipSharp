@@ -23,9 +23,9 @@ chipsharp build bin\Release\net10.0\Stm8Blink.dll -t stm8s103-board
 chipsharp flash bin\Release\net10.0\Stm8Blink.dll -t stm8s103-board
 ```
 
-`build` makes `chipsharp-output\stm8s103-board\Stm8Blink.hex`: **760 bytes** of the 8 KB of flash and **16 bytes** of
+`build` makes `chipsharp-output\stm8s103-board\Stm8Blink.hex`: **762 bytes** of the 8 KB of flash and **16 bytes** of
 the 1 KB of RAM. `flash` builds it, then writes it through an ST-LINK V2 (a clone will do) with `stm8flash`; see the
-main README, "Flashing the PFS154 and the STM8S103" (a board that comes read-out protected is unlocked first, which
+main README, "Flashing the PFS154 and the STM8S103" (a board that comes read-out protected has to be unlocked first, by hand, which
 erases it: `stm8flash -c stlinkv2 -p stm8s103f3 -u`).
 
 Without a board, run it in ChipSharp's simulator (`src\ChipSharp.Simulators\bin\Release\net10.0\chipsim.exe`):
