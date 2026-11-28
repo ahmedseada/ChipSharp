@@ -816,6 +816,26 @@ console, events) comes next.
   million instructions a second. Its tests run every instruction form clang assembles, every compressed one against
   its expansion, 2,688 results of C's arithmetic, and C programs for each peripheral.
 
+### Examples for the ESP32-C5
+
+Built with `chipsharp build bin\Release
+et10.0\<Name>.dll -t esp32c5-devkitc` in their folders, or flashed with
+`chipsharp flash ... -t esp32c5-devkitc` (through the USB-C port marked **USB** or **UART**, BOOT and RESET if esptool
+cannot connect); each has a README with its wiring and a `chipsim esp32c5` command. They use the portable API alone
+(`Pin`, `Timing`, `[Interrupt]`, `Console`), so the same C# builds for the Pico by changing the pin numbers and `-t`, on
+pins the board leaves a program (4, 5, 6, 10, 23, 24 and 9; the board's own LED is a WS2812, not a pin to switch).
+
+| Example | What it does | Image, SRAM |
+|---|---|---|
+| `esp32c5-blink` | Blinks an external LED on GPIO 4 with a delay loop | 1.8 KB, 2.1 KB |
+| `esp32c5-button` | A button between GPIO 5 and GND (`Pull.Up`) toggles the LED on GPIO 4 through the pin event | 1.8 KB, 2.0 KB |
+| `esp32c5-serial` | A command prompt on the USB console (`on`, `off`, `blink 200`, `status`) with `Console.ReadLine` and a `Dictionary<string, Action<string>>` | 21.3 KB, 22.6 KB + heap |
+| `esp32c5-timer-blink` | Blinks the LED from the timer event while `Main` prints the uptime from a `Stopwatch` and `DateTime.Now` | 13.1 KB, 13.5 KB + heap |
+| `esp32c5-classes` | A two-lane traffic light (6 LEDs, a button on GPIO 9 that cuts a green): `readonly record struct Lane`, a `Signal` class, an iterator over the steps, `List<Lane>`, status lines on the console | 13.7 KB, 15 KB + heap |
+
+Wokwi has a part for the board (`board-esp32-c5-devkitc-1`, beta), so each example has a `diagram.json`, wired directly;
+they have not been tried in Wokwi.
+
 ## A new chip: one contract, one suite, chips as data
 
 Every chip is built the same way, so that a new one is data and one runtime, not changes all over ChipSharp:

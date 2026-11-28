@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A command prompt on the ESP32-C5-DevKitC-1's USB console that switches and blinks an LED on GPIO 4: build with ChipSharp for the target "esp32c5-devkitc" (see Program.cs) -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ChipSharp.Hardware\ChipSharp.Hardware.csproj" />
+  </ItemGroup>
+</Project>

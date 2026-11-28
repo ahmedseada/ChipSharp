@@ -1,5 +1,10 @@
 <Solution>
   <Folder Name="/examples/">
+    <Project Path="examples/esp32c5-blink/Esp32c5Blink.csproj" />
+    <Project Path="examples/esp32c5-button/Esp32c5Button.csproj" />
+    <Project Path="examples/esp32c5-classes/Esp32c5Classes.csproj" />
+    <Project Path="examples/esp32c5-serial/Esp32c5Serial.csproj" />
+    <Project Path="examples/esp32c5-timer-blink/Esp32c5TimerBlink.csproj" />
     <Project Path="examples/pfs154-blink/Pfs154Blink.csproj" />
     <Project Path="examples/pfs154-button/Pfs154Button.csproj" />
     <Project Path="examples/pfs154-pwm-fade/Pfs154PwmFade.csproj" />
