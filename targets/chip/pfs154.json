@@ -1,0 +1,71 @@
+{
+  // Padauk PFS154: PDK14, 2K words of re-programmable (MTP) program memory, 128 bytes of RAM, 14 I/O pins (PA0,
+  // PA3-PA7, PB0-PB7), the 16-bit timer T16, the 8-bit timers TM2 and TM3 (with PWM), three 11-bit PWM generators
+  // (PWMG0-2), a comparator; no UART, ADC or multiplier. Programmed with the Easy PDK programmer (easypdkprog), which also
+  // trims the internal oscillator (IHRC) when it writes the program. Its runtime is still to come (milestone M6, wave 1),
+  // from the registers, ports and interrupts below.
+  // Pins by number: port * 8 + bit, so PA0-PA7 are 0-7 and PB0-PB7 are 8-15
+  "name": "pfs154",
+  "inherits": "pdk14",
+  "memory": {
+    // as SDCC's .ihx addresses it: two bytes for each 14-bit word (word n in bytes 2n and 2n + 1, low byte first, the
+    // top 2 bits 0), so the 2K words are 4 KB of addresses; the memory report counts words ("wordSize")
+    "program": { "origin": "0x0", "size": "4K", "wordSize": 2 },
+    "ram":     { "origin": "0x0", "size": "128" }
+  },
+  // program memory words that are not the program's (word addresses; free-pdk's pfs154.h): the factory's trim values,
+  // which a program reads by calling them (each is a "ret k"), and the fuse, which easypdkprog writes
+  "programReserved": {
+    "0x7ed": "factory IHRC trim (IHRCR)",
+    "0x7ee": "factory bandgap trim (BGTR)",
+    "0x7ff": "fuse: security, I/O drive, boot-up time"
+  },
+  // the reset vector at word 0 and the one interrupt vector at word 0x10 (SDCC puts them there, and its code after
+  // them); what asked for an interrupt is a bit of INTRQ, enabled by the same bit of INTEN
+  "vectors": 2,
+  "vectorAddresses": { "reset": "0x000", "interrupt": "0x010" },
+  "interruptSources": {
+    "pa0": 0,                     // PA0's edge (INTEGS bits 0-1: both, rising or falling)
+    "pb0": 1,                     // PB0's edge (INTEGS bits 2-3)
+    "t16": 2,                     // T16 reached the bit T16M selects (INTEGS bit 4: rising or falling)
+    "comparator": 4,              // the comparator's output changed (GPCC, GPCS)
+    "pwmg": 5,                    // the PWM generators PWMG0-2
+    "tm2": 6,                     // TM2 reached TM2B
+    "tm3": 7                      // TM3 reached TM3B
+  },
+  // the I/O registers (the I/O space, mov.io / set0 / set1 / t0sn; free-pdk's pfs154.h)
+  "ioRegisters": {
+    "flag": "0x00", "sp": "0x02", "clkmd": "0x03", "inten": "0x04", "intrq": "0x05", "t16m": "0x06",
+    "misc": "0x08", "tm2b": "0x09", "eoscr": "0x0a", "ihrcr": "0x0b", "integs": "0x0c", "padier": "0x0d",
+    "pbdier": "0x0e", "misc2": "0x0f",
+    "pa": "0x10", "pac": "0x11", "paph": "0x12", "pb": "0x14", "pbc": "0x15", "pbph": "0x16",
+    "tm2s": "0x17", "gpcc": "0x18", "gpcs": "0x19", "bgtr": "0x1a", "misclvr": "0x1b", "tm2c": "0x1c", "tm2ct": "0x1d",
+    "pwmg0c": "0x20", "pwmg0s": "0x21", "pwmg0dth": "0x22", "pwmg0dtl": "0x23", "pwmg0cubh": "0x24", "pwmg0cubl": "0x25",
+    "pwmg1c": "0x26", "pwmg1s": "0x27", "pwmg1dth": "0x28", "pwmg1dtl": "0x29", "pwmg1cubh": "0x2a", "pwmg1cubl": "0x2b",
+    "pwmg2c": "0x2c", "pwmg2s": "0x2d", "pwmg2dth": "0x2e", "pwmg2dtl": "0x2f", "pwmg2cubh": "0x30", "pwmg2cubl": "0x31",
+    "tm3c": "0x32", "tm3ct": "0x33", "tm3s": "0x34", "tm3b": "0x35",
+    "rfcc": "0x36", "rfccrh": "0x37", "rfccrl": "0x38", "ilrcr": "0x39"
+  },
+  // the ports: data (in and out), control (1: output), pull-up (1: on) and digital input enable (1: on, 0 for an
+  // analog pin) registers, and the port's pins that exist. PA5 is also the reset pin (PRSTB): input, or open-drain output
+  "ports": {
+    "A": { "data": "0x10", "control": "0x11", "pullHigh": "0x12", "digitalInput": "0x0d", "pins": [0, 3, 4, 5, 6, 7] },
+    "B": { "data": "0x14", "control": "0x15", "pullHigh": "0x16", "digitalInput": "0x0e", "pins": [0, 1, 2, 3, 4, 5, 6, 7] }
+  },
+  "pinNames": ["PA0", "", "", "PA3", "PA4", "PA5", "PA6", "PA7", "PB0", "PB1", "PB2", "PB3", "PB4", "PB5", "PB6", "PB7"],
+  "clocks": {
+    "ihrcHz": 16000000,           // the internal high-speed oscillator, trimmed by easypdkprog for the system clock
+    "ilrcHz": 55000,              // the internal low-speed oscillator, about 55 kHz (not trimmed)
+    // CLKMD's system clocks: IHRC / 2, 4, 8, 16, 32 or 64; ILRC / 1, 4 or 16; or an external crystal (EOSCR)
+    "ihrcDividers": [2, 4, 8, 16, 32, 64]
+  },
+  "capabilities": {
+    "heap": false,                // 128 bytes of RAM: static fields and stack variables, no objects
+    "console": false,             // no UART: true once the runtime has a software UART
+    "uart": 0,
+    "adc": 0,                     // no ADC: the comparator against its internal reference (GPCC) is the nearest thing
+    "timers": 3,                  // T16 (16-bit), TM2 and TM3 (8-bit, with PWM); and the three PWM generators
+    "comparator": true,
+    "clock": false                // true once the runtime counts time with T16
+  }
+}

@@ -1,4 +1,5 @@
 using ChipSharp.Toolchain.Clang;
+using ChipSharp.Toolchain.Sdcc;
 
 namespace ChipSharp.Build;
 
@@ -52,4 +53,7 @@ public sealed record BuildOptions
 
     /// <summary>The folder with LLVM's tools; see <see cref="ClangToolchainOptions.LlvmBinFolder"/>.</summary>
     public string? LlvmBinFolder { get; init; }
+
+    /// <summary>SDCC (sdcc.exe or its folder), for the toolchain "sdcc"; see <see cref="SdccToolchainOptions.SdccPath"/>.</summary>
+    public string? SdccPath { get; init; }
 }

@@ -11,6 +11,7 @@ using ChipSharp.Runtime.Avr;
 using ChipSharp.Runtime.Rp2040;
 using ChipSharp.Runtime.Windows;
 using ChipSharp.Toolchain.Clang;
+using ChipSharp.Toolchain.Sdcc;
 
 namespace ChipSharp.Build;
 
@@ -37,6 +38,13 @@ public static class DefaultComponents
             ExtraFlags = build.Options.VerifyHeap ? [ClangToolchainOptions.VerifyHeapFlag] : [],
             UseCache = build.Options.UseCache,
         };
+        var sdcc = new SdccToolchainOptions
+        {
+            OutputFolder = build.WorkFolder,
+            ProgramName = build.ProgramName,
+            SdccPath = build.Options.SdccPath,
+            UseCache = build.Options.UseCache,
+        };
 
         // Register new plug-ins here, one line each, and reference their project from ChipSharp.Build.csproj.
         // A target file names its parts ("backend", "toolchain", "runtime", "image", "flasher"); each part is found by
@@ -46,13 +54,14 @@ public static class DefaultComponents
             .Register(new CCodeGenerator())         // backend "c": portable C99, for SDCC's chips (and clang's)
             .Register(new ClangToolchain(clang))    // toolchain "clang"
             .Register(new ClangToolchain(clang with { Driver = ClangDriver.Zig })) // toolchain "zig": AVR
+            .Register(new SdccToolchain(sdcc))      // toolchain "sdcc": Padauk (pdk14) and STM8 chips, through C
             .Register(new WindowsX64Runtime())      // runtime "windows-x64"
             .Register(new ArmV6MRuntime())          // runtime "armv6m": any Cortex-M0/M0+ chip
             .Register(new Rp2040Runtime())          // runtime "rp2040": Raspberry Pi Pico
             .Register(new AvrRuntime())             // runtime "avr": any AVR chip (ATmega328P: Arduino Uno)
             .Register(new Atmega328pRuntime())      // runtime "atmega328p": Arduino Uno, on the runtime "avr"
             .Register(new Uf2ImageFormat())         // image "uf2"
-            .Register(new IntelHexImageFormat()));  // image "hex": Intel HEX (an AVR's flash)
+            .Register(new IntelHexImageFormat()));  // image "hex": Intel HEX (an AVR's flash; SDCC's .ihx)
     }
 
     /// <summary>

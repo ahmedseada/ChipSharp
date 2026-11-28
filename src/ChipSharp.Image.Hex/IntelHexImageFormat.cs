@@ -10,7 +10,9 @@ namespace ChipSharp.Image.Hex;
 /// IDE, Wokwi's "Upload Firmware"), and many other chips' too. It holds the bytes the .elf loads: every allocated
 /// section with bytes in the file (code, constants, the starting values of .data), at its load address (.data's in
 /// flash, not where it runs in RAM), in address order. The file is what <c>llvm-objcopy -O ihex</c> writes, byte for
-/// byte (<see cref="Write"/>).
+/// byte (<see cref="Write"/>). A program linked as Intel HEX already (SDCC's .ihx: a Padauk chip's word n in its bytes
+/// 2n and 2n + 1, as its programmer reads it) is read back (<see cref="IntelHexFile"/>) and written the same way: its
+/// bytes at their addresses, in address order and records of 16 bytes.
 /// </summary>
 public sealed class IntelHexImageFormat : IImageFormat
 {
@@ -29,6 +31,14 @@ public sealed class IntelHexImageFormat : IImageFormat
         ArgumentNullException.ThrowIfNull(binary);
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(output);
+
+        if (IntelHexFile.IsIntelHex(binary.Path))
+        {
+            var hex = IntelHexFile.Read(binary.Path);
+            CheckBlocks(hex.Blocks, target, binary.Path);
+            Write(hex.Blocks, hex.Entry, output);
+            return;
+        }
 
         var elf = ElfFile.Read(binary.Path);
         Write(Blocks(elf, target, binary.Path), elf.Entry, output);
@@ -159,5 +169,26 @@ public sealed class IntelHexImageFormat : IImageFormat
         }
 
         return [.. blocks.Select(section => (section.LoadAddress, section.Data))];
+    }
+
+    /// <summary>The blocks of an Intel HEX file: there must be some, and every byte must lie in one of the target's memory regions.</summary>
+    private static void CheckBlocks(IReadOnlyList<(uint Address, byte[] Data)> blocks, TargetDescription target, string path)
+    {
+        if (blocks.Count == 0)
+        {
+            throw new ChipSharpException($"'{path}' has nothing to load: it has no data record.");
+        }
+
+        foreach (var (address, data) in blocks)
+        {
+            var (start, last) = ((ulong)address, (ulong)address + (ulong)data.Length);
+            if (!target.Memory.Values.Any(region => start >= region.Origin && last <= region.End))
+            {
+                throw new ChipSharpException(
+                    $"'{path}' loads {data.Length} bytes at 0x{start:x8}-0x{last - 1:x8}, which is not inside a memory " +
+                    $"region of target '{target.Name}' " +
+                    $"({string.Join(", ", target.Memory.Select(m => $"{m.Key} 0x{m.Value.Origin:x8}-0x{m.Value.End - 1:x8}"))}).");
+            }
+        }
     }
 }

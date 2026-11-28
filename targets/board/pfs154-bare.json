@@ -1,0 +1,11 @@
+{
+  // A PFS154 on its own (on a breadboard, or in the Easy PDK programmer's socket): the system clock is the internal
+  // oscillator IHRC / 8, 2 MHz, which easypdkprog trims when it writes the program; no crystal, no LED of its own
+  "name": "pfs154-bare",
+  "inherits": "pfs154",
+  "clockHz": 2000000,
+  "clock": { "source": "ihrc", "divider": 8 },
+  "pins": {
+    "LED": 4                      // PA4, where free-pdk's examples put an LED (through a resistor)
+  }
+}
