@@ -81,9 +81,18 @@ public sealed partial class SdccToolchain : IToolchain
         var sdcc = FindSdcc();
         var folder = OutputFolder();
         var name = ProgramName(code);
+
+        // the rules that mend SDCC's peephole optimizer on the port, in the build folder (and in the cache's key)
+        var extraFlags = Options.ExtraFlags;
+        if (SdccPeepholes.For(settings.Port) is { } rules)
+        {
+            code = new GeneratedCode([.. code.Files, new GeneratedFile(SdccPeepholes.FileName, rules)]);
+            extraFlags = [.. extraFlags, "--peep-file", SdccPeepholes.FileName];
+        }
+
         WriteFiles(code.Files, folder);
 
-        var flags = CompileFlags(settings, Options.ExtraFlags);
+        var flags = CompileFlags(settings, extraFlags);
         var compiled = Compile(sdcc, settings.Port, flags, code, sources, folder);
         var inLibrary = code.Files.Where(file => file.Library).Select(file => file.FileName + ".rel")
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -91,7 +100,7 @@ public sealed partial class SdccToolchain : IToolchain
         List<string> members = [.. compiled.Where(inLibrary.Contains)];
         var library = members.Count == 0 ? null : name + ".lib";
         var program = name + ".ihx";
-        var arguments = LinkArguments(settings, Options.ExtraFlags, objects, program, library);
+        var arguments = LinkArguments(settings, extraFlags, objects, program, library);
         var path = Path.Combine(folder, program);
         var map = Path.Combine(folder, name + ".map");
         try

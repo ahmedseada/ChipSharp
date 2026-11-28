@@ -25,14 +25,15 @@ namespace ChipSharp.Backend.C;
 /// </para>
 /// <para>
 /// A program that uses C#'s double is refused for a target whose C double has 32 bits (SDCC's, see
-/// <see cref="CSettings.DoubleBits"/>), rather than computed with less precision; and one for a target that asks for
-/// stack checks, which this generator does not write yet. Constant data is <c>const</c>: in code memory with SDCC, read
-/// through ordinary (generic) pointers.
+/// <see cref="CSettings.DoubleBits"/>), rather than computed with less precision. A target that asks for stack checks
+/// gets them (see <see cref="CStackChecks"/>). Constant data is <c>const</c>: in code memory with SDCC, read through
+/// ordinary (generic) pointers. A function that returns a struct gives it through a pointer
+/// (<see cref="CFunctionWriter.ResultName"/>), and the C steers around what SDCC 4.6 gets wrong (see the README).
 /// </para>
 /// </summary>
 public sealed class CCodeGenerator : ICodeGenerator
 {
-    /// <summary>The function the runtime calls to run the program, as C sees it: <c>int chipsharp_entry(void)</c>.</summary>
+    /// <summary>The function the runtime calls to run the program, as C sees it: <c>int32_t chipsharp_entry(void)</c>.</summary>
     public const string EntrySymbol = "chipsharp_entry";
 
     /// <summary>
@@ -61,20 +62,18 @@ public sealed class CCodeGenerator : ICodeGenerator
         var reachable = CReachable.Find(module);
         CHeap.CheckTarget(module, target);
         var settings = CSettings.Read(target);
-        if (target.HasCapability("stackCheck"))
-        {
-            throw new ChipSharpException($"Target '{target.Name}' asks for stack checks (\"stackCheck\": true), which the " +
-                "c code generator does not write yet: set the capability to false, or build with the llvm code generator.");
-        }
 
         var types = new CTypes(new TirLayout(target.PointerSize, settings.MaxAlignment));
         CheckSizes(module, types);
         var symbols = CSymbols.Assign(module);
         symbols.Taken.Add(ReentrantMacro);
+        symbols.Taken.Add(CFunctionWriter.ResultName);
         var tags = new HashSet<string>(StringComparer.Ordinal);
         types.Name(module, tags);
         var usesDouble = CheckDouble(module, reachable, settings, target);
         var reentrant = settings.Reentrant is null ? [] : CCallGraph.Reentrant(module);
+        var (stackChecks, stackLimit) = CStackChecks.Find(module, target, reachable, types, settings);
+        var pointerReturns = PointerReturns(module, reachable, types, settings);
         var needs = new CNeeds(types, symbols.Taken, settings.Reentrant is not null);
 
         // the parts in the order they are worked out: the data (which adds the structs of constant objects), then the
@@ -97,6 +96,10 @@ public sealed class CCodeGenerator : ICodeGenerator
 
         var functions = new StringBuilder();
         var forget = ForgetRegisters(target);
+
+        // where the compiler keeps a function's locals at fixed addresses (SDCC's pdk14), it overlays those of functions
+        // that never run at once (leaves): one an interrupt runs must not share them with one Main runs
+        var notOverlaid = settings.Reentrant is null ? [] : CCallGraph.InInterrupts(module);
         foreach (var function in module.Functions.Where(f => f.Kind == TirFunctionKind.Defined && reachable.Functions.Contains(f)))
         {
             if (functions.Length > 0)
@@ -104,11 +107,18 @@ public sealed class CCodeGenerator : ICodeGenerator
                 functions.Append('\n');
             }
 
+            var apart = notOverlaid.Contains(function) && !reentrant.Contains(function);
+            functions.Append(apart ? "/* an interrupt runs it: its locals are its own (SDCC overlays a leaf's) */\n" +
+                "#pragma save\n#pragma nooverlay\n" : "");
             new CFunctionWriter(function, types, symbols, needs)
             {
                 IsReentrant = reentrant.Contains(function),
                 ForgetRegisters = forget,
+                PointerReturns = pointerReturns,
+                StructReturnPointer = settings.StructReturnPointer,
+                StackLimit = stackChecks.Contains(function) ? stackLimit : null,
             }.Write(functions);
+            functions.Append(apart ? "#pragma restore\n" : "");
         }
 
         if (module.EntryPoint is { } entryPoint)
@@ -152,6 +162,13 @@ public sealed class CCodeGenerator : ICodeGenerator
         var declaredByModule = externals.Select(f => symbols.Functions[f]).ToHashSet(StringComparer.Ordinal);
         needs.WriteDeclarations(text, declaredByModule);
         var runtime = externals.Where(f => !CNeeds.IsLibrary(symbols.Functions[f])).ToList();
+        if (stackLimit is not null && stackChecks.Count > 0)
+        {
+            text.Append("/* the stack checks: a function through which the stack can grow without end stops the program past\n" +
+                "   this, where the room the variables leave the stack ends, less a margin (see CStackChecks) */\n")
+                .Append(stackLimit.Definition).Append('\n')
+                .Append($"void {CStackChecks.OverflowSymbol}(void);\n\n");
+        }
         if (runtime.Count > 0)
         {
             text.Append("/* the runtime's */\n");
@@ -173,7 +190,8 @@ public sealed class CCodeGenerator : ICodeGenerator
             foreach (var function in defined)
             {
                 text.Append(CFunctionWriter.Signature(function, types, symbols.Functions[function],
-                    CFunctionWriter.ParameterNames(function, symbols.Taken), reentrant.Contains(function))).Append(";\n");
+                    CFunctionWriter.ParameterNames(function, symbols.Taken), reentrant.Contains(function),
+                    pointerReturns.Contains(function))).Append(";\n");
             }
 
             text.Append('\n');
@@ -265,8 +283,9 @@ public sealed class CCodeGenerator : ICodeGenerator
     }
 
     /// <summary>
-    /// <c>int chipsharp_entry(void)</c>, which sets the heap up for a program that uses it, then calls the entry point and
-    /// returns its int result (0 when it returns nothing). The entry point must take nothing and return void or i32.
+    /// <c>int32_t chipsharp_entry(void)</c>, which sets the heap up for a program that uses it, then calls the entry point
+    /// and returns its int result (0 when it returns nothing): a C# int, 32 bits, as the hardware contract has it (C's
+    /// int has 16 on SDCC's chips). The entry point must take nothing and return void or i32.
     /// </summary>
     private static string EntryFunction(TirFunction entryPoint, string symbol, string heapStart)
     {
@@ -278,13 +297,13 @@ public sealed class CCodeGenerator : ICodeGenerator
         var call = entryPoint.ReturnType.Kind switch
         {
             TirTypeKind.Void => $"    {symbol}();\n    return 0;\n",
-            TirTypeKind.I32 => $"    return (int)(int32_t){symbol}();\n",
+            TirTypeKind.I32 => $"    return (int32_t){symbol}();\n",
             _ => throw new ChipSharpException($"The entry point '{entryPoint.Name}' returns " +
                 $"{entryPoint.ReturnType}; it must return void or i32 (int)."),
         };
 
         return "/* the program's entry, which the runtime's startup calls: Main's result, 0 for a void Main */\n" +
-            $"int {EntrySymbol}(void)\n{{\n{heapStart}{call}}}\n";
+            $"int32_t {EntrySymbol}(void)\n{{\n{heapStart}{call}}}\n";
     }
 
     /// <summary>
@@ -404,13 +423,28 @@ public sealed class CCodeGenerator : ICodeGenerator
                 break;
             }
 
-            if (function.Slots.FirstOrDefault(slot => HoldsDouble(slot.Type)) is { } slot)
+            if (function.Kind != TirFunctionKind.Defined)
+            {
+                continue;
+            }
+
+            // what the function's written code does: not the code of a branch it never takes, nor a slot only that uses
+            var live = CLiveness.Find(function).Live;
+            var slots = live.Select(instruction => instruction switch
+            {
+                TirLoad load => load.Slot,
+                TirStore store => store.Slot,
+                TirSlotAddress address => address.Slot,
+                _ => null,
+            }).OfType<TirSlot>().ToHashSet();
+            if (function.Slots.FirstOrDefault(slot => slots.Contains(slot) && HoldsDouble(slot.Type)) is { } slot)
             {
                 where = $"{function.Name} (its local {slot.Name})";
                 break;
             }
 
-            var instruction = function.Blocks.SelectMany(block => block.Instructions).FirstOrDefault(instruction =>
+            var instruction = function.Blocks.SelectMany(block => block.Instructions).Where(live.Contains)
+                .FirstOrDefault(instruction =>
                 HoldsDouble(instruction.Type) || instruction.Operands.Any(operand => HoldsDouble(operand.Type))
                 || instruction is TirPointerLoad { Type: var loaded } && HoldsDouble(loaded)
                 || instruction is TirElementAddress { ElementType: var element } && HoldsDouble(element));
@@ -442,6 +476,40 @@ public sealed class CCodeGenerator : ICodeGenerator
         TirArrayType array => HoldsDouble(array.Element),
         _ => type == TirType.F64,
     };
+
+    /// <summary>
+    /// The functions that give their result through a pointer (<see cref="CFunctionWriter.ResultName"/>): on a target whose
+    /// "c.structReturn" is "pointer" (SDCC's STM8), each the program has that returns a struct or an array, and on one
+    /// whose "c.largeFrame" says how far its compiler reaches into a frame (the STM8's 255 bytes), each one called only
+    /// directly that returns 3 or 4 bytes and whose locals may take more.
+    /// </summary>
+    private static HashSet<TirFunction> PointerReturns(TirModule module, CReachable reachable, CTypes types, CSettings settings)
+    {
+        var defined = module.Functions.Where(f => f.Kind == TirFunctionKind.Defined && reachable.Functions.Contains(f)).ToList();
+        var pointer = defined.Where(function => settings.StructReturnPointer && function.ReturnType.IsAggregate).ToHashSet();
+        if (settings.LargeFrame is not { } limit)
+        {
+            return pointer;
+        }
+
+        var addressed = CCallGraph.Addressed(module);
+        foreach (var function in defined.Where(f => !addressed.Contains(f) && f.ReturnType != TirType.Void
+            && types.Layout.SizeOf(f.ReturnType) is 3 or 4))
+        {
+            // at most what its parameters, its slots and a temporary for every value it computes take
+            var live = CLiveness.Find(function).Live;
+            var frame = function.Parameters.Sum(parameter => types.Layout.SizeOf(parameter.Type))
+                + function.Slots.Sum(slot => types.Layout.SizeOf(slot.Type))
+                + live.Where(instruction => instruction.HasResult && instruction is not TirConst)
+                    .Sum(instruction => types.Layout.SizeOf(instruction.Type));
+            if (frame > limit)
+            {
+                pointer.Add(function);
+            }
+        }
+
+        return pointer;
+    }
 
     /// <summary>True when the module computes with floats or doubles.</summary>
     private static bool UsesFloats(TirModule module) => module.Functions.SelectMany(function => function.Blocks)

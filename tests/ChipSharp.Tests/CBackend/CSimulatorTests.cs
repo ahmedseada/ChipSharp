@@ -28,8 +28,9 @@ public sealed class CSimulatorTests : IDisposable
     }
 
     /// <summary>
-    /// For the PFS154's 128 bytes of RAM: recursion (Fib is __reentrant there), a struct copied and changed, and bytes at
-    /// their edges (a static array's helpers pass it by value, 6 bytes a copy: the STM8's programs have tables).
+    /// For the PFS154's 128 bytes of RAM: recursion (Fib is __reentrant there, 8 bytes of stack a call, and each call
+    /// checks that the next one has room: Fib(5) goes 5 calls deep), a struct copied and changed, and bytes at their edges
+    /// (a static array's helpers pass it by value, 6 bytes a copy: the STM8's programs have tables).
     /// </summary>
     private const string Tiny = """
         using System;
@@ -44,7 +45,7 @@ public sealed class CSimulatorTests : IDisposable
 
             static void Main()
             {
-                Console.WriteLine(Fib(10));
+                Console.WriteLine(Fib(5));
                 var p = Make(2);
                 var q = p;
                 q.Low += 100;
@@ -191,12 +192,19 @@ public sealed class CSimulatorTests : IDisposable
 
             volatile uint32_t out;
             void report(void);
-            int chipsharp_entry(void);
+            int32_t chipsharp_entry(void);
 
             void ChipSharp_Runtime_WriteLineInt32(uint32_t value)
             {
                 out = value;
                 report();
+            }
+
+            void chipsharp_stack_overflow(void)
+            {
+                for (;;)
+                {
+                }
             }
 
             """.ReplaceLineEndings("\n"));

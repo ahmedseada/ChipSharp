@@ -342,14 +342,14 @@ public sealed class StaticFieldCheckTests
                 {
                     origin.X = 5;
                     holder.Count = origin.X;
-                    Console.WriteLine(BitConverter.IsLittleEndian);
+                    Console.WriteLine(Type.EmptyTypes.Length);
                 }
             }
             """);
 
         Assert.Equal(
         [
-            "Program.Main() at IL_001f (ldsfld): the library field System.BitConverter.IsLittleEndian is not available "
+            "Program.Main() at IL_001f (ldsfld): the library field System.Type.EmptyTypes is not available "
                 + "yet. For now, use constants or the static fields of your own types.",
         ], problems);
     }

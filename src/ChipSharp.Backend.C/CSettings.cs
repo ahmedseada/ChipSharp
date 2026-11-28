@@ -17,7 +17,10 @@ namespace ChipSharp.Backend.C;
 ///   "charSigned": false,       // the sizes of the compiler's types in bytes, and whether a char is signed: checked
 ///                              // when the file is compiled; "double" says the double's size when "double64" does not
 ///   "maxAlignment": 1,         // the most alignment the compiler gives any type (1: none, as on an 8-bit chip)
-///   "constQualifier": "__code" // what else constant data is declared with, besides const (none by default)
+///   "constQualifier": "__code", // what else constant data is declared with, besides const (none by default)
+///   "largeFrame": 255,         // how many bytes of a frame the compiler reaches (none: all of it)
+///   "stack": "up",             // which way the stack grows, for "stackCheck" (down by default)
+///   "structReturn": "pointer"  // a function gives a struct it returns through a pointer (by value by default)
 /// }
 /// </code>
 /// <list type="bullet">
@@ -33,10 +36,19 @@ namespace ChipSharp.Backend.C;
 /// enough for SDCC to keep it in code memory on a Padauk (and in flash on an STM8), and its addresses are the compiler's
 /// ordinary pointers, which read code memory too (SDCC's generic pointers: bit 15 set on a Padauk). A compiler that
 /// needs a named address space for that gets it here, written right before the name of each constant object.</item>
+/// <item>A struct a function returns: by value, as C returns it, unless "structReturn" is "pointer" (SDCC's STM8, which
+/// gets the address of a struct parameter wrong in a function that returns a struct): then through a pointer (see
+/// <see cref="CFunctionWriter.ResultName"/>). On the PDK14 a value keeps the copy inside SDCC's own code: a function that
+/// copies a struct itself calls memcpy, and SDCC overlays the locals only of functions that call nothing.</item>
+/// <item>The frame: all of it. SDCC's STM8 port reaches a function's locals and parameters through 8-bit offsets from
+/// the stack pointer, and cannot return 3 or 4 bytes from a function whose frame they do not reach (an internal error
+/// of its code generator): with "largeFrame", a function whose locals may take more returns such a value through a
+/// pointer (see <see cref="CFunctionWriter.ResultName"/>).</item>
 /// </list>
 /// </summary>
 internal sealed record CSettings(int DoubleBits, string? Reentrant, int? MaxAlignment, string? ConstQualifier,
-    IReadOnlyList<(string Expression, int Bytes)> Sizes, bool? CharSigned)
+    IReadOnlyList<(string Expression, int Bytes)> Sizes, bool? CharSigned, int? LargeFrame = null,
+    bool StackGrowsUp = false, bool StructReturnPointer = false)
 {
     /// <summary>The keyword that gives a function a frame on the stack, for "recursion": "reentrant".</summary>
     public const string ReentrantKeyword = "__reentrant";
@@ -104,7 +116,29 @@ internal sealed record CSettings(int DoubleBits, string? Reentrant, int? MaxAlig
             _ => throw Error("'c.constQualifier' must be one word of C, e.g. \"__code\"."),
         };
 
-        return new CSettings(doubleBits, reentrant, maxAlignment, qualifier, sizes, charSigned);
+        var largeFrame = c["largeFrame"] switch
+        {
+            null => (int?)null,
+            JsonValue value when value.TryGetValue(out int bytes) && bytes > 0 => bytes,
+            _ => throw Error("'c.largeFrame' must be a number of bytes above 0, e.g. 255."),
+        };
+
+        var stackGrowsUp = c["stack"] switch
+        {
+            null => false,
+            JsonValue value when value.TryGetValue(out string? way) && way is "up" or "down" => way == "up",
+            _ => throw Error("'c.stack' must be \"up\" or \"down\": which way the stack grows."),
+        };
+
+        var structReturnPointer = c["structReturn"] switch
+        {
+            null => false,
+            JsonValue value when value.TryGetValue(out string? how) && how is "pointer" or "value" => how == "pointer",
+            _ => throw Error("'c.structReturn' must be \"pointer\" or \"value\": how a function gives a struct it returns."),
+        };
+
+        return new CSettings(doubleBits, reentrant, maxAlignment, qualifier, sizes, charSigned, largeFrame, stackGrowsUp,
+            structReturnPointer);
     }
 
     /// <summary>

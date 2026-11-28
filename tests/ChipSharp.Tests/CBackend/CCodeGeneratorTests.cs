@@ -140,7 +140,7 @@ public sealed class CCodeGeneratorTests
             }
 
             """.ReplaceLineEndings("\n"), Definition(code, "Program_Main"));
-        Assert.EndsWith("int chipsharp_entry(void)\n{\n    Program_Main();\n    return 0;\n}\n", code);
+        Assert.EndsWith("int32_t chipsharp_entry(void)\n{\n    Program_Main();\n    return 0;\n}\n", code);
     }
 
     [Fact]
@@ -410,19 +410,35 @@ public sealed class CCodeGeneratorTests
     [Fact]
     public void A_struct_value_only_the_next_store_uses_is_written_there()
     {
-        var point = new TirStructType("Program.Point", ("X", TirType.I32));
-        var code = DefinitionOf(module =>
-        {
-            var function = module.AddFunction("Program.F", point);
-            var (a, b) = (function.AddSlot("a", point), function.AddSlot("b", point));
-            var ir = new TirBuilder(function.AddBlock("entry"));
-            ir.Store(a, ir.Zero(point));
-            ir.Store(b, ir.Load(a));
-            ir.Return(ir.Load(b));
-            return function;
-        });
+        var code = DefinitionOf(PointCopies);
 
+        // a and b are stored to first: their zero would never be read
+        Assert.Contains("    struct Program_Point s_a;\n    struct Program_Point s_b;\n", code);
         Assert.Contains("struct Program_Point t0 = { 0 };\n        s_a = t0;\n        s_b = s_a;\n        return s_b;", code);
+    }
+
+    /// <summary>With "c.structReturn": "pointer" (SDCC's STM8) a function gives a struct it returns through a pointer of its own.</summary>
+    [Fact]
+    public void A_struct_result_goes_through_a_pointer_where_the_target_asks()
+    {
+        var target = CTargets.Make("chip", pointerSize: 4, c: new JsonObject { ["structReturn"] = "pointer" });
+        var code = DefinitionOf(PointCopies, target);
+
+        Assert.StartsWith("static void Program_F(struct Program_Point *cs_result)", code);
+        Assert.Contains("s_b = s_a;\n        *cs_result = s_b;\n        return;", code);
+    }
+
+    /// <summary><c>function Point Program.F() { a = zero; b = a; return b }</c>.</summary>
+    private static TirFunction PointCopies(TirModule module)
+    {
+        var point = new TirStructType("Program.Point", ("X", TirType.I32));
+        var function = module.AddFunction("Program.F", point);
+        var (a, b) = (function.AddSlot("a", point), function.AddSlot("b", point));
+        var ir = new TirBuilder(function.AddBlock("entry"));
+        ir.Store(a, ir.Zero(point));
+        ir.Store(b, ir.Load(a));
+        ir.Return(ir.Load(b));
+        return function;
     }
 
     // ---- calls ----
@@ -435,7 +451,7 @@ public sealed class CCodeGeneratorTests
         Assert.Contains("typedef uint32_t (*cs_function_0)(uint32_t);", code);
         Assert.Contains("uint32_t t2 = ((cs_function_0)(uint8_t *)&Program_Twice)(21);", code);
         Assert.Contains("/* the program's entry, which the runtime's startup calls: Main's result, 0 for a void Main */\n" +
-            "int chipsharp_entry(void)\n{\n    return (int)(int32_t)Program_Main();\n}\n", code);
+            "int32_t chipsharp_entry(void)\n{\n    return (int32_t)Program_Main();\n}\n", code);
         Assert.Contains("\nvoid chipsharp_isr_irq1(void)\n{", code); // exported: not static, by its symbol
         Assert.DoesNotContain("CS_REENTRANT", code);
     }
@@ -516,7 +532,7 @@ public sealed class CCodeGeneratorTests
         Assert.Contains("chipsharp_new_object((uint8_t *)&cs_type_Program_Square)", code);
         Assert.Contains("static const struct cs_type_", code);
         Assert.Contains("ChipSharp_Runtime_NullReference();", code);
-        Assert.Contains("int chipsharp_entry(void)\n{\n    chipsharp_heap_initialize(", code);
+        Assert.Contains("int32_t chipsharp_entry(void)\n{\n    chipsharp_heap_initialize(", code);
     }
 
     [Fact]
@@ -562,14 +578,47 @@ public sealed class CCodeGeneratorTests
     }
 
     [Fact]
-    public void Objects_are_refused_without_a_heap_and_stack_checks_are_not_written_yet()
+    public void Objects_are_refused_without_a_heap_and_stack_checks_need_the_stacks_room()
     {
         var objects = Objects();
         Assert.Contains("which needs a heap", Assert.Throws<ChipSharpException>(() => Generate(objects)).Message);
 
         var checks = CTargets.Make("chip", pointerSize: 4, capabilities: new Dictionary<string, string> { ["stackCheck"] = "true" });
-        Assert.Contains("stack checks", Assert.Throws<ChipSharpException>(() =>
+        Assert.Contains("asks for stack checks (\"stackCheck\": true), which the c code generator writes from the region " +
+            "of the stack and its size: the target has no memory region 'ram'", Assert.Throws<ChipSharpException>(() =>
             Generate(TirSamples.WithMain(new TirModule("Test")), checks)).Message);
+    }
+
+    /// <summary>
+    /// On the STM8 (1 KB of RAM, the stack growing down from its end toward the variables) a function that calls itself
+    /// checks the address of a byte of its frame against the end of the variables (the program has none here, and 64
+    /// bytes are the runtime's), a margin of 64 bytes, and room for one more call of it (its 4 bytes of argument, the
+    /// return address, the byte, 8 bytes of values): 0x80 + 15; on the PDK14 (128 bytes, the stack growing up to their
+    /// end) against the end of RAM less 4 bytes, and room for one more call (each byte of argument 2 on its stack). A
+    /// function that does not recurse checks nothing.
+    /// </summary>
+    [Fact]
+    public void A_function_that_calls_itself_checks_the_stack_where_it_starts_on_both_SDCC_chips()
+    {
+        const string source = """
+            static class Program
+            {
+                static int Depth(int n) => n == 0 ? 0 : 1 + Depth(n - 1);
+
+                static int Twice(int n) => n * 2;
+
+                static int Main() => Twice(Depth(5));
+            }
+            """;
+        var stm8 = CSdcc.Required(source, "Checks", CSdcc.Stm8s103).C;
+        Assert.Contains("#define CS_STACK_LIMIT 0x0080u\nvoid chipsharp_stack_overflow(void);", stm8);
+        Assert.Contains("static uint32_t Program_Depth(uint32_t p_n)\n{\n    uint8_t cs_frame;\n" +
+            "    if ((uintptr_t)&cs_frame < CS_STACK_LIMIT + 15u)\n        chipsharp_stack_overflow();\n", stm8);
+        Assert.Contains("static uint32_t Program_Twice(uint32_t p_n)\n{\n    {\n", stm8);
+
+        var pdk14 = CSdcc.Required(source, "Checks", CSdcc.Pfs154).C;
+        Assert.Contains("#define CS_STACK_LIMIT 0x007Cu", pdk14);
+        Assert.Contains("if ((uintptr_t)&cs_frame > CS_STACK_LIMIT - 19u)", pdk14);
     }
 
     [Fact]

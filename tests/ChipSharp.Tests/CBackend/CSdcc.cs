@@ -121,7 +121,7 @@ internal static class CSdcc
     {
         var types = new CTypes(new TirLayout(target.PointerSize, 1));
         types.Name(module, new HashSet<string>(StringComparer.Ordinal));
-        var text = new StringBuilder("#include <stdint.h>\n#include <stddef.h>\n\nint chipsharp_entry(void);\n\n");
+        var text = new StringBuilder("#include <stdint.h>\n#include <stddef.h>\n\nint32_t chipsharp_entry(void);\n\n");
         foreach (var function in module.Functions.Where(f => f.Kind == TirFunctionKind.External))
         {
             var symbol = CText.Symbol(function.Name);
@@ -145,6 +145,8 @@ internal static class CSdcc
             text.Append("}\n\n");
         }
 
+        // what a function that checks the stack calls when it has run out
+        text.Append("void chipsharp_stack_overflow(void)\n{\n    for (;;)\n    {\n    }\n}\n\n");
         text.Append("volatile int result;\n\nvoid main(void)\n{\n    result = chipsharp_entry();\n    for (;;)\n    {\n    }\n}\n");
         return text.ToString();
     }
