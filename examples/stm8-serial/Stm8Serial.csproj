@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A command prompt on the STM8S103 board's serial port (UART1, PD5 and PD6) that switches its LED: build with ChipSharp for the target "stm8s103-board", flash the
+       .hex with chipsharp flash and an ST-LINK V2 -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ChipSharp.Hardware\ChipSharp.Hardware.csproj" />
+  </ItemGroup>
+</Project>
