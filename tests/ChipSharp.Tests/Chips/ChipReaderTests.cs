@@ -252,6 +252,35 @@ public sealed class ChipReaderTests
             c5.Register("LP_WDT_CONFIG0")!.Fields.Single(f => f.Name == "WDT_EN").Description);
     }
 
+    /// <summary>
+    /// WCH's SVD of the CH32V003 (version 1.2, as ch32fun keeps it): its 21 peripherals (GPIOC and GPIOD derived from
+    /// GPIOA, the core's PFIC with the system timer STK in it), sizes and offsets in hexadecimal, 8-bit priority registers,
+    /// field names with a space before them (VTFADDRR0's " ADDR0"), and the peripherals' 23 interrupts, 16 to 38, by their
+    /// vector numbers; the core's own (NMI, HardFault, SysTick, SW) are not in it.
+    /// </summary>
+    [Fact]
+    public void WCHs_CH32V003_SVD_reads_with_its_peripherals_registers_and_interrupts()
+    {
+        var ch32 = Svd.Read(ChipFiles.Ch32v003Svd);
+
+        Assert.Equal(("CH32V00xxx", "WCH Ltd."), (ch32.Name, ch32.Vendor));
+        Assert.Null(ch32.Cpu); // the file has no <cpu>: chips/ch32v003.json says rv32ec
+        Assert.Equal(21, ch32.Peripherals.Count);
+        var cfgr0 = ch32.Register("RCC_CFGR0")!;
+        Assert.Equal((0x40021004UL, 32, 0x20UL), (cfgr0.Address, cfgr0.Size, cfgr0.Reset));
+        var hpre = cfgr0.Fields.Single(f => f.Name == "HPRE");
+        Assert.Equal((4, 4), (hpre.Offset, hpre.Width));
+        Assert.Equal(0x40022000UL, ch32.Register("FLASH_ACTLR")!.Address);
+        Assert.Equal(0x4001140cUL, ch32.Register("GPIOD_OUTDR")!.Address);  // GPIOD is derived from GPIOA
+        Assert.Equal(0xe000f000UL, ch32.Register("PFIC_STK_CTLR")!.Address);
+        Assert.Equal((0xe000e426UL, 8), (ch32.Register("PFIC_IPRIOR38")!.Address, ch32.Register("PFIC_IPRIOR38")!.Size));
+        var address = ch32.Register("PFIC_VTFADDRR0")!.Fields.Single(f => f.Name == "ADDR0");
+        Assert.Equal((1, 31), (address.Offset, address.Width));
+        Assert.Equal(Enumerable.Range(16, 23), ch32.Interrupts.Select(i => i.Number));
+        Assert.Equal([("EXTI7_0", 20), ("USART1", 32), ("TIM2", 38)],
+            ch32.Interrupts.Where(i => i.Name is "EXTI7_0" or "USART1" or "TIM2").Select(i => (i.Name, i.Number)));
+    }
+
     /// <summary>The registers the peripherals derived from others have: the SVD file writes them once.</summary>
     private static int DerivedRegisters(ChipDescription chip) => chip.Peripherals
         .Where(p => p.Name is "PLL_USB" or "UART1" or "I2C1" or "SPI1" or "PIO1").Sum(p => p.Registers.Count);

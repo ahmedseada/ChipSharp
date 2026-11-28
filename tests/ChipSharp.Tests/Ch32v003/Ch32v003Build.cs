@@ -32,8 +32,8 @@ internal static class Ch32v003Build
     /// <summary>The board, as its target files say.</summary>
     public static TargetDescription Board => Targets.Load("ch32v003-evt");
 
-    /// <summary>The flash, at the alias the core runs it from (0x00000000), and its end: 16 KB.</summary>
-    public const uint FlashStart = 0x00000000, FlashEnd = 0x00004000;
+    /// <summary>The flash, where the program is linked (the core starts at its alias, 0x00000000), and its end: 16 KB.</summary>
+    public const uint FlashStart = 0x08000000, FlashEnd = 0x08004000;
 
     /// <summary>The SRAM and its end, the top of the stack: 2 KB.</summary>
     public const uint SramStart = 0x20000000, SramEnd = 0x20000800;

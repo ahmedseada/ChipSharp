@@ -15,21 +15,23 @@
   // (QKV2 Table 2-1, codes 4 and 6), so unalignedAccess stays false.
   //
   // Memory (RM 1.2, Figure 1-2): flash 16 KB at 0x08000000, also at 0x00000000 when the chip boots from it (the alias;
-  // from the system bootloader, 1920 bytes at 0x1FFFF000, when the option bytes' START_MODE asks for it: RM 16.5);
-  // SRAM 2 KB at 0x20000000. The program is linked at the alias, 0x00000000, as WCH's own Link.ld does (FLASH ORIGIN =
-  // 0x00000000, LENGTH = 16K): the core starts there, and the code's absolute addresses (the vector table's) are the
-  // ones it runs at. The same bytes are flash 0x08000000-0x08003fff, where a programmer writes them.
+  // the system bootloader, 1920 bytes at 0x1FFFF000, is there instead when the option bytes' START_MODE asks for it: RM
+  // 16.5); SRAM 2 KB at 0x20000000. The program is linked at the flash itself, 0x08000000-0x08003fff, where a
+  // programmer writes it (the image "bin" takes the bytes from there); the core starts at the alias, and the vector
+  // table's first instructions jump to the reset handler at its flash address, so the program runs where it is linked
+  // (its PC-relative addresses, gp's and sp's, are right only there). WCH's own Link.ld links at the alias instead.
   //
   // Reset and interrupts. The core starts at 0x00000000 (RM Table 6-1, entry 0). The PFIC (RM 6, QKV2 3; 0xE000E000)
   // has 39 vector numbers here: 2 NMI, 3 HardFault (every exception), 12 SysTick, 14 SW, 16-38 the peripherals' 23;
   // mcause has the number (bit 31 set for an interrupt; an exception's code, 0-11, with bit 31 clear). mtvec (QKV2 2.2,
   // 3.2): MODE0 (bit 0) 1 makes an interrupt's entry mtvec's base + 4 * its number, MODE1 (bit 1) 1 makes the table hold
   // the handlers' addresses (not jump instructions), and the base must be 1 KB aligned; after reset mtvec is 0. So the
-  // vector table is the first 156 bytes of flash ("link.head", ch32v003_vector_table.S): entry 0, where the core
-  // starts, is a jump to chipsharp_reset (a 4-byte jal, as WCH's start-up has "j handle_reset"), and entries 1-38 the
-  // address of the riscv32 runtime's trap entry, chipsharp_trap; the chip's first steps put mtvec at the table
-  // (0x00000000 | 3, WCH's own MODE 11). Every interrupt and exception then comes to chipsharp_trap, which saves the
-  // registers and dispatches by mcause to chipsharp_isr_irq<n> ("vectors": 39), as on every RISC-V chip of ChipSharp.
+  // vector table is the first 156 bytes of flash ("link.head", ch32v003_vector_table.S): entries 0 and 1, where the
+  // core starts (no interrupt has the number 1), are an absolute jump to chipsharp_reset (lui, jalr: WCH's start-up has
+  // "j handle_reset" there, which stays at the alias), and entries 2-38 the address of the riscv32 runtime's trap
+  // entry, chipsharp_trap; the chip's first steps put mtvec at the table (0x08000000 | 3, WCH's own MODE 11). Every
+  // interrupt and exception then comes to chipsharp_trap, which saves the registers and dispatches by mcause to
+  // chipsharp_isr_irq<n> ("vectors": 39), as on every RISC-V chip of ChipSharp.
   // HPE, the hardware prologue/epilogue (QKV2 3.4: INTSYSCR.HWSTKEN, CSR 0x804, which also has INESTEN, the nesting),
   // is off: its handlers must be compiled by WCH's toolchain as interrupt("WCH-Interrupt-fast"), which clang has not, and
   // the trap entry saves the same ten registers itself. Both bits are 0 after reset (RM 6.5.3.1), and the start-up
@@ -59,8 +61,8 @@
   // stores), not worth an encoding every simulator and disassembler would need to know
   "march": "rv32ec_zicsr",
   "memory": {
-    // the flash at its alias, where the core runs it (see above); the SRAM
-    "flash": { "origin": "0x00000000", "size": "16K" },
+    // the flash, where the program is linked and runs (the core starts at its alias, 0x00000000: see above); the SRAM
+    "flash": { "origin": "0x08000000", "size": "16K" },
     "sram": { "origin": "0x20000000", "size": "2K" }
   },
   "link": {
@@ -69,7 +71,7 @@
     // a quarter of the 2 KB, as the Uno keeps of its 2 KB: room for the deepest call chain of the runtime's float text
     // (a double is written with 64-bit arithmetic in its locals) and an interrupt's 40-byte frame on top
     "stack": "512",
-    // the vector table, at the start of flash (0x00000000, 1 KB aligned as mtvec needs): 39 entries of 4 bytes
+    // the vector table, at the start of flash (0x08000000, 1 KB aligned as mtvec needs): 39 entries of 4 bytes
     "head": [ { "section": ".ch32v003_vectors", "size": 156 } ],
     // the trap entry: the table holds its address, so 4 bytes (riscv32's 64 is for a CLIC's mtvec)
     "vectorAlign": 4

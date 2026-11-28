@@ -361,4 +361,70 @@ public sealed partial class ChipHeaderTests : IDisposable
         Assert.DoesNotContain(chip.Registers, r => r.FullName == "INTERRUPT_CORE0_SYSTIMER_TARGET1_INTR_MAP"); // replaced
         Assert.Contains("    esp32c5_irq_GPIO,   // ", files.Single(f => f.FileName == "esp32c5_vectors.c").Content);
     }
+
+    /// <summary>
+    /// The CH32V003's description: WCH's SVD (its peripherals, registers and the peripherals' interrupts) and what
+    /// chips/ch32v003.json adds to it (the core's interrupts, the pins and their ports, the start-up's constants); the
+    /// headers compile with clang for the chip's RV32EC and its ilp32e ABI, and say what the start-up uses (RCC, FLASH,
+    /// the PFIC's numbers).
+    /// </summary>
+    [Fact]
+    public void The_CH32V003s_headers_from_its_SVD_and_description_compile_with_clang_for_RV32EC()
+    {
+        if (PicoTools.MissingLlvm.Value is not null)
+        {
+            return;
+        }
+
+        var files = ChipFiles.Headers("ch32v003");
+        Directory.CreateDirectory(_scratch);
+        foreach (var file in files)
+        {
+            File.WriteAllText(Path.Combine(_scratch, file.FileName), file.Content);
+        }
+
+        File.WriteAllText(Path.Combine(_scratch, "use.c"), """
+            #include "ch32v003_registers.h"
+            #include "ch32v003_interrupts.h"
+            #include "ch32v003_pins.h"
+
+            _Static_assert(RCC_CTLR_ADDRESS == 0x40021000ul && RCC_CFGR0_ADDRESS == 0x40021004ul, "RCC");
+            _Static_assert(RCC_CTLR_PLLON_MASK == (1ul << 24) && RCC_CTLR_PLLRDY_MASK == (1ul << 25), "the PLL's bits");
+            _Static_assert(RCC_CFGR0_HPRE_MASK == 0xf0u && RCC_CFGR0_SWS(RCC_SW_PLL) == 0x8u, "HPRE, SWS");
+            _Static_assert(FLASH_ACTLR_ADDRESS == 0x40022000ul && FLASH_ACTLR_LATENCY(FLASH_LATENCY_48MHZ) == 1u, "FLASH");
+            _Static_assert(PFIC_STK_CTLR_ADDRESS == 0xe000f000ul && PFIC_IENR1_ADDRESS == 0xe000e100ul, "PFIC");
+            _Static_assert(GPIOD_OUTDR_ADDRESS == 0x4001140cul && GPIOC_BSHR_ADDRESS == 0x40011010ul, "GPIO");
+            _Static_assert(CH32V003_IRQ_SysTick == 12 && CH32V003_IRQ_EXTI7_0 == 20 && CH32V003_IRQ_USART1 == 32, "IRQs");
+            _Static_assert(CH32V003_IRQ_COUNT == VECTORS && CSR_INTSYSCR == 0x804, "the PFIC's numbers");
+            _Static_assert(CH32V003_PIN_PD5 == 29 && CH32V003_USART1_TX_PIN == 29 && CH32V003_SWIO_PIN == 25, "pins");
+            _Static_assert(CH32V003_PINS == 0xffff0006ul, "PA1-PA2, PC0-PC7, PD0-PD7");
+
+            void clock_at_48_mhz(void)
+            {
+                FLASH_ACTLR = (FLASH_ACTLR & ~FLASH_ACTLR_LATENCY_MASK) | FLASH_ACTLR_LATENCY(FLASH_LATENCY_48MHZ);
+                RCC_CTLR |= RCC_CTLR_PLLON_MASK;
+                GPIOD_BSHR = CH32V003_PIN_PD0_MASK;
+            }
+
+            void ch32v003_irq_USART1(void)
+            {
+                (void)USART1_DATAR;
+            }
+            """);
+        foreach (var source in (string[])["use.c", "ch32v003_vectors.c"])
+        {
+            var (exitCode, output) = Run(new ClangToolchain().FindClang(),
+                ["--target=riscv32-unknown-elf", "-march=rv32ec_zicsr", "-mabi=ilp32e", "-ffreestanding", "-std=c11", "-Wall",
+                    "-Werror", "-c", source, "-o", source + ".o"]);
+            Assert.True(exitCode == 0, $"{source}: {output}");
+        }
+
+        var chip = ChipFiles.Read("ch32v003");
+        Assert.Equal(("ch32v003", "rv32ec", false), (chip.Name, chip.Cpu, chip.InterruptMatrix));
+        Assert.Equal(18, chip.Pins.Count);
+        Assert.Equal(["GPIOD_CFGLR", "GPIOD_INDR", "GPIOD_OUTDR", "GPIOD_BSHR", "GPIOD_BCR"],
+            chip.Ports.Single(p => p.Name == "D").Registers.Values);
+        Assert.Equal(["NMI", "HardFault", "SysTick", "SW"], chip.Interrupts.Where(i => i.Number < 16).Select(i => i.Name));
+        Assert.Contains("    ch32v003_irq_USART1,   // 32", files.Single(f => f.FileName == "ch32v003_vectors.c").Content);
+    }
 }

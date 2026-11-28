@@ -1,16 +1,17 @@
 // ChipSharp runtime for the WCH CH32V003: the chip's first steps, before the variables are set up.
 //
-// The core has started at 0x00000000, the vector table's first entry (ch32v003_vector_table.S), which jumps to
-// chipsharp_reset (riscv32_startup.S): gp, the stack, interrupts off, mtvec at chipsharp_trap in direct mode, then this,
-// before .data is copied and .bss zeroed: no variable may be used here, only the stack. The registers come from WCH's
-// SVD (ch32v003_registers.h, which ChipSharp.Chips writes from chips/ch32v003.json); the facts and their sources are in
-// the target file, targets/chip/ch32v003.json.
+// The core has started at 0x00000000, the alias of the vector table's first entry (ch32v003_vector_table.S), which
+// jumps to chipsharp_reset (riscv32_startup.S) in the flash at 0x08000000, where the program is linked and runs: gp,
+// the stack, interrupts off, mtvec at chipsharp_trap in direct mode, then this, before .data is copied and .bss zeroed:
+// no variable may be used here, only the stack. The registers come from WCH's SVD (ch32v003_registers.h, which
+// ChipSharp.Chips writes from chips/ch32v003.json); the facts and their sources are in the target file,
+// targets/chip/ch32v003.json.
 //
 //   1. INTSYSCR (CSR 0x804) to 0: no hardware prologue/epilogue (HPE), no nesting. The trap entry saves the registers
 //      itself, and handlers do not nest (QKV2 3.2-3.4; both are off after reset, RM 6.5.3.1, but WCH's own start-up
 //      turns them on, and a bootloader may have run before).
-//   2. mtvec at the vector table (0x00000000, 1 KB aligned) | 3: MODE0, an interrupt's entry is the base + 4 * its
-//      number; MODE1, the table holds the handlers' addresses (WCH's start-up does the same). Each entry but the first
+//   2. mtvec at the vector table (0x08000000, 1 KB aligned) | 3: MODE0, an interrupt's entry is the base + 4 * its
+//      number; MODE1, the table holds the handlers' addresses (WCH's start-up does the same). Each entry from 2 on
 //      holds chipsharp_trap's address, so every interrupt and exception comes to the trap entry, its number in mcause.
 //   3. The system clock from 8 MHz (the HSI's 24 MHz, divided by 3 after reset) to 48 MHz, as WCH's
 //      SetSysClockTo_48MHZ_HSI does it (system_ch32v00x.c): the flash 1 wait state first (FLASH_ACTLR.LATENCY 01, for

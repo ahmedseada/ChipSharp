@@ -15,7 +15,8 @@ namespace ChipSharp.Tests.Ch32v003;
 /// <summary>
 /// The CH32V003 (milestone M5, wave 0) up to a linked .elf: the target files (riscv32e, ch32v003, ch32v003-evt) and what
 /// they inherit from riscv32, the flags and the linker script the clang toolchain makes of them, and the .elf of a
-/// program: the vector table at 0x00000000 (where the core starts: a jump to the reset handler, then the trap entry's
+/// program: the vector table at the flash's start, 0x08000000 (the core starts at its alias, 0x00000000: a jump to the
+/// reset handler where it is linked, then the trap entry's
 /// address in every other entry), the code and .data's starting values in the 16 KB of flash, the variables and the
 /// stack in the 2 KB of SRAM, RV32EC code (no M, no register above x15) with the ilp32e ABI as llvm-objdump and
 /// llvm-readobj read it, and the chip's first steps (INTSYSCR, mtvec, the clock at 48 MHz).
@@ -77,7 +78,7 @@ public sealed partial class Ch32v003LinkTests : IDisposable
         // from ch32v003
         Assert.Equal("ch32v003", board.Runtime);
         Assert.Equal("rv32ec_zicsr", board.Setting("march"));
-        Assert.Equal(new MemoryRegion(0x00000000, 16 * 1024), board.Memory["flash"]);
+        Assert.Equal(new MemoryRegion(0x08000000, 16 * 1024), board.Memory["flash"]);
         Assert.Equal(new MemoryRegion(0x20000000, 2 * 1024), board.Memory["sram"]);
         Assert.Equal(("flash", "sram", "512", "4"),
             (board.Setting("link.code"), board.Setting("link.data"), board.Setting("link.stack"), board.Setting("link.vectorAlign")));
@@ -111,7 +112,7 @@ public sealed partial class Ch32v003LinkTests : IDisposable
         var script = LinkerScript.Write(board, settings);
 
         // the flash at its alias, where the core starts; the SRAM's last 512 bytes the stack, up to 0x20000800
-        Assert.Contains("flash (rx) : ORIGIN = 0x0, LENGTH = 0x4000", script);
+        Assert.Contains("flash (rx) : ORIGIN = 0x8000000, LENGTH = 0x4000", script);
         Assert.Contains("sram (rwx) : ORIGIN = 0x20000000, LENGTH = 0x600", script);
         Assert.Contains("stack (rw) : ORIGIN = 0x20000600, LENGTH = 0x200", script);
         // the vector table first in flash, exactly its 39 entries; then the trap entry, 4-byte aligned
@@ -133,17 +134,19 @@ public sealed partial class Ch32v003LinkTests : IDisposable
         Assert.Equal(243, elf.Machine); // EM_RISCV
         Assert.Equal(elf.Symbols["chipsharp_reset"], elf.Entry);
 
-        // the vector table at 0x00000000, where the core starts: entry 0 jumps to the reset handler (jal x0), entries
-        // 1-38 hold the trap entry's address, which comes right after the table
+        // the vector table at the start of the flash, which the core starts at through its alias, 0x00000000: entries 0
+        // and 1 are an absolute jump to the reset handler (lui t0, then jalr zero through t0), so that it runs at its own
+        // address; entries 2-38 hold the trap entry's address, which comes right after the table
         var table = Assert.Single(elf.Sections, s => s.Name == Ch32v003Runtime.VectorTableSection);
-        Assert.Equal((0u, 156u), (table.Address, table.Size));
-        Assert.Equal(0u, elf.Symbols["ch32v003_vector_table"]);
-        var words = Words(elf, 0, 39);
-        Assert.Equal(elf.Symbols["chipsharp_reset"], JalTarget(words[0], 0));
-        Assert.Equal(0x6fu, words[0] & 0xfff); // jal x0: opcode 1101111, rd 0
+        Assert.Equal((Ch32v003Build.FlashStart, 156u), (table.Address, table.Size));
+        Assert.Equal(Ch32v003Build.FlashStart, elf.Symbols["ch32v003_vector_table"]);
+        var words = Words(elf, Ch32v003Build.FlashStart, 39);
+        Assert.Equal(0x2b7u, words[0] & 0xfff);     // lui t0: opcode 0110111, rd 5
+        Assert.Equal(0x28067u, words[1] & 0xfffff); // jalr zero, ...(t0): opcode 1100111, rd 0, funct3 0, rs1 5
+        Assert.Equal(elf.Symbols["chipsharp_reset"], (words[0] & 0xfffff000) + (uint)((int)words[1] >> 20));
         var trap = elf.Symbols["chipsharp_trap"];
-        Assert.All(words.Skip(1), word => Assert.Equal(trap, word));
-        Assert.Equal(156u, trap);
+        Assert.All(words.Skip(2), word => Assert.Equal(trap, word));
+        Assert.Equal(Ch32v003Build.FlashStart + 156, trap);
         var vectors = Assert.Single(elf.Sections, s => s.Name == ".vectors");
         Assert.Equal(trap, vectors.Address);
 
@@ -161,8 +164,7 @@ public sealed partial class Ch32v003LinkTests : IDisposable
         Assert.Equal(Ch32v003Build.SramEnd, elf.Symbols["__chipsharp_stack_top"]);
         Assert.Equal(elf.Symbols["__chipsharp_bss_end"], elf.Symbols["__chipsharp_stack_bottom"]); // no heap: all the rest
 
-        // what a programmer writes: every byte of the file's segments in the 16 KB of flash, at its physical address (the
-        // alias: flash 0x08000000 + the same offset)
+        // what a programmer writes: every byte of the file's segments in the 16 KB of flash, at its physical address
         var loaded = elf.Segments.Where(s => s.Data.Length > 0).ToList();
         Assert.NotEmpty(loaded);
         Assert.All(loaded, segment =>
@@ -170,7 +172,7 @@ public sealed partial class Ch32v003LinkTests : IDisposable
             Assert.InRange(segment.PhysicalAddress, Ch32v003Build.FlashStart, Ch32v003Build.FlashEnd);
             Assert.InRange(segment.PhysicalAddress + (uint)segment.Data.Length, Ch32v003Build.FlashStart, Ch32v003Build.FlashEnd);
         });
-        Assert.Contains(loaded, segment => segment.PhysicalAddress == 0);
+        Assert.Contains(loaded, segment => segment.PhysicalAddress == Ch32v003Build.FlashStart);
 
         // the chip's first steps and its trap's dispatch are in, the handlers by the PFIC's 39 numbers
         Assert.Contains("chipsharp_chip_boot", elf.Symbols.Keys);
@@ -360,14 +362,6 @@ public sealed partial class Ch32v003LinkTests : IDisposable
             && address + 4 * (uint)count <= s.PhysicalAddress + (uint)s.Data.Length);
         var offset = (int)(address - segment.PhysicalAddress);
         return [.. Enumerable.Range(0, count).Select(i => BinaryPrimitives.ReadUInt32LittleEndian(segment.Data.AsSpan(offset + 4 * i)))];
-    }
-
-    /// <summary>Where a jal at <paramref name="address"/> jumps: its 21-bit offset (imm[20|10:1|11|19:12]) added.</summary>
-    private static uint JalTarget(uint jal, uint address)
-    {
-        var offset = ((jal >> 31) & 1) << 20 | ((jal >> 21) & 0x3ff) << 1 | ((jal >> 20) & 1) << 11 | ((jal >> 12) & 0xff) << 12;
-        var signed = (int)(offset << 11) >> 11;
-        return (uint)(address + signed);
     }
 
     /// <summary>A line of llvm-objdump's listing with an instruction: its address, then the instruction and its operands.</summary>

@@ -62,7 +62,7 @@ public sealed class Ch32v003ProgramTests : IDisposable
 
         var elf = program.File;
         Assert.Equal(elf.Symbols["chipsharp_reset"], elf.Entry);
-        Assert.Equal(0u, elf.Symbols["ch32v003_vector_table"]);
+        Assert.Equal(Ch32v003Build.FlashStart, elf.Symbols["ch32v003_vector_table"]);
         Assert.All(elf.Segments.Where(s => s.Data.Length > 0), segment =>
             Assert.InRange(segment.PhysicalAddress + (uint)segment.Data.Length, Ch32v003Build.FlashStart, Ch32v003Build.FlashEnd));
         Assert.InRange(elf.Symbols["__chipsharp_bss_end"], Ch32v003Build.SramStart, Ch32v003Build.SramEnd - 512);
