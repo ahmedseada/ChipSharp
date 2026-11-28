@@ -6,8 +6,9 @@ namespace ChipSharp.Toolchain.Clang;
 
 /// <summary>
 /// The build cache: what clang and llvm-dlltool made before (an object file for each source, an import library for each
-/// DLL), kept by a key made of everything that goes into it: the tool itself (where it is, its size and its date, so a
-/// new LLVM makes new files), the arguments (target, cpu, flags), the file's name and text, and the headers it can
+/// DLL), and SDCC (a .rel for each source, for the toolchain "sdcc"), kept by a key made of everything that goes into
+/// it: the tool itself (where it is, its size and its date, so a new LLVM or SDCC makes new files), the arguments
+/// (target, cpu, port, flags), the file's name and text, and the headers it can
 /// include. The runtime's C is the same in every build for a target, so a build compiles it once and later builds only
 /// link it again.
 /// </summary>
@@ -47,14 +48,22 @@ internal sealed class ObjectCache
     public string Folder { get; }
 
     /// <summary>The cache <paramref name="options"/> ask for, or null when they turn it off.</summary>
-    public static ObjectCache? For(ClangToolchainOptions options, Func<string, string?> environment)
+    public static ObjectCache? For(ClangToolchainOptions options, Func<string, string?> environment) =>
+        For(options.UseCache, options.CacheFolder, environment);
+
+    /// <summary>
+    /// The cache in <paramref name="cacheFolder"/> (when not set: the environment variable <see cref="FolderVariable"/>,
+    /// then <see cref="DefaultFolder"/>), or null when <paramref name="useCache"/> is false. Every toolchain that keeps
+    /// what it compiles (clang's, SDCC's) keeps it here.
+    /// </summary>
+    public static ObjectCache? For(bool useCache, string? cacheFolder, Func<string, string?> environment)
     {
-        if (!options.UseCache)
+        if (!useCache)
         {
             return null;
         }
 
-        var folder = options.CacheFolder;
+        var folder = cacheFolder;
         if (string.IsNullOrWhiteSpace(folder) && environment(FolderVariable) is { } variable
             && !string.IsNullOrWhiteSpace(variable))
         {

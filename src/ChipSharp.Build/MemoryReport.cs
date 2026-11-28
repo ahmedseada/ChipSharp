@@ -2,6 +2,7 @@ using System.Globalization;
 using ChipSharp.Abstractions;
 using ChipSharp.Image.Uf2;
 using ChipSharp.Targets;
+using ChipSharp.Toolchain.Sdcc;
 
 namespace ChipSharp.Build;
 
@@ -9,7 +10,14 @@ namespace ChipSharp.Build;
 /// <param name="Region">The region's name in the target file, e.g. "flash".</param>
 /// <param name="Used">The bytes the program takes, from the start of the region.</param>
 /// <param name="Size">The region's size.</param>
-public sealed record RegionUse(string Region, ulong Used, ulong Size);
+public sealed record RegionUse(string Region, ulong Used, ulong Size)
+{
+    /// <summary>
+    /// The bytes one word of the region takes, when it is counted in words: 2 for a Padauk chip's program memory, whose
+    /// 14-bit words take two bytes of the .ihx each ("program 812 words of 2048 words"); 1, in bytes, elsewhere.
+    /// </summary>
+    public ulong WordSize { get; init; } = 1;
+}
 
 /// <summary>
 /// How big a built program is, as <c>chipsharp build</c> reports it (<see cref="Text"/>). For a chip it is read from the
@@ -17,7 +25,8 @@ public sealed record RegionUse(string Region, ulong Used, ulong Size);
 /// loads into the region "link.code" names) and the RAM (its variables, in the region "link.data" names, at the .elf's
 /// addresses less "link.dataOffset": an AVR's .elf has RAM at 0x800000 and up), the heap the
 /// linker script keeps after them (<see cref="Heap"/>, the target's "heap" capability) and the stack "link.stack" keeps
-/// at the end of the RAM. For a PC it is the size of the program's file.
+/// at the end of the RAM. For a program SDCC linked (an .ihx) it is read from SDCC's map next to it
+/// (<see cref="SdccMap"/>): a Padauk chip's program memory in words. For a PC it is the size of the program's file.
 /// </summary>
 /// <param name="FileName">The linked program's file name, e.g. Blink.elf or Square.exe.</param>
 /// <param name="FileSize">The size of that file.</param>
@@ -31,7 +40,8 @@ public sealed record MemoryReport(string FileName, ulong FileSize, RegionUse? Co
 
     /// <summary>
     /// "flash 6.2 KB of 2048 KB (0.3%), RAM 1.1 KB + heap 224 KB of 264 KB (stack 8 KB reserved)" for a chip (without
-    /// "+ heap" when it has none); "Square.exe: 5.5 KB" for a PC.
+    /// "+ heap" when it has none); "program 89 words of 2048 words (4.3%), RAM 14 bytes of 128 bytes (stack 16 bytes
+    /// reserved)" for a Padauk chip; "Square.exe: 5.5 KB" for a PC.
     /// </summary>
     public string Text => Code is null || Data is null
         ? $"{FileName}: {MemorySize.Text(FileSize)}"
@@ -44,8 +54,9 @@ public sealed record MemoryReport(string FileName, ulong FileSize, RegionUse? Co
     public override string ToString() => Text;
 
     /// <summary>
-    /// The report for <paramref name="binary"/>, linked for <paramref name="target"/>: from its .elf when the target's
-    /// "link.code" and "link.data" name memory regions of it (a chip), else from the size of its file.
+    /// The report for <paramref name="binary"/>, linked for <paramref name="target"/>: from SDCC's map when SDCC linked
+    /// it (an .ihx with a .map), from its .elf when the target's "link.code" and "link.data" name memory regions of it (a
+    /// chip), else from the size of its file.
     /// </summary>
     /// <exception cref="ChipSharpException">The program cannot be read, or the target's "link.stack" is not a size.</exception>
     public static MemoryReport Read(LinkedBinary binary, TargetDescription target)
@@ -62,6 +73,14 @@ public sealed record MemoryReport(string FileName, ulong FileSize, RegionUse? Co
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             throw new ChipSharpException($"Cannot read the program '{binary.Path}': {e.Message}", e);
+        }
+
+        if (SdccMemoryUse.MapOf(binary) is not null)
+        {
+            var use = SdccMemoryUse.Read(binary, target);
+            return new MemoryReport(fileName, fileSize,
+                new RegionUse(use.Code.Name, use.CodeUsed, use.Code.Region.Size) { WordSize = use.CodeWordSize },
+                new RegionUse(use.Data.Name, use.DataUsed, use.Data.Region.Size), use.Stack);
         }
 
         if (Region(target, "link.code") is not { } code || Region(target, "link.data") is not { } data)
@@ -90,9 +109,9 @@ public sealed record MemoryReport(string FileName, ulong FileSize, RegionUse? Co
         };
     }
 
-    /// <summary>"flash 6.2 KB of 2048 KB", "RAM 8 bytes of 264 KB".</summary>
+    /// <summary>"flash 6.2 KB of 2048 KB", "RAM 8 bytes of 264 KB", "program 812 words of 2048 words".</summary>
     private static string Of(RegionUse use) =>
-        $"{MemorySize.RegionName(use.Region)} {MemorySize.Text(use.Used)} of {MemorySize.Text(use.Size)}";
+        $"{MemorySize.RegionName(use.Region)} {MemorySize.Text(use.Used, use.WordSize)} of {MemorySize.Text(use.Size, use.WordSize)}";
 
     /// <summary>The memory region the target's setting (e.g. "link.code") names, or null.</summary>
     private static (string Name, MemoryRegion Region)? Region(TargetDescription target, string setting) =>

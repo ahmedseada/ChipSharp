@@ -6,5 +6,7 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="ChipSharp.Tests" />
+    <!-- the SDCC toolchain keeps what it compiles in the same build cache (ObjectCache) -->
+    <InternalsVisibleTo Include="ChipSharp.Toolchain.Sdcc" />
   </ItemGroup>
 </Project>
