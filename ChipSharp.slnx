@@ -33,6 +33,7 @@
     <Project Path="src/ChipSharp.Runtime.Avr/ChipSharp.Runtime.Avr.csproj" />
     <Project Path="src/ChipSharp.Runtime.Rp2040/ChipSharp.Runtime.Rp2040.csproj" />
     <Project Path="src/ChipSharp.Runtime.Windows/ChipSharp.Runtime.Windows.csproj" />
+    <Project Path="src/ChipSharp.Simulators/ChipSharp.Simulators.csproj" />
     <Project Path="src/ChipSharp.Targets/ChipSharp.Targets.csproj" />
     <Project Path="src/ChipSharp.Toolchain.Clang/ChipSharp.Toolchain.Clang.csproj" />
     <Project Path="src/ChipSharp.Toolchain.Sdcc/ChipSharp.Toolchain.Sdcc.csproj" />

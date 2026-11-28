@@ -34,6 +34,7 @@
     <ProjectReference Include="..\..\src\ChipSharp.Runtime.Avr\ChipSharp.Runtime.Avr.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Runtime.Rp2040\ChipSharp.Runtime.Rp2040.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Runtime.Windows\ChipSharp.Runtime.Windows.csproj" />
+    <ProjectReference Include="..\..\src\ChipSharp.Simulators\ChipSharp.Simulators.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Targets\ChipSharp.Targets.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Toolchain.Clang\ChipSharp.Toolchain.Clang.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Toolchain.Sdcc\ChipSharp.Toolchain.Sdcc.csproj" />

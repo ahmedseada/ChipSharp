@@ -492,6 +492,19 @@ The toolchain `sdcc`:
   of 2048 words (8.5%), RAM 27 bytes of 128 bytes (stack 16 bytes reserved)`. A program too big for the target's memory
   fails with how much it needs, as on the other chips. The `.hex` is SDCC's `.ihx` in address order (byte addresses:
   a Padauk chip's word n at bytes 2n and 2n + 1, as the Easy PDK programmer reads it).
+- **The simulator, `chipsim`** (`src/ChipSharp.Simulators`, ChipSharp's own instruction-set simulators, in C#): `chipsim
+  pfs154 Blink.ihx --ms 1000` (or `stm8s103`; without installing, `src\ChipSharp.Simulators\bin\Release\net10.0\chipsim.exe`)
+  runs a `.ihx` and prints what the Uno's simulator prints: every pin change (`[   12.000 ms] PA4 high`), UART1's lines
+  (`UART1: Hello`) and baud rate, a timer's pin as PWM periods, and `stopped: <why>`. `--input PA3=low@100ms` drives a pin,
+  `--send "on\n@100ms"` sends to UART1's RX (the STM8S103's PD6), `--uart1 file` keeps what it sent. A run ends after
+  `--ms`, or when the program has finished (it sleeps with nothing left to wake it: `stopsys`, `stopexe`; `halt`, `wfi`),
+  or as a failure, exit code 3: the PFS154's `reset` instruction (the PDK14 has no breakpoint: a runtime's fatal error)
+  or its watchdog (on after reset), the STM8's `break`, an instruction or address the chip does not have, memory the
+  image does not fill, an interrupt with no handler. The PFS154: the whole PDK14 instruction set but `mul`, Timer16,
+  Timer2 and Timer3 (PWM), the PA0 and PB0 interrupts, the system clocks of CLKMD (the IHRC at 16 MHz, the ILRC at about
+  55 kHz), the ports with their pull-ups. The STM8S103: every instruction and addressing mode, the interrupt controller
+  and its priorities, EXTI, TIM1, TIM2 (PWM), TIM4, UART1, the clock's dividers (2 MHz after reset) and the LSI, the
+  IWDG. Cycles are the datasheets'; the tests run it in process (`Simulation.Run`).
 
 ## What C# compiles today
 
@@ -1202,9 +1215,12 @@ DS1307, the servo with a knob turned; and their Wokwi circuits are checked, wire
 `chipsharp flash` runs no real tool in the tests: avrdude is a batch file that keeps the command line it was given, and
 the Pico's drive a folder.
 The SDCC chips' tests build hand-written C and assembly for the PFS154 and the STM8S103 with SDCC (skipped without it)
-and compare the `.hex` and the memory report with SDCC's own map; the C code generator's tests run every sample, and
-programs of every operation on the values where C and C# part ways, through `host-c` and `host` against C#, and
-compile and link the C for both chips with SDCC.
+and compare the `.hex` and the memory report with SDCC's own map. On `chipsim`, every form of every instruction SDCC's
+assemblers encode is decoded to its length (and the STM8's to its listed cycles), the flags of each core's ALU are
+checked an instruction at a time, and C programs run: the arithmetic of every width through SDCC's helpers (each result
+compared with C's), the timers' interrupts and PWM to the microsecond, inputs on a timeline, UART1 both ways, and the
+ways a run stops. The C code generator's tests run every sample, and programs of every operation on the values where C
+and C# part ways, through `host-c` and `host` against C#, and compile and link the C for both chips with SDCC.
 
 The simulator, rp2040js 1.4.1, has one known fault: it sets the overflow flag of `SBCS` wrong when the borrow takes the
 subtrahend to 0x80000000, so a comparison of extreme `long` values, such as `long.MaxValue` with `long.MinValue`, gives
@@ -1228,6 +1244,7 @@ allow for both. Its TWI takes no time on the bus: the I2C transfers' timing is t
 | `src/ChipSharp.Backend.C` | The `c` code generator: TIR in, portable C99 out, for the chips that only have a C compiler (SDCC's) and the PC (`host-c`) |
 | `src/ChipSharp.Toolchain.Clang` | The `clang` toolchain: LLVM IR and runtime sources in, a linked program out; as the `zig` toolchain, the same with the clang and ld.lld inside Zig (AVR) |
 | `src/ChipSharp.Toolchain.Sdcc` | The `sdcc` toolchain: C in, SDCC's Intel HEX (`.ihx`) and map out, for the Padauk and STM8 chips (M6, in progress) |
+| `src/ChipSharp.Simulators` | `chipsim`: the PFS154 (PDK14) and STM8S103 simulators, their peripherals, and the command |
 | `src/ChipSharp.Runtime.*` | The runtimes, in C: `Shared` (console, text, floats, heap and collector), `Windows` (the PC), `ArmV6M` and `Rp2040` (start-up, UART0, timers, pins, interrupts), `Avr` (any AVR chip's start-up, multiply and divide helpers, soft float) and `Atmega328p` (the Uno's pins, Timer1's clock and delays, the pin and timer events, USART0, the TWI, SPI, the ADC and PWM) |
 | `src/ChipSharp.Image.Uf2`, `src/ChipSharp.Image.Hex`, `src/ChipSharp.Build`, `src/ChipSharp.Cli` | The `.uf2` and `.hex` images, the build pipeline, and the `chipsharp` command |
 | `src/ChipSharp.Hardware` | The library programs reference for pins, timing, the clock, registers, interrupts, serial ports, analog inputs, PWM and the I2C and SPI buses |
