@@ -189,7 +189,7 @@ public sealed class GpioPort
         private string? _printed;
         private int _version;
 
-        /// <summary>The period to wait 2.5 of for an edge before one is measured.</summary>
+        /// <summary>The period the timer's registers give now: 2.5 of it (or of the one measured, the longer) without an edge is steady.</summary>
         public long ExpectedPeriod { get; set; }
 
         public void Edge(bool high)
@@ -216,7 +216,7 @@ public sealed class GpioPort
             }
 
             var version = ++_version;
-            chip.At(now + (long)(2.5 * (_period > 0 ? _period : ExpectedPeriod)), () =>
+            chip.At(now + (long)(2.5 * Math.Max(_period, ExpectedPeriod)), () =>
             {
                 if (version == _version)
                 {

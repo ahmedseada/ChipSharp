@@ -143,7 +143,10 @@ internal sealed class Stm8Uart(SimulatedChip chip, string name, Func<long> ticks
         }
 
         _busy = false;
+        var end = chip.Ticks;
+        chip.SetTime(end + _shiftTicksLeft); // when the stop bit ended
         Output.Write(_shifting);
+        chip.SetTime(end);
         if (_pending is { } next && (_registers[Cr2] & 0x08) != 0)
         {
             _pending = null;

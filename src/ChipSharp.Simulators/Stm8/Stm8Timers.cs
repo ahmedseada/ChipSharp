@@ -133,6 +133,7 @@ internal sealed class Tim4
 /// </summary>
 internal sealed class Stm8Timer16
 {
+    private readonly SimulatedChip _chip;
     private readonly bool _advanced;
     private readonly (GpioPort Port, int Bit)[] _pins;
     private readonly Func<long> _ticksPerMasterClock;
@@ -165,8 +166,9 @@ internal sealed class Stm8Timer16
     private bool _readLatched;
     private readonly byte[] _other = new byte[0x20];
 
-    private Stm8Timer16(bool advanced, (GpioPort, int)[] pins, Func<long> ticksPerMasterClock)
+    private Stm8Timer16(SimulatedChip chip, bool advanced, (GpioPort, int)[] pins, Func<long> ticksPerMasterClock)
     {
+        _chip = chip;
         _advanced = advanced;
         _pins = pins;
         _ticksPerMasterClock = ticksPerMasterClock;
@@ -183,10 +185,12 @@ internal sealed class Stm8Timer16
     }
 
     /// <summary>TIM1, its channels on <paramref name="pins"/>.</summary>
-    public static Stm8Timer16 Tim1((GpioPort, int)[] pins, Func<long> ticksPerMasterClock) => new(true, pins, ticksPerMasterClock);
+    public static Stm8Timer16 Tim1(SimulatedChip chip, (GpioPort, int)[] pins, Func<long> ticksPerMasterClock) =>
+        new(chip, true, pins, ticksPerMasterClock);
 
     /// <summary>TIM2, its channels on <paramref name="pins"/>.</summary>
-    public static Stm8Timer16 Tim2((GpioPort, int)[] pins, Func<long> ticksPerMasterClock) => new(false, pins, ticksPerMasterClock);
+    public static Stm8Timer16 Tim2(SimulatedChip chip, (GpioPort, int)[] pins, Func<long> ticksPerMasterClock) =>
+        new(chip, false, pins, ticksPerMasterClock);
 
     /// <summary>Whether the update interrupt is requested and enabled.</summary>
     public bool UpdatePending => (_sr1Value & _ierValue & 1) != 0;
@@ -196,6 +200,9 @@ internal sealed class Stm8Timer16
 
     /// <summary>Whether the timer counts and would request an interrupt.</summary>
     public bool CanInterrupt => (_cr1 & 1) != 0 && (_ierValue & 0x1F) != 0;
+
+    /// <summary>Whether the timer counts and drives a pin (whose edges a sleeping CPU must not skip).</summary>
+    public bool DrivesPins => (_cr1 & 1) != 0 && _driven.Any(level => level is not null);
 
     private int Channels => _pins.Length;
 
@@ -389,12 +396,16 @@ internal sealed class Stm8Timer16
 
         _clocks += masterClocks;
         var perCount = PerCount();
+        var end = _chip.Ticks;
         while (_clocks >= perCount && (_cr1 & 1) != 0)
         {
             _clocks -= perCount;
+            _chip.SetTime(end - _clocks * _ticksPerMasterClock()); // the count's own tick, for the pins' edges
             Count();
             perCount = PerCount();
         }
+
+        _chip.SetTime(end);
     }
 
     /// <summary>The fMASTER clocks until the counter next does something that can raise an interrupt, or long.MaxValue.</summary>

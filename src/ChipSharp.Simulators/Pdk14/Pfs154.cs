@@ -326,7 +326,10 @@ public sealed class Pfs154 : SimulatedChip, IPdk14Io
         static long Floor(long value, int period) => value >= 0 ? value / period : -((-value + period - 1) / period);
     }
 
-    /// <summary>The ticks until a timer can next request an interrupt (or the watchdog time out), or long.MaxValue.</summary>
+    /// <summary>
+    /// The ticks until a timer can next request an interrupt or change its pin (or the watchdog time out): what a CPU in
+    /// stopexe must not skip; long.MaxValue when nothing will.
+    /// </summary>
     private long TicksToNextEvent()
     {
         var next = long.MaxValue;
@@ -341,15 +344,8 @@ public sealed class Pfs154 : SimulatedChip, IPdk14Io
             next = Math.Min(next, counts * t16Clock - _t16Ticks);
         }
 
-        if ((_io[Inten] & Tm2Request) != 0)
-        {
-            next = Math.Min(next, _tm2.TicksToRequest());
-        }
-
-        if ((_io[Inten] & Tm3Request) != 0)
-        {
-            next = Math.Min(next, _tm3.TicksToRequest());
-        }
+        next = Math.Min(next, _tm2.TicksToEvent((_io[Inten] & Tm2Request) != 0));
+        next = Math.Min(next, _tm3.TicksToEvent((_io[Inten] & Tm3Request) != 0));
 
         if ((_io[Clkmd] & 0x06) == 0x06)
         {
@@ -399,9 +395,10 @@ public sealed class Pfs154 : SimulatedChip, IPdk14Io
 
         _tm2.PinEdge(port == _pa, bit, high);
         _tm3.PinEdge(port == _pa, bit, high);
-        if ((port.Direction & (1 << bit)) == 0)
+        var mask = 1 << bit;
+        if ((port.Direction & mask) == 0 && (port.OutsideDriven & mask) != 0 && (port.PeripheralDriven & mask) == 0)
         {
-            _cpu.Sleep = Pdk14Sleep.None; // a pin change wakes the chip from stopsys and stopexe
+            _cpu.Sleep = Pdk14Sleep.None; // an input changed from outside: that wakes the chip from stopsys and stopexe
         }
     }
 
@@ -459,11 +456,15 @@ public sealed class Pfs154 : SimulatedChip, IPdk14Io
             }
 
             _ticks += ticks;
+            var end = chip.Ticks;
             while (_ticks >= countTicks)
             {
                 _ticks -= countTicks;
+                chip.SetTime(end - _ticks); // the count's own tick, for the pin's edge
                 Count();
             }
+
+            chip.SetTime(end);
         }
 
         /// <summary>A pin's edge, which the timer counts when its clock is that pin's (TM2C bits 4-7: 8-13).</summary>
@@ -484,16 +485,25 @@ public sealed class Pfs154 : SimulatedChip, IPdk14Io
             }
         }
 
-        /// <summary>The ticks until the counter next reaches its bound, or long.MaxValue when it does not count by itself.</summary>
-        public long TicksToRequest()
+        /// <summary>
+        /// The ticks until the counter next reaches its bound (when <paramref name="interrupt"/> is enabled) or changes its
+        /// output pin, or long.MaxValue when neither happens by itself.
+        /// </summary>
+        public long TicksToEvent(bool interrupt)
         {
             var countTicks = CountTicks;
-            if (countTicks == 0)
+            if (countTicks == 0 || (!interrupt && _output is null))
             {
                 return long.MaxValue;
             }
 
+            // the bound, and in PWM mode the wrap to 0 too (the pin rises there)
             var counts = PwmMode ? ((_bound - Counter - 1) & Top) + 1 : ((_bound - Counter) & 0xFF) + 1;
+            if (PwmMode && _output is not null)
+            {
+                counts = Math.Min(counts, Top - Counter + 1);
+            }
+
             return counts * countTicks - _ticks;
         }
 

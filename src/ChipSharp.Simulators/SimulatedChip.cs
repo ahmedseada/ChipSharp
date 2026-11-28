@@ -27,6 +27,12 @@ public abstract class SimulatedChip
     /// <summary>The simulated time, in ticks of <see cref="TicksPerSecond"/>.</summary>
     public long Ticks { get; protected set; }
 
+    /// <summary>
+    /// Sets the time for a moment, for what a peripheral prints while it catches up with an instruction's cycles: the
+    /// tick its edge really came at, before the end of the instruction. The chip sets it back.
+    /// </summary>
+    internal void SetTime(long ticks) => Ticks = ticks;
+
     /// <summary>Why the run stopped (the program finished, or failed); null while it runs.</summary>
     public string? StopReason { get; private set; }
 

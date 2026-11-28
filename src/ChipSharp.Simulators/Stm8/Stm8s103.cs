@@ -95,8 +95,8 @@ public sealed class Stm8s103 : SimulatedChip, IStm8Bus
         _ports[3].PullUp = 0x02;
         _ports[3].PushPull = 0x02;
         _ports[3].Update();
-        _tim1 = Stm8Timer16.Tim1([(_ports[2], 6), (_ports[2], 7), (_ports[2], 3), (_ports[2], 4)], () => _ticksPerMaster);
-        _tim2 = Stm8Timer16.Tim2([(_ports[3], 4), (_ports[3], 3), (_ports[0], 3)], () => _ticksPerMaster);
+        _tim1 = Stm8Timer16.Tim1(this, [(_ports[2], 6), (_ports[2], 7), (_ports[2], 3), (_ports[2], 4)], () => _ticksPerMaster);
+        _tim2 = Stm8Timer16.Tim2(this, [(_ports[3], 4), (_ports[3], 3), (_ports[0], 3)], () => _ticksPerMaster);
         _uart = new Stm8Uart(this, "UART1", () => _ticksPerMaster);
         Reset();
     }
@@ -425,7 +425,10 @@ public sealed class Stm8s103 : SimulatedChip, IStm8Bus
         }
     }
 
-    /// <summary>The ticks until a peripheral next does something that can raise an interrupt, or long.MaxValue.</summary>
+    /// <summary>
+    /// The ticks until a peripheral next does something a sleeping CPU must not skip (an interrupt it can raise, an edge
+    /// of a timer's pin, the end of a byte going out), or long.MaxValue when none will.
+    /// </summary>
     private long TicksToEvent()
     {
         var next = long.MaxValue;
@@ -434,20 +437,17 @@ public sealed class Stm8s103 : SimulatedChip, IStm8Bus
             next = Math.Min(next, _tim4.ClocksToUpdate() * _ticksPerMaster - _tickRemainder);
         }
 
-        if (_tim1.CanInterrupt)
+        if (_tim1.CanInterrupt || _tim1.DrivesPins)
         {
             next = Math.Min(next, _tim1.ClocksToEvent() * _ticksPerMaster - _tickRemainder);
         }
 
-        if (_tim2.CanInterrupt)
+        if (_tim2.CanInterrupt || _tim2.DrivesPins)
         {
             next = Math.Min(next, _tim2.ClocksToEvent() * _ticksPerMaster - _tickRemainder);
         }
 
-        if (_uart.CanInterrupt)
-        {
-            next = Math.Min(next, _uart.TicksToEvent());
-        }
+        next = Math.Min(next, _uart.TicksToEvent()); // a byte going out
 
         if (_iwdgRunning)
         {
