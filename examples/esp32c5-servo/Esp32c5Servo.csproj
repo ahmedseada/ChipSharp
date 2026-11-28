@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A servo sweeping on a PWM pin, 50 pulses a second: build with ChipSharp for the target "esp32c5-devkitc" (see Program.cs) -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ChipSharp.Hardware\ChipSharp.Hardware.csproj" />
+  </ItemGroup>
+</Project>

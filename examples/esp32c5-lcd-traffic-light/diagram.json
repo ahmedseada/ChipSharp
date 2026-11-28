@@ -1,0 +1,220 @@
+{
+  "version": 1,
+  "author": "ChipSharp",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-c5-devkitc-1",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "red",
+      "top": -10,
+      "left": 170,
+      "attrs": {
+        "color": "red",
+        "label": "6"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "yellow",
+      "top": 40,
+      "left": 170,
+      "attrs": {
+        "color": "yellow",
+        "label": "8"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "green",
+      "top": 90,
+      "left": 170,
+      "attrs": {
+        "color": "green",
+        "label": "9"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "beat",
+      "top": 140,
+      "left": 170,
+      "attrs": {
+        "color": "blue",
+        "label": "23"
+      }
+    },
+    {
+      "type": "wokwi-7segment",
+      "id": "turn",
+      "top": -60,
+      "left": 300,
+      "attrs": {
+        "common": "cathode",
+        "digits": "1",
+        "color": "#00aaff"
+      }
+    },
+    {
+      "type": "wokwi-lcd1602",
+      "id": "lcd",
+      "top": 130,
+      "left": 300,
+      "attrs": {
+        "pins": "i2c"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn",
+      "top": 200,
+      "left": 170,
+      "attrs": {
+        "color": "blue",
+        "label": "end green",
+        "bounce": "0"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "esp:6",
+      "red:A",
+      "green",
+      []
+    ],
+    [
+      "red:C",
+      "esp:GND.3",
+      "black",
+      []
+    ],
+    [
+      "esp:8",
+      "yellow:A",
+      "green",
+      []
+    ],
+    [
+      "yellow:C",
+      "esp:GND.3",
+      "black",
+      []
+    ],
+    [
+      "esp:9",
+      "green:A",
+      "green",
+      []
+    ],
+    [
+      "green:C",
+      "esp:GND.3",
+      "black",
+      []
+    ],
+    [
+      "esp:23",
+      "beat:A",
+      "green",
+      []
+    ],
+    [
+      "beat:C",
+      "esp:GND.3",
+      "black",
+      []
+    ],
+    [
+      "esp:0",
+      "turn:A",
+      "cyan",
+      []
+    ],
+    [
+      "esp:1",
+      "turn:B",
+      "cyan",
+      []
+    ],
+    [
+      "esp:2",
+      "turn:C",
+      "cyan",
+      []
+    ],
+    [
+      "esp:3",
+      "turn:D",
+      "cyan",
+      []
+    ],
+    [
+      "esp:11",
+      "turn:E",
+      "cyan",
+      []
+    ],
+    [
+      "esp:12",
+      "turn:F",
+      "cyan",
+      []
+    ],
+    [
+      "esp:24",
+      "turn:G",
+      "cyan",
+      []
+    ],
+    [
+      "turn:COM.1",
+      "esp:GND.4",
+      "black",
+      []
+    ],
+    [
+      "esp:4",
+      "lcd:SDA",
+      "magenta",
+      []
+    ],
+    [
+      "esp:5",
+      "lcd:SCL",
+      "purple",
+      []
+    ],
+    [
+      "esp:5V",
+      "lcd:VCC",
+      "red",
+      []
+    ],
+    [
+      "lcd:GND",
+      "esp:GND.4",
+      "black",
+      []
+    ],
+    [
+      "esp:10",
+      "btn:2.r",
+      "blue",
+      []
+    ],
+    [
+      "btn:1.l",
+      "esp:3V3",
+      "red",
+      []
+    ]
+  ],
+  "dependencies": {}
+}
