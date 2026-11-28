@@ -16,11 +16,33 @@
 // hold, is U+FFFD (EF BF BD), and a high surrogate at the end of one write waits for the low one at the start of the
 // next (Console.Write('\uD83D'); Console.Write('\uDE00'); writes one emoji, as in .NET); anything else written first
 // makes the waiting half U+FFFD, and one still waiting when the program ends is not written, as .NET does neither.
+//
+// With SDCC (the STM8's runtime), whose linker takes a file's functions all or none, the file is compiled in modules, one
+// for each "//@module" part below, each with the text before the first part and CHIPSHARP_MODULES defined (see
+// src/ChipSharp.Runtime.Stm8's Stm8Runtime.Modules): a program that writes text and ints has no code for floats, nor for
+// 64-bit numbers. The helpers that parts share (SHARED) are then functions of their own part, instead of static ones;
+// and as SDCC's double is a float, the parts of doubles are left out.
 
-// 32 bits on every target: an int or a long (AVR's int has 16), as the compiler's own fixed-width types say. C# passes
-// an int, a uint, a char (its UTF-16 code unit) and a bool (0 or 1) as 32 bits.
+#if defined(CHIPSHARP_MODULES)
+#define SHARED
+#else
+#define SHARED static
+#endif
+
+// 32 bits on every target: an int or a long (AVR's and SDCC's int has 16), as the compiler's own fixed-width types say.
+// C# passes an int, a uint, a char (its UTF-16 code unit) and a bool (0 or 1) as 32 bits.
+#if defined(__SDCC)
+typedef long s32;
+typedef unsigned long u32;
+#define DOUBLE64 0
+// the UTF-8 that waits to go out, on the stack: 1 KB of RAM (the STM8S103's) has less room for it
+#define UTF8_BUFFER 16
+#else
 typedef __INT32_TYPE__ s32;
 typedef __UINT32_TYPE__ u32;
+#define DOUBLE64 1
+#define UTF8_BUFFER 64
+#endif
 
 // In the runtime: writes count bytes where the program's output goes. They are always in RAM.
 void chipsharp_console_write(const char *bytes, unsigned int count);
@@ -57,6 +79,13 @@ typedef struct
 
 #define DATA ((unsigned int)((sizeof(void *) + 4 + 7) / 8 * 8))
 
+// The helpers the parts share (see SHARED above), each in its part.
+SHARED void output(const char *bytes, unsigned int count);
+SHARED void output_constant(constant_char *text, unsigned int count);
+SHARED void write_text(char *text, int length, int line);
+void ChipSharp_Runtime_WriteLine(void);
+
+//@module text
 // The high surrogate at the end of the text written last, waiting for its low surrogate; 0 when none waits.
 static unsigned int pending;
 
@@ -89,14 +118,14 @@ static void end_pending(void)
 }
 
 // Writes bytes that are no text.
-static void output(const char *bytes, unsigned int count)
+SHARED void output(const char *bytes, unsigned int count)
 {
     end_pending();
     chipsharp_console_write(bytes, count);
 }
 
 // output, of the console's own text.
-static void output_constant(constant_char *text, unsigned int count)
+SHARED void output_constant(constant_char *text, unsigned int count)
 {
     end_pending();
     write_constant(text, count);
@@ -105,7 +134,7 @@ static void output_constant(constant_char *text, unsigned int count)
 // UTF-8 on its way out, a buffer at a time.
 typedef struct
 {
-    char bytes[64];
+    char bytes[UTF8_BUFFER];
     unsigned int count;
 } utf8;
 
@@ -224,100 +253,8 @@ static void write_string(const string *s)
     }
 }
 
-// Writes the number in decimal, with a minus sign in front when negative is set, then "\r\n" when line is set.
-static void write_number(unsigned long long magnitude, int negative, int line)
-{
-    char text[23]; // "-", up to 20 digits, "\r\n"; filled from the end
-    int start = (int)sizeof text;
-    if (line)
-    {
-        text[--start] = '\n';
-        text[--start] = '\r';
-    }
 
-    // the digits of what is above 32 bits by 64-bit division, the rest by 32-bit division (on a chip without a divide
-    // instruction, a helper's loop of 32 steps instead of 64)
-    while ((magnitude >> 32) != 0)
-    {
-        text[--start] = (char)('0' + (int)(magnitude % 10));
-        magnitude /= 10;
-    }
-
-    u32 low = (u32)magnitude;
-    do
-    {
-        text[--start] = (char)('0' + (int)(low % 10));
-        low /= 10;
-    } while (low != 0);
-
-    if (negative)
-    {
-        text[--start] = '-';
-    }
-
-    output(text + start, (unsigned int)((int)sizeof text - start));
-}
-
-// The magnitude of a negative number, computed in unsigned arithmetic so that the most negative value
-// (int.MinValue, long.MinValue) has one too: 0 - (unsigned)value never overflows.
-static unsigned long long magnitude_of(long long value)
-{
-    return value < 0 ? 0ULL - (unsigned long long)value : (unsigned long long)value;
-}
-
-static constant_char true_text[] = "True\r\n";
-static constant_char false_text[] = "False\r\n";
 static constant_char line_end[] = "\r\n";
-
-// A bool arrives as an int; like .NET, anything but 0 is True.
-static void write_bool(s32 value, int line)
-{
-    if (value != 0)
-    {
-        output_constant(true_text, line ? 6u : 4u);
-    }
-    else
-    {
-        output_constant(false_text, line ? 7u : 5u);
-    }
-}
-
-// Writes text[0..length), and "\r\n" after it when line is set: the buffer has room for two more characters.
-static void write_text(char *text, int length, int line)
-{
-    if (line)
-    {
-        text[length++] = '\r';
-        text[length++] = '\n';
-    }
-
-    output(text, (unsigned int)length);
-}
-
-// The shortest text that reads back as the same value, as .NET writes it. The bits are read through a union, so
-// the number itself is never used in a calculation (a chip may have no float hardware, nor the routines that would
-// stand in for it).
-static void write_float64(double value, int line)
-{
-    union
-    {
-        double value;
-        unsigned long long bits;
-    } number = {value};
-    char text[26]; // at most 24 characters, "\r\n"
-    write_text(text, chipsharp_float64_text(number.bits, text), line);
-}
-
-static void write_float32(float value, int line)
-{
-    union
-    {
-        float value;
-        u32 bits;
-    } number = {value};
-    char text[17]; // at most 15 characters, "\r\n"
-    write_text(text, chipsharp_float32_text(number.bits, text), line);
-}
 
 void ChipSharp_Runtime_WriteLine(void)
 {
@@ -355,36 +292,99 @@ void ChipSharp_Runtime_WriteLineChar(s32 value)
     ChipSharp_Runtime_WriteLine();
 }
 
-void ChipSharp_Runtime_WriteHexDigits(unsigned long long bits, s32 count, s32 upper)
+//@module int32
+// Writes the number in decimal, with a minus sign in front when negative is set, then "\r\n" when line is set.
+static void write_number32(u32 magnitude, int negative, int line)
 {
-    char text[16];
-    for (s32 i = 0; i < count && i < 16; i++)
+    char text[13]; // "-", up to 10 digits, "\r\n"; filled from the end
+    int start = (int)sizeof text;
+    if (line)
     {
-        unsigned int digit = (unsigned int)(bits >> (4 * (count - 1 - i))) & 15u;
-        text[i] = (char)(digit < 10 ? '0' + digit : (upper ? 'A' : 'a') + digit - 10);
+        text[--start] = '\n';
+        text[--start] = '\r';
     }
 
-    output(text, (unsigned int)(count < 16 ? count : 16));
+    do
+    {
+        text[--start] = (char)('0' + (int)(magnitude % 10));
+        magnitude /= 10;
+    } while (magnitude != 0);
+
+    if (negative)
+    {
+        text[--start] = '-';
+    }
+
+    output(text + start, (unsigned int)((int)sizeof text - start));
+}
+
+// The magnitude of a negative number, computed in unsigned arithmetic so that the most negative value (int.MinValue)
+// has one too: 0 - (unsigned)value never overflows.
+static u32 magnitude_of32(s32 value)
+{
+    return value < 0 ? 0u - (u32)value : (u32)value;
 }
 
 void ChipSharp_Runtime_WriteInt32(s32 value)
 {
-    write_number(magnitude_of(value), value < 0, 0);
+    write_number32(magnitude_of32(value), value < 0, 0);
 }
 
 void ChipSharp_Runtime_WriteLineInt32(s32 value)
 {
-    write_number(magnitude_of(value), value < 0, 1);
+    write_number32(magnitude_of32(value), value < 0, 1);
 }
 
 void ChipSharp_Runtime_WriteUInt32(u32 value)
 {
-    write_number(value, 0, 0);
+    write_number32(value, 0, 0);
 }
 
 void ChipSharp_Runtime_WriteLineUInt32(u32 value)
 {
-    write_number(value, 0, 1);
+    write_number32(value, 0, 1);
+}
+
+//@module int64
+// Writes the number in decimal, with a minus sign in front when negative is set, then "\r\n" when line is set.
+static void write_number(unsigned long long magnitude, int negative, int line)
+{
+    char text[23]; // "-", up to 20 digits, "\r\n"; filled from the end
+    int start = (int)sizeof text;
+    if (line)
+    {
+        text[--start] = '\n';
+        text[--start] = '\r';
+    }
+
+    // the digits of what is above 32 bits by 64-bit division, the rest by 32-bit division (on a chip without a divide
+    // instruction, a helper's loop of 32 steps instead of 64)
+    while ((magnitude >> 32) != 0)
+    {
+        text[--start] = (char)('0' + (int)(magnitude % 10));
+        magnitude /= 10;
+    }
+
+    u32 low = (u32)magnitude;
+    do
+    {
+        text[--start] = (char)('0' + (int)(low % 10));
+        low /= 10;
+    } while (low != 0);
+
+    if (negative)
+    {
+        text[--start] = '-';
+    }
+
+    output(text + start, (unsigned int)((int)sizeof text - start));
+}
+
+// The magnitude of a negative number, computed in unsigned arithmetic so that the most negative value (long.MinValue)
+// has one too: 0 - (unsigned)value never overflows.
+static unsigned long long magnitude_of(long long value)
+{
+    return value < 0 ? 0ULL - (unsigned long long)value : (unsigned long long)value;
 }
 
 void ChipSharp_Runtime_WriteInt64(long long value)
@@ -407,6 +407,36 @@ void ChipSharp_Runtime_WriteLineUInt64(unsigned long long value)
     write_number(value, 0, 1);
 }
 
+//@module hex
+void ChipSharp_Runtime_WriteHexDigits(unsigned long long bits, s32 count, s32 upper)
+{
+    char text[16];
+    for (s32 i = 0; i < count && i < 16; i++)
+    {
+        unsigned int digit = (unsigned int)(bits >> (4 * (count - 1 - i))) & 15u;
+        text[i] = (char)(digit < 10 ? '0' + digit : (upper ? 'A' : 'a') + digit - 10);
+    }
+
+    output(text, (unsigned int)(count < 16 ? count : 16));
+}
+
+//@module bool
+static constant_char true_text[] = "True\r\n";
+static constant_char false_text[] = "False\r\n";
+
+// A bool arrives as an int; like .NET, anything but 0 is True.
+static void write_bool(s32 value, int line)
+{
+    if (value != 0)
+    {
+        output_constant(true_text, line ? 6u : 4u);
+    }
+    else
+    {
+        output_constant(false_text, line ? 7u : 5u);
+    }
+}
+
 void ChipSharp_Runtime_WriteBool(s32 value)
 {
     write_bool(value, 0);
@@ -417,14 +447,31 @@ void ChipSharp_Runtime_WriteLineBool(s32 value)
     write_bool(value, 1);
 }
 
-void ChipSharp_Runtime_WriteFloat64(double value)
+//@module float32
+// Writes text[0..length), and "\r\n" after it when line is set: the buffer has room for two more characters.
+SHARED void write_text(char *text, int length, int line)
 {
-    write_float64(value, 0);
+    if (line)
+    {
+        text[length++] = '\r';
+        text[length++] = '\n';
+    }
+
+    output(text, (unsigned int)length);
 }
 
-void ChipSharp_Runtime_WriteLineFloat64(double value)
+// The shortest text that reads back as the same value, as .NET writes it. The bits are read through a union, so
+// the number itself is never used in a calculation (a chip may have no float hardware, nor the routines that would
+// stand in for it).
+static void write_float32(float value, int line)
 {
-    write_float64(value, 1);
+    union
+    {
+        float value;
+        u32 bits;
+    } number = {value};
+    char text[17]; // at most 15 characters, "\r\n"
+    write_text(text, chipsharp_float32_text(number.bits, text), line);
 }
 
 void ChipSharp_Runtime_WriteFloat32(float value)
@@ -436,3 +483,27 @@ void ChipSharp_Runtime_WriteLineFloat32(float value)
 {
     write_float32(value, 1);
 }
+
+//@module float64
+#if DOUBLE64
+static void write_float64(double value, int line)
+{
+    union
+    {
+        double value;
+        unsigned long long bits;
+    } number = {value};
+    char text[26]; // at most 24 characters, "\r\n"
+    write_text(text, chipsharp_float64_text(number.bits, text), line);
+}
+
+void ChipSharp_Runtime_WriteFloat64(double value)
+{
+    write_float64(value, 0);
+}
+
+void ChipSharp_Runtime_WriteLineFloat64(double value)
+{
+    write_float64(value, 1);
+}
+#endif

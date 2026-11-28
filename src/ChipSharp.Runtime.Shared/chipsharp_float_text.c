@@ -17,17 +17,33 @@
 //
 // Every function is built for size (minsize), whatever the target's flags: printing a number is not where a
 // program spends its time, and at -O2 the inlined and unrolled loops would make the code four times bigger.
+//
+// With SDCC (the STM8's runtime), whose double is a float, there is no double to write: only chipsharp_float32_text,
+// with big integers the size a float's need, on 1 KB of RAM.
 
+#if defined(__clang__)
 #pragma clang attribute push(__attribute__((minsize)), apply_to = function)
+#endif
 
-// 32 bits on every target: an int or a long (AVR's int has 16), as the compiler's own fixed-width types say
+// 32 bits on every target: an int or a long (AVR's and SDCC's int has 16), as the compiler's own fixed-width types say
+#if defined(__SDCC)
+typedef unsigned long u32;
+#define DOUBLES 0
+#else
 typedef __UINT32_TYPE__ u32;
+#define DOUBLES 1
+#endif
 typedef unsigned long long u64;
 
 // The most 32-bit words a number needs, and then some. The largest number is 10 times a value below the scale, and
 // the largest scale, the smallest double's, is at most 4 * 2^1074 * 10: below 2^1084, 34 words. big_set writes up
-// to two words above the highest one, the 34th of 2^1076.
+// to two words above the highest one, the 34th of 2^1076. A float's: the smallest's scale is 4 * 2^149, whose
+// word 4 big_set writes up to word 6, and nothing grows past 2^180, 6 words.
+#if DOUBLES
 #define BIG_WORDS 36
+#else
+#define BIG_WORDS 8
+#endif
 
 // An unsigned integer of any size up to BIG_WORDS words: word[0] holds the lowest 32 bits, and word[length - 1],
 // the highest word used, is not 0 (0 has length 0). The words from length up hold nothing.
@@ -433,15 +449,19 @@ static int float_text(int is_double, int negative, int biased, u32 low, u32 high
     return n;
 }
 
+#if DOUBLES
 int chipsharp_float64_text(u64 bits, char *text)
 {
     u32 high = (u32)(bits >> 32);
     return float_text(1, (int)(high >> 31), (int)((high >> 20) & 0x7FFu), (u32)bits, high & 0xFFFFFu, text);
 }
+#endif
 
 int chipsharp_float32_text(u32 bits, char *text)
 {
     return float_text(0, (int)(bits >> 31), (int)((bits >> 23) & 0xFFu), bits & 0x7FFFFFu, 0, text);
 }
 
+#if defined(__clang__)
 #pragma clang attribute pop
+#endif

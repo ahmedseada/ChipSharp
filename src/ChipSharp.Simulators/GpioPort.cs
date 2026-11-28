@@ -162,6 +162,7 @@ public sealed class GpioPort
             if ((changed & (1 << bit)) != 0)
             {
                 LevelChanged?.Invoke(bit, (levels & (1 << bit)) != 0);
+                _chip.OnPinLevelChanged(this, bit, (levels & (1 << bit)) != 0);
             }
         }
     }

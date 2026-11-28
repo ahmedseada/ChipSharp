@@ -69,8 +69,31 @@ public abstract class SimulatedChip
     /// </summary>
     public IReadOnlyDictionary<int, Action<SimulatedChip>>? Hooks { get; set; }
 
+    /// <summary>The simulated time in nanoseconds, as the devices on the chip's buses count it.</summary>
+    public double Nanoseconds => Ticks * 1e9 / TicksPerSecond;
+
+    /// <summary>
+    /// Called for every pin whose level changed, after the change is printed: its port, its bit, whether it is high now.
+    /// The devices that watch a pin of the chip (a shift register's latch, a chip select) listen to it.
+    /// </summary>
+    public event Action<GpioPort, int, bool>? PinLevelChanged;
+
+    /// <summary>The I2C buses the chip's controllers drive, by number, for --i2c; none unless the chip has them.</summary>
+    public virtual IReadOnlyList<Devices.I2cBus> I2cBuses => [];
+
+    /// <summary>The SPI buses the chip's controllers drive, by number, for --spi; none unless the chip has them.</summary>
+    public virtual IReadOnlyList<Devices.SpiBus> SpiBuses => [];
+
+    /// <summary>The analog inputs, by pin name, and the volts a reading of the full scale would be; null for none.</summary>
+    public virtual Devices.AnalogInputs? Analog => null;
+
     /// <summary>Whether events from outside (inputs, text to send) are still to come: what could wake a sleeping chip.</summary>
     protected bool InputsAhead => _externalEvents > 0;
+
+    /// <summary>An alarm for a device: it runs <paramref name="callback"/> once each time it is scheduled, unless cancelled first.</summary>
+    public Devices.DeviceAlarm CreateAlarm(Action callback) => new(this, callback);
+
+    internal void OnPinLevelChanged(GpioPort port, int bit, bool high) => PinLevelChanged?.Invoke(port, bit, high);
 
     /// <summary>The tick of the next event, or <see cref="long.MaxValue"/>.</summary>
     protected long NextEventTick => _events.TryPeek(out _, out var key) ? key.Tick : long.MaxValue;

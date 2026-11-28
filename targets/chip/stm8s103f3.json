@@ -1,12 +1,15 @@
 {
   // ST STM8S103F3 (STM8S103F3P6: TSSOP20): STM8 at up to 16 MHz, 8 KB flash, 1 KB RAM, 640 bytes of data EEPROM, 16 I/O
   // pins, UART1, I2C, SPI, a 10-bit ADC (5 inputs on this package), the timers TIM1 (16-bit, advanced), TIM2 (16-bit)
-  // and TIM4 (8-bit); programmed and debugged through SWIM (PD1) with an ST-LINK. Its runtime is still to come
-  // (milestone M6, wave 1), from the peripherals, ports and interrupts below (the reference manual RM0016 and the
-  // datasheet).
+  // and TIM4 (8-bit); programmed and debugged through SWIM (PD1) with an ST-LINK. The peripherals, ports and interrupts
+  // below are the reference manual RM0016's and the datasheet's.
   // Pins by number: port * 8 + bit, so PA1 is 1, PB5 13, PC3 19 and PD6 30
   "name": "stm8s103f3",
   "inherits": "stm8",
+  // the STM8 runtime and this chip's (src/ChipSharp.Runtime.Stm8 and .Stm8s103), at 16 MHz from the HSI: TIM1 counts
+  // microseconds for the clock, the delays and the timer event (its compare 1), TIM2 makes the PWM outputs, UART1 is the
+  // console and serial port 0; TIM4 is the program's
+  "runtime": "stm8s103f3",
   "memory": {
     "flash":  { "origin": "0x8000", "size": "8K" },    // the 32 interrupt vectors (4 bytes each) first, at 0x8000
     "ram":    { "origin": "0x0", "size": "1K" },
@@ -36,6 +39,14 @@
     "tim4Update": 23,             // TIM4 update, overflow
     "flash": 24                   // end of programming, write to a protected page
   },
+  "interrupts": {
+    // the events an [Interrupt] method can handle. Not the chip's interrupts (0-29, "irqs" above): the runtime's
+    // handlers of those find out whether the event happened, then call the method's entry, an ordinary function,
+    // chipsharp_isr_irq<n> by the numbers here, past the vector table (as the Uno's)
+    "pin": { "irq": 30 },         // EXTI of ports A-D: every pin, both edges, filtered by the edges watched
+    "timer": { "irq": 31 },       // TIM1's compare 1, at the times Every and After give
+    "uart": { "irq": 32 }         // UART1_RX, once the bytes received are in the buffer of a watched port
+  },
   // the peripherals' first registers (RM0016's register map; this chip has no TIM3, CAN or UART2)
   "peripherals": {
     "flash": "0x505a", "exti": "0x50a0", "rst": "0x50b3", "clk": "0x50c0", "wwdg": "0x50d1", "iwdg": "0x50e0",
@@ -60,22 +71,23 @@
   ],
   "capabilities": {
     "heap": false,                // 1 KB of RAM: structs, static fields and stack arrays, no objects
-    "console": false,             // true once the runtime sends Console.Write to UART1 (PD5)
+    "console": true,              // Console.Write and Console.WriteLine go to UART1 (PD5, 115200 baud)
+    "consoleInput": true,         // Console.Read reads UART1 (PD6, 115200 baud); ReadLine makes a string, which needs a heap
     "uart": 1,                    // serial ports for Uart: UART1 (TX PD5, RX PD6)
     "adc": 5,                     // analog inputs for Adc: AIN2 (PC4), AIN3 (PD2), AIN4 (PD3), AIN5 (PD5), AIN6 (PD6)
-    "pwm": 5,                     // PWM outputs: TIM1 channels 3 and 4 (PC3, PC4), TIM2 channels 1-3 (PD4, PD3, PA3)
+    "pwm": 3,                     // PWM outputs: TIM2's channels 1-3 (PD4, PD3, PA3), at one frequency (TIM1 is the clock's)
     "i2c": true,                  // the I2C controller, bus 0 on PB5 (SDA) and PB4 (SCL)
     "spi": true,                  // the SPI controller, bus 0 on PC5 (SCK), PC6 (MOSI) and PC7 (MISO)
     "eeprom": true,               // 640 bytes that keep their values without power
     "timers": 3,                  // TIM1, TIM2, TIM4
-    "clock": false                // true once the runtime counts time with TIM4
+    "clock": true                 // a clock for DateTime.Now and Stopwatch: TIM1's count of microseconds
   },
   "pinFunctions": {
     // the pins each peripheral can use without remapping (the option byte AFR): chipsharp check holds the pins a
     // program gives as constants to these. The chip's UART1 is ChipSharp's port 0
     "uart0.tx": [29], "uart0.rx": [30],
     "adc": [20, 26, 27, 29, 30],
-    "pwm": [3, 19, 20, 27, 28]
+    "pwm": [3, 27, 28]
   },
   // the buses: the clocks they make from a 16 MHz master clock, lowest and highest, in hertz, and the pins of bus 0.
   // I2C: 16 MHz / (2 * CCR) in standard mode, CCR 12 bits, up to 400 kHz in fast mode; SPI: 16 MHz / 2 to 256

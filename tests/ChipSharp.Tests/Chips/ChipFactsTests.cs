@@ -89,6 +89,7 @@ public sealed partial class ChipFactsTests
         Assert.Equal(Numbers(functions["uart0.rx"]), [Pin("UART1_RX")]);
         Assert.Equal(Numbers(functions["adc"]).Order(),
             chip.Pins.Where(p => p.Functions.Any(f => f.StartsWith("AIN", StringComparison.Ordinal))).Select(p => p.Number).Order());
+        // the PWM outputs are TIM2's channels (TIM1 is the runtime's clock)
         Assert.Equal(Numbers(functions["pwm"]).Order(),
             chip.Pins.Where(p => p.Functions.Any(f => TimerChannel().IsMatch(f))).Select(p => p.Number).Order());
         var i2c = target.Settings["i2c"]!["buses"]![0]!;
@@ -99,7 +100,7 @@ public sealed partial class ChipFactsTests
         AssertPinNames(target, chip);
     }
 
-    [GeneratedRegex(@"^TIM\d_CH\d$")]
+    [GeneratedRegex(@"^TIM2_CH\d$")]
     private static partial Regex TimerChannel();
 
     /// <summary>The target's "pinNames" are the description's pins, by number.</summary>

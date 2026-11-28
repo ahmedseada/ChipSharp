@@ -1,4 +1,5 @@
 using System.Globalization;
+using ChipSharp.Simulators.Devices;
 
 namespace ChipSharp.Simulators.Stm8;
 
@@ -14,8 +15,10 @@ namespace ChipSharp.Simulators.Stm8;
 /// (ITC_SPR1-8: the software priorities, then the hardware order); CLK (the HSI at 16 MHz divided by CKDIVR's HSIDIV for
 /// fMASTER, 2 MHz after reset, and by CPUDIV for the CPU; switching to the LSI, 128 kHz; there is no HSE crystal, so a
 /// switch to it never ends); TIM1, TIM2 (<see cref="Stm8Timer16"/>), TIM4 (<see cref="Tim4"/>); UART1
-/// (<see cref="Stm8Uart"/>: TX on PD5 printed as text, RX on PD6 from --send); the independent watchdog (it resets the
-/// chip, which stops the run as a failure). SPI, I2C, the ADC, AWU, BEEP and WWDG are registers only.
+/// (<see cref="Stm8Uart"/>: TX on PD5 printed as text, RX on PD6 from --send); the I2C controller (<see cref="Stm8I2c"/>,
+/// I2C0, with the devices of --i2c), the SPI controller (<see cref="Stm8Spi"/>, SPI0, with those of --spi) and ADC1
+/// (<see cref="Stm8Adc"/>: AIN2-AIN6, the voltages of --adc against VDD, 3.3 V); the independent watchdog (it resets the
+/// chip, which stops the run as a failure). AWU, BEEP and WWDG are registers only.
 /// </para>
 /// <para>
 /// The image is Intel HEX (sdcc -mstm8) for the flash, and the EEPROM if it has any; flash it does not fill reads 0x00
@@ -36,7 +39,11 @@ public sealed class Stm8s103 : SimulatedChip, IStm8Bus
     private const int ExtiCr1 = 0x50A0, ExtiCr2 = 0x50A1;
     private const int ClkIckr = 0x50C0, ClkCmsr = 0x50C3, ClkSwr = 0x50C4, ClkSwcr = 0x50C5, ClkCkdivr = 0x50C6;
     private const int IwdgKr = 0x50E0, IwdgPr = 0x50E1, IwdgRlr = 0x50E2;
-    private const int Uart1 = 0x5230, Tim1 = 0x5250, Tim2 = 0x5300, Tim4Base = 0x5340;
+    private const int Spi = 0x5200, I2c = 0x5210, Uart1 = 0x5230, Tim1 = 0x5250, Tim2 = 0x5300, Tim4Base = 0x5340;
+    private const int Adc1 = 0x5400;
+
+    /// <summary>VDD, the ADC's reference: the blue board's 3.3 V.</summary>
+    public const double Vdd = 3.3;
     private const byte Hsi = 0xE1, Lsi = 0xD2;
 
     /// <summary>The interrupts the simulator raises, by the names of the chip's target file (targets/chip/stm8s103f3.json).</summary>
@@ -77,6 +84,10 @@ public sealed class Stm8s103 : SimulatedChip, IStm8Bus
     private readonly Stm8Timer16 _tim1;
     private readonly Stm8Timer16 _tim2;
     private readonly Stm8Uart _uart;
+    private readonly Stm8I2c _i2c;
+    private readonly Stm8Spi _spi;
+    private readonly Stm8Adc _adc;
+    private readonly AnalogInputs _analog = new([.. Stm8Adc.ChannelPins.Values], Vdd, 1024);
     private readonly int _imageBytes;
     private long _ticksPerMaster;
     private long _cpuDivider;
@@ -116,6 +127,9 @@ public sealed class Stm8s103 : SimulatedChip, IStm8Bus
         _tim1 = Stm8Timer16.Tim1(this, [(_ports[2], 6), (_ports[2], 7), (_ports[2], 3), (_ports[2], 4)], () => _ticksPerMaster);
         _tim2 = Stm8Timer16.Tim2(this, [(_ports[3], 4), (_ports[3], 3), (_ports[0], 3)], () => _ticksPerMaster);
         _uart = new Stm8Uart(this, "UART1", () => _ticksPerMaster);
+        _i2c = new Stm8I2c(this, new I2cBus("I2C0", Print), () => _ticksPerMaster);
+        _spi = new Stm8Spi(new SpiBus("SPI0", Print), () => _ticksPerMaster);
+        _adc = new Stm8Adc(_analog, () => _ticksPerMaster);
         Reset();
     }
 
@@ -158,6 +172,12 @@ public sealed class Stm8s103 : SimulatedChip, IStm8Bus
     public override ISerialInput? SerialInput => _uart;
 
     public override SerialMonitor? SerialOutput => _uart.Output;
+
+    public override IReadOnlyList<I2cBus> I2cBuses => [_i2c.Bus];
+
+    public override IReadOnlyList<SpiBus> SpiBuses => [_spi.Bus];
+
+    public override AnalogInputs Analog => _analog;
 
     public override int ImageBytes => _imageBytes;
 
@@ -312,6 +332,7 @@ public sealed class Stm8s103 : SimulatedChip, IStm8Bus
         14 => _tim2.ComparePending,
         17 => _uart.TransmitPending,
         18 => _uart.ReceivePending,
+        22 => _adc.InterruptPending,
         23 => _tim4.InterruptPending,
         _ => false,
     };
@@ -433,6 +454,9 @@ public sealed class Stm8s103 : SimulatedChip, IStm8Bus
         _tim1.Advance(masterClocks);
         _tim2.Advance(masterClocks);
         _uart.Advance(ticks);
+        _i2c.Advance(ticks);
+        _spi.Advance(ticks);
+        _adc.Advance(ticks);
         if (_iwdgRunning)
         {
             _iwdgTicks -= ticks;
@@ -493,7 +517,10 @@ public sealed class Stm8s103 : SimulatedChip, IStm8Bus
         return address switch
         {
             ClkIckr => (byte)((_io[offset] & 0x2D) | ((_io[offset] & 1) << 1) | ((_io[offset] & 0x08) << 1)),
+            >= Spi and < Spi + 8 => _spi.Read(address - Spi),
+            >= I2c and < I2c + 0x0F => _i2c.Read(address - I2c),
             >= Uart1 and < Uart1 + 11 => _uart.Read(address - Uart1),
+            >= Adc1 and < Adc1 + 0x10 => _adc.Read(address - Adc1),
             >= Tim1 and < Tim1 + 0x20 => _tim1.Read(address - Tim1),
             >= Tim2 and < Tim2 + 0x17 => _tim2.Read(address - Tim2),
             >= Tim4Base and < Tim4Base + 9 => _tim4.Read(address - Tim4Base),
@@ -533,8 +560,17 @@ public sealed class Stm8s103 : SimulatedChip, IStm8Bus
 
         switch (address)
         {
+            case >= Spi and < Spi + 8:
+                _spi.Write(address - Spi, value);
+                return;
+            case >= I2c and < I2c + 0x0F:
+                _i2c.Write(address - I2c, value);
+                return;
             case >= Uart1 and < Uart1 + 11:
                 _uart.Write(address - Uart1, value);
+                return;
+            case >= Adc1 and < Adc1 + 0x10:
+                _adc.Write(address - Adc1, value);
                 return;
             case >= Tim1 and < Tim1 + 0x20:
                 _tim1.Write(address - Tim1, value);
@@ -672,7 +708,6 @@ public sealed class Stm8s103 : SimulatedChip, IStm8Bus
         _io[IwdgRlr - IoStart] = 0xFF;
         _io[0x50D1 - IoStart] = 0x7F; // WWDG_CR, WR
         _io[0x50D2 - IoStart] = 0x7F;
-        _io[0x5203 - IoStart] = 0x02; // SPI_SR: TXE
         _io[0x50F1 - IoStart] = 0x3F; // AWU_APR
         _io[0x50F3 - IoStart] = 0x1F; // BEEP_CSR
         for (var spr = 0x70; spr < 0x78; spr++)
