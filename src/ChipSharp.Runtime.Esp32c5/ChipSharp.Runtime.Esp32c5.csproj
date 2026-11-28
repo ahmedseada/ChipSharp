@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- The runtime of ESP32-C5 programs (the ESP32-C5-DevKitC-1): the chip's first steps (the watchdogs, the CLIC's trap
-       mode) and its registers; on top of the RISC-V runtime -->
+  <!-- The runtime of ESP32-C5 programs (the ESP32-C5-DevKitC-1): the chip's first steps, the 160 MHz clock, pins, SYSTIMER's
+       delays and clock, the console on the USB Serial/JTAG port, UART0 and the events; on top of the RISC-V runtime -->
   <ItemGroup>
     <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
     <ProjectReference Include="..\ChipSharp.Runtime.Riscv32\ChipSharp.Runtime.Riscv32.csproj" />
@@ -9,6 +9,15 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="esp32c5_boot.c" LogicalName="esp32c5_boot.c" />
+    <EmbeddedResource Include="esp32c5_chip.h" LogicalName="esp32c5_chip.h" />
+    <EmbeddedResource Include="esp32c5_runtime.c" LogicalName="esp32c5_runtime.c" />
+    <EmbeddedResource Include="esp32c5_interrupts.c" LogicalName="esp32c5_interrupts.c" />
+    <EmbeddedResource Include="esp32c5_usb.c" LogicalName="esp32c5_usb.c" />
+    <EmbeddedResource Include="esp32c5_uart.c" LogicalName="esp32c5_uart.c" />
+    <EmbeddedResource Include="esp32c5_failures.c" LogicalName="esp32c5_failures.c" />
+    <!-- Console.Write and Console.WriteLine, and float and double as text, shared with the other runtimes -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_console.c" LogicalName="chipsharp_console.c" />
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_text.c" LogicalName="chipsharp_float_text.c" />
     <!-- the chip's registers, interrupt sources and pins, as ChipSharp.Chips writes them from Espressif's SVD and
          chips/esp32c5.json -->
     <EmbeddedResource Include="..\ChipSharp.Chips\Generated\esp32c5_registers.h" LogicalName="esp32c5_registers.h" />
