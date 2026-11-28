@@ -1,16 +1,16 @@
 // ChipSharp runtime for 32-bit RISC-V chips (RV32, machine mode): the reset handler.
 //
 // chipsharp_reset is where the program starts: the ELF's entry point, where the chip's boot ROM jumps (the ESP32-C5's,
-// once it has loaded the program into SRAM) or a debugger starts it. Nothing is set up: no stack, no global pointer, the
-// trap vector the ROM's own. In this order, it
+// once it has loaded the program into SRAM; the CH32V003's vector table's first entry, where its core starts) or a
+// debugger starts it. Nothing is set up: no stack, no global pointer, the trap vector the ROM's own. In this order, it
 //
 //   1. puts the global pointer in gp (__global_pointer$, the linker script's) and the stack pointer at the top of the
-//      stack (__chipsharp_stack_top), 16-byte aligned as RISC-V's ABI wants it;
+//      stack (__chipsharp_stack_top), 16-byte aligned as RISC-V's ABI wants it (ilp32e, RV32E's, wants 4);
 //   2. turns interrupts off (mstatus.MIE) and points mtvec at the runtime's trap entry (chipsharp_trap, riscv32_trap.S),
 //      direct mode, so that an exception from here on is the runtime's;
 //   3. calls chipsharp_chip_boot, the chip's first steps, before the variables are set up: what cannot wait, such as the
-//      watchdogs the ESP32-C5's ROM leaves running (or a CLIC's mode in mtvec). Empty unless the chip's runtime has
-//      one; it may use the stack, but no variable;
+//      watchdogs the ESP32-C5's ROM leaves running (or a CLIC's mode in mtvec, a PFIC's vector table). Empty unless
+//      the chip's runtime has one; it may use the stack, but no variable;
 //   4. jumps to chipsharp_start (riscv32_runtime.c), which sets up .data and .bss and runs the program.
 //
 // Interrupts stay off until the chip's runtime turns them on (chipsharp_chip_init, once it has set up what may

@@ -28,6 +28,7 @@ public sealed partial class ChipHeaderTests : IDisposable
     [InlineData("pfs154")]
     [InlineData("stm8s103f3")]
     [InlineData("esp32c5")]
+    [InlineData("ch32v003")]
     public void The_kept_headers_are_what_the_generator_makes_of_the_chips_description(string chip)
     {
         var headers = ChipFiles.Headers(chip);

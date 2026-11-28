@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The runtime of CH32V003 programs (WCH's CH32V003 evaluation board): the vector table at the start of flash, the
+       chip's first steps (HPE off, mtvec, the clock at 48 MHz); on top of the RISC-V runtime's E variant (riscv32e) -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+    <ProjectReference Include="..\ChipSharp.Runtime.Riscv32\ChipSharp.Runtime.Riscv32.csproj" />
+    <!-- EmbeddedText, which the ARMv6-M runtime ships and the others share -->
+    <ProjectReference Include="..\ChipSharp.Runtime.ArmV6M\ChipSharp.Runtime.ArmV6M.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="ch32v003_vector_table.S" LogicalName="ch32v003_vector_table.S" />
+    <EmbeddedResource Include="ch32v003_boot.c" LogicalName="ch32v003_boot.c" />
+    <!-- the chip's registers, interrupts and pins, as ChipSharp.Chips writes them from WCH's SVD and chips/ch32v003.json -->
+    <EmbeddedResource Include="..\ChipSharp.Chips\Generated\ch32v003_registers.h" LogicalName="ch32v003_registers.h" />
+    <EmbeddedResource Include="..\ChipSharp.Chips\Generated\ch32v003_interrupts.h" LogicalName="ch32v003_interrupts.h" />
+    <EmbeddedResource Include="..\ChipSharp.Chips\Generated\ch32v003_pins.h" LogicalName="ch32v003_pins.h" />
+  </ItemGroup>
+</Project>

@@ -38,6 +38,7 @@
     <ProjectReference Include="..\..\src\ChipSharp.Runtime.ArmV6M\ChipSharp.Runtime.ArmV6M.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Runtime.Atmega328p\ChipSharp.Runtime.Atmega328p.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Runtime.Avr\ChipSharp.Runtime.Avr.csproj" />
+    <ProjectReference Include="..\..\src\ChipSharp.Runtime.Ch32v003\ChipSharp.Runtime.Ch32v003.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Runtime.Esp32c5\ChipSharp.Runtime.Esp32c5.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Runtime.Pdk14\ChipSharp.Runtime.Pdk14.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Runtime.Pfs154\ChipSharp.Runtime.Pfs154.csproj" />
