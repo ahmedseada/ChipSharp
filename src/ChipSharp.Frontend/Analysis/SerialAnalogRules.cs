@@ -103,6 +103,9 @@ internal static class SerialAnalogRules
 
             case Pwm:
                 return Count(target, "pwm") == 0 ? Unsupported.NoHardware(Pwm, "PWM outputs", target.Name)
+                    : callee.Name == "Duty" && target.Capabilities.TryGetValue("double64", out var double64)
+                        && string.Equals(double64, "false", StringComparison.OrdinalIgnoreCase)
+                        ? Unsupported.DutyWithoutDouble(target.Name)
                     : PinProblem(target, "pwm", constant(0), "a PWM output");
 
             case PinType when callee.Name is "Watch" or "WatchRising" or "WatchFalling" or "Unwatch"

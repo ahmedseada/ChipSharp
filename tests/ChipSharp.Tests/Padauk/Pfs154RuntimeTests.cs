@@ -150,6 +150,8 @@ public sealed class Pfs154RuntimeTests(ITestOutputHelper output) : IDisposable
             Summary("Pin.Watch(0);\nPwm.Output(4, 1000);", "PwmPa4"));
         Assert.Contains("ChipSharp.Hardware.Uart needs a serial port (UART), and the target 'pfs154-bare' has none",
             Summary("Pin.Watch(8);\nUart.Open(0, 1, 2, 9600);", "Uart"));
+        Assert.Contains("Pwm.Duty takes a double, and the target 'pfs154-bare' has no 64-bit double",
+            Summary("Pin.Watch(0);\nPwm.Output(13, 1000);\nPwm.Duty(13, 0.5);", "Duty"));
     }
 
     [SdccFact]
