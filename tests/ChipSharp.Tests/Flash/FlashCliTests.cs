@@ -281,14 +281,20 @@ public sealed class FlashCliTests : IDisposable
             "flash", dll, "-t", "esp32c5-devkitc", "--port", "COM42", "-o", output, "--no-cache");
 
         Assert.True(exitCode == 0, error);
-        var bin = Path.Combine(output, name + ".bin");
+        // two images: the ESP-IDF app (Wokwi, 0x10000) and the ROM-direct one, which is what flash writes at 0x2000
+        var app = Path.Combine(output, name + ".bin");
+        var bin = Path.Combine(output, name + ".rom.bin");
         var lines = Lines(printed);
-        Assert.Equal(bin, lines[0]);
-        Assert.Matches(@"^SRAM \d+(\.\d)? (bytes|KB) of 369\.4 KB \(\d+\.\d%\) \(stack 16 KB reserved\)$", lines[1]);
+        Assert.Equal([app, bin], lines[..2]);
+        Assert.Matches(@"^SRAM \d+(\.\d)? (bytes|KB) of 369\.4 KB \(\d+\.\d%\) \(stack 16 KB reserved\)$", lines[2]);
+        Assert.Equal($"{name}.bin: the ESP-IDF app: upload it to Wokwi, or flash it at 0x10000 behind ESP-IDF's bootloader; " +
+            $"{name}.rom.bin: the ROM-direct image: chipsharp flash writes it at 0x2000, no bootloader", lines[3]);
         Assert.EndsWith(bin, esptool.CommandLine);
         Assert.Contains("write-flash 0x2000", esptool.CommandLine);
         var image = ChipSharp.Image.Esp.EspImage.Read(File.ReadAllBytes(bin));
         Assert.Equal(23, image.ChipId);
+        Assert.Equal([], ChipSharp.Image.Esp.EspIdfBootloaderRules.Check(File.ReadAllBytes(app)));
+        Assert.DoesNotContain(image.Segments, s => ChipSharp.Image.Esp.EspIdfBootloaderRules.IsMapped(s.Address));
         Assert.Equal("COM42: written and verified; the esp32c5-devkitc runs it", lines[^1]);
     }
 

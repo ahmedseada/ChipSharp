@@ -40,14 +40,37 @@ public sealed class EspImageFormat : IImageFormat
         ["80m"] = 0xF, ["40m"] = 0x0, ["20m"] = 0x2,
     };
 
-    public void Package(LinkedBinary binary, TargetDescription target, Stream output)
+    /// <summary>The suffix of the ROM-direct image: <c>Name.rom.bin</c>.</summary>
+    public const string RomSuffix = "rom";
+
+    public string MainMeaning => "the ESP-IDF app: upload it to Wokwi, or flash it at 0x10000 behind ESP-IDF's bootloader";
+
+    public IReadOnlyList<ImageVariant> Variants { get; } =
+    [
+        new ImageVariant(RomSuffix, "the ROM-direct image: chipsharp flash writes it at 0x2000, no bootloader", Flashed: true),
+    ];
+
+    /// <summary>The ESP-IDF app: <see cref="Make"/> with the two mapped segments.</summary>
+    public void Package(LinkedBinary binary, TargetDescription target, Stream output) => Package(binary, target, output, app: true);
+
+    public void PackageVariant(string suffix, LinkedBinary binary, TargetDescription target, Stream output)
+    {
+        if (suffix != RomSuffix)
+        {
+            throw new NotSupportedException($"The esp image has no variant '{suffix}'.");
+        }
+
+        Package(binary, target, output, app: false);
+    }
+
+    private static void Package(LinkedBinary binary, TargetDescription target, Stream output, bool app)
     {
         ArgumentNullException.ThrowIfNull(binary);
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(output);
 
         var elfSha256 = SHA256.HashData(File.ReadAllBytes(binary.Path));
-        var image = Make(ElfFile.Read(binary.Path), target, binary.Path, Path.GetFileNameWithoutExtension(binary.Path), elfSha256);
+        var image = Make(ElfFile.Read(binary.Path), target, binary.Path, Path.GetFileNameWithoutExtension(binary.Path), elfSha256, app);
         output.Write(image.Write());
     }
 
@@ -56,11 +79,13 @@ public sealed class EspImageFormat : IImageFormat
     /// When the program starts with ESP-IDF's application description (<see cref="EspAppDescription"/>, the first 256 bytes
     /// of its first segment: the target's "link.head" section), the image is also an app ESP-IDF's bootloader accepts
     /// (<see cref="EspIdfBootloaderRules"/>): the description gets <paramref name="projectName"/> and the .elf's
-    /// <paramref name="elfSha256"/>, the loaded segments must end below the bootloader's own SRAM, and two zero-length
-    /// segments at flash-mapped addresses follow (the C5's bootloader insists on two such segments, DROM and IROM; the
-    /// program has nothing mapped, and the target's "esp.mappedSegments" "false" leaves them out).
+    /// <paramref name="elfSha256"/>. With <paramref name="app"/> (the image ESP-IDF's bootloader starts, at flash offset
+    /// 0x10000) the loaded segments must end below the bootloader's own SRAM, and two zero-length segments at flash-mapped
+    /// addresses follow (the C5's bootloader insists on two such segments, DROM and IROM; the program has nothing mapped).
+    /// Without it (the ROM-direct image) the segments are only the program's, as esptool's elf2image makes them.
     /// </summary>
-    public static EspImage Make(ElfFile elf, TargetDescription target, string path, string? projectName = null, byte[]? elfSha256 = null)
+    public static EspImage Make(ElfFile elf, TargetDescription target, string path, string? projectName = null, byte[]? elfSha256 = null,
+        bool app = true)
     {
         ArgumentNullException.ThrowIfNull(elf);
         ArgumentNullException.ThrowIfNull(target);
@@ -114,7 +139,7 @@ public sealed class EspImageFormat : IImageFormat
 
         if (EspAppDescription.IsPresent(segments[0].Data))
         {
-            segments = IdfApp(segments, target, path, projectName, elfSha256);
+            segments = IdfApp(segments, path, projectName, elfSha256, app);
         }
 
         return new EspImage
@@ -133,8 +158,15 @@ public sealed class EspImageFormat : IImageFormat
     /// The segments of an app for ESP-IDF's bootloader: the description filled in, the end of the copied segments checked
     /// against the bootloader's SRAM, and the two mapped segments the C5's bootloader asserts on (EspIdfBootloaderRules).
     /// </summary>
-    private static List<EspSegment> IdfApp(List<EspSegment> segments, TargetDescription target, string path, string? projectName, byte[]? elfSha256)
+    private static List<EspSegment> IdfApp(List<EspSegment> segments, string path, string? projectName, byte[]? elfSha256, bool app)
     {
+        var result = segments.Select(s => new EspSegment(s.Address, s.Data)).ToList();
+        result[0] = new EspSegment(result[0].Address, EspAppDescription.Fill(result[0].Data, projectName, elfSha256));
+        if (!app)
+        {
+            return result;
+        }
+
         var last = segments[^1];
         var end = (ulong)last.Address + (ulong)((last.Data.Length + 3) / 4 * 4);
         if (end > EspIdfBootloaderRules.BootloaderRamStart)
@@ -143,32 +175,27 @@ public sealed class EspImageFormat : IImageFormat
                 $"'{path}' loads up to 0x{end - 1:x8}, but behind ESP-IDF's bootloader (Wokwi, or a devkit with its factory bootloader) " +
                 $"the image may only load below 0x{EspIdfBootloaderRules.BootloaderRamStart:x8}, where the bootloader's own SRAM starts " +
                 $"(its bootloader.ld: loading over it would overwrite the code that copies the image): {EspIdfBootloaderRules.BootloaderRamStart - segments[0].Address} " +
-                "bytes of code, constants and starting values at most. The program is too big for both ways of booting.");
+                "bytes of code, constants and starting values at most. A program this big cannot be an ESP-IDF app (the build makes both images).");
         }
 
-        var result = segments.Select(s => new EspSegment(s.Address, s.Data)).ToList();
-        result[0] = new EspSegment(result[0].Address, EspAppDescription.Fill(result[0].Data, projectName, elfSha256));
-        if (!string.Equals(target.Setting("esp.mappedSegments"), "false", StringComparison.OrdinalIgnoreCase))
+        // each mapped segment's data sits at an offset in its 64 KB flash page that is its address' offset in the MMU
+        // page (esp_image_format.c, verify_segment_header), and reaches into the page (a range of 0 bytes asserts)
+        while (true)
         {
-            // each mapped segment's data sits at an offset in its 64 KB flash page that is its address' offset in the MMU
-            // page (esp_image_format.c, verify_segment_header), and reaches into the page (a range of 0 bytes asserts)
-            while (true)
+            var first = EspImage.HeaderSize + EspImage.ExtendedHeaderSize
+                + result.Sum(s => EspImage.SegmentHeaderSize + (s.Data.Length + 3) / 4 * 4) + EspImage.SegmentHeaderSize;
+            if (first % EspIdfBootloaderRules.MmuPageSize != 0 && (first + EspImage.SegmentHeaderSize) % EspIdfBootloaderRules.MmuPageSize != 0)
             {
-                var first = EspImage.HeaderSize + EspImage.ExtendedHeaderSize
-                    + result.Sum(s => EspImage.SegmentHeaderSize + (s.Data.Length + 3) / 4 * 4) + EspImage.SegmentHeaderSize;
-                if (first % EspIdfBootloaderRules.MmuPageSize != 0 && (first + EspImage.SegmentHeaderSize) % EspIdfBootloaderRules.MmuPageSize != 0)
-                {
-                    result.Add(new EspSegment(EspIdfBootloaderRules.FlashMapStart + (uint)(first % EspIdfBootloaderRules.MmuPageSize), []));
-                    result.Add(new EspSegment(
-                        EspIdfBootloaderRules.FlashMapStart + EspIdfBootloaderRules.MmuPageSize
-                            + (uint)((first + EspImage.SegmentHeaderSize) % EspIdfBootloaderRules.MmuPageSize), []));
-                    break;
-                }
-
-                // (the one image in 16384 that would put a mapped segment's data at a page's start: 4 more bytes of zeros)
-                var tail = result[^1];
-                result[^1] = new EspSegment(tail.Address, [.. tail.Data, 0, 0, 0, 0]);
+                result.Add(new EspSegment(EspIdfBootloaderRules.FlashMapStart + (uint)(first % EspIdfBootloaderRules.MmuPageSize), []));
+                result.Add(new EspSegment(
+                    EspIdfBootloaderRules.FlashMapStart + EspIdfBootloaderRules.MmuPageSize
+                        + (uint)((first + EspImage.SegmentHeaderSize) % EspIdfBootloaderRules.MmuPageSize), []));
+                break;
             }
+
+            // (the one image in 16384 that would put a mapped segment's data at a page's start: 4 more bytes of zeros)
+            var tail = result[^1];
+            result[^1] = new EspSegment(tail.Address, [.. tail.Data, 0, 0, 0, 0]);
         }
 
         return result;

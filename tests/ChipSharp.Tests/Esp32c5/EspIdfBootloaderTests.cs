@@ -237,16 +237,30 @@ public sealed class EspIdfBootloaderTests : IDisposable
     }
 
     [Fact]
-    public void A_target_can_leave_the_mapped_segments_out_for_a_ROM_only_image()
+    public void The_ROM_image_has_only_the_programs_segments_with_the_description_and_is_not_an_IDF_app()
     {
-        var targets = new TargetLoader(TargetFiles.WithShipped(Path.Combine(_scratch, "targets"),
-            ("rom-only", """{ "inherits": "esp32c5-devkitc", "esp": { "mappedSegments": "false" } }""")));
+        var elf = EspImageTests.Elf(0x40800100, (0x40800000, Program(new byte[64])));
+        var board = Shipped.Load("esp32c5-devkitc");
 
-        var image = Image(64, targets.Load("rom-only"));
+        var rom = EspImageFormat.Make(elf, board, "app.elf", "blink", new byte[32], app: false);
+        var app = EspImageFormat.Make(elf, board, "app.elf", "blink", new byte[32]);
 
-        Assert.Single(image.Segments);
-        Assert.Equal("blink", EspAppDescription.Read(image.Segments[0].Data).ProjectName);
-        Assert.Contains(Check(image), m => m.Contains("rom_index == 2", StringComparison.Ordinal));
+        // the app's first segment, then two mapped ones; the ROM image only the first, byte for byte the same
+        Assert.Single(rom.Segments);
+        Assert.Equal(app.Segments[0].Data, rom.Segments[0].Data);
+        Assert.Equal("blink", EspAppDescription.Read(rom.Segments[0].Data).ProjectName);
+        Assert.DoesNotContain(rom.Segments, s => EspIdfBootloaderRules.IsMapped(s.Address));
+        Assert.Contains(EspIdfBootloaderRules.Check(rom.Write()), m => m.Contains("rom_index == 2", StringComparison.Ordinal));
+        Assert.Equal([], Check(app));
+        // the ROM may load up to the ROM's stack and data, which the bootloader's own SRAM does not allow
+        var big = EspImageTests.Elf(0x40800100, (0x40800000, Program(new byte[0x50000])));
+        Assert.Single(EspImageFormat.Make(big, board, "big.elf", null, null, app: false).Segments);
+        Assert.Contains("big.elf", Assert.Throws<ChipSharpException>(() => EspImageFormat.Make(big, board, "big.elf")).Message);
+
+        // the format names both
+        var format = new EspImageFormat();
+        Assert.Equal(["rom"], format.Variants.Select(v => v.Suffix));
+        Assert.True(format.Variants[0].Flashed);
     }
 
     /// <summary>A program that waits for an interrupt for ever: <c>csrsi mstatus, 8; wfi; j -4</c> (interrupts on, so the simulator does not take the wait for the end) after the description.</summary>

@@ -30,7 +30,23 @@ public interface IImageFormat : INamedComponent
     string Extension => Name;
 
     void Package(LinkedBinary binary, TargetDescription target, Stream output);
+
+    /// <summary>
+    /// Further images of the same program, each written beside the main one as <c>&lt;program&gt;.&lt;suffix&gt;.&lt;extension&gt;</c>
+    /// (none for most formats). The ESP image has one: the ROM-direct image <c>chipsharp flash</c> writes.
+    /// </summary>
+    IReadOnlyList<ImageVariant> Variants => [];
+
+    /// <summary>What the main image is for, when the format has <see cref="Variants"/>.</summary>
+    string MainMeaning => "";
+
+    /// <summary>Packages the variant with <paramref name="suffix"/> (one of <see cref="Variants"/>).</summary>
+    void PackageVariant(string suffix, LinkedBinary binary, TargetDescription target, Stream output) =>
+        throw new NotSupportedException($"The {Name} image has no variant '{suffix}'.");
 }
+
+/// <summary>An extra image of an <see cref="IImageFormat"/>: its file name suffix, what it is for, and whether <c>chipsharp flash</c> writes it.</summary>
+public sealed record ImageVariant(string Suffix, string Meaning, bool Flashed);
 
 /// <summary>
 /// Puts an image onto a real board, e.g. "uf2-copy", "avrdude", "esptool", "wch-link". The target is the board's,

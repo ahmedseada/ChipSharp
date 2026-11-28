@@ -141,7 +141,7 @@
   // 0x4084bba0 up to the ROM's stack at 0x4085e5a0: an image that loads further is a build error); chip id 23 and chip
   // revisions any; the checksum and SHA-256; and, because the C5's flash address space is shared for data and
   // instructions (SOC_MMU_DI_VADDR_SHARED), exactly two segments mapped from flash (0x42000000-0x43ffffff), which this
-  // image has as two zero-length ones (EspImageFormat: "mappedSegments" "false" leaves them out). EspIdfBootloaderRules has each rule.
+  // image (Name.bin) has as two zero-length ones; the ROM-direct image (Name.rom.bin, what flash writes at 0x2000) has none. EspIdfBootloaderRules has each rule.
   //
   // the image ("esp": src/ChipSharp.Image.Esp, esptool's esp32c5 target and bin_image.py): chipId is IMAGE_CHIP_ID, the
   // revisions are esptool's elf2image defaults (--min-rev-full 0, --max-rev-full 65535: any), the SPI flash settings the
