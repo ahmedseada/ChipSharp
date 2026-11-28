@@ -291,15 +291,21 @@ void ChipSharp_Runtime_PwmDuty(chipsharp_i32 pin, chipsharp_f64 duty) CHIPSHARP_
 // Pwm.PulseMicroseconds: how long the output is high at the start of each period.
 void ChipSharp_Runtime_PwmPulse(chipsharp_i32 pin, chipsharp_i32 microseconds) CHIPSHARP_REENTRANT;
 
-// Pwm.Stop: the pin back to an ordinary output, low.
+// Pwm.Stop: the pin no longer driven, as after start-up (an input); its timer is free again once nothing uses it.
 void ChipSharp_Runtime_PwmStop(chipsharp_i32 pin) CHIPSHARP_REENTRANT;
 
 // ---- Failure output and the stops (chip) ----------------------------------------------------------------------------
 //
 // A program that does what .NET throws an exception for says so (the architecture's failures file has .NET's
 // messages: "Unhandled exception. System.IndexOutOfRangeException: ...") and stops as a failure. How a program stops
-// is what a debugger or a simulator tells apart: a failure stops at a breakpoint (the Cortex-M's BKPT, the AVR's BREAK;
-// a chip without one loops where a debugger finds it), a program that ended sleeps for good with interrupts off.
+// is what a debugger or a simulator (rp2040js, avr8js, chipsim) tells apart, the same way on every chip:
+//
+//   it ended    the chip sleeps with nothing left to wake it: the Cortex-M's WFI (its events may still run: interrupts
+//               stay on), the AVR's SLEEP with interrupts off, the STM8's HALT (or WFI with no interrupt left to
+//               come), the Padauk's STOPSYS or STOPEXE
+//   it failed   the chip stops at its breakpoint: the Cortex-M's BKPT, the AVR's BREAK, the STM8's BREAK; the
+//               Padauk, which has none, runs its RESET instruction, which a simulator stops at (on the chip it starts
+//               the program again)
 
 // Where the failure messages go, a piece at a time, text in RAM: the console when the chip has one (sent before it
 // returns, polling: interrupts may be off), else nowhere. The architecture's runtime has an empty weak one.
@@ -309,10 +315,10 @@ void chipsharp_failure_write(const char *text, chipsharp_count count);
 // runtime has one (the architecture's is weak).
 void chipsharp_before_halt(void);
 
-// The program has ended: chipsharp_before_halt, then sleep for good.
+// The program has ended: chipsharp_before_halt, then sleep with nothing left to wake the chip (above).
 CHIPSHARP_NORETURN void chipsharp_halt(void);
 
-// The program failed: chipsharp_before_halt, then the failure stop.
+// The program failed: chipsharp_before_halt, then the failure stop: the breakpoint, or the Padauk's RESET (above).
 CHIPSHARP_NORETURN void chipsharp_halt_failure(void);
 
 // A pin, port, bus, frequency or mode the chip does not have, or a peripheral used before it was set up: "Unhandled

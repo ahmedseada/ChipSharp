@@ -170,6 +170,12 @@ internal abstract class ChipSimulator
     /// <summary>Null when programs build and run for this chip here; otherwise why not.</summary>
     public abstract string? Missing { get; }
 
+    /// <summary>
+    /// Null when a test that needs <paramref name="needs"/> (the hardware contract's guards) runs on this chip here;
+    /// otherwise why not: <see cref="Missing"/>, or a part of the hardware the simulator does not model yet.
+    /// </summary>
+    public virtual string? MissingFor(IReadOnlyList<string> needs) => Missing;
+
     public abstract ChipPins Pins { get; }
 
     public abstract ChipTolerances Tolerances { get; }
