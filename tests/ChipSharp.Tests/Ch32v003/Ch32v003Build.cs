@@ -7,6 +7,8 @@ using ChipSharp.Frontend.Lowering;
 using ChipSharp.Hardware;
 using ChipSharp.Image.Uf2;
 using ChipSharp.Runtime.Ch32v003;
+using ChipSharp.Simulators;
+using ChipSharp.Simulators.Ch32v003;
 using ChipSharp.Targets;
 using ChipSharp.Tests.Pico;
 using ChipSharp.Tests.Support;
@@ -16,6 +18,19 @@ namespace ChipSharp.Tests.Ch32v003;
 
 /// <summary>A program built for the CH32V003: the linked .elf, and what the ELF reader makes of it.</summary>
 internal sealed record Ch32v003Program(string Elf, ElfFile File);
+
+/// <summary>
+/// A run of a <see cref="Ch32v003Program"/> in chipsim's ch32v003 (<see cref="Ch32v003Build.Run"/>): what it printed,
+/// the simulation, and which of the functions watched it called.
+/// </summary>
+internal sealed record Ch32v003Run(byte[] Output, SimulationResult Simulation, IReadOnlySet<string> Called)
+{
+    /// <summary>True when the program ended (chipsharp_halt's wfi with interrupts off), not failed nor stopped by the time.</summary>
+    public bool Ended => Simulation.ExitCode == 0 &&
+        Simulation.Stopped.StartsWith("stopped: the program has finished", StringComparison.Ordinal);
+
+    public override string ToString() => $"printed:\n{System.Text.Encoding.UTF8.GetString(Output)}\n{Simulation}";
+}
 
 /// <summary>
 /// Builds C# for WCH's CH32V003 evaluation board the whole way to its .elf, as <c>chipsharp build -t ch32v003-evt</c>
@@ -118,6 +133,43 @@ internal static class Ch32v003Build
         var binary = new ClangToolchain(new ClangToolchainOptions { OutputFolder = folder, ProgramName = name })
             .Build(code, target);
         return new Ch32v003Program(binary.Path, ElfFile.Read(binary.Path));
+    }
+
+    /// <summary>
+    /// Runs <paramref name="program"/> (built with the tests' console, <see cref="WithConsole"/>) in chipsim's ch32v003 for
+    /// at most <paramref name="milliseconds"/> of simulated time: what it printed is the bytes of every call of
+    /// chipsharp_console_write (a0, a1), read as it is called; <paramref name="watched"/> are functions whose calls are
+    /// noted (a failure's, the stack check's).
+    /// </summary>
+    public static Ch32v003Run Run(Ch32v003Program program, double milliseconds, params string[] watched)
+    {
+        var symbols = program.File.Symbols;
+        var output = new List<byte>();
+        var called = new HashSet<string>(StringComparer.Ordinal);
+        var hooks = new Dictionary<int, Action<SimulatedChip>>();
+        foreach (var name in watched)
+        {
+            if (symbols.TryGetValue(name, out var address))
+            {
+                hooks[(int)address] = _ => called.Add(name);
+            }
+        }
+
+        if (symbols.TryGetValue("chipsharp_console_write", out var write))
+        {
+            hooks[(int)write] = chip =>
+            {
+                var ch32 = (Ch32v003Chip)chip;
+                for (uint i = 0, bytes = ch32.Cpu.X[10], count = ch32.Cpu.X[11]; i < count; i++)
+                {
+                    output.Add((byte)ch32.Read(bytes + i, 1));
+                }
+            };
+        }
+
+        var run = Simulation.Run(new SimulationOptions { Chip = "ch32v003", Image = program.Elf, Milliseconds = milliseconds },
+            setUp: chip => chip.Hooks = hooks);
+        return new Ch32v003Run([.. output], run, called);
     }
 
     /// <summary>The shared console's C (and, without a heap, the text of floats it prints with), and the sink.</summary>

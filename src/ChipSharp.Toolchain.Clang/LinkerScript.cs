@@ -155,7 +155,7 @@ internal static class LinkerScript
             ? $"  /* down to its own region at most: the heap is below it */\n  {StackBottom} = ORIGIN({StackRegion});"
             : $"  /* down to the variables at most: the stack has all the RAM they leave */\n  {StackBottom} = {BssEnd};");
         Line($"  /* a function that checks the stack stops the program below this (see LlvmStackChecks) */");
-        Line($"  {StackLimit} = {StackBottom} + {Hex(StackMargin(stack))};");
+        Line($"  {StackLimit} = {StackBottom} + {Hex(settings.StackMargin ?? StackMargin(stack))};");
         Line("}");
         return text.ToString();
     }
@@ -275,7 +275,7 @@ internal static class LinkerScript
     /// <summary>
     /// How far above the stack's bottom the program stops with "Stack overflow.": room for what may run below the
     /// last function that checks the stack (the functions it calls that check nothing, the runtime's, an interrupt's
-    /// handler): a quarter of "link.stack", at most 1 KB.
+    /// handler): a quarter of "link.stack", at most 1 KB, unless the target's "link.stackMargin" says another.
     /// </summary>
     public static ulong StackMargin(ulong stack) => Math.Min(1024UL, stack / 4) & ~7UL;
 

@@ -7,7 +7,6 @@ using ChipSharp.Frontend.Il;
 using ChipSharp.Frontend.Lowering;
 using ChipSharp.Ir;
 using ChipSharp.Simulators;
-using ChipSharp.Simulators.Ch32v003;
 using ChipSharp.Tests.Ch32v003;
 using ChipSharp.Tests.Lowering;
 using ChipSharp.Tests.Sdcc;
@@ -181,40 +180,12 @@ internal static class BackendRun
             return BackendOutcome.Skip(reason, e.Message);
         }
 
-        var symbols = program.File.Symbols;
-        var output = new List<byte>();
-        var overflowed = false;
-        var hooks = new Dictionary<int, Action<SimulatedChip>>();
-        if (symbols.TryGetValue("chipsharp_console_write", out var write))
-        {
-            // chipsharp_console_write(bytes, count): a0 and a1, as the function starts
-            hooks[(int)write] = chip =>
-            {
-                var ch32 = (Ch32v003Chip)chip;
-                for (uint i = 0, bytes = ch32.Cpu.X[10], count = ch32.Cpu.X[11]; i < count; i++)
-                {
-                    output.Add((byte)ch32.Read(bytes + i, 1));
-                }
-            };
-        }
-
-        if (symbols.TryGetValue(CStackChecks.OverflowSymbol, out var overflow))
-        {
-            hooks[(int)overflow] = _ => overflowed = true;
-        }
-
-        var run = Simulation.Run(new SimulationOptions
-        {
-            Chip = target.Chip!,
-            Image = program.Elf,
-            Milliseconds = ChipMilliseconds,
-        }, setUp: chip => chip.Hooks = hooks);
-
-        var ended = run.Stopped.StartsWith("stopped: the program has finished", StringComparison.Ordinal);
-        var errors = ended && run.ExitCode == 0 ? "" : $"{run.Stopped} (exit code {run.ExitCode}){Environment.NewLine}{run.Output}";
-        return overflowed
+        var run = Ch32v003Build.Run(program, ChipMilliseconds, CStackChecks.OverflowSymbol);
+        var errors = run.Ended ? "" : $"{run.Simulation.Stopped} (exit code {run.Simulation.ExitCode}){Environment.NewLine}" +
+            run.Simulation.Output;
+        return run.Called.Contains(CStackChecks.OverflowSymbol)
             ? BackendOutcome.Skip(BackendSkips.Stack, errors)
-            : new BackendOutcome(null, null, new ProgramRun([.. output], ended ? run.ExitCode : 1, errors), null);
+            : new BackendOutcome(null, null, new ProgramRun(run.Output, run.Ended ? 0 : 1, errors), null);
     }
 
     private static BackendOutcome OnTheChip(BackendTarget target, string file, string source, string folder)

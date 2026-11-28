@@ -123,7 +123,8 @@ public sealed partial class Ch32v003LinkTests : IDisposable
         Assert.Contains("} > sram AT > flash", script);
         Assert.Contains("__global_pointer$ = . + 0x800;", script);
         Assert.Contains("__chipsharp_stack_top = ORIGIN(stack) + LENGTH(stack);", script);
-        Assert.Contains("__chipsharp_stack_limit = __chipsharp_stack_bottom + 0x80;", script); // a quarter of 512
+        // "link.stackMargin": room for the text of a double and an interrupt below a function that checks the stack
+        Assert.Contains("__chipsharp_stack_limit = __chipsharp_stack_bottom + 0x380;", script);
     }
 
     [PicoFact]
