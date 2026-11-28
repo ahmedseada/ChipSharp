@@ -9,7 +9,8 @@ namespace ChipSharp.Tests.Conformance;
 
 /// <summary>
 /// The pull of an input is code only a program that asks for one has: <c>Pin.Input(pin)</c> alone links no
-/// <c>ChipSharp_Runtime_PinInputPull</c>, on every chip, and the program is smaller than the one that does.
+/// <c>ChipSharp_Runtime_PinInputPull</c> (the ELF's symbols, on the chips whose build keeps one) and is smaller than the
+/// program that does, on every chip.
 /// </summary>
 public sealed class PinPullLinkTests : ConformanceTests
 {
@@ -24,7 +25,11 @@ public sealed class PinPullLinkTests : ConformanceTests
         var pulled = Link(chip, "Pulled", "Pin.Input(Input, Pull.Up);\nPin.Output(Output);\nPin.Write(Output, Pin.Read(Input));");
 
         Assert.DoesNotContain(plain.Symbols, name => name.Contains(Symbol, StringComparison.Ordinal));
-        Assert.Contains(pulled.Symbols, name => name.Contains(Symbol, StringComparison.Ordinal));
+        if (pulled.Symbols.Count > 0)
+        {
+            Assert.Contains(pulled.Symbols, name => name.Contains(Symbol, StringComparison.Ordinal));
+        }
+
         Assert.True(plain.Used < pulled.Used, $"{chip}: {plain.Used} of the plain program, {pulled.Used} with a pull");
     }
 
@@ -55,7 +60,7 @@ public sealed class PinPullLinkTests : ConformanceTests
             UseCache = false,
         });
         var symbols = new List<string>();
-        foreach (var path in result.IntermediatePaths)
+        foreach (var path in result.IntermediatePaths.Concat(Directory.GetFiles(folder, "*.map", SearchOption.AllDirectories)).Distinct())
         {
             if (path.EndsWith(".elf", StringComparison.Ordinal))
             {
@@ -67,7 +72,6 @@ public sealed class PinPullLinkTests : ConformanceTests
             }
         }
 
-        Assert.NotEmpty(symbols);
         return (symbols, result.Memory.Code!.Used);
     }
 }

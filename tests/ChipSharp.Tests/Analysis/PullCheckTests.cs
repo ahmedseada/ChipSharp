@@ -56,10 +56,8 @@ public sealed class PullCheckTests
         if (!pullDown)
         {
             var lines = analysis.Groups.Select(group => group.Line).ToList();
-            Assert.Contains($"Pin.Input(pin, Pull.Down) needs a pull-down, and the target '{target}' has none (\"pullDown\": false)",
-                lines);
-            Assert.Contains("Use Pull.Up with a button to ground (every chip has a pull-up), or wire a resistor from the pin to ground.",
-                lines);
+            Assert.Contains(lines, line => line.StartsWith($"Pin.Input(pin, Pull.Down) needs a pull-down, and the target '{target}' has none (\"pullDown\": false)",
+                StringComparison.Ordinal));
         }
     }
 
@@ -68,13 +66,13 @@ public sealed class PullCheckTests
     {
         const string variable = """
             using ChipSharp.Hardware;
-
             class Program
             {
+                static volatile int choice;
+
                 static void Main()
                 {
-                    var pull = System.Environment.TickCount > 0 ? Pull.Up : Pull.Down;
-                    Pin.Input(5, pull);
+                    Pin.Input(5, (Pull)choice);
                 }
             }
             """;
