@@ -219,8 +219,8 @@ public sealed class Stm8FlashFlasher : IFlasher
         var named = stLinks.Where(link => link.Kind.Programmer == programmer).ToList();
         if (named.Count == 0)
         {
-            return $"The ST-LINKs plugged in are {string.Join(", ", stLinks.Select(link => link.Device))}, none a " +
-                $"{StLinks.Name(programmer)}: give the one to use (stm8flash's -c) in the target's \"stm8flash.programmer\" " +
+            return $"The ST-LINKs plugged in are {string.Join(", ", stLinks.Select(link => link.Device))}, not the " +
+                $"board's {StLinks.Name(programmer)}: give the one to use (stm8flash's -c) in the target's \"stm8flash.programmer\" " +
                 $"({string.Join(", ", StLinks.Kinds.Select(kind => $"{kind.Programmer}: {kind.Name}"))}).";
         }
 

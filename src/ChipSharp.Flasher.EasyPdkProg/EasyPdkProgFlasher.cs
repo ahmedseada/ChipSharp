@@ -19,19 +19,28 @@ namespace ChipSharp.Flasher.EasyPdkProg;
 /// known (macOS), easypdkprog's own search (<see cref="ProgrammerPorts.Choose"/>). easypdkprog itself is found by
 /// <see cref="FindEasyPdkProg"/>.
 /// <para>
-/// Calibration: the PFS154's internal oscillator (IHRC) is trimmed by its register IHRCR. easypdkprog trims it for the
-/// program, after writing it, when the program asks: Free-PDK's <c>EASY_PDK_CALIBRATE_IHRC(frequency, millivolts)</c>
-/// in the start-up code, reached right after CLKMD selects the system clock, is ten <c>and a, #k</c> words that do
-/// nothing but mark the place: 'R', 'C', 1 (the IHRC; 2 is the ILRC), the system clock's frequency in 4 bytes and the
-/// supply in millivolts in 2, low byte first, then IHRCR's address (0x0b). easypdkprog finds them, puts a loop there
-/// that it times through PA3 and PA4, runs the chip at that supply, tunes IHRCR until the loop runs at the frequency
-/// (within 10%, else it fails), and then writes the loop over as NOPs around <c>mov a, #trim; mov ihrcr, a</c> (a word
-/// can be written again where its bits only go from 1 to 0, and a NOP is 0). ChipSharp always lets it (it never passes
-/// <c>--nocalibrate</c>), and shows each result. A program without the marker is written as it is: then the PFS154 has
-/// the factory's trim for 16 MHz, a <c>ret k</c> at word 0x7ed (<c>call 0x7ed; mov ihrcr, a</c>), which easypdkprog
-/// never erases (it leaves words 0x7e0-0x7ef alone). The PDK14 runtime's start-up is to load the factory trim, set
-/// CLKMD to the board's clock (pfs154-bare: IHRC / 8, 2 MHz), then hold the marker for that clock: trimmed when it is
-/// written with easypdkprog, the factory's in the simulator (chipsim gives the factory word).
+/// Calibration: the PFS154's internal oscillator (IHRC, 16 MHz) is trimmed by its register IHRCR (I/O 0x0b). easypdkprog
+/// trims it for the program, after writing it, when the program asks with a marker: Free-PDK's
+/// <c>EASY_PDK_CALIBRATE_IHRC(frequency, millivolts)</c>, ten consecutive <c>and a, #k</c> words (PDK14: 0x2c00 | k),
+/// which do nothing but clobber A and the flags: 'R' (0x52), 'C' (0x43), 1 (the IHRC; 2 would be the ILRC), the
+/// system clock's frequency in hertz in 4 bytes and the supply during calibration in millivolts in 2, each low byte
+/// first, then IHRCR's address, 0x0b (<see cref="IhrcCalibrationMarker"/>). easypdkprog finds the words in the image,
+/// writes a loop in their place that it times through PA3 (out) and PA4 (in), runs the chip at that supply, tunes IHRCR
+/// until the system clock is the frequency (within 10%, else "Calibration failed"), and then writes the ten words again
+/// as <c>nop, nop, mov a, #trim, nop, nop, mov ihrcr, a, nop, nop, nop, nop</c> (a word can be written again where its
+/// bits only go from 1 to 0, and a NOP is 0). ChipSharp always lets it (it never passes <c>--nocalibrate</c>), and shows
+/// each result. Without easypdkprog's calibration (in the simulator, or written with <c>--nocalibrate</c>) the words
+/// stay ANDs and IHRCR keeps what it had; the PFS154's factory trim for 16 MHz is a <c>ret k</c> at word 0x7ed, which
+/// easypdkprog never erases (it leaves words 0x7e0-0x7ef alone) and chipsim gives.
+/// </para>
+/// <para>
+/// So the PDK14 runtime's start-up, before main and before anything else (interrupts off, PA3 and PA4 left as they are
+/// after reset), is: <c>call 0x7ed; mov ihrcr, a</c> (the factory trim); <c>mov a, #0x3c; mov clkmd, a</c> for the
+/// pfs154-bare's IHRC / 8 (CLKMD 0x3c: IHRC and ILRC on, IHRC / 8, the watchdog off; another divider for another
+/// "clock"); then, at once, the marker for the target's "clockHz" at 5000 mV (the Easy PDK programmer's 5.0 V), as
+/// inline assembly that SDCC keeps word for word: for 2 MHz <c>and a, #0x52 / #0x43 / #0x01 / #0x80 / #0x84 / #0x1e /
+/// #0x00 / #0x88 / #0x13 / #0x0b</c>. The marker must reach the image exactly once for the IHRC, in code that runs once,
+/// and nothing may rely on A across it.
 /// </para>
 /// </summary>
 public sealed partial class EasyPdkProgFlasher : IFlasher
@@ -160,6 +169,26 @@ public sealed partial class EasyPdkProgFlasher : IFlasher
         return match.Success && int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture) >= 10
             ? $@"\\.\{port.Trim()}"
             : port.Trim();
+    }
+
+    /// <summary>
+    /// The ten PDK14 words of the marker that asks easypdkprog to trim the IHRC (Free-PDK's
+    /// <c>EASY_PDK_CALIBRATE_IHRC</c>): <c>and a, #k</c> (0x2c00 | k) for 'R', 'C', 1, the system clock's
+    /// <paramref name="frequency"/> in hertz (4 bytes) and the <paramref name="millivolts"/> of the supply during
+    /// calibration (2 bytes), each low byte first, and IHRCR's address (0x0b). In the .hex each word is two bytes, low
+    /// first (0x52, 0x2c, 0x43, 0x2c, ...).
+    /// </summary>
+    public static IReadOnlyList<ushort> IhrcCalibrationMarker(uint frequency, ushort millivolts)
+    {
+        const ushort AndA = 0x2c00;
+        byte[] values =
+        [
+            (byte)'R', (byte)'C', 1,
+            (byte)frequency, (byte)(frequency >> 8), (byte)(frequency >> 16), (byte)(frequency >> 24),
+            (byte)millivolts, (byte)(millivolts >> 8),
+            0x0b,
+        ];
+        return [.. values.Select(value => (ushort)(AndA | value))];
     }
 
     /// <summary>

@@ -11,6 +11,7 @@ internal sealed class FakeTool
     public FakeTool(string folder, string name, int exitCode = 0, params string[] said)
     {
         Directory.CreateDirectory(folder);
+        Name = name;
         Path = System.IO.Path.Combine(folder, $"{name}.cmd");
         Arguments = System.IO.Path.Combine(folder, "arguments.txt");
         var lines = new List<string> { "@echo off", $">\"%~dp0arguments.txt\" echo %*" };
@@ -18,6 +19,9 @@ internal sealed class FakeTool
         lines.Add($"exit /b {exitCode}");
         File.WriteAllText(Path, string.Join("\r\n", lines) + "\r\n");
     }
+
+    /// <summary>The tool's name, e.g. "avrdude".</summary>
+    public string Name { get; }
 
     /// <summary>The batch file, to run as the tool.</summary>
     public string Path { get; }
