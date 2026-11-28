@@ -6,6 +6,7 @@ using ChipSharp.Flasher.EasyPdkProg;
 using ChipSharp.Flasher.Esptool;
 using ChipSharp.Flasher.Stm8Flash;
 using ChipSharp.Flasher.Uf2Copy;
+using ChipSharp.Image.Bin;
 using ChipSharp.Image.Esp;
 using ChipSharp.Image.Hex;
 using ChipSharp.Image.Uf2;
@@ -78,7 +79,8 @@ public static class DefaultComponents
             .Register(new Stm8s103Runtime())        // runtime "stm8s103f3": the blue STM8S103 board, on the runtime "stm8"
             .Register(new Uf2ImageFormat())         // image "uf2"
             .Register(new IntelHexImageFormat())    // image "hex": Intel HEX (an AVR's flash; SDCC's .ihx)
-            .Register(new EspImageFormat()));       // image "esp": the ESP application image the ESP32-C5's ROM loads (.bin)
+            .Register(new EspImageFormat())         // image "esp": the ESP application image the ESP32-C5's ROM loads (.bin)
+            .Register(new BinImageFormat()));       // image "bin": the raw bytes of the flash, from its origin (the CH32V003's)
     }
 
     /// <summary>
@@ -89,7 +91,7 @@ public static class DefaultComponents
 
     /// <summary>The file extension of the image format <paramref name="name"/> (without the dot): its name unless it says another.</summary>
     public static string ImageExtension(string name) =>
-        new IImageFormat[] { new Uf2ImageFormat(), new IntelHexImageFormat(), new EspImageFormat() }
+        new IImageFormat[] { new Uf2ImageFormat(), new IntelHexImageFormat(), new EspImageFormat(), new BinImageFormat() }
             .FirstOrDefault(format => string.Equals(format.Name, name, StringComparison.OrdinalIgnoreCase))?.Extension ?? name;
 
     private static ComponentRegistry RegisterFlashers(ComponentRegistry registry) => registry

@@ -32,6 +32,7 @@
     <ProjectReference Include="..\..\src\ChipSharp.Flasher.Uf2Copy\ChipSharp.Flasher.Uf2Copy.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Frontend\ChipSharp.Frontend.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Hardware\ChipSharp.Hardware.csproj" />
+    <ProjectReference Include="..\..\src\ChipSharp.Image.Bin\ChipSharp.Image.Bin.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Image.Esp\ChipSharp.Image.Esp.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Image.Hex\ChipSharp.Image.Hex.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Image.Uf2\ChipSharp.Image.Uf2.csproj" />

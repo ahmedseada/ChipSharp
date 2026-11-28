@@ -10,6 +10,7 @@
     <ProjectReference Include="..\ChipSharp.Flasher.Stm8Flash\ChipSharp.Flasher.Stm8Flash.csproj" />
     <ProjectReference Include="..\ChipSharp.Flasher.Uf2Copy\ChipSharp.Flasher.Uf2Copy.csproj" />
     <ProjectReference Include="..\ChipSharp.Frontend\ChipSharp.Frontend.csproj" />
+    <ProjectReference Include="..\ChipSharp.Image.Bin\ChipSharp.Image.Bin.csproj" />
     <ProjectReference Include="..\ChipSharp.Image.Esp\ChipSharp.Image.Esp.csproj" />
     <ProjectReference Include="..\ChipSharp.Image.Hex\ChipSharp.Image.Hex.csproj" />
     <ProjectReference Include="..\ChipSharp.Image.Uf2\ChipSharp.Image.Uf2.csproj" />

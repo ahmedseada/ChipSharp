@@ -47,6 +47,7 @@
     <Project Path="src/ChipSharp.Flasher.Uf2Copy/ChipSharp.Flasher.Uf2Copy.csproj" />
     <Project Path="src/ChipSharp.Frontend/ChipSharp.Frontend.csproj" />
     <Project Path="src/ChipSharp.Hardware/ChipSharp.Hardware.csproj" />
+    <Project Path="src/ChipSharp.Image.Bin/ChipSharp.Image.Bin.csproj" />
     <Project Path="src/ChipSharp.Image.Esp/ChipSharp.Image.Esp.csproj" />
     <Project Path="src/ChipSharp.Image.Hex/ChipSharp.Image.Hex.csproj" />
     <Project Path="src/ChipSharp.Image.Uf2/ChipSharp.Image.Uf2.csproj" />
