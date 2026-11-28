@@ -21,7 +21,7 @@ chipsharp build bin\Release\net10.0\Pfs154TimerBlink.dll -t pfs154-bare
 chipsharp flash bin\Release\net10.0\Pfs154TimerBlink.dll -t pfs154-bare
 ```
 
-It takes **600 words** of the 2048 words of program memory and **23 bytes** of the 128 bytes of RAM (the timer event
+It takes **612 words** of the 2048 words of program memory and **23 bytes** of the 128 bytes of RAM (the timer event
 and the clock it runs on). `flash` writes it with the Easy PDK programmer (`easypdkprog`), as `pfs154-blink`'s README
 says.
 
