@@ -6,9 +6,11 @@ namespace ChipSharp.Runtime.ArmV6M;
 /// The runtime parts every ARMv6-M chip (Cortex-M0 and M0+: RP2040, STM32F0/G0/C0, ...) shares, as freestanding C
 /// and assembly that the toolchain compiles with the program:
 /// <list type="bullet">
+/// <item><see cref="HardwareContract.HeaderFileName"/>: the hardware contract (src/ChipSharp.Runtime.Shared), the
+/// functions every chip's runtime provides, which every chip runtime's C file includes.</item>
 /// <item><see cref="StartupFileName"/>: the reset handler <c>chipsharp_reset</c>, which copies .data, zeroes .bss,
 /// calls <c>chipsharp_chip_init</c> (empty unless the chip's runtime defines it), runs <c>chipsharp_entry</c> and
-/// then sleeps forever.</item>
+/// then sleeps forever; and the contract's <c>chipsharp_halt</c> and <c>chipsharp_before_halt</c> (weak).</item>
 /// <item><see cref="HelpersFileName"/> and <see cref="DivModFileName"/>: the functions LLVM calls for what ARMv6-M
 /// has no instruction for (32- and 64-bit division, 64-bit multiply and shifts, memory copies), written with
 /// 32-bit operations only.</item>
@@ -79,6 +81,7 @@ public sealed class ArmV6MRuntime : IArchRuntime
         ArgumentNullException.ThrowIfNull(target);
         return new RuntimeSources(
         [
+            Source(HardwareContract.HeaderFileName),
             Source(StartupFileName), Source(HelpersFileName), Source(DivModFileName), Source(FloatCompareFileName),
             Source(FloatMathFileName), .. MathFileNames.Select(Source), .. CompilerRt.Sources(), Source(FailuresFileName), Source(StringFileName),
             Source(ExceptionsFileName),

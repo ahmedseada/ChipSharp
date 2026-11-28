@@ -45,6 +45,8 @@
 // A C# int is 32 bits: a long in AVR's C, whose int has 16. A double is 64 bits: this file, like the whole runtime, is
 // compiled with -mdouble=64.
 
+#include "chipsharp_hardware.h"
+
 typedef long chipsharp_int;
 typedef unsigned int count_t;
 

@@ -1,4 +1,5 @@
 using ChipSharp.Abstractions;
+using ChipSharp.Backend.C;
 using ChipSharp.Backend.Llvm;
 using ChipSharp.Flasher.Avrdude;
 using ChipSharp.Flasher.EasyPdkProg;
@@ -52,6 +53,7 @@ public static class DefaultComponents
         // the name it gives itself.
         return RegisterFlashers(new ComponentRegistry()
             .Register(new LlvmCodeGenerator())      // backend "llvm"
+            .Register(new CCodeGenerator())         // backend "c": portable C99, for SDCC's chips (and clang's)
             .Register(new ClangToolchain(clang))    // toolchain "clang"
             .Register(new ClangToolchain(clang with { Driver = ClangDriver.Zig })) // toolchain "zig": AVR
             .Register(new SdccToolchain(sdcc))      // toolchain "sdcc": Padauk (pdk14) and STM8 chips, through C

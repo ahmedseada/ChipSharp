@@ -22,6 +22,8 @@
 // A bus, pin, frequency or mode the chip does not have, or a bus that is not open, stops the program
 // (chipsharp_hardware_failure, atmega328p_failures.c) with a message that says what to do.
 
+#include "chipsharp_hardware.h"
+
 typedef unsigned char u8;
 typedef unsigned int u16;
 typedef long i32;

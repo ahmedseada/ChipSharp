@@ -37,6 +37,8 @@
 // output is in use, D11 while the SPI bus has it, and a pin used before Pwm.Output stop the program
 // (chipsharp_hardware_failure, atmega328p_failures.c) with a message that says what to do.
 
+#include "chipsharp_hardware.h"
+
 typedef unsigned char u8;
 typedef signed char i8;
 typedef unsigned int u16;

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Chips as data: the model of a chip's registers, fields, interrupts, pins and memory; its two readers (ChipSharp's
+       own JSON description, CMSIS-SVD); and the generators of the C headers the runtimes use (registers, interrupts,
+       pins), for SDCC and for clang and GCC -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+    <ProjectReference Include="..\ChipSharp.Targets\ChipSharp.Targets.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ChipSharp.Tests" />
+  </ItemGroup>
+</Project>

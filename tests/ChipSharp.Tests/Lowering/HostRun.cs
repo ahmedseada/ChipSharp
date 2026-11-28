@@ -30,21 +30,33 @@ internal static class HostRun
         new(StringComparer.Ordinal);
 
     /// <summary>Builds <paramref name="module"/> into <paramref name="folder"/> as a Windows program and runs it.</summary>
-    public static async Task<ProgramRun> BuildAndRunAsync(TirModule module, string folder)
+    public static Task<ProgramRun> BuildAndRunAsync(TirModule module, string folder) =>
+        BuildAndRunAsync(module, folder, Targets.Load("host"));
+
+    /// <summary>
+    /// Builds <paramref name="module"/> into <paramref name="folder"/> as a Windows program for <paramref name="target"/>
+    /// (the "host" target or one like it, such as "host-c") with the code generator its "backend" names, and runs it:
+    /// how one program goes through every backend on the PC.
+    /// </summary>
+    public static async Task<ProgramRun> BuildAndRunAsync(TirModule module, string folder, TargetDescription target)
     {
-        var host = Targets.Load("host");
         IArchRuntime runtime = new WindowsX64Runtime();
         var code = new GeneratedCode(
         [
-            .. new LlvmCodeGenerator().Generate(module, host).Files,
-            .. runtime.Startup(host).Files,
-            .. runtime.InterruptEntry(host).Files,
-            .. runtime.Atomics(host).Files,
+            .. CodeGenerators.Get<ICodeGenerator>(target.Backend).Generate(module, target).Files,
+            .. runtime.Startup(target).Files,
+            .. runtime.InterruptEntry(target).Files,
+            .. runtime.Atomics(target).Files,
         ]);
 
-        var binary = new ClangToolchain(new ClangToolchainOptions { OutputFolder = folder }).Build(code, host);
+        var binary = new ClangToolchain(new ClangToolchainOptions { OutputFolder = folder }).Build(code, target);
         return await RunAsync(binary.Path, [], folder);
     }
+
+    /// <summary>Every code generator, by the name a target's "backend" gives.</summary>
+    private static readonly ComponentRegistry CodeGenerators = new ComponentRegistry()
+        .Register(new LlvmCodeGenerator())
+        .Register(new ChipSharp.Backend.C.CCodeGenerator());
 
     /// <summary>
     /// Runs a compiled C# program on .NET (the version the tests run on) the way samples/update-expected.ps1 makes the

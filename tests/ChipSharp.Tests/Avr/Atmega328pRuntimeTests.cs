@@ -7,6 +7,7 @@ using ChipSharp.Frontend;
 using ChipSharp.Runtime.Atmega328p;
 using ChipSharp.Runtime.Avr;
 using ChipSharp.Runtime.Windows;
+using ChipSharp.Tests.Contract;
 using ChipSharp.Tests.Llvm;
 using ChipSharp.Tests.Pico;
 
@@ -68,7 +69,8 @@ public sealed class Atmega328pRuntimeTests : IDisposable
             runtime.InterruptEntry(uno).Files.Select(f => f.FileName));
         Assert.Empty(runtime.Atomics(uno).Files);
         Assert.Equal(WindowsX64Runtime.Console, files.Single(f => f.FileName == Atmega328pRuntime.ConsoleFileName).Content);
-        Assert.All(OwnFiles, name => Assert.DoesNotContain("#include", Own(name)));
+        Assert.All(OwnFiles, name => Assert.DoesNotContain("#include",
+            HardwareHeader.WithoutInclude(Own(name))));
     }
 
     [Fact]
@@ -161,6 +163,8 @@ public sealed class Atmega328pRuntimeTests : IDisposable
         var flags = Uno.Flags;
         var defined = new HashSet<string>(StringComparer.Ordinal);
         var undefined = new HashSet<string>(StringComparer.Ordinal);
+        await File.WriteAllTextAsync(Path.Combine(_scratch, HardwareContract.HeaderFileName),
+            AvrRuntime.Source(HardwareContract.HeaderFileName).Content);
         foreach (var name in OwnFiles)
         {
             await File.WriteAllTextAsync(Path.Combine(_scratch, name), Own(name));

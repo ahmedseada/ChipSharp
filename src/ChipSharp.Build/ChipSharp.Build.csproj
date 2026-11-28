@@ -2,6 +2,7 @@
   <!-- The build pipeline: a compiled C# assembly in, a program for the target (or its chip image) out; and the image
        onto a board, with the target's flasher -->
   <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Backend.C\ChipSharp.Backend.C.csproj" />
     <ProjectReference Include="..\ChipSharp.Backend.Llvm\ChipSharp.Backend.Llvm.csproj" />
     <ProjectReference Include="..\ChipSharp.Flasher.Avrdude\ChipSharp.Flasher.Avrdude.csproj" />
     <ProjectReference Include="..\ChipSharp.Flasher.EasyPdkProg\ChipSharp.Flasher.EasyPdkProg.csproj" />

@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using ChipSharp.Abstractions;
 using ChipSharp.Frontend.Il;
 using ChipSharp.Ir;
 
@@ -81,52 +82,27 @@ public static class KnownExternals
         (Gc, "KeepAlive", [IlType.Object], IlType.Void,
             new("ChipSharp.Runtime.GcKeepAlive", TirType.Void, [TirType.Ref], $"{Gc}.KeepAlive(object)")),
 
-        // ChipSharp.Hardware: the chip's pins, timing and registers; only a chip's runtime implements these
-        (Pin, "Output", [IlType.Int32], IlType.Void,
-            new("ChipSharp.Runtime.PinOutput", TirType.Void, [TirType.I32], $"{Pin}.Output(int)")),
-        (Pin, "Input", [IlType.Int32], IlType.Void,
-            new("ChipSharp.Runtime.PinInput", TirType.Void, [TirType.I32], $"{Pin}.Input(int)")),
-        (Pin, "Write", [IlType.Int32, IlType.Bool], IlType.Void,
-            new("ChipSharp.Runtime.PinWrite", TirType.Void, [TirType.I32, TirType.I32], $"{Pin}.Write(int, bool)")),
-        (Pin, "Toggle", [IlType.Int32], IlType.Void,
-            new("ChipSharp.Runtime.PinToggle", TirType.Void, [TirType.I32], $"{Pin}.Toggle(int)")),
-        (Pin, "Read", [IlType.Int32], IlType.Bool,
-            new("ChipSharp.Runtime.PinRead", TirType.I32, [TirType.I32], $"{Pin}.Read(int)")),
-        (Timing, "DelayMilliseconds", [IlType.Int32], IlType.Void,
-            new("ChipSharp.Runtime.DelayMilliseconds", TirType.Void, [TirType.I32],
-                $"{Timing}.DelayMilliseconds(int)")),
-        (Timing, "DelayMicroseconds", [IlType.Int32], IlType.Void,
-            new("ChipSharp.Runtime.DelayMicroseconds", TirType.Void, [TirType.I32],
-                $"{Timing}.DelayMicroseconds(int)")),
-        (Registers, "Read", [IlType.UInt32], IlType.UInt32,
-            new("ChipSharp.Runtime.RegisterRead", TirType.I32, [TirType.I32], $"{Registers}.Read(uint)")),
-        (Registers, "Write", [IlType.UInt32, IlType.UInt32], IlType.Void,
-            new("ChipSharp.Runtime.RegisterWrite", TirType.Void, [TirType.I32, TirType.I32],
-                $"{Registers}.Write(uint, uint)")),
-
-        // the events an [Interrupt] method handles (see Interrupts): starting and stopping them
-        (Timing, "EveryMilliseconds", [IlType.Int32], IlType.Void,
-            new("ChipSharp.Runtime.TimerEveryMilliseconds", TirType.Void, [TirType.I32],
-                $"{Timing}.EveryMilliseconds(int)")),
-        (Timing, "EveryMicroseconds", [IlType.Int32], IlType.Void,
-            new("ChipSharp.Runtime.TimerEveryMicroseconds", TirType.Void, [TirType.I32],
-                $"{Timing}.EveryMicroseconds(int)")),
-        (Timing, "AfterMilliseconds", [IlType.Int32], IlType.Void,
-            new("ChipSharp.Runtime.TimerAfterMilliseconds", TirType.Void, [TirType.I32],
-                $"{Timing}.AfterMilliseconds(int)")),
-        (Timing, "AfterMicroseconds", [IlType.Int32], IlType.Void,
-            new("ChipSharp.Runtime.TimerAfterMicroseconds", TirType.Void, [TirType.I32],
-                $"{Timing}.AfterMicroseconds(int)")),
-        (Timing, "Stop", [], IlType.Void,
-            new("ChipSharp.Runtime.TimerStop", TirType.Void, [], $"{Timing}.Stop()")),
-        (Pin, "Watch", [IlType.Int32], IlType.Void,
-            new("ChipSharp.Runtime.PinWatch", TirType.Void, [TirType.I32], $"{Pin}.Watch(int)")),
-        (Pin, "WatchRising", [IlType.Int32], IlType.Void,
-            new("ChipSharp.Runtime.PinWatchRising", TirType.Void, [TirType.I32], $"{Pin}.WatchRising(int)")),
-        (Pin, "WatchFalling", [IlType.Int32], IlType.Void,
-            new("ChipSharp.Runtime.PinWatchFalling", TirType.Void, [TirType.I32], $"{Pin}.WatchFalling(int)")),
-        (Pin, "Unwatch", [IlType.Int32], IlType.Void,
-            new("ChipSharp.Runtime.PinUnwatch", TirType.Void, [TirType.I32], $"{Pin}.Unwatch(int)")),
+        // ChipSharp.Hardware: the chip's pins, timing and registers, and the events an [Interrupt] method handles (see
+        // Interrupts): starting and stopping them. Only a chip's runtime implements these: the functions of the hardware
+        // contract (HardwareContract, src/ChipSharp.Runtime.Shared/chipsharp_hardware.h) the calls become
+        Hardware(Pin, "Output", [IlType.Int32], IlType.Void, "int"),
+        Hardware(Pin, "Input", [IlType.Int32], IlType.Void, "int"),
+        Hardware(Pin, "Write", [IlType.Int32, IlType.Bool], IlType.Void, "int, bool"),
+        Hardware(Pin, "Toggle", [IlType.Int32], IlType.Void, "int"),
+        Hardware(Pin, "Read", [IlType.Int32], IlType.Bool, "int"),
+        Hardware(Timing, "DelayMilliseconds", [IlType.Int32], IlType.Void, "int"),
+        Hardware(Timing, "DelayMicroseconds", [IlType.Int32], IlType.Void, "int"),
+        Hardware(Registers, "Read", [IlType.UInt32], IlType.UInt32, "uint"),
+        Hardware(Registers, "Write", [IlType.UInt32, IlType.UInt32], IlType.Void, "uint, uint"),
+        Hardware(Timing, "EveryMilliseconds", [IlType.Int32], IlType.Void, "int"),
+        Hardware(Timing, "EveryMicroseconds", [IlType.Int32], IlType.Void, "int"),
+        Hardware(Timing, "AfterMilliseconds", [IlType.Int32], IlType.Void, "int"),
+        Hardware(Timing, "AfterMicroseconds", [IlType.Int32], IlType.Void, "int"),
+        Hardware(Timing, "Stop", [], IlType.Void, ""),
+        Hardware(Pin, "Watch", [IlType.Int32], IlType.Void, "int"),
+        Hardware(Pin, "WatchRising", [IlType.Int32], IlType.Void, "int"),
+        Hardware(Pin, "WatchFalling", [IlType.Int32], IlType.Void, "int"),
+        Hardware(Pin, "Unwatch", [IlType.Int32], IlType.Void, "int"),
     ];
 
     /// <summary>Every runtime function a library call can become.</summary>
@@ -163,6 +139,21 @@ public static class KnownExternals
         }
 
         return LibrarySubstitutes.TryMapRuntimeFunction(method, out function);
+    }
+
+    /// <summary>
+    /// The entry of <paramref name="type"/>.<paramref name="name"/> (<paramref name="csharp"/>, its parameters as C#
+    /// writes them) of ChipSharp.Hardware: the function of the hardware contract it becomes, by its symbol and with its
+    /// types, e.g. Pin.Write(int, bool) becomes ChipSharp.Runtime.PinWrite, of two i32s.
+    /// </summary>
+    private static (string Type, string Name, IlType[] Parameters, IlType Returns, ExternalFunction Function) Hardware(
+        string type, string name, IlType[] parameters, IlType returns, string csharp)
+    {
+        var method = $"{type}.{name}({csharp})";
+        var function = HardwareContract.ForCSharp(method) ?? throw new InvalidOperationException(
+            $"{method} is not in the hardware contract (ChipSharp.Abstractions' HardwareContract).");
+        return (type, name, parameters, returns,
+            new(function.ExternalName!, function.TirReturns(), function.TirParameters(), method));
     }
 
     /// <summary>
