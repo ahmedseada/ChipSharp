@@ -22,7 +22,7 @@ chipsharp build bin\Release\net10.0\Pfs154Blink.dll -t pfs154-bare
 chipsharp flash bin\Release\net10.0\Pfs154Blink.dll -t pfs154-bare
 ```
 
-`build` makes `chipsharp-output\pfs154-bare\Pfs154Blink.hex`: **264 words** of the 2048 words of program memory and
+`build` makes `chipsharp-output\pfs154-bare\Pfs154Blink.hex`: **276 words** of the 2048 words of program memory and
 **9 bytes** of the 128 bytes of RAM. `flash` builds it, then writes it with the
 [Easy PDK programmer](https://github.com/free-pdk/easy-pdk-programmer-hardware) (`easypdkprog`, the chip in its
 socket), which also trims the chip's oscillator to the 2 MHz the program runs at; see the main README, "Flashing the

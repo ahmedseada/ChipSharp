@@ -574,7 +574,7 @@ The toolchain `sdcc`:
 `chipsharp build -t pfs154-bare` builds C# for a PFS154 at 2 MHz: the runtimes `pdk14` (`src/ChipSharp.Runtime.Pdk14`:
 the start-up, the one interrupt handler, the stops and failures) and `pfs154` (`src/ChipSharp.Runtime.Pfs154`: the
 hardware contract's functions of the chip, from the headers `chips/pfs154.json` makes), registered as `avr` and
-`atmega328p` are. A blink (`Pin.Toggle` and `Timing.DelayMilliseconds(500)` in a loop) takes 264 words of program memory
+`atmega328p` are. A blink (`Pin.Toggle` and `Timing.DelayMilliseconds(500)` in a loop) takes 276 words of program memory
 and 9 bytes of RAM; the runtime's own RAM is a few bytes for each part a program uses.
 
 | What | On the PFS154 |
@@ -678,11 +678,11 @@ C# builds for the Pico or the Uno with other pin numbers.
 
 | Example | What it does | PFS154 |
 |---|---|---|
-| `pfs154-blink` | Blinks an LED on PA4 with a delay loop | 264 words, 9 bytes of RAM |
-| `pfs154-timer-blink` | Blinks the LED on PA4 from the timer event (TM2), while `Main` does nothing | 600 words, 23 bytes of RAM |
-| `pfs154-button` | A button between PA0 and GND toggles the LED on PA4 through the pin event (falling edges); `Pin.Input` leaves the pin's pull-up off, so a 10 kOhm resistor to VDD holds it high | 372 words, 12 bytes of RAM |
-| `pfs154-pwm-fade` | Fades an LED on PB5 (TM3's PWM, 1008 Hz) up and down with `Pwm.PulseMicroseconds`, 20 us more or less every 20 ms | 860 words, 53 bytes of RAM |
-| `pfs154-traffic-light` | The Uno's traffic light with what the chip has: red PA3, yellow PA6, green PA7, the turn's countdown on a 7-segment display (PB1 to PB7), a pedestrian button on PA0 that cuts a green short, a heartbeat LED on PA4 from the timer event; no console, no LCD, the steps a method's parameters (a table of record structs does not fit beside the stack) | 1369 words, 72 bytes of RAM |
+| `pfs154-blink` | Blinks an LED on PA4 with a delay loop | 276 words, 9 bytes of RAM |
+| `pfs154-timer-blink` | Blinks the LED on PA4 from the timer event (TM2), while `Main` does nothing | 612 words, 23 bytes of RAM |
+| `pfs154-button` | A button between PA0 and GND toggles the LED on PA4 through the pin event (falling edges); `Pin.Input` leaves the pin's pull-up off, so a 10 kOhm resistor to VDD holds it high | 384 words, 12 bytes of RAM |
+| `pfs154-pwm-fade` | Fades an LED on PB5 (TM3's PWM, 1008 Hz) up and down with `Pwm.PulseMicroseconds`, 20 us more or less every 20 ms | 872 words, 53 bytes of RAM |
+| `pfs154-traffic-light` | The Uno's traffic light with what the chip has: red PA3, yellow PA6, green PA7, the turn's countdown on a 7-segment display (PB1 to PB7), a pedestrian button on PA0 that cuts a green short, a heartbeat LED on PA4 from the timer event; no console, no LCD, the steps a method's parameters (a table of record structs does not fit beside the stack) | 1381 words, 72 bytes of RAM |
 
 The stack grows from the end of the variables to the end of the 128 bytes, and the target reserves 16 bytes for it
 (`link.stack`); a program with the timer event needs more: the traffic light's goes about 48 bytes deep when TM2's
