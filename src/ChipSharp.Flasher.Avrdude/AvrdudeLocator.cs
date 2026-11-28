@@ -1,6 +1,5 @@
-using System.Globalization;
-using System.Text.RegularExpressions;
 using ChipSharp.Abstractions;
+using ChipSharp.Flasher.Shared;
 
 namespace ChipSharp.Flasher.Avrdude;
 
@@ -14,44 +13,32 @@ public sealed record AvrdudeTool(string Path, string? ConfigFile);
 /// Documents\ArduinoData; the IDE 1.8's own in Arduino\hardware\tools\avr\bin under Program Files. Those copies keep
 /// avrdude.conf in the etc folder next to bin, where some avrdude versions do not look: then it is given with -C.
 /// </summary>
-internal sealed partial class AvrdudeLocator(Func<string, string?> environment)
+internal sealed class AvrdudeLocator(Func<string, string?> environment)
 {
     private const string ConfigName = "avrdude.conf";
-
-    private static readonly string ExeSuffix = OperatingSystem.IsWindows() ? ".exe" : "";
 
     /// <summary>What to do when avrdude is missing.</summary>
     internal static string Advice =>
         "avrdude uploads a program through an Arduino's USB port, to its bootloader. Get it with the Arduino IDE " +
         "(https://www.arduino.cc/en/software: it installs avrdude with the \"Arduino AVR Boards\", which it adds for an " +
         "Uno, and ChipSharp finds it there), or download avrdude itself (https://github.com/avrdudes/avrdude/releases, " +
-        $"for Windows the windows-x64 zip), unpack it and set {AvrdudeFlasher.AvrdudeVariable} to its avrdude{ExeSuffix}, " +
-        "or put its folder on the PATH.";
+        $"for Windows the windows-x64 zip), unpack it and set {AvrdudeFlasher.AvrdudeVariable} to its " +
+        $"{ProgrammerTool.FileName("avrdude")}, or put its folder on the PATH.";
 
     public AvrdudeTool Find()
     {
-        var file = "avrdude" + ExeSuffix;
-        if (Variable(AvrdudeFlasher.AvrdudeVariable) is { } set)
+        if (ProgrammerTool.FromVariable("avrdude", AvrdudeFlasher.AvrdudeVariable, environment, Advice) is { } set)
         {
-            // a folder is taken to mean the avrdude in it
-            var fullPath = Path.GetFullPath(Directory.Exists(set) ? Path.Combine(set, file) : set);
-            return File.Exists(fullPath)
-                ? Tool(fullPath)
-                : throw new ChipSharpException(
-                    $"avrdude was not found at '{fullPath}' (set by the environment variable " +
-                    $"{AvrdudeFlasher.AvrdudeVariable}). {Advice}");
+            return Tool(set);
         }
 
-        var searchPath = (environment("PATH") ?? "")
-            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(folder => Path.Combine(folder.Trim('"'), file));
+        var file = ProgrammerTool.FileName("avrdude");
         var places = ArduinoPlaces();
-        foreach (var candidate in searchPath.Concat(places.SelectMany(place => Copies(place, file))))
+        if ((ProgrammerTool.OnPath("avrdude", environment)
+                ?? places.SelectMany(place => Copies(place, file)).Where(File.Exists).Select(Path.GetFullPath).FirstOrDefault())
+            is { } found)
         {
-            if (File.Exists(candidate))
-            {
-                return Tool(Path.GetFullPath(candidate));
-            }
+            return Tool(found);
         }
 
         var looked = places.Count == 0 ? "" : $" and in the Arduino IDE's folders ({string.Join(", ", places.Select(p => $"'{p.Folder}'"))})";
@@ -101,22 +88,10 @@ internal sealed partial class AvrdudeLocator(Func<string, string?> environment)
     }
 
     /// <summary>The avrdude files of one place, the newest version first.</summary>
-    private static IEnumerable<string> Copies((string Folder, bool HasVersions) place, string file)
-    {
-        if (!place.HasVersions)
-        {
-            return [Path.Combine(place.Folder, file)];
-        }
-
-        if (!Directory.Exists(place.Folder))
-        {
-            return [];
-        }
-
-        return Directory.GetDirectories(place.Folder)
-            .OrderByDescending(folder => Path.GetFileName(folder), VersionComparer.Instance)
-            .Select(folder => Path.Combine(folder, "bin", file));
-    }
+    private static IEnumerable<string> Copies((string Folder, bool HasVersions) place, string file) =>
+        place.HasVersions
+            ? ProgrammerTool.Versions(place.Folder).Select(folder => Path.Combine(folder, "bin", file))
+            : [Path.Combine(place.Folder, file)];
 
     /// <summary>avrdude, with ../etc/avrdude.conf when that is there and no avrdude.conf is next to it.</summary>
     private static AvrdudeTool Tool(string path)
@@ -129,35 +104,5 @@ internal sealed partial class AvrdudeLocator(Func<string, string?> environment)
 
         var etc = Path.GetFullPath(Path.Combine(folder, "..", "etc", ConfigName));
         return new AvrdudeTool(path, File.Exists(etc) ? etc : null);
-    }
-
-    private string? Variable(string name) =>
-        environment(name) is { } value && !string.IsNullOrWhiteSpace(value) ? value.Trim().Trim('"') : null;
-
-    /// <summary>Orders versions such as 6.3.0-arduino17 and 7.1-arduino.1 by their numbers, in turn.</summary>
-    private sealed partial class VersionComparer : IComparer<string>
-    {
-        public static readonly VersionComparer Instance = new();
-
-        public int Compare(string? x, string? y)
-        {
-            var a = Numbers(x ?? "");
-            var b = Numbers(y ?? "");
-            for (var i = 0; i < Math.Min(a.Count, b.Count); i++)
-            {
-                if (a[i] != b[i])
-                {
-                    return a[i].CompareTo(b[i]);
-                }
-            }
-
-            return a.Count != b.Count ? a.Count.CompareTo(b.Count) : string.CompareOrdinal(x, y);
-        }
-
-        private static List<long> Numbers(string version) =>
-            [.. Digits().Matches(version).Select(match => long.Parse(match.Value, CultureInfo.InvariantCulture))];
-
-        [GeneratedRegex(@"\d{1,18}")]
-        private static partial Regex Digits();
     }
 }

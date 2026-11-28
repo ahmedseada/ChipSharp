@@ -7,5 +7,9 @@
   "clock": { "source": "ihrc", "divider": 8 },
   "pins": {
     "LED": 4                      // PA4, where free-pdk's examples put an LED (through a resistor)
-  }
+  },
+  // chipsharp flash -t pfs154-bare: easypdkprog writes the .hex into the chip in the Easy PDK programmer's socket (-n,
+  // the IC as easypdkprog names it), then runs the program's calibrations: the IHRC trimmed to the system clock
+  "flasher": "easypdkprog",
+  "easypdkprog": { "ic": "PFS154" }
 }

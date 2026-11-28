@@ -507,6 +507,33 @@ The toolchain `sdcc`:
   and its priorities, EXTI, TIM1, TIM2 (PWM), TIM4, UART1, the clock's dividers (2 MHz after reset) and the LSI, the
   IWDG. Cycles are the datasheets'; the tests run it in process (`Simulation.Run`).
 
+### Flashing the PFS154 and the STM8S103
+
+`chipsharp flash <program.dll | Blink.hex> -t pfs154-bare` (or `-t stm8s103-board`) runs the board's programmer tool,
+as `-t uno` runs avrdude; neither tool comes with ChipSharp:
+
+| Board | Hardware | Tool, and where to get it | What runs |
+|---|---|---|---|
+| `pfs154-bare` | The [Easy PDK programmer](https://github.com/free-pdk/easy-pdk-programmer-hardware) (Free-PDK's open hardware; the chip in its socket), on USB as a serial port (USB 0483:5740) | `easypdkprog`, [its releases](https://github.com/free-pdk/easy-pdk-programmer-software/releases) (`EASYPDKPROG_WIN_<date>_1.3.zip`): found by `CHIPSHARP_EASYPDKPROG`, the PATH, `D:\Tools\easypdkprog`, `%LOCALAPPDATA%\Programs\easypdkprog`, `Program Files\easypdkprog` | `easypdkprog -n PFS154 -p COM7 write Blink.hex`: erase, write, verify, then the program's calibrations |
+| `stm8s103-board` | An ST-LINK V2 (a clone will do), wired to the board's SWIM header: 3.3V, SWIM (PD1), GND, NRST | `stm8flash`, [built from source](https://github.com/vdudouyt/stm8flash) (libusb-1.0), or the `stm8flash.exe` the [sduino](https://github.com/tenbaht/sduino) core installs in Arduino15: found by `CHIPSHARP_STM8FLASH`, the PATH, `D:\Tools\stm8flash`, sduino's | `stm8flash -c stlinkv2 -p stm8s103f3 -s flash -w Blink.hex`; then the chip restarts and runs it |
+
+- **The port.** Without `--port` the PFS154's flash takes the one serial port with the programmer's USB ids (or, where
+  no port's ids are known, lets easypdkprog ask each port). The ST-LINK is a USB device, not a port: stm8flash finds it
+  itself, `--port` is its serial number when several are plugged in (`stm8flash -c stlinkv2 -L` lists them), and the
+  flasher checks which ST-LINKs are plugged in: a Nucleo's ST-LINK/V2-1 or an STLINK-V3 alone is taken instead
+  (`-c stlinkv21`, `stlinkv3`), and a failure says whether there is none, or one Windows has no driver for (it needs
+  WinUSB: ST's STSW-LINK009, or Zadig).
+- **A locked STM8.** Many blue boards come read-out protected: stm8flash then fails, and the error gives the command
+  that unlocks the chip, which erases it: `stm8flash -c stlinkv2 -p stm8s103f3 -u`. Every other failure says what is
+  likely wrong (no programmer, another IC in the socket, the SWIM wires) and shows the tool's last lines.
+- **The PFS154's clock.** easypdkprog trims the internal oscillator (IHRC) after writing when the program asks with
+  Free-PDK's calibration marker (`EASY_PDK_CALIBRATE_IHRC`: ten `and a, #k` words in the start-up, for the board's
+  `clockHz` at 5.0 V): it runs the chip, tunes IHRCR, and writes `mov a, #trim; mov ihrcr, a` in their place. ChipSharp
+  never turns that off (`--nocalibrate`) and prints each result (`IHRC calibrated: 1998750 Hz for 2000000 Hz at 5.00 V
+  (IHRCR 0x84)`). Without it (in chipsim) the chip keeps the factory's trim, the `ret k` at word 0x7ed, which
+  easypdkprog never erases. The PDK14 runtime's start-up is to hold both (`EasyPdkProgFlasher` documents the words). After
+  writing, the chip runs once it is out of the socket (or in it: `easypdkprog start`).
+
 ## A new chip: one contract, one suite, chips as data
 
 Every chip is built the same way, so that a new one is data and one runtime, not changes all over ChipSharp:
@@ -1148,7 +1175,7 @@ period differs from the one before, rather than edge by edge:
 | Command | What it does |
 |---|---|
 | `chipsharp build <program.dll> [-t <target>] [-o <folder>] [--keep] [--verify-heap] [--no-cache] [--quiet-notes]` | Compiles the program for a target (default `host`) into `chipsharp-output\<target>\` (or `-o`): prints the file (`.exe`, `.uf2`) and what it takes of the chip. `--keep` also writes the TIR (`.tir`) and LLVM IR (`.ll`) there, and for a chip the `.elf` |
-| `chipsharp flash <program.dll \| image> -t <board> [--port <port>]` | Puts the program onto a board with its target's flasher: a `.dll` is built first (as `build` does, with its options), an image (`.hex`, `.uf2`) is flashed as it is. The Uno: avrdude through its USB port (`--port COM5`, or the one serial port that looks like an Arduino's); the Pico: a copy to its `RPI-RP2` drive (or `--port E:\`) |
+| `chipsharp flash <program.dll \| image> -t <board> [--port <port>]` | Puts the program onto a board with its target's flasher: a `.dll` is built first (as `build` does, with its options), an image (`.hex`, `.uf2`) is flashed as it is. The Uno: avrdude through its USB port (`--port COM5`, or the one serial port that looks like an Arduino's); the Pico: a copy to its `RPI-RP2` drive (or `--port E:\`); the PFS154: easypdkprog, in the Easy PDK programmer (`--port COM7`, or the one port with its USB ids); the STM8S103: stm8flash, through an ST-LINK (`--port` its serial number) |
 | `chipsharp check <program.dll> [-t <target>] [--details] [--quiet-notes]` | Whether ChipSharp compiles the program (for that target), and the methods it uses; if not, each feature it does not compile yet, where, and what to write instead. `--details`: every place on a line of its own, and every library method it can call |
 | `chipsharp tir <program.dll> [--method Type.Method] [-t <target>]` | The program in TIR, after the whole-program pass |
 | `chipsharp il <program.dll> [--method Type.Method]` | The IL of each method, ildasm style |
@@ -1164,6 +1191,8 @@ period differs from the one before, rather than edge by edge:
 | `CHIPSHARP_ZIG` | Zig (`zig.exe` or its folder), for the Uno (default: `D:\Tools\zig\zig.exe`, then the PATH) |
 | `CHIPSHARP_AVRDUDE` | avrdude (`avrdude.exe` or its folder), for `flash -t uno` (default: the PATH, then the Arduino IDE's copy) |
 | `CHIPSHARP_SDCC` | SDCC (`sdcc.exe` or its folder), for the Padauk and STM8 chips (default: `C:\Program Files\SDCC\bin`, then the PATH) |
+| `CHIPSHARP_EASYPDKPROG` | easypdkprog (`easypdkprog.exe` or its folder), for `flash -t pfs154-bare` (default: the PATH, then `D:\Tools\easypdkprog` and the usual install folders) |
+| `CHIPSHARP_STM8FLASH` | stm8flash (`stm8flash.exe` or its folder), for `flash -t stm8s103-board` (default: the PATH, then `D:\Tools\stm8flash`, then sduino's copy) |
 
 **Notes.** `build` and `check` write a note on standard error (`note: ...`) where a program uses one of .NET's
 culture-sensitive text methods (`CompareTo`, `string.Compare(a, b)`, `StartsWith(string)`, `ToUpper()`, `Parse`,
@@ -1255,8 +1284,9 @@ and `npm ci` in `tools\rp2040-sim` (the Uno's, Zig and `npm ci` in `tools\avr-si
 without them. The example projects are built with `dotnet build` and `chipsharp build` and run in the simulators, with
 what their circuits would give them: the traffic lights with the button pressed, the clocks with a simulated LCD and
 DS1307, the servo with a knob turned; and their Wokwi circuits are checked, wire by wire.
-`chipsharp flash` runs no real tool in the tests: avrdude is a batch file that keeps the command line it was given, and
-the Pico's drive a folder.
+`chipsharp flash` runs no real tool in the tests: avrdude, easypdkprog and stm8flash are batch files that keep the
+command line they were given and print what the real ones print (their failures included), the serial ports and
+ST-LINKs are records as the registry would give them, and the Pico's drive a folder.
 The SDCC chips' tests build hand-written C and assembly for the PFS154 and the STM8S103 with SDCC (skipped without it)
 and compare the `.hex` and the memory report with SDCC's own map. The hardware contract's tests keep its header, its C#
 list, the frontend and every chip runtime in step; the conformance suite runs the same C# programs on every chip's
@@ -1295,6 +1325,7 @@ allow for both. Its TWI takes no time on the bus: the I2C transfers' timing is t
 | `src/ChipSharp.Chips`, `chips` | Chips as data: the model of a chip's registers, interrupts, pins and memory, its readers (ChipSharp's JSON, CMSIS-SVD), the C headers it writes, and in `Generated` the SDCC chips' headers; `chips` holds the descriptions (see [A new chip](#a-new-chip-one-contract-one-suite-chips-as-data)) |
 | `src/ChipSharp.Runtime.*` | The runtimes, in C: `Shared` (console, text, floats, heap and collector, and `chipsharp_hardware.h`, the hardware contract every chip runtime implements), `Windows` (the PC), `ArmV6M` and `Rp2040` (start-up, UART0, timers, pins, interrupts), `Avr` (any AVR chip's start-up, multiply and divide helpers, soft float) and `Atmega328p` (the Uno's pins, Timer1's clock and delays, the pin and timer events, USART0, the TWI, SPI, the ADC and PWM) |
 | `src/ChipSharp.Image.Uf2`, `src/ChipSharp.Image.Hex`, `src/ChipSharp.Build`, `src/ChipSharp.Cli` | The `.uf2` and `.hex` images, the build pipeline, and the `chipsharp` command |
+| `src/ChipSharp.Flasher.*` | The flashers: `Avrdude` (the Uno), `Uf2Copy` (the Pico), `EasyPdkProg` (the PFS154), `Stm8Flash` (the STM8S103), and `Shared`, what those that run a programmer's tool share (finding and running it, the serial ports and USB devices plugged in) |
 | `src/ChipSharp.Hardware` | The library programs reference for pins, timing, the clock, registers, interrupts, serial ports, analog inputs, PWM and the I2C and SPI buses |
 | `src/ChipSharp.Components` | Drivers of parts connected to a chip (the character LCD, the 7-segment display, the DS1307 real-time clock), plain C# that ChipSharp compiles with the program |
 | `src/ChipSharp.Abstractions`, `src/ChipSharp.Targets` | The contracts (code generator, toolchain, image, runtime) and the target files' reader |

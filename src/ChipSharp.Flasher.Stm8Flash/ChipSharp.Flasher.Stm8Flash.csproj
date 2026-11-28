@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The flasher "stm8flash": a .hex into an STM8 chip (the STM8S103F3) through an ST-LINK's SWIM -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+    <ProjectReference Include="..\ChipSharp.Flasher.Shared\ChipSharp.Flasher.Shared.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ChipSharp.Tests" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- What the flashers that run a programmer's own tool share (avrdude, easypdkprog, stm8flash): finding the tool,
+       running it, and this computer's serial ports and USB devices -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ChipSharp.Tests" />
+  </ItemGroup>
+</Project>
