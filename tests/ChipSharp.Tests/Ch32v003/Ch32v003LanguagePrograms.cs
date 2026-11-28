@@ -430,6 +430,71 @@ internal static class Ch32v003LanguagePrograms
         }
         """;
 
+    /// <summary>
+    /// The runtime's helpers in Main and in an interrupt at once: the timer event every 5 ms runs the same
+    /// multiplications, divisions and double arithmetic as Main, each twice, and so does Main, which spends nearly all
+    /// its time in them and sums its results (<see cref="Work"/>, the same C# for the test to sum). The handler takes a
+    /// good part of a millisecond (a double's division alone calls __muldi3, bit by bit, several times on a core without
+    /// M), so it comes every 5 ms, not more often: more often, Main would never run.
+    /// </summary>
+    public const string Interrupted = """
+        using System;
+        using ChipSharp.Hardware;
+
+        static class Program
+        {
+            static volatile int zero, ticks, wrong;
+
+            static long Work(int i)
+            {
+                long a = 0x123456789ABL * (i + 1) + zero;
+                long b = i * 7919L + 13;
+                double d = i * 0.37 + zero;
+                return a / b + a % b + (long)(d * 1e6 / 3.0) + a * b + (uint)a / (uint)(b | 1) + (long)Math.Sqrt(d * d + 1);
+            }
+
+            [Interrupt(Event.Timer)]
+            static void Tick()
+            {
+                int i = ticks++ & 63;
+                if (Work(i + 1000) != Work(i + 1000))
+                {
+                    wrong++;
+                }
+            }
+
+            static void Main()
+            {
+                Timing.EveryMilliseconds(5);
+                long sum = 0;
+                for (int i = 0; i < 150; i++)
+                {
+                    long first = Work(i);
+                    if (first != Work(i))
+                    {
+                        wrong++;
+                    }
+
+                    sum += first;
+                }
+
+                Timing.Stop();
+                Console.WriteLine(sum);
+                Console.WriteLine(wrong);
+                Console.WriteLine(ticks > 20);
+            }
+        }
+        """;
+
+    /// <summary><see cref="Interrupted"/>'s Work, on the PC.</summary>
+    public static long Work(int i)
+    {
+        long a = 0x123456789ABL * (i + 1);
+        long b = i * 7919L + 13;
+        double d = i * 0.37;
+        return unchecked(a / b + a % b + (long)(d * 1e6 / 3.0) + a * b + (uint)a / (uint)(b | 1) + (long)Math.Sqrt(d * d + 1));
+    }
+
     /// <summary>Divisions that .NET stops with an exception, after a line each: by zero, and the smallest value by -1.</summary>
     public static IReadOnlyList<(string Name, string Source, string Failure)> Failures { get; } =
     [

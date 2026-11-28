@@ -16,7 +16,8 @@ namespace ChipSharp.Tests.Ch32v003;
 /// failure stop. The stack check of the riscv32 architecture works on riscv32e too: a recursion with no end, through
 /// one function or two, is stopped by chipsharp_stack_overflow (the stack pointer put back at the top of the stack, then
 /// "Stack overflow." and the failure stop) before it reaches the variables, also one that prints a double at every
-/// level; recursions that end and a frame of 768 bytes run as on .NET.
+/// level; recursions that end and a frame of 768 bytes run as on .NET. The helpers give the same results while the
+/// timer event runs them too.
 /// </summary>
 public sealed class Ch32v003LanguageTests : IDisposable
 {
@@ -109,6 +110,24 @@ public sealed class Ch32v003LanguageTests : IDisposable
         Assert.Equal(Enumerable.Range(1, lines.Length - 3).Select(n => (n * 0.5).ToString(CultureInfo.InvariantCulture)),
             lines[1..^2]);
         Assert.Equal(["Stack overflow.", ""], lines[^2..]);
+    }
+
+    /// <summary>
+    /// The helpers are interrupt-safe: they keep nothing but registers and the stack, and the trap entry saves the ten
+    /// registers a C function may change. With the timer event every 5 ms running them too (more than 20 times, into the
+    /// middle of Main's calls of them), Main's 150 results are .NET's, and every one, Main's and the handler's, comes out
+    /// the same twice.
+    /// </summary>
+    [Simulators.Ch32v003Fact]
+    public void The_helpers_give_the_same_results_with_an_interrupt_running_them_too()
+    {
+        var program = Ch32v003Build.Build(Ch32v003LanguagePrograms.Interrupted, "Interrupted", Path.Combine(_scratch, "irq"));
+
+        var run = Ch32v003Build.Run(program, 10_000);
+
+        Assert.True(run.Ended, run.ToString());
+        var sum = Enumerable.Range(0, 150).Aggregate(0L, (total, i) => unchecked(total + Ch32v003LanguagePrograms.Work(i)));
+        Assert.Equal($"{sum}\r\n0\r\nTrue\r\n", Encoding.UTF8.GetString(run.Output));
     }
 
     private Task<ProgramRun> Dotnet(string source, string name, bool failing) =>

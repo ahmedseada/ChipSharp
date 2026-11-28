@@ -533,7 +533,9 @@ every corpus the differential tests compare with .NET (the samples, the language
 the narrowing's edges, and the small chips' own, `Chips/...`, of the features without a heap written without a double)
 goes through every backend of `BackendTargets` (`host`: llvm; `host-c`: C and clang; `pfs154-bare` and
 `stm8s103-board`: C and SDCC, in `chipsim`; `esp32c5-devkitc`: llvm for riscv32, built as `chipsharp build` builds it
-and run in `chipsim esp32c5`, the console the USB Serial/JTAG port, with no skips) and must print what .NET prints, byte for byte. A program a target cannot
+and run in `chipsim esp32c5`, the console the USB Serial/JTAG port, with no skips; `ch32v003-evt`: llvm for riscv32 with
+the ilp32e ABI, built as `chipsharp build` builds it and run in `chipsim ch32v003`, the console USART1, see
+[What runs on the CH32V003](#what-runs-on-the-ch32v003)) and must print what .NET prints, byte for byte. A program a target cannot
 take is skipped, and the suite checks each skip's reason against its list (`BackendSkips`), so that the list can
 neither grow nor keep a program that runs: on the PC none; on the chips those that need a heap (65), use `double` (25),
 call the runtime's float math (2) or fixed text's searches (1), or do not fit (the PFS154: 18 in its 128 bytes of RAM,
@@ -972,7 +974,11 @@ says it has none, and `chipsharp check` refuses a program that uses them.
   entry, the code and constants, then `.data`'s starting values. The core starts at the flash's alias, `0x00000000`, and
   the table's first instructions jump to the reset handler at its flash address, where the program then runs. The SRAM,
   `0x20000000`, has `.data`, `.bss` and, in its last 512 bytes (`"link.stack"`), the stack. A program that does not fit
-  stops the build and says by how much.
+  stops the build and says by how much. The stack has all the SRAM the variables leave; the functions that check it
+  (the recursive ones, those with frames of 256 bytes or more) say `Stack overflow.` 896 bytes above the variables
+  (`"link.stackMargin"`, not a quarter of `"link.stack"` as on the other chips): the text of a double, the deepest the
+  runtime goes below such a function, takes some 790 bytes of stack on RV32E (its big numbers), and an interrupt may
+  come on top of it.
 - **The start-up.** The first 156 bytes of flash are the vector table (`ch32v003_vector_table.S`, the target's
   `"link.head"`): entries 0 and 1, where the core starts, are an absolute jump to `chipsharp_reset` (`lui`, `jalr`);
   entries 2 to 38 hold the address of the riscv32 runtime's trap entry, so every interrupt and exception reaches its
@@ -1021,11 +1027,38 @@ says it has none, and `chipsharp check` refuses a program that uses them.
 - **Tests.** The target files and the flags, the linker script; the `.elf` of a program (the vector table's words at
   `0x08000000`, the code in flash and the variables in SRAM, RV32EC code with no M instruction and no register above x15
   as `llvm-objdump` reads it, the ilp32e stack alignment in its attributes, the start-up, the 40-byte trap frame, the
-  chip's first steps, helpers that call nothing); every corpus program; the helpers built for the PC against .NET's
+  chip's first steps, helpers that call nothing); every corpus program, linked, and run against .NET in the backend
+  conformance suite ([What runs on the CH32V003](#what-runs-on-the-ch32v003)); the helpers built for the PC against .NET's
   arithmetic; WCH's SVD and the headers, compiled with clang for RV32EC; the runtime linked with every function its
   target has. The conformance suite runs in `chipsim ch32v003` the 16 cases the target has the guards of (all but
   I2C, SPI, the ADC and PWM) and passes them; the examples run there too
   ([Examples for the CH32V003](#examples-for-the-ch32v003)).
+
+### What runs on the CH32V003
+
+The language without a heap, as on the Uno: in the backend conformance suite each program of the corpora is built for
+`ch32v003-evt` as `chipsharp build` builds it and run in `chipsim ch32v003`, and the 88 that make no object and fit
+print on USART1 exactly what .NET prints (numbers of every width, floats and doubles in software, structs, spans,
+static tables, generics over values, tuples, printed text, `Math` and `MathF`, `TimeSpan`, dates). The rest are skipped
+for a named reason, which the suite checks: 65 make objects; six do not fit the 16 KB of flash (`Chips/MathFunctions`,
+MathF's functions, by 544 bytes; DateTime's members 20.3 KB, its formats 32.6 KB, a sort of doubles through a comparer
+37.0 KB, TimeSpan's members 42.5 KB, `samples/MathFunctions` 44.7 KB); and `Arrays/BigArrays`, a frame of 40 KB, is
+stopped by the stack check. The others take 1.6 to 9.4 KB of flash (half of them 3.2 KB or less; the largest
+`Generics/Math`, `samples/PrintedText` and `samples/FloatMath`) and 56 bytes of SRAM, up to 712 (`Structs/Large`).
+
+What RV32EC and the ilp32e ABI make different has tests of its own on the simulated chip, against .NET
+(`Ch32v003LanguageTests`): calls past the six argument registers (a `long` split between a5 and the stack, ten
+arguments of every kind, structs passed and returned, a recursion that passes them on); every product, quotient and
+remainder of edge values in 32 and 64 bits, signed and unsigned, through the runtime's helpers (and `int.MinValue / -1`
+or a division by zero saying .NET's message); doubles and floats at their edges (zeros, subnormals, infinities, NaN,
+ties to even) and every conversion; endless recursions saying `Stack overflow.`, also one that prints a double at each
+level (see the stack's margin under Memory above); and the helpers giving the same results while the timer event runs
+them too.
+
+Measured on the 88 programs, for a later change (the chip's flags are riscv32's `-O2` today): `-Os` makes the code 6.2%
+smaller (the median program 4.6%, at most 19%, a few up to 5% larger) and `Chips/MathFunctions` fits; with LLVM's
+machine outliner too, 6.6%; WCH's XW instructions (`rv32ec_zicsr_xwchc`) 1.0%; `-Oz` calls 64-bit shift helpers
+(`__ashldi3`) the runtime does not have.
 
 ### Examples for the CH32V003
 
@@ -1976,8 +2009,10 @@ core's ALU are checked an instruction at a time, and C programs run: the arithme
 helpers (each result compared with C's), the timers' interrupts and PWM to the microsecond, inputs on a timeline, UART1
 both ways, and the ways a run stops. The C code generator's tests run every sample, and programs of every operation on
 the values where C and C# part ways, through `host-c` and `host` against C#, and compile and link the C for both chips
-with SDCC. The backend conformance suite runs every program of every corpus through every backend, on the PC and
-on both simulated SDCC chips (see [PFS154 and STM8S103](#pfs154-and-stm8s103-through-c-and-sdcc)), and measures what narrowing saves there.
+with SDCC. The backend conformance suite runs every program of every corpus through every backend, on the PC, on
+both simulated SDCC chips (see [PFS154 and STM8S103](#pfs154-and-stm8s103-through-c-and-sdcc)), on the simulated
+ESP32-C5 and on the simulated CH32V003 (see [What runs on the CH32V003](#what-runs-on-the-ch32v003)), and measures what
+narrowing saves on the SDCC chips.
 
 The simulator, rp2040js 1.4.1, has one known fault: it sets the overflow flag of `SBCS` wrong when the borrow takes the
 subtrahend to 0x80000000, so a comparison of extreme `long` values, such as `long.MaxValue` with `long.MinValue`, gives
@@ -2054,7 +2089,10 @@ elements); an empty array of each type is one constant object. A span is the sam
 elsewhere, so it needs no heap; `SpanEscapeAnalysis` keeps a span of a `stackalloc` or of an array on the stack from
 outliving it. `Array.Copy` and the other `System.Array` methods are compiled for each element type
 (`ArrayMethods.cs`); `Sort` and `BinarySearch` are .NET's own introsort and binary search, so equal elements end up
-where .NET puts them.
+where .NET puts them. On a chip without unaligned access, whose `MemoryMarshal.Cast` checks where a span starts, an
+array on the stack (`stackalloc`, a `new` of a constant length) is aligned as an object on the heap is, to 8 bytes, so
+that a cast of its span to `long` or `double` works there as it does on .NET; on RV32E, whose stack is 4-byte aligned,
+LLVM aligns such a frame itself (52 bytes more over the corpora's programs on the CH32V003).
 
 ### Math
 

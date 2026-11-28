@@ -167,6 +167,8 @@ internal static partial class BackendSkips
             ["ch32v003-evt"] = Skips(
             [
                 (Heap, WithObjects),
+                // the flash they need: 37.0 KB (a sort of doubles through a comparer), 16.5 KB (MathF's functions, 544
+                // bytes over), 20.3 and 32.6 KB (DateTime's members and formats), 42.5 KB (TimeSpan's), 44.7 KB (Math's)
                 (ProgramMemory,
                 [
                     "ArrayMethods/Sorting", "Chips/MathFunctions", "DateTime/Members", "DateTime/Text", "TimeSpan/Members",
