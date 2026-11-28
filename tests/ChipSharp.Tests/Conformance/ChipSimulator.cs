@@ -167,6 +167,12 @@ internal abstract class ChipSimulator
     /// <summary>The target's file, merged.</summary>
     public TargetDescription Description => _description.Value;
 
+    /// <summary>
+    /// Whether the target's file is in ChipSharp: a chip's adapter can come before its target (the CH32V003's), and its
+    /// cases are skipped until then.
+    /// </summary>
+    public bool TargetExists => Targets.Names.Contains(Target, StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Null when programs build and run for this chip here; otherwise why not.</summary>
     public abstract string? Missing { get; }
 
@@ -195,9 +201,10 @@ internal abstract class ChipSimulator
 
     /// <summary>
     /// True when the target has <paramref name="need"/>: "chip" (every chip), a capability (true, or a number above 0),
-    /// or an event of its interrupts table ("interrupts.timer"), as the hardware contract's guards say.
+    /// or an event of its interrupts table ("interrupts.timer"), as the hardware contract's guards say; a target not in
+    /// ChipSharp yet has only "chip".
     /// </summary>
-    public bool Has(string need) => need == "chip" || HardwareContract.Has(Description, need);
+    public bool Has(string need) => need == "chip" || (TargetExists && HardwareContract.Has(Description, need));
 
     /// <summary>
     /// <paramref name="source"/> (C# with ChipSharp.Hardware) compiled and built for the target by the build pipeline,

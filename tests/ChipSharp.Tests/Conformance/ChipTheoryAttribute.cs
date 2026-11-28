@@ -9,12 +9,13 @@ internal static class ChipSimulators
 {
     /// <summary>
     /// The adapters, one per chip: the Pico (rp2040js) and the Uno (avr8js), and the slots of the SDCC chips (the
-    /// PFS154's and the STM8S103's simulators), and the ESP32-C5's, whose simulator and runtime come with M4's wave 1.
+    /// PFS154's and the STM8S103's simulators), the ESP32-C5's, and the CH32V003's, whose target and runtime come with
+    /// M5's waves 0 and 1.
     /// </summary>
     public static IReadOnlyList<ChipSimulator> All { get; } =
     [
         new PicoChipSimulator(), new UnoChipSimulator(), new Pfs154ChipSimulator(), new Stm8ChipSimulator(),
-        new Esp32c5ChipSimulator(),
+        new Esp32c5ChipSimulator(), new Ch32v003ChipSimulator(),
     ];
 
     /// <summary>The adapter of <paramref name="target"/>.</summary>

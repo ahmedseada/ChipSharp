@@ -772,7 +772,7 @@ public sealed class Ch32v003Chip : SimulatedChip, IRiscVBus
                 UpdateClock();
                 return;
             case 0x04:
-                if ((value & (1u << 16)) != 0 && (_rccCtlr & (1u << 24)) == 0)
+                if ((value & (1u << 16)) != 0)
                 {
                     Fail("the program selected HSE as the PLL's source (RCC_CFGR0's PLLSRC): the simulator has no external crystal");
                     return;

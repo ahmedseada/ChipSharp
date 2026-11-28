@@ -48,8 +48,9 @@ internal sealed class Ch32v003SysTick(SimulatedChip chip, Func<long> hclk)
                 return (uint)(_baseCount + elapsed);
             }
 
-            var first = FirstMatch();
-            return elapsed <= first ? (uint)(_baseCount + elapsed) : (uint)((elapsed - first - 1) % ((long)_compare + 1));
+            // up to CMPR (0 counts on when the base is at it), then from 0 to CMPR again and again
+            var reach = (long)(uint)(_compare - _baseCount);
+            return elapsed <= reach ? (uint)(_baseCount + elapsed) : (uint)((elapsed - reach - 1) % ((long)_compare + 1));
         }
     }
 
@@ -110,11 +111,14 @@ internal sealed class Ch32v003SysTick(SimulatedChip chip, Func<long> hclk)
     /// <summary>The counts from the base to <paramref name="tick"/>.</summary>
     private long Elapsed(long tick) => _rate == 0 ? 0 : ((tick - _baseTick) * _rate + _remainder) / SimulatedChip.TicksPerSecond;
 
-    /// <summary>The counts from the base to the first match (at least 1: a counter already at CMPR matches 2^32 counts on).</summary>
+    /// <summary>
+    /// The counts from the base to the first match, at least 1: a counter already at CMPR matches again CMPR + 1 counts on
+    /// with STRE (from 0 up to it), 2^32 without.
+    /// </summary>
     private long FirstMatch()
     {
         var steps = (long)(uint)(_compare - _baseCount);
-        return steps == 0 ? 1L << 32 : steps;
+        return steps != 0 ? steps : (_ctlr & 8) != 0 ? (long)_compare + 1 : 1L << 32;
     }
 
     /// <summary>The counter now becomes the base, at the rate HCLK gives now.</summary>

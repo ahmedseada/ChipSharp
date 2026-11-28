@@ -257,9 +257,9 @@ internal sealed class Ch32v003CProgram
         static inline void pin_input(int port, int pin, int pull)
         {
             RCC_APB2PCENR |= 1u << (port + 2);
+            if (pull >= 0) REG(GPIO(port) + 0x10) = pull ? 1u << pin : 1u << (pin + 16); /* OUTDR: up or down */
             uint32_t cfg = REG(GPIO(port)) & ~(0xFu << (4 * pin));
             REG(GPIO(port)) = cfg | ((pull < 0 ? 0x4u : 0x8u) << (4 * pin));
-            if (pull >= 0) REG(GPIO(port) + 0x10) = pull ? 1u << pin : 1u << (pin + 16);
         }
 
         static inline int pin_read(int port, int pin) { return (REG(GPIO(port) + 0x08) >> pin) & 1; }
@@ -362,13 +362,17 @@ internal sealed class Ch32v003CProgram
             Sends = sends ?? [],
         }, setUp: setUp);
 
-    /// <summary>Runs the program and reads its variable out (<paramref name="size"/> bytes) each time it calls report().</summary>
-    public (SimulationResult Run, List<ulong> Values) RunReports(double milliseconds, int size = 4)
+    /// <summary>
+    /// Runs the program (with <paramref name="inputs"/>) and reads its variable out (<paramref name="size"/> bytes) each
+    /// time it calls report().
+    /// </summary>
+    public (SimulationResult Run, List<ulong> Values) RunReports(double milliseconds, IReadOnlyList<PinInput>? inputs = null,
+        int size = 4)
     {
         var values = new List<ulong>();
         var report = (int)Address("report");
         var output = Address("out");
-        var run = Run(milliseconds, setUp: chip => chip.Hooks = new Dictionary<int, Action<SimulatedChip>>
+        var run = Run(milliseconds, inputs, setUp: chip => chip.Hooks = new Dictionary<int, Action<SimulatedChip>>
         {
             [report] = c =>
             {

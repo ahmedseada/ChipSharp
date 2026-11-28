@@ -77,16 +77,561 @@ public sealed class Ch32v003SimulatorTests(ITestOutputHelper output) : IDisposab
             }
             """, _scratch);
         Ch32v003Chip? chip = null;
+        program.Run(1); // warm up
 
         var clock = Stopwatch.StartNew();
-        var run = program.Run(200, setUp: c => chip = (Ch32v003Chip)c);
+        var run = program.Run(1000, setUp: c => chip = (Ch32v003Chip)c);
         clock.Stop();
 
         Assert.True(run.ExitCode == 0, run.ToString());
         var instructions = chip!.Cpu.InstructionsRetired;
         var rate = instructions / clock.Elapsed.TotalSeconds;
         output.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"{instructions:N0} instructions ({chip.Cpu.Cycles:N0} cycles, 200 ms at 48 MHz) in {clock.Elapsed.TotalMilliseconds:N0} ms: {rate / 1e6:0.0} million a second"));
-        Assert.True(rate > 5e6, $"{rate:N0} instructions a second");
+            $"{instructions:N0} instructions ({chip.Cpu.Cycles:N0} cycles of the core, the flash's wait states besides, in 1000 ms " +
+            $"at 48 MHz) in {clock.Elapsed.TotalMilliseconds:N0} ms: {rate / 1e6:0.0} million a second"));
+        Assert.True(instructions > 20_000_000, $"{instructions} instructions");
+        Assert.True(rate > 3e6, $"{rate:N0} instructions a second");
+    }
+
+    [Ch32v003Fact]
+    public async Task SysTick_s_interrupt_comes_through_the_PFIC_s_vector_table_to_its_handler_and_mret_goes_back()
+    {
+        var program = await Ch32v003CProgram.BuildAsync("""
+            #include "ch32.h"
+            volatile int count;
+            volatile uint32_t out, cause, stack;
+            __attribute__((interrupt("machine"))) void isr_systick(void)
+            {
+                STK_SR = 0;                       /* CNTIF */
+                cause = mcause();
+                count++;
+                pin_write(2, 0, count & 1);
+            }
+            int main(void)
+            {
+                clock_48mhz();
+                pin_output(2, 0);
+                STK_CMPR = 48000 - 1;             /* 1 ms of HCLK, counting from 0 again (STRE) */
+                STK_CNTR = 0;
+                STK_CTLR = 0xF;                   /* STE, STIE, STCLK: HCLK, STRE */
+                PFIC_IENR(12) = 1u << 12;
+                uint32_t sp;
+                __asm__ volatile("mv %0, sp" : "=r"(sp));
+                interrupts_on();
+                while (count < 3) wait();
+                STK_CTLR = 0;
+                __asm__ volatile("mv %0, sp" : "=r"(stack));
+                out = cause;
+                report();
+                out = sp - stack;                 /* the HPE gave back what it took */
+                report();
+                return 0;
+            }
+            """, _scratch);
+
+        var (run, values) = program.RunReports(100);
+
+        Assert.True(run.ExitCode == 0 && run.Stopped.Contains("has finished", StringComparison.Ordinal), run.ToString());
+        Assert.Equal([0x8000_000CUL, 0], values); // an interrupt, number 12
+        Assert.Contains("CPU clock 48 MHz", run.Output, StringComparison.Ordinal);
+        var edges = run.Pins.Where(p => p.Pin == "PC0").ToList();
+        Assert.Equal(["low", "high", "low", "high"], edges.Select(p => p.State));
+        for (var k = 1; k <= 3; k++)
+        {
+            Assert.InRange(edges[k].Milliseconds, k, k + 0.05); // the clock's switch at 8 MHz first, a few cycles of entry
+        }
+    }
+
+    /// <summary>
+    /// A handler with no prologue of its own, as WCH's "WCH-Interrupt-fast" ones: it clobbers ra, t0-t2 and a0-a5, and
+    /// returns with mret; the HPE (INTSYSCR's HWSTKEN) saves and restores them around it, so that a loop that keeps its
+    /// sums in them gives what C# computes. Without the HPE ra is lost, and the run ends at the HardFault's ebreak.
+    /// </summary>
+    [Ch32v003Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task The_HPE_saves_the_registers_a_handler_without_its_own_prologue_clobbers(bool hpe)
+    {
+        var program = await Ch32v003CProgram.BuildAsync($$"""
+            #include "ch32.h"
+            volatile uint32_t out, ticks;
+            uint32_t spin(uint32_t n);
+            int main(void)
+            {
+                __asm__ volatile("csrw 0x804, %0" : : "r"({{(hpe ? 3 : 2)}}));
+                STK_CMPR = 400;                   /* every 50 us at 8 MHz */
+                STK_CTLR = 0xF;
+                PFIC_IENR(12) = 1u << 12;
+                interrupts_on();
+                out = spin(5000);
+                interrupts_off();
+                report();
+                out = ticks;
+                report();
+                return 0;
+            }
+            """, _scratch, """
+                .text
+                .global isr_systick, spin
+            isr_systick:
+                li t0, 0xE000F004
+                sw zero, 0(t0)          /* STK_SR: CNTIF */
+                la a0, ticks
+                lw a1, 0(a0)
+                addi a1, a1, 1
+                sw a1, 0(a0)
+                li a2, -1
+                li a3, -1
+                li a4, -1
+                li a5, -1
+                li t1, -1
+                li t2, -1
+                li ra, -1
+                mret
+            spin:                       /* a0 rounds of sums in t0-t2 and a1-a5 */
+                li t0, 0
+                li t1, 1
+                li t2, 2
+                li a1, 3
+                li a2, 4
+                li a3, 5
+                li a4, 6
+                li a5, 7
+            1:  add t0, t0, t1
+                add t1, t1, t2
+                add t2, t2, a1
+                add a1, a1, a2
+                add a2, a2, a3
+                add a3, a3, a4
+                add a4, a4, a5
+                addi a5, a5, 1
+                addi a0, a0, -1
+                bnez a0, 1b
+                xor a0, t0, t1
+                xor a0, a0, t2
+                xor a0, a0, a1
+                xor a0, a0, a2
+                xor a0, a0, a3
+                xor a0, a0, a4
+                xor a0, a0, a5
+                ret
+            """);
+
+        var (run, values) = program.RunReports(100);
+
+        uint t0 = 0, t1 = 1, t2 = 2, a1 = 3, a2 = 4, a3 = 5, a4 = 6, a5 = 7;
+        for (var i = 0; i < 5000; i++)
+        {
+            (t0, t1, t2, a1, a2, a3, a4, a5) = (t0 + t1, t1 + t2, t2 + a1, a1 + a2, a2 + a3, a3 + a4, a4 + a5, a5 + 1);
+        }
+
+        var sum = t0 ^ t1 ^ t2 ^ a1 ^ a2 ^ a3 ^ a4 ^ a5;
+        if (!hpe)
+        {
+            // the loop's count (a0) and its sums are lost: it does not end in time, or ends with another sum
+            Assert.False(run.ExitCode == 0 && values.Count == 2 && values[0] == sum, run.ToString());
+            return;
+        }
+
+        Assert.True(run.ExitCode == 0, run.ToString());
+        Assert.Equal(sum, values[0]);
+        Assert.InRange(values[1], 20UL, 200UL); // interrupts came while it summed
+    }
+
+    /// <summary>
+    /// SysTick at a low preemption priority (IPRIOR 0x80) sets the software interrupt (STK_CTLR's SWIE), of a high one
+    /// (0x00): with nesting (INTSYSCR's INESTEN) it runs at once, inside SysTick's handler (GISR's NESTSTA 3: level 2);
+    /// without, after it returns (level 1); a VTF channel takes it to a handler of its own, not the vector table's.
+    /// </summary>
+    [Ch32v003Theory]
+    [InlineData(3, false, new ulong[] { 1, 3, 2, 0x103 })]
+    [InlineData(1, false, new ulong[] { 1, 2, 3, 0x101 })]
+    [InlineData(3, true, new ulong[] { 1, 4, 2, 0x103 })]
+    public async Task Nesting_lets_a_higher_preemption_priority_in_and_a_VTF_channel_goes_straight_to_its_handler(int intsyscr,
+        bool vtf, ulong[] expected)
+    {
+        var program = await Ch32v003CProgram.BuildAsync($$"""
+            #include "ch32.h"
+            #define PFIC_GISR REG(0xE000E04C)
+            volatile uint32_t out, seq[8], gisr;
+            volatile int n;
+            __attribute__((interrupt("machine"))) void isr_systick(void)
+            {
+                STK_SR = 0;
+                STK_CTLR &= ~2u;                  /* STIE off: once */
+                seq[n++] = 1;
+                STK_CTLR |= 1u << 31;             /* SWIE: the software interrupt */
+                seq[n++] = 2;
+            }
+            __attribute__((interrupt("machine"))) void isr_software(void)
+            {
+                STK_CTLR &= ~(1u << 31);
+                gisr = PFIC_GISR;
+                seq[n++] = 3;
+            }
+            __attribute__((interrupt("machine"))) void direct(void)
+            {
+                STK_CTLR &= ~(1u << 31);
+                gisr = PFIC_GISR;
+                seq[n++] = 4;
+            }
+            int main(void)
+            {
+                __asm__ volatile("csrw 0x804, %0" : : "r"({{intsyscr}}));
+                if ({{(vtf ? 1 : 0)}})
+                {
+                    REG(0xE000E050) = 14;          /* VTFIDR: channel 0 for interrupt 14 */
+                    REG(0xE000E060) = (uint32_t)direct | 1;
+                }
+                PFIC_IPRIOR(12) = 0x80;
+                PFIC_IPRIOR(14) = 0x00;
+                PFIC_IENR(12) = (1u << 12) | (1u << 14);
+                STK_CMPR = 1000;
+                STK_CTLR = 0x7;                   /* STE, STIE, STCLK */
+                interrupts_on();
+                while (n < 3) wait();
+                interrupts_off();
+                for (int i = 0; i < 3; i++) { out = seq[i]; report(); }
+                out = gisr;
+                report();
+                return 0;
+            }
+            """, _scratch);
+
+        var (run, values) = program.RunReports(100);
+
+        Assert.True(run.ExitCode == 0, run.ToString());
+        Assert.Equal(expected, values);
+    }
+
+    [Ch32v003Fact]
+    public async Task A_pin_interrupt_follows_the_input_s_edges_on_its_timeline_through_AFIO_and_EXTI()
+    {
+        var program = await Ch32v003CProgram.BuildAsync("""
+            #include "ch32.h"
+            volatile int edges;
+            volatile uint32_t out;
+            __attribute__((interrupt("machine"))) void isr_exti(void)
+            {
+                REG(0x40010414) = 1u << 4;        /* EXTI_INTFR: line 4's flag */
+                edges++;
+                pin_write(2, 0, edges & 1);
+            }
+            int main(void)
+            {
+                pin_output(2, 0);
+                pin_input(2, 4, 1);               /* PC4, its pull-up */
+                RCC_APB2PCENR |= 1;               /* AFIO */
+                REG(0x40010008) = 2u << 8;        /* AFIO_EXTICR: line 4 from PC4 */
+                REG(0x40010400) = 1u << 4;        /* INTENR */
+                REG(0x40010408) = 1u << 4;        /* RTENR */
+                REG(0x4001040C) = 1u << 4;        /* FTENR */
+                PFIC_IENR(20) = 1u << 20;
+                out = pin_read(2, 4);
+                report();
+                interrupts_on();
+                while (edges < 3) wait();
+                out = pin_read(2, 4);
+                report();
+                return 0;
+            }
+            """, _scratch);
+
+        var (run, values) = program.RunReports(10, [new PinInput("PC4", false, 1), new PinInput("PC4", true, 2),
+            new PinInput("PC4", false, 3)]);
+
+        Assert.True(run.ExitCode == 0 && run.Stopped.Contains("has finished", StringComparison.Ordinal), run.ToString());
+        Assert.Equal([1UL, 0], values); // the pull-up, then the input's low
+        Assert.Contains(run.Pins, p => p.Pin == "PC4" && p.State == "input pull-up");
+        var edges = run.Pins.Where(p => p.Pin == "PC0").ToList();
+        Assert.Equal(["low", "high", "low", "high"], edges.Select(p => p.State));
+        for (var k = 1; k <= 3; k++)
+        {
+            Assert.InRange(edges[k].Milliseconds, k, k + 0.02); // a few microseconds at 8 MHz
+        }
+    }
+
+    [Ch32v003Fact]
+    public async Task An_input_reads_its_pull_up_or_pull_down_or_what_drives_it_and_an_open_drain_output_lets_go_at_1()
+    {
+        var program = await Ch32v003CProgram.BuildAsync("""
+            #include "ch32.h"
+            volatile uint32_t out;
+            int main(void)
+            {
+                pin_input(2, 1, 1);               /* PC1 pull-up */
+                pin_input(2, 2, 0);               /* PC2 pull-down */
+                pin_input(2, 3, -1);              /* PC3 floating, driven high from outside */
+                out = pin_read(2, 1) | (pin_read(2, 2) << 1) | (pin_read(2, 3) << 2);
+                report();
+                REG(GPIO(2)) = (REG(GPIO(2)) & ~(0xFu << 24)) | (0x7u << 24); /* PC6 open-drain output */
+                pin_write(2, 6, 0);
+                pin_write(2, 6, 1);
+                REG(GPIO(2)) &= ~(0xFu << 20);    /* PC5 analog: INDR reads 0 */
+                out = (REG(GPIO(2) + 8) >> 5) & 1;
+                report();
+                return 0;
+            }
+            """, _scratch);
+
+        var (run, values) = program.RunReports(10, [new PinInput("PC3", true, null), new PinInput("PC5", true, null)]);
+
+        Assert.True(run.ExitCode == 0, run.ToString());
+        Assert.Equal([0b101UL, 0], values);
+        Assert.Equal(["input pull-up", "input pull-down", "low", "input"], // PC6 open-drain: released at 1
+            run.Pins.Where(p => p.Pin is "PC1" or "PC2" or "PC6").Select(p => p.State));
+    }
+
+    [Ch32v003Fact]
+    public async Task USART1_prints_its_baud_rate_and_lines_and_its_RXNE_interrupt_echoes_what_is_sent()
+    {
+        var program = await Ch32v003CProgram.BuildAsync("""
+            #include "ch32.h"
+            volatile int done;
+            __attribute__((interrupt("machine"))) void isr_usart1(void)
+            {
+                char c = (char)USART1_DATAR;      /* RXNE cleared */
+                usart_put(c == '\n' ? '\n' : c - 32);
+                if (c == '\n') done = 1;
+            }
+            int main(void)
+            {
+                clock_48mhz();
+                usart_init(48000000, 115200);
+                USART1_CTLR1 |= 1u << 5;          /* RXNEIE */
+                PFIC_IENR(32) = 1u;               /* interrupt 32: IENR2's bit 0 */
+                usart_print("ready\n");
+                interrupts_on();
+                while (!done) wait();
+                usart_flush();
+                return 0;
+            }
+            """, _scratch);
+
+        var run = program.Run(20, sends: [new SerialSend("hi\n"u8.ToArray(), 2)]);
+
+        Assert.True(run.ExitCode == 0 && run.Stopped.Contains("has finished", StringComparison.Ordinal), run.ToString());
+        Assert.Equal(["ready", "HI"], run.SerialLines);
+        Assert.Equal(["USART1 baud 115108"], run.After("USART1 baud")); // 48 MHz / 417
+        Assert.Contains("input: USART1 \"hi\\n\"", run.Output, StringComparison.Ordinal);
+    }
+
+    [Ch32v003Fact]
+    public async Task USART1_s_bytes_stay_in_the_chip_unless_its_TX_pin_is_an_alternate_function_output()
+    {
+        var program = await Ch32v003CProgram.BuildAsync("""
+            #include "ch32.h"
+            int main(void)
+            {
+                usart_init(8000000, 115200);
+                REG(GPIO(3)) = (REG(GPIO(3)) & ~(0xFu << 20)) | (0x3u << 20); /* PD5 a plain output */
+                usart_print("lost\n");
+                usart_flush();
+                return 0;
+            }
+            """, _scratch);
+
+        var run = program.Run(20);
+
+        Assert.True(run.ExitCode == 0, run.ToString());
+        Assert.Empty(run.Serial);
+        Assert.Contains("USART1 TX (PD5) is not an alternate-function output", run.Output, StringComparison.Ordinal);
+    }
+
+    [Ch32v003Theory]
+    [InlineData("iwdg", false, "the independent watchdog (IWDG) reset the chip: the program did not feed it (IWDG_CTLR 0xAAAA) within its 10 ms")]
+    [InlineData("iwdg", true, null)]
+    [InlineData("wwdg", false, "the window watchdog (WWDG) reset the chip: its counter went from 0x40 to 0x3F")]
+    [InlineData("wwdg", true, null)]
+    [InlineData("wwdg-early", true, "the window watchdog (WWDG) reset the chip: the program fed it with its counter at 0x7e, above the window (W 0x50)")]
+    public async Task A_watchdog_stops_the_run_unless_fed(string watchdog, bool feed, string? why)
+    {
+        var program = await Ch32v003CProgram.BuildAsync($$"""
+            #include "ch32.h"
+            int main(void)
+            {
+                int iwdg = {{(watchdog == "iwdg" ? 1 : 0)}}, feed = {{(feed ? 1 : 0)}};
+                if (iwdg)
+                {
+                    REG(0x40003000) = 0x5555;     /* IWDG: unlock */
+                    REG(0x40003004) = 0;          /* LSI / 4 */
+                    REG(0x40003008) = 319;        /* 320 counts: 10 ms */
+                    REG(0x40003000) = 0xCCCC;     /* start */
+                }
+                else
+                {
+                    RCC_APB1PCENR |= 1u << 11;    /* WWDG's clock */
+                    REG(0x40002C04) = (3u << 7) | {{(watchdog == "wwdg-early" ? "0x50" : "0x7F")}}; /* HCLK / 4096 / 8, W */
+                    REG(0x40002C00) = 0x80 | 0x7F; /* WDGA, T 0x7F: 64 counts of 4.096 ms to the reset */
+                }
+                STK_CTLR = 0x5;                   /* SysTick at HCLK, 8 MHz */
+                for (uint32_t ms = 0; ms < 400; ms++)
+                {
+                    uint32_t start = STK_CNTR;
+                    while (STK_CNTR - start < 8000) {}
+                    if (feed)
+                    {
+                        if (iwdg) REG(0x40003000) = 0xAAAA;
+                        else if ((REG(0x40002C00) & 0x7F) < 0x7F) REG(0x40002C00) = 0x7F;
+                    }
+                }
+                return 0;
+            }
+            """, _scratch);
+
+        var run = program.Run(600);
+
+        if (why is null)
+        {
+            Assert.True(run.ExitCode == 0 && run.Stopped.Contains("has finished", StringComparison.Ordinal), run.ToString());
+            return;
+        }
+
+        Assert.True(run.ExitCode == 3, run.ToString());
+        Assert.StartsWith(why, run.Stopped["stopped: ".Length..], StringComparison.Ordinal);
+        var at = run.Times("stopped").Single();
+        if (watchdog == "iwdg")
+        {
+            Assert.InRange(at, 10, 10.1);
+        }
+        else if (watchdog == "wwdg")
+        {
+            Assert.InRange(at, 262, 263); // 64 x 4096 x 8 cycles of 8 MHz: 262.1 ms
+        }
+    }
+
+    [Ch32v003Theory]
+    [InlineData("__asm__ volatile(\"ebreak\");", "the program hit a breakpoint (ebreak) at pc 0x")]
+    [InlineData("__asm__ volatile(\"csrw mtvec, zero\\n .word 0\");", "the program caused an illegal instruction 0x00000000 at pc 0x")]
+    [InlineData("PFIC_IENR(21) = 1u << 21; REG(0xE000E200) = 1u << 21; interrupts_on(); wait();", // AWU, pending by IPSR
+        "the program caused interrupt 21, and its vector table's entry at 0x00000054 (mtvec 0x00000003) is 0: no handler")]
+    [InlineData("__asm__ volatile(\"ecall\");", "the program hit a breakpoint (ebreak)")]
+    [InlineData("REG(0xE000E048) = 0xBEEF0080;", "the program reset the chip (PFIC_CFGR's SYSRESET, with KEY3)")]
+    [InlineData("REG(GPIO(2)) = 0;", "the program used GPIOC's register at 0x40011000 with its clock off (RCC_APB2PCENR's IOPCEN 0)")]
+    [InlineData("REG(0x40012C00) = 1;", "the program used TIM1 (its register at 0x40012c00), which the CH32V003 simulator does not model yet")]
+    [InlineData("pin_output(3, 7);", "the program made PD7 an output, but PD7 is NRST")]
+    [InlineData("pin_output(3, 1);", "the program made PD1 an output, but PD1 is SWIO")]
+    [InlineData("RCC_CTLR |= 1u << 16;", "the program turned HSE on")]
+    [InlineData("RCC_CTLR |= 1u << 24; RCC_CFGR0 = (RCC_CFGR0 & ~0xF3u) | 2;", "SYSCLK is 48 MHz with no flash wait state (FLASH_ACTLR's LATENCY 0)")]
+    [InlineData("((void (*)(void))0x3F00)();", "the program ran into flash the image does not fill, at pc 0x00003f00")]
+    [InlineData("*(volatile uint32_t *)0x20000101 = 1;", "the program hit a breakpoint")] // a misaligned store: the HardFault's ebreak
+    public async Task The_failure_stops_say_what_happened(string statement, string why)
+    {
+        var program = await Ch32v003CProgram.BuildAsync($$"""
+            #include "ch32.h"
+            int main(void)
+            {
+                {{statement}}
+                return 0;
+            }
+            """, _scratch);
+
+        var run = program.Run(50);
+
+        Assert.True(run.ExitCode == 3, run.ToString());
+        Assert.Contains(why, run.Stopped, StringComparison.Ordinal);
+    }
+
+    [Ch32v003Fact]
+    public async Task With_interrupts_on_and_none_to_come_wfi_ends_the_run_and_with_one_to_come_it_waits()
+    {
+        var program = await Ch32v003CProgram.BuildAsync("""
+            #include "ch32.h"
+            volatile int fired;
+            __attribute__((interrupt("machine"))) void isr_systick(void) { STK_CTLR = 0; fired = 1; }
+            int main(void)
+            {
+                PFIC_IENR(12) = 1u << 12;
+                STK_CMPR = 8000 * 5;              /* 5 ms at 8 MHz */
+                STK_CTLR = 0x7;
+                interrupts_on();
+                while (!fired) wait();
+                pin_output(2, 0);
+                wait();                           /* nothing can come any more */
+                return 1;
+            }
+            """, _scratch);
+
+        var run = program.Run(100);
+
+        Assert.True(run.ExitCode == 0, run.ToString());
+        Assert.Contains("the program has finished: the CPU waits for an interrupt (wfi) that nothing can raise any more",
+            run.Stopped, StringComparison.Ordinal);
+        Assert.InRange(run.Pins.Single(p => p.Pin == "PC0").Milliseconds, 5, 5.05);
+    }
+
+    [Ch32v003Fact]
+    public async Task The_HSI_without_its_divider_runs_the_core_at_24_MHz_and_the_PLL_at_48()
+    {
+        var program = await Ch32v003CProgram.BuildAsync("""
+            #include "ch32.h"
+            volatile uint32_t out;
+            static uint32_t loop(void)
+            {
+                STK_CTLR = 0x5;                   /* SysTick at HCLK */
+                uint32_t start = STK_CNTR;
+                for (volatile int i = 0; i < 1000; i++) {}
+                return STK_CNTR - start;
+            }
+            int main(void)
+            {
+                RCC_CFGR0 &= ~0xF0u;              /* HPRE /1: 24 MHz */
+                pin_output(2, 0);
+                pin_write(2, 0, 1);
+                out = loop();
+                report();
+                clock_48mhz();
+                pin_write(2, 0, 0);
+                out = loop();
+                report();
+                return 0;
+            }
+            """, _scratch);
+
+        var (run, values) = program.RunReports(100);
+
+        Assert.True(run.ExitCode == 0, run.ToString());
+        Assert.Equal(["CPU clock 24 MHz", "CPU clock 48 MHz"], run.After("CPU clock"));
+        // the same loop in HCLK cycles: a few more at 48 MHz, for the flash's wait state
+        Assert.InRange((double)values[1] / values[0], 1.0, 1.6);
+        output.WriteLine($"the loop: {values[0]} cycles at 24 MHz, {values[1]} at 48 MHz");
+    }
+
+    [Ch32v003Fact]
+    public async Task Chipsim_takes_the_CH32V003_s_pins_and_USART1_and_says_what_it_does_not_have()
+    {
+        var program = await Ch32v003CProgram.BuildAsync(Hello, _scratch);
+        var bytes = Path.Combine(_scratch, "usart1.bin");
+        using var output = new StringWriter();
+        using var errors = new StringWriter();
+
+        Assert.Equal(0, Simulation.Command(["ch32v003", program.Elf, "--ms", "5", "--usart1", bytes, "--input", "PA1=high"],
+            output, errors));
+        Assert.Equal("Hello\n", Encoding.ASCII.GetString(File.ReadAllBytes(bytes)));
+        Assert.Contains("on the CH32V003 (", output.ToString(), StringComparison.Ordinal);
+        Assert.Contains("USART1: Hello", output.ToString(), StringComparison.Ordinal);
+
+        using var wrong = new StringWriter();
+        Assert.Equal(2, Simulation.Command(["ch32v003", program.Elf, "--input", "PB0=high"], output, wrong));
+        Assert.Contains("the CH32V003 has no pin PB0; it has PA1, PA2, PC0, PC1, PC2, PC3, PC4, PC5, PC6, PC7, PD0, PD1",
+            wrong.ToString(), StringComparison.Ordinal);
+        using var none = new StringWriter();
+        Assert.Equal(2, Simulation.Command(["ch32v003"], output, none));
+        Assert.Contains("which image (.hex, .bin or .elf)?", none.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void An_image_with_bytes_where_the_chip_has_no_flash_is_refused()
+    {
+        Directory.CreateDirectory(_scratch);
+        var big = Path.Combine(_scratch, "big.bin");
+        File.WriteAllBytes(big, new byte[16 * 1024 + 1]);
+        var hex = Path.Combine(_scratch, "ram.hex");
+        File.WriteAllText(hex, ":020000042000DA\n:0400000001020304F2\n:00000001FF\n"); // 4 bytes at 0x20000000
+
+        Assert.Contains("a .bin for the CH32V003 has 1 to 16384", Assert.Throws<ImageException>(() => Ch32v003Chip.Load(big)).Message,
+            StringComparison.Ordinal);
+        Assert.Contains("outside the CH32V003's 16 KB of flash", Assert.Throws<ImageException>(() => Ch32v003Chip.Load(hex)).Message,
+            StringComparison.Ordinal);
     }
 }

@@ -553,8 +553,9 @@ The toolchain `sdcc`:
   fails with how much it needs, as on the other chips. The `.hex` is SDCC's `.ihx` in address order (byte addresses:
   a Padauk chip's word n at bytes 2n and 2n + 1, as the Easy PDK programmer reads it).
 - **The simulator, `chipsim`** (`src/ChipSharp.Simulators`, ChipSharp's own instruction-set simulators, in C#): `chipsim
-  pfs154 Blink.ihx --ms 1000` (or `stm8s103`; `esp32c5` runs an `.elf` or an image, see [ESP32-C5](#esp32-c5); without
-  installing, `src\ChipSharp.Simulators\bin\Release\net10.0\chipsim.exe`)
+  pfs154 Blink.ihx --ms 1000` (or `stm8s103`; `esp32c5` runs an `.elf` or an image, see [ESP32-C5](#esp32-c5);
+  `ch32v003` a `.hex`, `.bin` or `.elf` in the WCH CH32V003's flash, its QingKe V2A core with the PFIC, the HPE and
+  SysTick, USART1 as `USART1`, `--usart1 file`; without installing, `src\ChipSharp.Simulators\bin\Release\net10.0\chipsim.exe`)
   runs a `.ihx` and prints what the Uno's simulator prints: every pin change (`[   12.000 ms] PA4 high`), UART1's lines
   (`UART1: Hello`) and baud rate, a timer's pin as PWM periods, what the buses do, and `stopped: <why>`.
   `--input PA3=low@100ms` drives a pin, `--send "on\n@100ms"` sends to UART1's RX (the STM8S103's PD6), `--uart1 file`

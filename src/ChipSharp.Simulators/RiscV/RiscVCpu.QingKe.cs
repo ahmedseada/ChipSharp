@@ -21,7 +21,7 @@ namespace ChipSharp.Simulators.RiscV;
 /// MODE0 0, the base (bits 31:2) for every trap, 1, the base + 4 × the number (the vector table, 1 KB aligned); MODE1
 /// 0, the instruction there runs (a jump), 1, the address there is jumped to (WCH's start-up sets mtvec to its table
 /// at 0 with MODE 3). mret: back to mepc; MIE takes MPIE, MPIE 1; with MPOP the HPE pops what it pushed; MPOP takes
-/// MPPOP; the PFIC's active trap ends, and the interrupted level's mepc and mcause come back (a nested trap would
+/// MPPOP; the PFIC's active trap ends, and the interrupted level's mepc, mcause and MPPOP come back (a nested trap would
 /// otherwise lose them, and WCH's "WCH-Interrupt-fast" handlers do not save them).
 /// </para>
 /// <para>
@@ -52,7 +52,7 @@ public sealed partial class RiscVCpu
     /// <summary>The registers the HPE saves, in the order of Table 3-3: x1 at sp - 4, x5 at sp - 8, ..., x15 at sp - 40.</summary>
     private static readonly int[] HpeRegisters = [1, 5, 6, 7, 10, 11, 12, 13, 14, 15];
 
-    private readonly Stack<(uint Mepc, uint Mcause)> _interrupted = new();
+    private readonly Stack<(uint Mepc, uint Mcause, uint Mppop)> _interrupted = new();
 
     /// <summary>The PFIC (QingKe V2): which traps are active, the VTF channels; null for none.</summary>
     public IQingKeInterrupts? Pfic { get; set; }
@@ -125,7 +125,7 @@ public sealed partial class RiscVCpu
         }
 
         var level = Pfic?.Enter(number) ?? 1;
-        _interrupted.Push((Mepc, _mcauseFields));
+        _interrupted.Push((Mepc, _mcauseFields, _mstatus & MstatusMppop));
         Mepc = mepc;
         _mcauseFields = cause;
         var mie = _mstatus & MstatusMie;
@@ -191,13 +191,18 @@ public sealed partial class RiscVCpu
             cycles += HpeCycles;
         }
 
+        // MPOP takes MPPOP; MPPOP the interrupted level's own (a third level, an exception in a level-2 handler, would
+        // otherwise lose the first level's)
         var mppop = (_mstatus & MstatusMppop) != 0 ? MstatusMpop : 0;
-        _mstatus = (_mstatus & ~(MstatusMie | MstatusMpop | MstatusMppop)) | (mpie ? MstatusMie : 0) | MstatusMpie | mppop;
+        var outerMppop = 0u;
         if (_interrupted.TryPop(out var outer))
         {
-            (Mepc, _mcauseFields) = outer;
+            (Mepc, _mcauseFields, outerMppop) = outer;
             Pfic?.Return();
         }
+
+        _mstatus = (_mstatus & ~(MstatusMie | MstatusMpop | MstatusMppop)) | (mpie ? MstatusMie : 0) | MstatusMpie | mppop |
+            outerMppop;
 
         InterruptStateChanged?.Invoke();
         return cycles;
