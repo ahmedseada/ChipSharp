@@ -554,7 +554,8 @@ The toolchain `sdcc`:
   fails with how much it needs, as on the other chips. The `.hex` is SDCC's `.ihx` in address order (byte addresses:
   a Padauk chip's word n at bytes 2n and 2n + 1, as the Easy PDK programmer reads it).
 - **The simulator, `chipsim`** (`src/ChipSharp.Simulators`, ChipSharp's own instruction-set simulators, in C#): `chipsim
-  pfs154 Blink.ihx --ms 1000` (or `stm8s103`; without installing, `src\ChipSharp.Simulators\bin\Release\net10.0\chipsim.exe`)
+  pfs154 Blink.ihx --ms 1000` (or `stm8s103`; `esp32c5` runs an `.elf`, see [ESP32-C5](#esp32-c5-in-progress); without
+  installing, `src\ChipSharp.Simulators\bin\Release\net10.0\chipsim.exe`)
   runs a `.ihx` and prints what the Uno's simulator prints: every pin change (`[   12.000 ms] PA4 high`), UART1's lines
   (`UART1: Hello`) and baud rate, a timer's pin as PWM periods, what the buses do, and `stopped: <why>`.
   `--input PA3=low@100ms` drives a pin, `--send "on\n@100ms"` sends to UART1's RX (the STM8S103's PD6), `--uart1 file`
@@ -753,8 +754,9 @@ Milestone M4 brings Espressif's ESP32-C5 (`esp32c5-devkitc`, the ESP32-C5-DevKit
 Zicsr and Zifencei (no float hardware), up to 240 MHz, 384 KB of SRAM, flash and PSRAM in the module. It is built the
 way the Pico is, through the `llvm` code generator, whose `riscv32` output (triple `riscv32-unknown-elf`, the ilp32 ABI,
 4-byte pointers) clang compiles with the chip's `"march"` and `"mabi"` (`-march=rv32imac_zicsr_zifencei -mabi=ilp32`,
-ESP-IDF's own: the core's Zcmp is faulty and not used), and ld.lld links. So far it builds to a linked `.elf`; the
-image, the flasher, the simulator and the runtime's hardware contract (pins, clock, console, events) come next.
+ESP-IDF's own: the core's Zcmp is faulty and not used), and ld.lld links. So far it builds to a linked `.elf`, which
+`chipsim esp32c5` runs; the image, the flasher and the runtime's hardware contract (pins, clock, console, events) come
+next.
 
 - **Facts as data.** `targets/chip/esp32c5.json` says what the chip is, each fact with its source (the datasheet and
   TRM, ESP-IDF's sources, esptool's): the memory map, the CLIC (48 interrupt ids, 16-47 the CPU's 32 lines, to which
@@ -778,8 +780,24 @@ image, the flasher, the simulator and the runtime's hardware contract (pins, clo
   below the ROM's data, the trap entry at `0x40800000`, the entry point `chipsharp_reset`; `llvm-objdump` and
   `llvm-readobj` find RV32IMAC code, the start-up's gp, sp and mtvec, no float or Zcmp instruction); every program of
   the corpora without objects compiles and links for the board, each with objects is refused for the heap; the C5's
-  headers compile with clang. The conformance suite has the chip's slot (`Esp32c5ChipSimulator`), skipped until its
-  simulator and runtime come.
+  headers compile with clang. The conformance suite has the chip's slot (`Esp32c5ChipSimulator`, which runs the image
+  in chipsim), skipped until the runtime implements the hardware contract.
+- **The simulator** (`chipsim esp32c5 program.elf`, in `src/ChipSharp.Simulators`: `RiscV` and `Esp32c5`) runs an ELF
+  file or an ESP image as the ROM leaves the chip. The core: RV32IMAC, Zicsr, Zifencei, Zcb, Zcmp and Zcmt (Zcmp per
+  its spec, not the C5's faulty one; no Xhwlp), machine and user mode, the CLIC's traps (mtvec in CLIC mode, the
+  vector table at mtvt, mcause's previous level, mintstatus, mintthresh, mnxti), 1 cycle an instruction and the TRM's
+  extras (a taken branch 1, jalr 2, mul 1, a division 1-18 by its quotient, a peripheral access 3). The chip, from the
+  TRM, ESP-IDF's headers and the SVD (`Esp32c5Map`): HP and LP SRAM, the CLIC and CLINT, the interrupt matrix (a
+  source's map register holds the CLIC id, 16 + the line), GPIO and IO MUX (outputs, the pads' pull-ups and pull-downs, open drain, edge and
+  level interrupts on `--input GPIO9=low@5ms`), SYSTIMER (16 MHz, three alarms), UART0 (FIFOs, the baud from PCR and
+  CLKDIV, its interrupts; `--send`), the USB Serial/JTAG port (`USB: ...` lines, `--send USB=...`), MWDT0/1, the RTC
+  watchdog and the super watchdog (the ROM leaves MWDT0's and RWDT's flash boot protection and the super watchdog on:
+  each stops the run unless the program turns it off or feeds it), PCR's clocks (XTAL 48 MHz after reset, the PLL's
+  160 and 240 MHz at `BUS_CLOCK_UPDATE`, `CPU clock 240 MHz`), and a few ROM functions in C# (`ets_printf`,
+  `ets_delay_us`, ...; another ROM call stops the run). It stops as a failure at `ebreak`, an exception without a trap
+  handler or a watchdog's reset; it has finished at `wfi` with interrupts off (or with none that can come). About 70
+  million instructions a second. Its tests run every instruction form clang assembles, every compressed one against
+  its expansion, 2,688 results of C's arithmetic, and C programs for each peripheral.
 
 ## A new chip: one contract, one suite, chips as data
 
@@ -1826,6 +1844,6 @@ of its own (`src/ChipSharp.Backend.Llvm/LlvmStackChecks.cs`).
 | M3 (done) | The heap: classes, garbage collector, strings, interfaces, generics, `Span<T>`, delegates, boxing, records, exceptions you throw, collections |
 | M6 (done) | C backend through SDCC: the Padauk PFS154 (2K words, 128 bytes of RAM) and the STM8S103 (8 KB, 1 KB), no heap, 32-bit `double` refused; the chips as data, a hardware contract with a conformance suite, the runtimes, `chipsim`, the flashers (`easypdkprog`, `stm8flash`) and examples (see [PFS154 and STM8S103](#pfs154-and-stm8s103-through-c-and-sdcc)) |
 | M7 (done) | Arduino Uno: the ATmega328P, an 8-bit AVR with 2 KB of RAM and no heap, through the LLVM in Zig; constants in flash, 8- and 16-bit arithmetic, its pins, timers, clock, serial port, I2C, SPI, ADC and PWM, `chipsharp flash` with avrdude, Wokwi circuits and examples (see [Arduino Uno](#arduino-uno)) |
-| M4 (in progress) | ESP32-C5 (RISC-V): its target files, the llvm code generator for riscv32, the start-up and a linked `.elf` so far; next its image, flasher, simulator and runtime (see [ESP32-C5](#esp32-c5-in-progress)) |
+| M4 (in progress) | ESP32-C5 (RISC-V): its target files, the llvm code generator for riscv32, the start-up, a linked `.elf` and its simulator (`chipsim esp32c5`) so far; next its image, flasher and runtime (see [ESP32-C5](#esp32-c5-in-progress)) |
 | M5 | CH32V003, C# on a 10-cent chip with 2 KB of RAM: M2-style code and the M3 pieces that need no heap (generics over values, spans, fixed and printed text, record structs) |
 | Later | Catching exceptions (`try`/`catch`); a portable pull-up for `Pin.Input`; more chips, and an interpreter mode for the smallest |

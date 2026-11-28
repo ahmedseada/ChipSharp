@@ -5,7 +5,8 @@ namespace ChipSharp.Simulators.Esp32c5;
 /// GPIO output when its IO MUX function (IO_MUX_GPIOn's MCU_SEL) is 1, GPIO, its GPIO_FUNCn_OUT_SEL_CFG selects 256
 /// (simple GPIO output: GPIO_OUT's bit, inverted by OUT_INV_SEL) and GPIO_ENABLE's bit is set; GPIO_PINn's PAD_DRIVER
 /// makes it open-drain. GPIO_OUT, GPIO_ENABLE (and their W1TS, W1TC), GPIO_IN (the pins' levels where IO MUX's FUN_IE is
-/// on, else 0); FUN_WPU's pull-up (FUN_WPD's pull-down reads as no pull). GPIO_PINn's INT_TYPE (1 rising, 2 falling, 3
+/// on, else 0); the pad's pulls, IO MUX's FUN_WPU and FUN_WPD: an input nothing drives reads high with its pull-up,
+/// low with its pull-down (or with neither), and an --input's level whatever its pulls. GPIO_PINn's INT_TYPE (1 rising, 2 falling, 3
 /// both edges, 4 low level, 5 high level) sets the pin's bit of GPIO_STATUS (and W1TS, W1TC), and INT_ENA's bit 13 lets
 /// it into GPIO_PROCPU_INT and the interrupt source GPIO (31). The input selections (FUNCn_IN_SEL_CFG) and the other
 /// registers only keep what is written. After reset (as the ROM leaves them) every pin is an input with FUN_IE on, the
@@ -210,7 +211,7 @@ internal sealed class Esp32c5Gpio
     {
         for (var p = 0; p < _ports.Length; p++)
         {
-            byte output = 0, direction = 0, pushPull = 0, pullUp = 0;
+            byte output = 0, direction = 0, pushPull = 0, pullUp = 0, pullDown = 0;
             for (var bit = 0; bit < 8; bit++)
             {
                 var n = p * 8 + bit;
@@ -240,6 +241,11 @@ internal sealed class Esp32c5Gpio
                 {
                     pullUp |= mask;
                 }
+
+                if ((_ioMux[n] & (1u << 7)) != 0)
+                {
+                    pullDown |= mask;
+                }
             }
 
             var port = _ports[p];
@@ -247,6 +253,7 @@ internal sealed class Esp32c5Gpio
             port.Direction = direction;
             port.PushPull = pushPull;
             port.PullUp = pullUp;
+            port.PullDown = pullDown;
             port.Update();
         }
 

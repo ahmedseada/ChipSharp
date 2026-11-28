@@ -168,6 +168,41 @@ public sealed class Esp32c5SimulatorTests(ITestOutputHelper output) : IDisposabl
     }
 
     [Esp32c5Fact]
+    public async Task An_input_reads_its_pad_s_pull_up_or_pull_down_and_what_drives_it_whatever_its_pulls()
+    {
+        var program = await Esp32c5CProgram.BuildAsync("""
+            #include "c5.h"
+            volatile uint32_t out;
+            int main(void)
+            {
+                out = REG(0x60091064) & 0x3F0; report();                    /* GPIO4: its pull-up from reset */
+                REG(0x60090000 + 4 * 4) &= ~(1u << 8);                       /* GPIO4: no pull */
+                REG(0x60090000 + 4 * 5) |= 1u << 7;                          /* GPIO5: FUN_WPD */
+                REG(0x60090000 + 4 * 6) |= 1u << 8;                          /* GPIO6: FUN_WPU */
+                REG(0x60090000 + 4 * 8) |= (1u << 7);                        /* GPIO8: a pull-down, driven high */
+                REG(0x60090000 + 4 * 9) |= (1u << 8);                        /* GPIO9: a pull-up, driven low */
+                out = REG(0x60091064) & 0x3F0; report();
+                return 0;
+            }
+            """, _scratch);
+
+        var (run, values) = program.RunReports(10, 4);
+        var inputs = (IReadOnlyList<PinInput>)[new("GPIO8", true, null), new("GPIO9", false, null)];
+        var driven = Simulation.Run(new SimulationOptions { Chip = "esp32c5", Image = program.Elf, Milliseconds = 10, Inputs = inputs },
+            setUp: chip => chip.Hooks = new Dictionary<int, Action<SimulatedChip>>
+            {
+                [(int)program.Address("report")] = c => values.Add(((Esp32c5Chip)c).Read(program.Address("out"), 4)),
+            });
+
+        Assert.True(run.ExitCode == 0 && driven.ExitCode == 0, run.ToString());
+        Assert.Equal(0x10UL, values[0]); // only GPIO4's pull-up
+        Assert.Equal(0x40UL | 0x200, values[1]); // GPIO6's and GPIO9's pull-ups; GPIO5's and GPIO8's pull-downs, GPIO4 floating
+        Assert.Equal(0x40UL | 0x100, values[3]); // driven, GPIO8 high and GPIO9 low, whatever their pulls
+        Assert.Contains(run.Pins, p => p is { Pin: "GPIO5", State: "input pull-down" });
+        Assert.Contains(run.Pins, p => p is { Pin: "GPIO4", State: "input" });
+    }
+
+    [Esp32c5Fact]
     public async Task UART0_prints_its_baud_rate_and_lines_and_its_RX_interrupt_echoes_what_is_sent()
     {
         var program = await Esp32c5CProgram.BuildAsync(Interrupts + """

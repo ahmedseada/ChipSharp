@@ -50,8 +50,10 @@ public enum RiscVPrivilege
 /// A 32-bit RISC-V core in machine mode (and user mode, as mret's MPP gives it), as Espressif's ESP32-C5 HP CPU is
 /// (ESP32-C5 Technical Reference Manual v1.1, chapter 2 High-Performance CPU): RV32I, M, A (LR/SC and the AMOs; aq and rl
 /// ignored, as the TRM says the core always orders memory), C, Zicsr and Zifencei, and the Zc extensions the datasheet
-/// lists (Zcb, Zcmp, Zcmt). Not the custom hardware loops (Xhwlp): their opcodes, like every one the core does not have,
-/// raise the illegal-instruction exception. Interrupts are the CLIC's (Core-Local Interrupt Controller, version 0.9): the
+/// lists: Zcb (not its c.sext.b, c.zext.h and c.sext.h, which need Zbb), Zcmp as its specification has it (not the C5's
+/// faulty cm.push and cm.popret, ESP-IDF's SOC_CPU_ZCMP_PUSH_REVERSED and SOC_CPU_ZCMP_POPRET_ISSUE: ChipSharp does not
+/// use Zcmp), Zcmt. Not the custom hardware loops (Xhwlp): their opcodes, like every one the core does not have, raise
+/// the illegal-instruction exception. Interrupts are the CLIC's (Core-Local Interrupt Controller, version 0.9): the
 /// chip asks <see cref="TakeInterrupt"/> to take one; mtvec's mode is hardwired to 3 (CLIC mode), so exceptions and
 /// non-vectored interrupts go to mtvec's base (64-byte aligned) and a vectored one (clicintattr.shv) through the table at
 /// mtvt; mcause holds the interrupt's or exception's code, the previous level (MPIL) and mirrors mstatus's MPP and MPIE;

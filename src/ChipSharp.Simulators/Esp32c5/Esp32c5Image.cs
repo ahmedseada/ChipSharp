@@ -86,7 +86,8 @@ public sealed class Esp32c5Image
     /// 23; whether a SHA-256 is appended), the segments (each its load address, length and bytes), the checksum (0xEF
     /// XORed with every byte of the segments, the last byte of the padding to 16 bytes) and the SHA-256 when appended;
     /// both are checked, as the ROM does. The segments the ROM copies into SRAM and those it maps through the MMU (at
-    /// 0x4200_0000 on) are loaded alike.
+    /// 0x4200_0000 on) are loaded alike. The image format's own reader (ChipSharp.Image.Esp's EspImage.Read, M4's wave
+    /// 1) takes this one's place once it is in ChipSharp: this is the hook.
     /// </summary>
     public static Esp32c5Image FromEspImage(byte[] bytes, string path)
     {

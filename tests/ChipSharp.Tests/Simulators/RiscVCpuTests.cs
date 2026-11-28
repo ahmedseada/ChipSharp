@@ -404,6 +404,23 @@ public sealed partial class RiscVCpuTests : IDisposable
     }
 
     [Fact]
+    public void Zcb_s_forms_that_need_Zbb_are_illegal_on_the_C5_and_its_others_run()
+    {
+        var (cpu, bus) = Core();
+        bus.LoadBytes(Code, [0x61, 0x9D, 0x75, 0x9D, 0x65, 0x9D]); // c.zext.b a0; c.not a0; c.sext.b a0
+        cpu.X[10] = 0x1234;
+
+        cpu.Step();
+        Assert.Equal(0x34u, cpu.X[10]);
+        cpu.Step();
+        Assert.Equal(~0x34u, cpu.X[10]);
+        cpu.Step();
+        Assert.Equal(Handler, cpu.Pc);
+        Assert.Equal((uint)RiscVCpu.IllegalInstruction, cpu.Mcause & 0x3F);
+        Assert.Equal(0x9D65u, cpu.Mtval);
+    }
+
+    [Fact]
     public void The_csr_instructions_read_write_set_and_clear_and_read_only_csrs_refuse_writes()
     {
         var (cpu, _) = Core(Csr(1, 10, 11, 0x340), Csr(2, 12, 13, 0x340), Csr(3, 14, 15, 0x340), Csr(5, 16, 0x1F, 0x340),

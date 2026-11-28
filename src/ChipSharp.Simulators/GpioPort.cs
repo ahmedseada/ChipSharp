@@ -2,20 +2,26 @@ using System.Globalization;
 
 namespace ChipSharp.Simulators;
 
-/// <summary>What a pin does, as the simulators print it: an input (with its pull-up or without), or an output, low or high.</summary>
+/// <summary>
+/// What a pin does, as the simulators print it: an input (with its pull-up, its pull-down or neither), or an output, low
+/// or high.
+/// </summary>
 public enum PinState
 {
     Input,
     InputPullUp,
     Low,
     High,
+    InputPullDown,
 }
 
 /// <summary>
-/// A GPIO port of up to 8 pins (PA0-PA7, ...), as the chip's registers set it up: each pin an input, with its pull-up or
-/// without, or an output, push-pull or open-drain (released when it outputs 1); a peripheral can drive a pin itself (a
-/// timer's PWM output). From outside, an --input drives a pin's level; a pin nothing drives reads high with its pull-up,
-/// else low. Every change of what a pin does is printed ("PA3 high", "PA3 input pull-up"), but a pin a timer drives is
+/// A GPIO port of up to 8 pins (PA0-PA7, ...), as the chip's registers set it up: each pin an input, with its pull-up,
+/// its pull-down (on a chip that has them) or neither, or an output, push-pull or open-drain (released when it outputs
+/// 1); a peripheral can drive a pin itself (a timer's PWM output). From outside, an --input drives a pin's level, and an
+/// input follows it; a pin nothing drives reads high with its pull-up, else low (its pull-down's level, or a floating
+/// pin's as the simulators take it). Every change of what a pin does is printed ("PA3 high", "PA3 input pull-up",
+/// "GPIO4 input pull-down"), but a pin a timer drives is
 /// measured instead: a line for each PWM period that differs from the one before, as tools/avr-sim does.
 /// </summary>
 public sealed class GpioPort
@@ -53,6 +59,9 @@ public sealed class GpioPort
 
     /// <summary>Which inputs have their pull-up on.</summary>
     public byte PullUp { get; set; }
+
+    /// <summary>Which inputs have their pull-down on (a pull-up on too wins).</summary>
+    public byte PullDown { get; set; }
 
     /// <summary>Which pins a peripheral drives itself (a timer's output), whatever the registers above say.</summary>
     public byte PeripheralDriven { get; private set; }
@@ -145,7 +154,8 @@ public sealed class GpioPort
             else
             {
                 var pullUp = (Direction & mask) == 0 && (PullUp & mask) != 0;
-                state = pullUp ? PinState.InputPullUp : PinState.Input;
+                var pullDown = !pullUp && (Direction & mask) == 0 && (PullDown & mask) != 0;
+                state = pullUp ? PinState.InputPullUp : pullDown ? PinState.InputPullDown : PinState.Input;
                 high = (OutsideDriven & mask) != 0 ? (OutsideLevel & mask) != 0 : pullUp;
             }
 
@@ -182,6 +192,7 @@ public sealed class GpioPort
         PinState.Low => "low",
         PinState.High => "high",
         PinState.InputPullUp => "input pull-up",
+        PinState.InputPullDown => "input pull-down",
         _ => "input",
     };
 

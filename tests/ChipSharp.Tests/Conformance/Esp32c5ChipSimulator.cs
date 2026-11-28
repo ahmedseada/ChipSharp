@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using ChipSharp.Abstractions;
 using ChipSharp.Build;
 using ChipSharp.Simulators;
@@ -15,7 +16,7 @@ namespace ChipSharp.Tests.Conformance;
 /// clock and the delays, the console on UART0, the events: M4's wave 1); chipsim does not simulate its ADC, PWM, I2C and
 /// SPI yet (<see cref="Unsimulated"/>).
 /// </summary>
-internal sealed class Esp32c5ChipSimulator() : ChipSimulator("esp32c5-devkitc")
+internal sealed partial class Esp32c5ChipSimulator() : ChipSimulator("esp32c5-devkitc")
 {
     /// <summary>The guards of the hardware chipsim does not simulate on the ESP32-C5 yet, with why.</summary>
     private static readonly Dictionary<string, string> Unsimulated = new()
@@ -26,29 +27,45 @@ internal sealed class Esp32c5ChipSimulator() : ChipSimulator("esp32c5-devkitc")
         ["spi"] = "chipsim does not simulate the ESP32-C5's SPI controller yet.",
     };
 
+    private string? _missing;
+    private bool _checked;
+
     public override string? Missing
     {
         get
         {
-            if (PicoTools.MissingLlvm.Value is { } llvm)
+            if (!_checked)
             {
-                return llvm;
+                _missing = FindMissing();
+                _checked = true;
             }
 
-            var registry = DefaultComponents.CreateRegistry(new BuildContext(new BuildOptions(), Description, "Program",
-                Path.GetTempPath()));
-            if (!registry.TryGet<IArchRuntime>(Description.Runtime!, out var runtime))
-            {
-                return $"The runtime \"{Description.Runtime}\" is not in ChipSharp yet.";
-            }
-
-            // the hardware contract's first function, Pin.Output: a runtime that has it implements the contract
-            return runtime.Startup(Description).Files.Any(file => file.Content.Contains("ChipSharp_Runtime_PinOutput", StringComparison.Ordinal))
-                ? null
-                : "The ESP32-C5's runtime does not implement the hardware contract yet (pins, the clock and the delays, the " +
-                    "console on UART0, the events: milestone M4, wave 1): 'esp32c5-devkitc' runs the conformance suite in " +
-                    "chipsim's esp32c5 once it does.";
+            return _missing;
         }
+    }
+
+    private string? FindMissing()
+    {
+        if (PicoTools.MissingLlvm.Value is { } llvm)
+        {
+            return llvm;
+        }
+
+        var registry = DefaultComponents.CreateRegistry(new BuildContext(new BuildOptions(), Description, "Program",
+            Path.GetTempPath()));
+        if (!registry.TryGet<IArchRuntime>(Description.Runtime!, out var runtime))
+        {
+            return $"The runtime \"{Description.Runtime}\" is not in ChipSharp yet.";
+        }
+
+        // the hardware contract's first function, Pin.Output, defined in a C file: a runtime that has it implements the
+        // contract
+        return runtime.Startup(Description).Files.Any(file => !file.FileName.EndsWith(".h", StringComparison.Ordinal) &&
+            PinOutputDefinition().IsMatch(file.Content))
+            ? null
+            : "The ESP32-C5's runtime does not implement the hardware contract yet (pins, the clock and the delays, the " +
+                "console on UART0, the events: milestone M4, wave 1): 'esp32c5-devkitc' runs the conformance suite in " +
+                "chipsim's esp32c5 once it does.";
     }
 
     public override string? MissingFor(IReadOnlyList<string> needs) =>
@@ -100,4 +117,7 @@ internal sealed class Esp32c5ChipSimulator() : ChipSimulator("esp32c5-devkitc")
     }
 
     private static string Name(int pin) => "GPIO" + pin.ToString(CultureInfo.InvariantCulture);
+
+    [GeneratedRegex(@"\bChipSharp_Runtime_PinOutput\s*\([^;{]*\)\s*\{")]
+    private static partial Regex PinOutputDefinition();
 }
