@@ -8,7 +8,7 @@ namespace ChipSharp.Simulators.Esp32c5;
 /// The ROM functions a start-up might call, done in C# instead of the ROM's code (the simulator has no copy of it), at
 /// their addresses in components/esp_rom/esp32c5/ld/esp32c5.rom.ld and esp32c5.rom.libc.ld: rtc_get_reset_reason
 /// (1, power-on), ets_printf (%d %i %u %x %X %c %s %p %%, with widths, zero padding and l; to UART0, as the ROM's console
-/// writes), ets_delay_us (the time passes, at the CPU's clock), ets_get_cpu_frequency and ets_update_cpu_frequency (the
+/// writes), ets_delay_us (the time passes; interrupts come in between), ets_get_cpu_frequency and ets_update_cpu_frequency (the
 /// ROM's ticks a microsecond), uart_tx_one_char (to UART0), uart_tx_flush (waits for UART0 to send what it holds),
 /// ets_install_putc1, ets_install_putc2, ets_install_uart_printf and ets_install_usb_printf (nothing to do),
 /// software_reset and software_reset_cpu (they stop the run: the chip would start again), memset and strlen. Each
@@ -27,6 +27,7 @@ internal sealed class Esp32c5Rom(Esp32c5Chip chip)
     };
 
     private uint _ticksPerMicrosecond = 48;
+    private long? _waitUntil;
 
     /// <summary>The functions the simulator has, by address.</summary>
     public static IReadOnlyDictionary<uint, string> Names => Functions;
@@ -54,7 +55,13 @@ internal sealed class Esp32c5Rom(Esp32c5Chip chip)
             case "ets_install_putc1" or "ets_install_putc2" or "ets_install_uart_printf" or "ets_install_usb_printf":
                 break;
             case "ets_delay_us":
-                cycles = (int)Math.Min(int.MaxValue, (long)a0 * chip.CpuHertz / 1_000_000);
+                _waitUntil ??= chip.Ticks + (long)a0 * SimulatedChip.TicksPerSecond / 1_000_000;
+                if (Wait(_waitUntil.Value, out cycles))
+                {
+                    return cycles;
+                }
+
+                _waitUntil = null;
                 break;
             case "ets_get_cpu_frequency":
                 cpu.X[10] = _ticksPerMicrosecond;
@@ -67,7 +74,11 @@ internal sealed class Esp32c5Rom(Esp32c5Chip chip)
                 cpu.X[10] = 0;
                 break;
             case "uart_tx_flush":
-                cycles += (int)Math.Min(int.MaxValue, chip.UartIdleTicks() * chip.CpuHertz / SimulatedChip.TicksPerSecond);
+                if (Wait(chip.UartIdleTick, out cycles))
+                {
+                    return cycles;
+                }
+
                 break;
             case "software_reset" or "software_reset_cpu":
                 throw new ProgramFault(string.Create(CultureInfo.InvariantCulture,
@@ -98,6 +109,19 @@ internal sealed class Esp32c5Rom(Esp32c5Chip chip)
 
         cpu.Pc = cpu.X[1] & ~1u;
         return cycles;
+    }
+
+    /// <summary>
+    /// A ROM function that waits (ets_delay_us, uart_tx_flush) until <paramref name="until"/>: true, and its cycles, while
+    /// it still waits: the PC stays on it, and time passes up to the next event (an interrupt can come in between, as
+    /// the ROM's loop lets it).
+    /// </summary>
+    private bool Wait(long until, out int cycles)
+    {
+        var remaining = until == long.MaxValue ? 0 : until - chip.Ticks;
+        var ticks = Math.Min(remaining, chip.TicksToDeadline);
+        cycles = (int)Math.Max(1, Math.Min(int.MaxValue, (ticks * chip.CpuHertz + SimulatedChip.TicksPerSecond - 1) / SimulatedChip.TicksPerSecond));
+        return remaining > 0;
     }
 
     /// <summary>ets_printf's text: the format at a0, its arguments in a1-a7 and then on the stack.</summary>

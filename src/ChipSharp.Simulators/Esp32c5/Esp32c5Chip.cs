@@ -83,6 +83,7 @@ public sealed class Esp32c5Chip : SimulatedChip, IRiscVBus
     private long _cpuHertz = Esp32c5Map.XtalHz;
     private long _cycleFraction;
     private long _nextPeripheralEvent = long.MaxValue;
+    private long _deadline = long.MaxValue;
     private bool _replan = true;
     private bool _checkInterrupts = true;
 
@@ -240,10 +241,17 @@ public sealed class Esp32c5Chip : SimulatedChip, IRiscVBus
         : 0;
 
     /// <summary>A byte the ROM's console functions write: to UART0's TX FIFO.</summary>
-    internal void RomPutChar(byte value) => _uart.Write(0, value);
+    internal void RomPutChar(byte value)
+    {
+        _uart.Write(0, value);
+        _replan = true;
+    }
 
-    /// <summary>The ticks until UART0 has sent what it holds.</summary>
-    internal long UartIdleTicks() => _uart.IdleTick == long.MaxValue ? 0 : Math.Max(0, _uart.IdleTick - Ticks);
+    /// <summary>The tick UART0 will have sent what it holds, or long.MaxValue when it sends nothing.</summary>
+    internal long UartIdleTick => _uart.IdleTick;
+
+    /// <summary>The ticks to the next event (of a peripheral, from outside, the run's end), at least 1: how long a wait in the ROM may last.</summary>
+    internal long TicksToDeadline => Math.Max(1, _deadline - Ticks);
 
     protected override void Step(long limit)
     {
@@ -259,6 +267,7 @@ public sealed class Esp32c5Chip : SimulatedChip, IRiscVBus
         }
 
         var deadline = Math.Min(limit, _nextPeripheralEvent);
+        _deadline = deadline;
         var hooks = Hooks is not null;
         while (true)
         {
@@ -301,6 +310,7 @@ public sealed class Esp32c5Chip : SimulatedChip, IRiscVBus
             {
                 Replan();
                 deadline = Math.Min(limit, _nextPeripheralEvent);
+                _deadline = deadline;
             }
 
             if (_cpu.Waiting || Ticks >= deadline)
@@ -382,7 +392,7 @@ public sealed class Esp32c5Chip : SimulatedChip, IRiscVBus
             Ticks = to;
         }
 
-        if (Ticks >= _nextPeripheralEvent)
+        if (Ticks >= Math.Min(next, _nextPeripheralEvent))
         {
             AdvancePeripherals();
         }
@@ -743,10 +753,6 @@ public sealed class Esp32c5Chip : SimulatedChip, IRiscVBus
                     UpdateCpuClock();
                 }
 
-                return;
-            case 0x004:
-                _pcr[offset] = value;
-                _uart.ClockChanged();
                 return;
             default:
                 _pcr[offset] = value;

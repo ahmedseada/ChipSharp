@@ -26,14 +26,14 @@ internal sealed class Esp32c5Mwdt
     private int _stage;
     private long _stageStart;
 
-    /// <summary>The watchdog of timer group <paramref name="group"/>, as the ROM leaves it (MWDT0 in flash boot mode).</summary>
+    /// <summary>The watchdog of timer group <paramref name="group"/>, as the ROM leaves it: MWDT0 in flash boot mode, MWDT1 off.</summary>
     public Esp32c5Mwdt(SimulatedChip chip, int group, Func<uint> clockConfiguration, Action<string> reset)
     {
         _chip = chip;
         _group = group;
         _clockConfiguration = clockConfiguration;
         _reset = reset;
-        uint[] resets = [group == 0 ? 0x4C000u : 0x0C000u, 0x10000, 0x18CBA80, 0x7FFFFFF, 0xFFFFF, 0xFFFFF];
+        uint[] resets = [group == 0 ? 0x4C000u : 0x48000u, 0x10000, 0x18CBA80, 0x7FFFFFF, 0xFFFFF, 0xFFFFF];
         resets.CopyTo(_config, 0);
         resets.CopyTo(_active, 0);
     }

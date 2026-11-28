@@ -13,7 +13,7 @@ namespace ChipSharp.Simulators.Esp32c5;
 /// (INT_RAW, INT_ENA, INT_ST, INT_CLR): RXFIFO_FULL (the RX FIFO holds RXFIFO_FULL_THRHD bytes or more), TXFIFO_EMPTY
 /// (the TX FIFO holds fewer than TXFIFO_EMPTY_THRHD), RXFIFO_OVF, RXFIFO_TOUT (with RX_TOUT_EN, the RX line idle for
 /// RX_TOUT_THRHD bit times with bytes in the FIFO) and TX_DONE; INT_ST is the interrupt source UART0 (47). The baud rate
-/// is printed when the program changes it ("UART0 baud 115200"). After reset (and the ROM, which prints at 115200) the
+/// is printed when a byte goes out or comes in at another than the last printed ("UART0 baud 115200"). After reset (and the ROM, which prints at 115200) the
 /// clock is XTAL and the divider 416 + 11/16.
 /// </summary>
 internal sealed class Esp32c5Uart(SimulatedChip chip, string name, Func<uint> clockConfiguration) : ISerialInput
@@ -110,6 +110,7 @@ internal sealed class Esp32c5Uart(SimulatedChip chip, string name, Func<uint> cl
             _rx.Enqueue(value);
         }
 
+        PrintBaud();
         var bit = BitTicks();
         _timeoutAt = (_toutActive & 1) != 0 && bit > 0
             ? chip.Ticks + (long)(Math.Max((_toutActive >> 2) & 0x3FF, 1) * bit)
@@ -244,8 +245,6 @@ internal sealed class Esp32c5Uart(SimulatedChip chip, string name, Func<uint> cl
         UpdateLevels();
     }
 
-    /// <summary>The function clock changed (PCR): prints the new baud rate.</summary>
-    public void ClockChanged() => PrintBaud();
 
     private void Synchronize()
     {
@@ -261,19 +260,17 @@ internal sealed class Esp32c5Uart(SimulatedChip chip, string name, Func<uint> cl
         {
             _tx.Clear(); // TXFIFO_RST
         }
-
-        PrintBaud();
     }
 
+    /// <summary>Prints the baud rate when a byte goes out or comes in at another than the last printed.</summary>
     private void PrintBaud()
     {
         var baud = BaudRate;
-        if (baud > 0 && baud != _printedBaud && (_printedBaud != 0 || _clkdivActive != (416 | (11u << 20))))
+        if (baud > 0 && baud != _printedBaud)
         {
             chip.Print(string.Create(CultureInfo.InvariantCulture, $"{Name} baud {baud}"));
+            _printedBaud = baud;
         }
-
-        _printedBaud = baud;
     }
 
     /// <summary>A bit time, in ticks; 0 without a clock.</summary>
@@ -299,6 +296,7 @@ internal sealed class Esp32c5Uart(SimulatedChip chip, string name, Func<uint> cl
             return; // no clock: the byte waits
         }
 
+        PrintBaud();
         _shifting = true;
         _frameEnd = from + FrameTicks();
         _raw &= ~TxDone;
