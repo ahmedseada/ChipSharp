@@ -1,0 +1,382 @@
+{
+  // ChipSharp's description of the ST STM8S103F3 (src/ChipSharp.Chips reads it; the tests make its C headers,
+  // src/ChipSharp.Chips/Generated/stm8s103f3_*.h, from it): the registers the runtime needs, from the reference manual
+  // RM0016 (STM8S and STM8AF series, Rev 14) and the STM8S103F2/F3/K3 datasheet (DS6120, Rev 14), its register map
+  // (table 8) and pinout (TSSOP20, table 5). Registers are bytes; ports are A-D, the package's; the timers' 16-bit
+  // registers are high byte first (write high then low, read high then low, through their buffers).
+  "name": "stm8s103f3",
+  "vendor": "STMicroelectronics",
+  "description": "STM8S103F3: STM8 at up to 16 MHz, 8 KB flash, 1 KB RAM, 640 bytes of EEPROM, UART1, I2C, SPI, ADC1, TIM1, TIM2, TIM4",
+  "cpu": "stm8",
+  "endian": "big",
+  "width": 8,
+  "memory": {
+    "ram": { "origin": "0x0", "size": "1K", "access": "rwx", "description": "the stack at its end (SP 0x03ff after reset)" },
+    "eeprom": { "origin": "0x4000", "size": "640", "access": "r", "description": "data EEPROM, written through FLASH_DUKR" },
+    "option": { "origin": "0x4800", "size": "11", "access": "r", "description": "option bytes" },
+    "flash": { "origin": "0x8000", "size": "8K", "access": "rx", "description": "the 32 interrupt vectors first, 4 bytes each" }
+  },
+  "peripherals": {
+    // ---- the ports (RM0016 11.9): five registers each, from the port's address on
+    "PA": {
+      "base": "0x5000",
+      "description": "Port A",
+      "registers": {
+        "ODR": { "offset": 0, "reset": "0x00", "description": "output data" },
+        "IDR": { "offset": 1, "access": "read-only", "description": "input data: the pins' levels" },
+        "DDR": { "offset": 2, "reset": "0x00", "description": "data direction: 1 an output" },
+        "CR1": { "offset": 3, "reset": "0x00", "description": "control 1: an input's pull-up, an output push-pull (1) or open-drain (0)" },
+        "CR2": { "offset": 4, "reset": "0x00", "description": "control 2: an input's external interrupt, an output's fast mode (10 MHz)" }
+      }
+    },
+    "PB": { "base": "0x5005", "derivedFrom": "PA", "description": "Port B (PB4 and PB5 are true open-drain)" },
+    "PC": { "base": "0x500a", "derivedFrom": "PA", "description": "Port C" },
+    "PD": { "base": "0x500f", "derivedFrom": "PA", "description": "Port D" },
+
+    // ---- external interrupts (RM0016 12.9.4): the edges each port's pins interrupt on
+    "EXTI": {
+      "base": "0x50a0",
+      "description": "External interrupt control",
+      "registers": {
+        "CR1": {
+          "offset": 0, "reset": "0x00", "description": "the sensitivity of ports A to D",
+          "fields": {
+            "PDIS": { "bits": "7:6", "description": "port D", "values": { "FALLING_LOW": 0, "RISING": 1, "FALLING": 2, "BOTH": 3 } },
+            "PCIS": { "bits": "5:4", "description": "port C", "values": { "FALLING_LOW": 0, "RISING": 1, "FALLING": 2, "BOTH": 3 } },
+            "PBIS": { "bits": "3:2", "description": "port B", "values": { "FALLING_LOW": 0, "RISING": 1, "FALLING": 2, "BOTH": 3 } },
+            "PAIS": { "bits": "1:0", "description": "port A", "values": { "FALLING_LOW": 0, "RISING": 1, "FALLING": 2, "BOTH": 3 } }
+          }
+        },
+        "CR2": {
+          "offset": 1, "reset": "0x00", "description": "the sensitivity of the TLI and port E",
+          "fields": { "TLIS": { "bits": 2, "description": "TLI: 0 falling, 1 rising" }, "PEIS": "1:0" }
+        }
+      }
+    },
+
+    // ---- the clock controller (RM0016 9.9)
+    "CLK": {
+      "base": "0x50c0",
+      "description": "Clock control",
+      "registers": {
+        "ICKR": {
+          "offset": 0, "reset": "0x01", "description": "internal clock control",
+          "fields": {
+            "REGAH": 5, "LSIRDY": { "bits": 4, "access": "read-only" }, "LSIEN": 3, "FHWU": 2,
+            "HSIRDY": { "bits": 1, "access": "read-only", "description": "HSI ready" },
+            "HSIEN": { "bits": 0, "description": "HSI on" }
+          }
+        },
+        "ECKR": { "offset": 1, "reset": "0x00", "description": "external clock control", "fields": { "HSERDY": 1, "HSEEN": 0 } },
+        "CMSR": { "offset": 3, "access": "read-only", "reset": "0xe1", "description": "the master clock: 0xe1 HSI, 0xd2 LSI, 0xb4 HSE" },
+        "SWR": { "offset": 4, "reset": "0xe1", "description": "the master clock to switch to" },
+        "SWCR": { "offset": 5, "reset": "0x00", "description": "switch control", "fields": { "SWIF": 3, "SWIEN": 2, "SWEN": 1, "SWBSY": 0 } },
+        "CKDIVR": {
+          "offset": 6, "reset": "0x18", "description": "clock dividers: after reset HSI / 8, 2 MHz",
+          "fields": {
+            "HSIDIV": { "bits": "4:3", "description": "fHSI divided by", "values": { "DIV1": 0, "DIV2": 1, "DIV4": 2, "DIV8": 3 } },
+            "CPUDIV": {
+              "bits": "2:0", "description": "the CPU's clock: fMASTER divided by",
+              "values": { "DIV1": 0, "DIV2": 1, "DIV4": 2, "DIV8": 3, "DIV16": 4, "DIV32": 5, "DIV64": 6, "DIV128": 7 }
+            }
+          }
+        },
+        "PCKENR1": {
+          "offset": 7, "reset": "0xff", "description": "peripheral clocks on, 1 (all after reset)",
+          "fields": {
+            "PCKEN17": { "bits": 7, "description": "TIM1" }, "PCKEN16": { "bits": 6, "description": "TIM3" },
+            "PCKEN15": { "bits": 5, "description": "TIM2/TIM5" }, "PCKEN14": { "bits": 4, "description": "TIM4/TIM6" },
+            "PCKEN13": { "bits": 3, "description": "UART1/2/3, by the device" }, "PCKEN12": { "bits": 2, "description": "UART1/2/3, by the device" },
+            "PCKEN11": { "bits": 1, "description": "SPI" }, "PCKEN10": { "bits": 0, "description": "I2C" }
+          }
+        },
+        "CSSR": { "offset": 8, "reset": "0x00", "description": "clock security system" },
+        "CCOR": { "offset": 9, "reset": "0x00", "description": "configurable clock output" },
+        "PCKENR2": {
+          "offset": 10, "reset": "0xff", "description": "peripheral clocks on, 2",
+          "fields": { "PCKEN27": { "bits": 7, "description": "CAN" }, "PCKEN23": { "bits": 3, "description": "ADC" }, "PCKEN22": { "bits": 2, "description": "AWU" } }
+        },
+        "HSITRIMR": { "offset": 12, "reset": "0x00", "description": "HSI trimming", "fields": { "HSITRIM": "3:0" } },
+        "SWIMCCR": { "offset": 13, "reset": "0x00", "description": "SWIM clock", "fields": { "SWIMCLK": 0 } }
+      }
+    },
+
+    // ---- the SPI controller (RM0016 20.4)
+    "SPI": {
+      "base": "0x5200",
+      "description": "Serial peripheral interface",
+      "registers": {
+        "CR1": {
+          "offset": 0, "reset": "0x00", "description": "control 1",
+          "fields": {
+            "LSBFIRST": 7, "SPE": { "bits": 6, "description": "SPI on" },
+            "BR": { "bits": "5:3", "description": "fMASTER divided by 2^(BR + 1)", "values": { "DIV2": 0, "DIV4": 1, "DIV8": 2, "DIV16": 3, "DIV32": 4, "DIV64": 5, "DIV128": 6, "DIV256": 7 } },
+            "MSTR": { "bits": 2, "description": "controller (master)" }, "CPOL": 1, "CPHA": 0
+          }
+        },
+        "CR2": { "offset": 1, "reset": "0x00", "description": "control 2", "fields": { "BDM": 7, "BDOE": 6, "CRCEN": 5, "CRCNEXT": 4, "RXONLY": 2, "SSM": 1, "SSI": 0 } },
+        "ICR": { "offset": 2, "reset": "0x00", "description": "interrupt control", "fields": { "TXIE": 7, "RXIE": 6, "ERRIE": 5, "WKIE": 4 } },
+        "SR": {
+          "offset": 3, "reset": "0x02", "description": "status",
+          "fields": { "BSY": { "bits": 7, "access": "read-only" }, "OVR": 6, "MODF": 5, "CRCERR": 4, "WKUP": 3, "TXE": { "bits": 1, "access": "read-only" }, "RXNE": { "bits": 0, "access": "read-only" } }
+        },
+        "DR": { "offset": 4, "reset": "0x00", "description": "data: a write sends, a read takes the byte received" },
+        "CRCPR": { "offset": 5, "reset": "0x07", "description": "CRC polynomial" },
+        "RXCRCR": { "offset": 6, "access": "read-only", "reset": "0xff", "description": "receive CRC" },
+        "TXCRCR": { "offset": 7, "access": "read-only", "reset": "0xff", "description": "transmit CRC" }
+      }
+    },
+
+    // ---- the I2C controller (RM0016 21.7)
+    "I2C": {
+      "base": "0x5210",
+      "description": "Inter-integrated circuit",
+      "registers": {
+        "CR1": { "offset": 0, "reset": "0x00", "description": "control 1", "fields": { "NOSTRETCH": 7, "ENGC": 6, "PE": { "bits": 0, "description": "I2C on" } } },
+        "CR2": { "offset": 1, "reset": "0x00", "description": "control 2", "fields": { "SWRST": 7, "POS": 3, "ACK": 2, "STOP": 1, "START": 0 } },
+        "FREQR": { "offset": 2, "reset": "0x00", "description": "the peripheral clock, in MHz (1 to 24)", "fields": { "FREQ": "5:0" } },
+        "OARL": { "offset": 3, "reset": "0x00", "description": "own address, low", "fields": { "ADD": "7:1", "ADD0": 0 } },
+        "OARH": { "offset": 4, "reset": "0x00", "description": "own address, high", "fields": { "ADDMODE": 7, "ADDCONF": 6, "ADD_HIGH": "2:1" } },
+        "DR": { "offset": 6, "reset": "0x00", "description": "data" },
+        "SR1": {
+          "offset": 7, "access": "read-only", "reset": "0x00", "description": "status 1",
+          "fields": { "TXE": 7, "RXNE": 6, "STOPF": 4, "ADD10": 3, "BTF": 2, "ADDR": 1, "SB": 0 }
+        },
+        "SR2": { "offset": 8, "reset": "0x00", "description": "status 2: errors, written 0 to clear", "fields": { "WUFH": 5, "OVR": 3, "AF": 2, "ARLO": 1, "BERR": 0 } },
+        "SR3": { "offset": 9, "access": "read-only", "reset": "0x00", "description": "status 3", "fields": { "DUALF": 7, "GENCALL": 4, "TRA": 2, "BUSY": 1, "MSL": 0 } },
+        "ITR": { "offset": 10, "reset": "0x00", "description": "interrupts", "fields": { "ITBUFEN": 2, "ITEVTEN": 1, "ITERREN": 0 } },
+        "CCRL": { "offset": 11, "reset": "0x00", "description": "clock control, low byte of CCR" },
+        "CCRH": {
+          "offset": 12, "reset": "0x00", "description": "clock control, high",
+          "fields": { "FS": { "bits": 7, "description": "fast mode (up to 400 kHz)" }, "DUTY": 6, "CCR_HIGH": "3:0" }
+        },
+        "TRISER": { "offset": 13, "reset": "0x02", "description": "rise time", "fields": { "TRISE": "5:0" } },
+        "PECR": { "offset": 14, "access": "read-only", "reset": "0x00", "description": "packet error checking" }
+      }
+    },
+
+    // ---- UART1 (RM0016 22.7)
+    "UART1": {
+      "base": "0x5230",
+      "description": "UART1: TX PD5, RX PD6",
+      "registers": {
+        "SR": {
+          "offset": 0, "reset": "0xc0", "description": "status",
+          "fields": {
+            "TXE": { "bits": 7, "access": "read-only", "description": "the data register can take a byte" },
+            "TC": { "bits": 6, "description": "transmission complete" },
+            "RXNE": { "bits": 5, "description": "a byte received" },
+            "IDLE": { "bits": 4, "access": "read-only" }, "OR": { "bits": 3, "access": "read-only", "description": "overrun" },
+            "NF": { "bits": 2, "access": "read-only" }, "FE": { "bits": 1, "access": "read-only" }, "PE": { "bits": 0, "access": "read-only" }
+          }
+        },
+        "DR": { "offset": 1, "description": "data: a write sends, a read takes the byte received" },
+        "BRR1": { "offset": 2, "reset": "0x00", "description": "baud rate: UART_DIV's bits 11-4 (write BRR2 first)" },
+        "BRR2": {
+          "offset": 3, "reset": "0x00", "description": "baud rate: UART_DIV's bits 15-12 and 3-0",
+          "fields": { "DIV_HIGH": { "bits": "7:4", "description": "UART_DIV's bits 15-12" }, "DIV_LOW": { "bits": "3:0", "description": "UART_DIV's bits 3-0" } }
+        },
+        "CR1": { "offset": 4, "reset": "0x00", "description": "control 1", "fields": { "R8": 7, "T8": 6, "UARTD": 5, "M": 4, "WAKE": 3, "PCEN": 2, "PS": 1, "PIEN": 0 } },
+        "CR2": {
+          "offset": 5, "reset": "0x00", "description": "control 2",
+          "fields": { "TIEN": 7, "TCIEN": 6, "RIEN": { "bits": 5, "description": "the receive interrupt" }, "ILIEN": 4, "TEN": { "bits": 3, "description": "transmitter on" }, "REN": { "bits": 2, "description": "receiver on" }, "RWU": 1, "SBK": 0 }
+        },
+        "CR3": { "offset": 6, "reset": "0x00", "description": "control 3", "fields": { "LINEN": 6, "STOP": { "bits": "5:4", "values": { "ONE": 0, "TWO": 2, "ONE_AND_HALF": 3 } }, "CLKEN": 3, "CPOL": 2, "CPHA": 1, "LBCL": 0 } },
+        "CR4": { "offset": 7, "reset": "0x00", "description": "control 4", "fields": { "LBDIEN": 6, "LBDL": 5, "LBDF": 4, "ADD": "3:0" } },
+        "CR5": { "offset": 8, "reset": "0x00", "description": "control 5", "fields": { "SCEN": 5, "NACK": 4, "HDSEL": 3, "IRLP": 2, "IREN": 1 } },
+        "GTR": { "offset": 9, "reset": "0x00", "description": "guard time" },
+        "PSCR": { "offset": 10, "reset": "0x00", "description": "prescaler" }
+      }
+    },
+
+    // ---- TIM1, the advanced 16-bit timer (RM0016 17.7)
+    "TIM1": {
+      "base": "0x5250",
+      "description": "TIM1: 16-bit advanced control timer, channels 3 (PC3) and 4 (PC4)",
+      "registers": {
+        "CR1": { "offset": 0, "reset": "0x00", "description": "control 1", "fields": { "ARPE": 7, "CMS": "6:5", "DIR": 4, "OPM": 3, "URS": 2, "UDIS": 1, "CEN": 0 } },
+        "CR2": { "offset": 1, "reset": "0x00", "description": "control 2", "fields": { "MMS": "6:4", "COMS": 2, "CCPC": 0 } },
+        "SMCR": { "offset": 2, "reset": "0x00", "description": "slave mode control" },
+        "ETR": { "offset": 3, "reset": "0x00", "description": "external trigger" },
+        "IER": { "offset": 4, "reset": "0x00", "description": "interrupts", "fields": { "BIE": 7, "TIE": 6, "COMIE": 5, "CC4IE": 4, "CC3IE": 3, "CC2IE": 2, "CC1IE": 1, "UIE": 0 } },
+        "SR1": { "offset": 5, "reset": "0x00", "description": "status 1: written 0 to clear", "fields": { "BIF": 7, "TIF": 6, "COMIF": 5, "CC4IF": 4, "CC3IF": 3, "CC2IF": 2, "CC1IF": 1, "UIF": 0 } },
+        "SR2": { "offset": 6, "reset": "0x00", "description": "status 2", "fields": { "CC4OF": 4, "CC3OF": 3, "CC2OF": 2, "CC1OF": 1 } },
+        "EGR": { "offset": 7, "access": "write-only", "reset": "0x00", "description": "event generation", "fields": { "BG": 7, "TG": 6, "COMG": 5, "CC4G": 4, "CC3G": 3, "CC2G": 2, "CC1G": 1, "UG": 0 } },
+        "CCMR1": { "offset": 8, "reset": "0x00", "description": "channel 1 mode", "fields": { "OCM": { "bits": "6:4", "values": { "FROZEN": 0, "PWM1": 6, "PWM2": 7 } }, "OCPE": 3, "CCS": "1:0" } },
+        "CCMR2": { "offset": 9, "reset": "0x00", "description": "channel 2 mode", "fields": { "OCM": { "bits": "6:4", "values": { "FROZEN": 0, "PWM1": 6, "PWM2": 7 } }, "OCPE": 3, "CCS": "1:0" } },
+        "CCMR3": { "offset": 10, "reset": "0x00", "description": "channel 3 mode", "fields": { "OCM": { "bits": "6:4", "values": { "FROZEN": 0, "PWM1": 6, "PWM2": 7 } }, "OCPE": 3, "CCS": "1:0" } },
+        "CCMR4": { "offset": 11, "reset": "0x00", "description": "channel 4 mode", "fields": { "OCM": { "bits": "6:4", "values": { "FROZEN": 0, "PWM1": 6, "PWM2": 7 } }, "OCPE": 3, "CCS": "1:0" } },
+        "CCER1": { "offset": 12, "reset": "0x00", "description": "channels 1 and 2 on", "fields": { "CC2NP": 7, "CC2NE": 6, "CC2P": 5, "CC2E": 4, "CC1NP": 3, "CC1NE": 2, "CC1P": 1, "CC1E": 0 } },
+        "CCER2": { "offset": 13, "reset": "0x00", "description": "channels 3 and 4 on", "fields": { "CC4P": 5, "CC4E": 4, "CC3NP": 3, "CC3NE": 2, "CC3P": 1, "CC3E": 0 } },
+        "CNTRH": { "offset": 14, "reset": "0x00", "description": "counter, high byte" },
+        "CNTRL": { "offset": 15, "reset": "0x00", "description": "counter, low byte" },
+        "PSCRH": { "offset": 16, "reset": "0x00", "description": "prescaler (any 16 bits), high byte" },
+        "PSCRL": { "offset": 17, "reset": "0x00", "description": "prescaler, low byte" },
+        "ARRH": { "offset": 18, "reset": "0xff", "description": "auto-reload, high byte" },
+        "ARRL": { "offset": 19, "reset": "0xff", "description": "auto-reload, low byte" },
+        "RCR": { "offset": 20, "reset": "0x00", "description": "repetition counter" },
+        "CCR1H": { "offset": 21, "reset": "0x00", "description": "capture/compare 1, high byte" },
+        "CCR1L": { "offset": 22, "reset": "0x00", "description": "capture/compare 1, low byte" },
+        "CCR2H": { "offset": 23, "reset": "0x00", "description": "capture/compare 2, high byte" },
+        "CCR2L": { "offset": 24, "reset": "0x00", "description": "capture/compare 2, low byte" },
+        "CCR3H": { "offset": 25, "reset": "0x00", "description": "capture/compare 3, high byte" },
+        "CCR3L": { "offset": 26, "reset": "0x00", "description": "capture/compare 3, low byte" },
+        "CCR4H": { "offset": 27, "reset": "0x00", "description": "capture/compare 4, high byte" },
+        "CCR4L": { "offset": 28, "reset": "0x00", "description": "capture/compare 4, low byte" },
+        "BKR": { "offset": 29, "reset": "0x00", "description": "break: MOE turns the outputs on", "fields": { "MOE": 7, "AOE": 6, "BKP": 5, "BKE": 4, "OSSR": 3, "OSSI": 2, "LOCK": "1:0" } },
+        "DTR": { "offset": 30, "reset": "0x00", "description": "dead time" },
+        "OISR": { "offset": 31, "reset": "0x00", "description": "output idle state" }
+      }
+    },
+
+    // ---- TIM2, a general 16-bit timer (RM0016 18.6; on this chip its registers start at 0x5303)
+    "TIM2": {
+      "base": "0x5300",
+      "description": "TIM2: 16-bit general purpose timer, channels 1 (PD4), 2 (PD3) and 3 (PA3)",
+      "registers": {
+        "CR1": { "offset": 0, "reset": "0x00", "description": "control 1", "fields": { "ARPE": 7, "OPM": 3, "URS": 2, "UDIS": 1, "CEN": 0 } },
+        "IER": { "offset": 3, "reset": "0x00", "description": "interrupts", "fields": { "CC3IE": 3, "CC2IE": 2, "CC1IE": 1, "UIE": 0 } },
+        "SR1": { "offset": 4, "reset": "0x00", "description": "status 1: written 0 to clear", "fields": { "CC3IF": 3, "CC2IF": 2, "CC1IF": 1, "UIF": 0 } },
+        "SR2": { "offset": 5, "reset": "0x00", "description": "status 2", "fields": { "CC3OF": 3, "CC2OF": 2, "CC1OF": 1 } },
+        "EGR": { "offset": 6, "access": "write-only", "reset": "0x00", "description": "event generation", "fields": { "CC3G": 3, "CC2G": 2, "CC1G": 1, "UG": 0 } },
+        "CCMR1": { "offset": 7, "reset": "0x00", "description": "channel 1 mode", "fields": { "OCM": { "bits": "6:4", "values": { "FROZEN": 0, "PWM1": 6, "PWM2": 7 } }, "OCPE": 3, "CCS": "1:0" } },
+        "CCMR2": { "offset": 8, "reset": "0x00", "description": "channel 2 mode", "fields": { "OCM": { "bits": "6:4", "values": { "FROZEN": 0, "PWM1": 6, "PWM2": 7 } }, "OCPE": 3, "CCS": "1:0" } },
+        "CCMR3": { "offset": 9, "reset": "0x00", "description": "channel 3 mode", "fields": { "OCM": { "bits": "6:4", "values": { "FROZEN": 0, "PWM1": 6, "PWM2": 7 } }, "OCPE": 3, "CCS": "1:0" } },
+        "CCER1": { "offset": 10, "reset": "0x00", "description": "channels 1 and 2 on", "fields": { "CC2P": 5, "CC2E": 4, "CC1P": 1, "CC1E": 0 } },
+        "CCER2": { "offset": 11, "reset": "0x00", "description": "channel 3 on", "fields": { "CC3P": 1, "CC3E": 0 } },
+        "CNTRH": { "offset": 12, "reset": "0x00", "description": "counter, high byte" },
+        "CNTRL": { "offset": 13, "reset": "0x00", "description": "counter, low byte" },
+        "PSCR": { "offset": 14, "reset": "0x00", "description": "prescaler: fMASTER / 2^PSC", "fields": { "PSC": "3:0" } },
+        "ARRH": { "offset": 15, "reset": "0xff", "description": "auto-reload, high byte" },
+        "ARRL": { "offset": 16, "reset": "0xff", "description": "auto-reload, low byte" },
+        "CCR1H": { "offset": 17, "reset": "0x00", "description": "capture/compare 1, high byte" },
+        "CCR1L": { "offset": 18, "reset": "0x00", "description": "capture/compare 1, low byte" },
+        "CCR2H": { "offset": 19, "reset": "0x00", "description": "capture/compare 2, high byte" },
+        "CCR2L": { "offset": 20, "reset": "0x00", "description": "capture/compare 2, low byte" },
+        "CCR3H": { "offset": 21, "reset": "0x00", "description": "capture/compare 3, high byte" },
+        "CCR3L": { "offset": 22, "reset": "0x00", "description": "capture/compare 3, low byte" }
+      }
+    },
+
+    // ---- TIM4, the basic 8-bit timer (RM0016 19.6; on this chip its registers start at 0x5343)
+    "TIM4": {
+      "base": "0x5340",
+      "description": "TIM4: 8-bit basic timer",
+      "registers": {
+        "CR1": { "offset": 0, "reset": "0x00", "description": "control 1", "fields": { "ARPE": 7, "OPM": 3, "URS": 2, "UDIS": 1, "CEN": { "bits": 0, "description": "counter on" } } },
+        "IER": { "offset": 3, "reset": "0x00", "description": "interrupts", "fields": { "UIE": { "bits": 0, "description": "the update interrupt" } } },
+        "SR": { "offset": 4, "reset": "0x00", "description": "status: written 0 to clear", "fields": { "UIF": { "bits": 0, "description": "an update (overflow)" } } },
+        "EGR": { "offset": 5, "access": "write-only", "reset": "0x00", "description": "event generation", "fields": { "UG": 0 } },
+        "CNTR": { "offset": 6, "reset": "0x00", "description": "counter" },
+        "PSCR": {
+          "offset": 7, "reset": "0x00", "description": "prescaler: fMASTER / 2^PSC",
+          "fields": { "PSC": { "bits": "2:0", "values": { "DIV1": 0, "DIV2": 1, "DIV4": 2, "DIV8": 3, "DIV16": 4, "DIV32": 5, "DIV64": 6, "DIV128": 7 } } }
+        },
+        "ARR": { "offset": 8, "reset": "0xff", "description": "auto-reload" }
+      }
+    },
+
+    // ---- ADC1 (RM0016 24.11): the data buffer first, then the control registers at 0x5400
+    "ADC1": {
+      "base": "0x53e0",
+      "description": "ADC1: 10 bits, AIN2 (PC4), AIN3 (PD2), AIN4 (PD3), AIN5 (PD5), AIN6 (PD6)",
+      "registers": {
+        "DB0RH": { "offset": "0x00", "access": "read-only", "description": "data buffer 0, high" },
+        "DB0RL": { "offset": "0x01", "access": "read-only", "description": "data buffer 0, low" },
+        "CSR": {
+          "offset": "0x20", "reset": "0x00", "description": "control and status",
+          "fields": {
+            "EOC": { "bits": 7, "description": "end of conversion: written 0 to clear" }, "AWD": 6, "EOCIE": 5, "AWDIE": 4,
+            "CH": { "bits": "3:0", "description": "the channel (AINn)" }
+          }
+        },
+        "CR1": {
+          "offset": "0x21", "reset": "0x00", "description": "configuration 1",
+          "fields": {
+            "SPSEL": { "bits": "6:4", "description": "the ADC's clock: fMASTER divided by", "values": { "DIV2": 0, "DIV3": 1, "DIV4": 2, "DIV6": 3, "DIV8": 4, "DIV10": 5, "DIV12": 6, "DIV18": 7 } },
+            "CONT": 1, "ADON": { "bits": 0, "description": "on; set again to start a conversion" }
+          }
+        },
+        "CR2": { "offset": "0x22", "reset": "0x00", "description": "configuration 2", "fields": { "EXTTRIG": 6, "EXTSEL": "5:4", "ALIGN": { "bits": 3, "description": "1: right aligned (read DRL first)" }, "SCAN": 1 } },
+        "CR3": { "offset": "0x23", "reset": "0x00", "description": "configuration 3", "fields": { "DBUF": 7, "OVR": 6 } },
+        "DRH": { "offset": "0x24", "access": "read-only", "description": "data, high" },
+        "DRL": { "offset": "0x25", "access": "read-only", "description": "data, low" },
+        "TDRH": { "offset": "0x26", "reset": "0x00", "description": "Schmitt trigger off, channels 15-8" },
+        "TDRL": { "offset": "0x27", "reset": "0x00", "description": "Schmitt trigger off, channels 7-0 (1: off, for an analog pin)" }
+      }
+    },
+
+    // ---- the interrupt controller (RM0016 6.9.2) and global configuration
+    "CFG": {
+      "base": "0x7f60",
+      "description": "Global configuration",
+      "registers": { "GCR": { "offset": 0, "reset": "0x00", "description": "global configuration", "fields": { "AL": 1, "SWD": 0 } } }
+    },
+    "ITC": {
+      "base": "0x7f70",
+      "description": "Interrupt controller: software priorities, two bits an interrupt (3 after reset: level 0, the lowest)",
+      "registers": {
+        "SPR1": { "offset": 0, "reset": "0xff", "description": "priorities of interrupts 0-3" },
+        "SPR2": { "offset": 1, "reset": "0xff", "description": "priorities of interrupts 4-7" },
+        "SPR3": { "offset": 2, "reset": "0xff", "description": "priorities of interrupts 8-11" },
+        "SPR4": { "offset": 3, "reset": "0xff", "description": "priorities of interrupts 12-15" },
+        "SPR5": { "offset": 4, "reset": "0xff", "description": "priorities of interrupts 16-19" },
+        "SPR6": { "offset": 5, "reset": "0xff", "description": "priorities of interrupts 20-23" },
+        "SPR7": { "offset": 6, "reset": "0xff", "description": "priorities of interrupts 24-27" },
+        "SPR8": { "offset": 7, "reset": "0x0f", "description": "priorities of interrupts 28-29" }
+      }
+    }
+  },
+  // the interrupt vector mapping (datasheet table 10): IRQ n at 0x8008 + 4n, SDCC's __interrupt(n)
+  "interrupts": {
+    "TLI": { "number": 0, "description": "top level interrupt (PC3)" },
+    "AWU": { "number": 1, "description": "auto wake-up from halt" },
+    "CLK": { "number": 2, "peripheral": "CLK", "description": "clock controller" },
+    "EXTI_PORTA": { "number": 3, "peripheral": "EXTI", "description": "a pin of port A" },
+    "EXTI_PORTB": { "number": 4, "peripheral": "EXTI", "description": "a pin of port B" },
+    "EXTI_PORTC": { "number": 5, "peripheral": "EXTI", "description": "a pin of port C" },
+    "EXTI_PORTD": { "number": 6, "peripheral": "EXTI", "description": "a pin of port D" },
+    "EXTI_PORTE": { "number": 7, "peripheral": "EXTI", "description": "a pin of port E" },
+    "SPI": { "number": 10, "peripheral": "SPI", "description": "end of transfer" },
+    "TIM1_UPD_OVF": { "number": 11, "peripheral": "TIM1", "description": "TIM1 update, overflow, underflow, trigger, break" },
+    "TIM1_CAP_COM": { "number": 12, "peripheral": "TIM1", "description": "TIM1 capture or compare" },
+    "TIM2_UPD_OVF": { "number": 13, "peripheral": "TIM2", "description": "TIM2 update, overflow" },
+    "TIM2_CAP_COM": { "number": 14, "peripheral": "TIM2", "description": "TIM2 capture or compare" },
+    "UART1_TX": { "number": 17, "peripheral": "UART1", "description": "transmit data register empty, transmission complete" },
+    "UART1_RX": { "number": 18, "peripheral": "UART1", "description": "receive register full" },
+    "I2C": { "number": 19, "peripheral": "I2C", "description": "I2C" },
+    "ADC1": { "number": 22, "peripheral": "ADC1", "description": "end of conversion, analog watchdog" },
+    "TIM4_UPD_OVF": { "number": 23, "peripheral": "TIM4", "description": "TIM4 update, overflow" },
+    "FLASH": { "number": 24, "description": "end of programming, write to a protected page" }
+  },
+  "ports": {
+    "A": { "registers": { "out": "PA_ODR", "in": "PA_IDR", "direction": "PA_DDR", "control1": "PA_CR1", "control2": "PA_CR2" } },
+    "B": { "registers": { "out": "PB_ODR", "in": "PB_IDR", "direction": "PB_DDR", "control1": "PB_CR1", "control2": "PB_CR2" } },
+    "C": { "registers": { "out": "PC_ODR", "in": "PC_IDR", "direction": "PC_DDR", "control1": "PC_CR1", "control2": "PC_CR2" } },
+    "D": { "registers": { "out": "PD_ODR", "in": "PD_IDR", "direction": "PD_DDR", "control1": "PD_CR1", "control2": "PD_CR2" } }
+  },
+  // the TSSOP20 package's pins and their functions after reset (without remapping by the option byte AFR)
+  "pins": {
+    "PA1": { "functions": ["OSCIN"] },
+    "PA2": { "functions": ["OSCOUT"] },
+    "PA3": { "functions": ["TIM2_CH3"] },
+    "PB4": { "functions": ["I2C_SCL"] },
+    "PB5": { "functions": ["I2C_SDA"] },
+    "PC3": { "functions": ["TIM1_CH3", "TLI"] },
+    "PC4": { "functions": ["TIM1_CH4", "CLK_CCO", "AIN2"] },
+    "PC5": { "functions": ["SPI_SCK"] },
+    "PC6": { "functions": ["SPI_MOSI"] },
+    "PC7": { "functions": ["SPI_MISO"] },
+    "PD1": { "functions": ["SWIM"] },
+    "PD2": { "functions": ["AIN3"] },
+    "PD3": { "functions": ["AIN4", "TIM2_CH2", "ADC_ETR"] },
+    "PD4": { "functions": ["TIM2_CH1", "BEEP", "UART1_CK"] },
+    "PD5": { "functions": ["UART1_TX", "AIN5"] },
+    "PD6": { "functions": ["UART1_RX", "AIN6"] }
+  },
+  "constants": {
+    "CLK_SWR_HSI": { "value": "0xe1", "description": "CLK_SWR, CLK_CMSR: the HSI, 16 MHz" },
+    "CLK_SWR_LSI": { "value": "0xd2", "description": "CLK_SWR, CLK_CMSR: the LSI, 128 kHz" },
+    "CLK_SWR_HSE": { "value": "0xb4", "description": "CLK_SWR, CLK_CMSR: the HSE crystal" }
+  }
+}
