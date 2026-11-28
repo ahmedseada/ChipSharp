@@ -19,6 +19,10 @@ public sealed class WlinkFlasherTests : IDisposable
 {
     private readonly string _scratch = Path.Combine(Path.GetTempPath(), "chipsharp-tests", Guid.NewGuid().ToString("N"));
 
+    /// <summary>The tools folder the flasher looks in instead of D:\Tools\..., which holds nothing: what is installed on
+    /// this computer must not decide the tests.</summary>
+    private string Tools => Path.Combine(_scratch, "tools");
+
     public void Dispose()
     {
         Scratch.Delete(_scratch);
@@ -80,7 +84,7 @@ public sealed class WlinkFlasherTests : IDisposable
         var user = Path.Combine(_scratch, "user");
         var userCargo = File(Path.Combine(user, ".cargo", "bin", "wlink.exe"));
         string Find(params (string Name, string Value)[] variables) =>
-            new WlinkFlasher(name => variables.FirstOrDefault(v => v.Name == name).Value, () => [], () => []).FindWlink();
+            new WlinkFlasher(name => variables.FirstOrDefault(v => v.Name == name).Value, () => [], () => [], Tools).FindWlink();
 
         Assert.Equal(own, Find(("CHIPSHARP_WLINK", own), ("PATH", Path.GetDirectoryName(onPath)!)));
         Assert.Equal(own, Find(("CHIPSHARP_WLINK", $"\"{Path.GetDirectoryName(own)!}\"")));
@@ -107,11 +111,11 @@ public sealed class WlinkFlasherTests : IDisposable
                 _ => null,
             },
             () => throw new InvalidOperationException("The USB devices are not listed before wlink is found."),
-            () => throw new InvalidOperationException("The serial ports are not listed before wlink is found."));
+            () => throw new InvalidOperationException("The serial ports are not listed before wlink is found."), Tools);
 
         var error = Assert.Throws<ChipSharpException>(flasher.FindWlink);
 
-        var looked = OperatingSystem.IsWindows() ? $"'{WlinkFlasher.ToolsFolder}', " : "";
+        var looked = OperatingSystem.IsWindows() ? $"'{Tools}', " : "";
         Assert.StartsWith(
             $"wlink was not found (looked on the PATH and in {looked}'{Path.Combine(user, ".cargo", "bin")}'). wlink writes " +
             "a program into a WCH RISC-V chip (the CH32V003) through a WCH-LinkE wired to its SWIO pin. Download it from " +

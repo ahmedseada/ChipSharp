@@ -37,6 +37,7 @@ public sealed class MinichlinkFlasher : IFlasher
     private readonly Func<string, string?> _environment;
     private readonly Func<IReadOnlyList<UsbDeviceInfo>?> _devices;
     private readonly Func<IReadOnlyList<SerialPortInfo>> _ports;
+    private readonly string _toolsFolder;
 
     public MinichlinkFlasher()
         : this(Environment.GetEnvironmentVariable, () => UsbDevices.List(WchLinks.VendorId), SerialPorts.List)
@@ -46,14 +47,16 @@ public sealed class MinichlinkFlasher : IFlasher
     /// <summary>
     /// For tests: reads environment variables (CHIPSHARP_MINICHLINK, PATH) through <paramref name="environment"/>, lists
     /// WCH's USB devices plugged in with <paramref name="devices"/> (null: this computer cannot say) and the serial ports
-    /// with <paramref name="ports"/>.
+    /// with <paramref name="ports"/>; and looks in <paramref name="toolsFolder"/> instead of <see cref="ToolsFolder"/>, so
+    /// that what is installed on the computer running the tests does not decide them.
     /// </summary>
     internal MinichlinkFlasher(Func<string, string?> environment, Func<IReadOnlyList<UsbDeviceInfo>?> devices,
-        Func<IReadOnlyList<SerialPortInfo>> ports)
+        Func<IReadOnlyList<SerialPortInfo>> ports, string? toolsFolder = null)
     {
         _environment = environment;
         _devices = devices;
         _ports = ports;
+        _toolsFolder = toolsFolder ?? ToolsFolder;
     }
 
     public string Name => "minichlink";
@@ -78,7 +81,7 @@ public sealed class MinichlinkFlasher : IFlasher
             return set;
         }
 
-        string[] folders = OperatingSystem.IsWindows() ? [ToolsFolder] : [];
+        string[] folders = OperatingSystem.IsWindows() ? [_toolsFolder] : [];
         if ((ProgrammerTool.OnPath("minichlink", _environment) ?? ProgrammerTool.InFolders("minichlink", folders)) is { } found)
         {
             return found;
