@@ -227,7 +227,7 @@ public sealed class SdccBuildTests : IDisposable
             "int broken(void) { return 1 +; }")));
 
         Assert.StartsWith($"sdcc failed (exit code 1) in '{_scratch}':\n", error.Message);
-        Assert.Contains(" -mstm8 --opt-code-size -c blink.c -o blink.c.rel\n", error.Message);
+        Assert.Contains(" -mstm8 --opt-code-size --peep-file chipsharp_peephole.def -c blink.c -o blink.c.rel\n", error.Message);
         Assert.Contains("blink.c:", error.Message);
         Assert.Contains("syntax error", error.Message);
     }

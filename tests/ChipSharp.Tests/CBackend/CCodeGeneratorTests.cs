@@ -422,7 +422,9 @@ public sealed class CCodeGeneratorTests
             return function;
         });
 
-        Assert.Contains("struct Program_Point t0 = { 0 };\n        s_a = t0;\n        s_b = s_a;\n        return s_b;", code);
+        Assert.Contains("static void Program_F(struct Program_Point *cs_result)", code);
+        Assert.Contains("struct Program_Point t0 = { 0 };\n        s_a = t0;\n        s_b = s_a;\n        *cs_result = s_b;\n" +
+            "        return;", code);
     }
 
     // ---- calls ----
@@ -562,14 +564,47 @@ public sealed class CCodeGeneratorTests
     }
 
     [Fact]
-    public void Objects_are_refused_without_a_heap_and_stack_checks_are_not_written_yet()
+    public void Objects_are_refused_without_a_heap_and_stack_checks_need_the_stacks_room()
     {
         var objects = Objects();
         Assert.Contains("which needs a heap", Assert.Throws<ChipSharpException>(() => Generate(objects)).Message);
 
         var checks = CTargets.Make("chip", pointerSize: 4, capabilities: new Dictionary<string, string> { ["stackCheck"] = "true" });
-        Assert.Contains("stack checks", Assert.Throws<ChipSharpException>(() =>
+        Assert.Contains("asks for stack checks (\"stackCheck\": true), which the c code generator writes from the region " +
+            "of the stack and its size: the target has no memory region 'ram'", Assert.Throws<ChipSharpException>(() =>
             Generate(TirSamples.WithMain(new TirModule("Test")), checks)).Message);
+    }
+
+    /// <summary>
+    /// On the STM8 (1 KB of RAM, the stack growing down from its end toward the variables) a function that calls itself
+    /// checks the address of a byte of its frame against the end of the variables (the program has none here, and 64
+    /// bytes are the runtime's), a margin of 64 bytes, and room for one more call of it (its 4 bytes of argument, the
+    /// return address, the byte, 8 bytes of values): 0x80 + 15; on the PDK14 (128 bytes, the stack growing up to their
+    /// end) against the end of RAM less 4 bytes, and room for one more call (each byte of argument 2 on its stack). A
+    /// function that does not recurse checks nothing.
+    /// </summary>
+    [Fact]
+    public void A_function_that_calls_itself_checks_the_stack_where_it_starts_on_both_SDCC_chips()
+    {
+        const string source = """
+            static class Program
+            {
+                static int Depth(int n) => n == 0 ? 0 : 1 + Depth(n - 1);
+
+                static int Twice(int n) => n * 2;
+
+                static int Main() => Twice(Depth(5));
+            }
+            """;
+        var stm8 = CSdcc.Required(source, "Checks", CSdcc.Stm8s103).C;
+        Assert.Contains("#define CS_STACK_LIMIT 0x0080u\nvoid chipsharp_stack_overflow(void);", stm8);
+        Assert.Contains("static uint32_t Program_Depth(uint32_t p_n)\n{\n    uint8_t cs_frame;\n" +
+            "    if ((uintptr_t)&cs_frame < CS_STACK_LIMIT + 15u)\n        chipsharp_stack_overflow();\n", stm8);
+        Assert.Contains("static uint32_t Program_Twice(uint32_t p_n)\n{\n    {\n", stm8);
+
+        var pdk14 = CSdcc.Required(source, "Checks", CSdcc.Pfs154).C;
+        Assert.Contains("#define CS_STACK_LIMIT 0x007Cu", pdk14);
+        Assert.Contains("if ((uintptr_t)&cs_frame > CS_STACK_LIMIT - 19u)", pdk14);
     }
 
     [Fact]

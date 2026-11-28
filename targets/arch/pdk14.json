@@ -17,7 +17,10 @@
     "fpu": false,         // no float hardware: SDCC's float routines, slow and large in 2K words
     "atomics": "none",    // no atomic instructions: briefly disable interrupts (disgint / engint) instead
     "unalignedAccess": true,  // an 8-bit processor reads and writes byte by byte
-    "stackCheck": false,  // nothing checks the stack, which grows up from the end of the variables
+    // the functions that may call themselves (the only ones with frames on the stack, which grows up from the end of
+    // the variables) check when they start that one more call of them leaves 4 bytes of RAM: else the program stops
+    // with "Stack overflow." (the runtime's chipsharp_stack_overflow) rather than run on with its stack in thin air
+    "stackCheck": true,
     // SDCC's pdk14 port keeps a function's parameters and locals at fixed RAM addresses (there is no --stack-auto
     // library): only a function marked __reentrant has them on the stack. The C backend marks those that may call
     // themselves, or run in an interrupt and outside one, __reentrant; the others share RAM where SDCC can overlay them
@@ -25,6 +28,9 @@
     // SDCC's double is its float, 32 bits (sdcc warns "types 'double', 'long double' not supported. Assuming 'float'"):
     // C#'s double has no C type to go to, and the C backend rejects it; float is IEEE single precision, as in C#
     "double64": false,
+    // arithmetic in 8 and 16 bits where that gives C#'s result (C# widens every byte and short to an int, 4 bytes in
+    // registers of 8 or 16 bits)
+    "narrowing": true,
     "heap": false,        // a chip's file says what it has
     "console": false,
     "clock": false
@@ -34,7 +40,8 @@
   "c": {
     "int": 2, "long": 4, "longLong": 8, "float": 4, "double": 4,
     "pointer": 2, "nearPointer": 1, "functionPointer": 2,
-    "charSigned": false
+    "charSigned": false,
+    "stack": "up"         // the stack grows up, from the end of the variables to the end of RAM ("link.stack": its room)
   },
   "sdcc": {
     "port": "pdk14",          // sdcc -mpdk14; its assembler is sdaspdk14, its linker sdldpdk

@@ -1,66 +1,16 @@
-using ChipSharp.Tests.Boxing;
-using ChipSharp.Tests.Classes;
-using ChipSharp.Tests.Collections;
-using ChipSharp.Tests.Generics;
-using ChipSharp.Tests.Heap;
-using ChipSharp.Tests.Lambdas;
-using ChipSharp.Tests.Library;
-using ChipSharp.Tests.Lowering;
-using ChipSharp.Tests.Records;
-using ChipSharp.Tests.Strings;
-using ChipSharp.Tests.Support;
-using ChipSharp.Tests.Tuples;
+using ChipSharp.Tests.Backends;
 
 namespace ChipSharp.Tests.Avr;
 
 /// <summary>
-/// The programs the other tests compare with .NET on the PC and the Pico, gathered for the Arduino Uno: the samples and
-/// every program of the test corpora, each by "&lt;corpus&gt;/&lt;name&gt;" (e.g. "samples/Square",
-/// "Structs/Copies"). On the Uno, which has no heap, those that make objects are refused, and the rest run.
+/// The programs the other tests compare with .NET on the PC and the Pico, run on the Arduino Uno: the samples and every
+/// program of the test corpora (<see cref="ConformancePrograms"/>). On the Uno, which has no heap, those that make
+/// objects are refused, and the rest run; here are the Uno's own two, and what is too large for it or prints otherwise.
 /// </summary>
 internal static class UnoPrograms
 {
-    public static IReadOnlyList<(string Name, string Source)> All { get; } =
-    [
-        .. Samples.Names.Select(name => ("samples/" + name, File.ReadAllText(Path.Combine(Samples.Folder, name + ".cs")))),
-        .. From("Arrays",
-        [
-            ("ElementTypes", ArrayPrograms.ElementTypes), ("Callees", ArrayPrograms.Callees),
-            ("Loops", ArrayPrograms.Loops), ("Indexes", ArrayPrograms.Indexes), ("BigArrays", ArrayPrograms.BigArrays),
-            ("StructsAndReferences", ArrayPrograms.StructsAndReferences),
-        ]),
-        .. From("Structs", StructPrograms.All),
-        .. From("StaticFields", StaticFieldPrograms.All),
-        .. From("StaticArrays", StaticArrayPrograms.All),
-        .. From("Spans", SpanPrograms.All),
-        .. From("PrintedText", PrintedTextPrograms.All),
-        .. From("Text", TextPrograms.All),
-        .. From("Generics", GenericPrograms.All),
-        .. From("Tuples", TuplePrograms.All),
-        .. From("Records", RecordPrograms.All),
-        .. From("DateTime",
-        [
-            ("Members", DateTimePrograms.Members(random: 7)),
-            ("Text", DateTimePrograms.Text(DateTimeProgramTests.TextTicks(random: 3).Take(3), kept: false)),
-        ]),
-        .. From("TimeSpan", [("Members", TimeSpanPrograms.Members(random: 7))]),
-        .. From("ArrayMethods",
-        [
-            ("Copies", ArrayMethodPrograms.Copies), ("Searches", ArrayMethodPrograms.Searches),
-            ("Sorting", ArrayMethodPrograms.Sorting), ("Extremes", ArrayMethodPrograms.Extremes),
-            ("EmptyArrays", ArrayMethodPrograms.EmptyArrays), ("WithoutHeap", ArrayMethodPrograms.WithoutHeap),
-        ]),
-        .. From("HeapArrays", [("Basics", HeapArrayPrograms.Basics)]),
-        .. From("Strings", StringPrograms.All),
-        .. From("Boxing", BoxingPrograms.All),
-        .. From("Classes", ClassPrograms.All),
-        .. From("Virtual", VirtualPrograms.All),
-        .. From("Collections", CollectionPrograms.All),
-        .. From("GenericClasses", GenericClassPrograms.All),
-        .. From("Delegates", DelegatePrograms.All),
-        ("Uno/Copies", Copies),
-        ("Uno/Text", Text),
-    ];
+    /// <summary>The programs of every corpus (<see cref="ConformancePrograms"/>), the Uno's own among them.</summary>
+    public static IReadOnlyList<(string Name, string Source)> All => ConformancePrograms.All;
 
     /// <summary>
     /// Copies from flash on the Uno, which a 16-bit int and LLVM 22 made wrong: spans of constant data copied by a
@@ -196,7 +146,7 @@ internal static class UnoPrograms
     public static IReadOnlySet<string> TooLarge { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
         "samples/MathFunctions", "DateTime/Members", "DateTime/Text", "TimeSpan/Members", "ArrayMethods/Sorting",
-        "Arrays/BigArrays",
+        "Arrays/BigArrays", "Chips/MathFunctions",
     };
 
     /// <summary>
@@ -212,7 +162,4 @@ internal static class UnoPrograms
     };
 
     public static string Source(string name) => All.Single(program => program.Name == name).Source;
-
-    private static IEnumerable<(string Name, string Source)> From(string corpus, IEnumerable<(string Name, string Source)> programs) =>
-        programs.Select(program => (corpus + "/" + program.Name, program.Source));
 }

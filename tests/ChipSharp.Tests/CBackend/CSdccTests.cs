@@ -96,7 +96,7 @@ public sealed class CSdccTests(ITestOutputHelper output) : IDisposable
         // the PFS154 keeps locals at fixed addresses: Fib calls itself, Make does not
         Assert.Contains("#define CS_REENTRANT __reentrant", c);
         Assert.Contains("static uint8_t Program_Fib(uint8_t p_n) CS_REENTRANT;", c);
-        Assert.Contains("static struct Program_Pair Program_Make(uint8_t p_low, uint32_t p_high);", c);
+        Assert.Contains("static void Program_Make(struct Program_Pair *cs_result, uint8_t p_low, uint32_t p_high);", c);
 
         Assert.True(File.Exists(CSdcc.Link(Program, "Linked", target, Path.Combine(_scratch, "pfs154"))));
     }

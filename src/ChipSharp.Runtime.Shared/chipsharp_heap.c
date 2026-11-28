@@ -116,6 +116,11 @@
 
 typedef __UINTPTR_TYPE__ uintptr_t;
 
+// A C# int and uint: 32 bits whatever the compiler's int (16 on an 8-bit chip), as the code generators pass an array's
+// length and lay it out in the array.
+typedef __INT32_TYPE__ s32;
+typedef __UINT32_TYPE__ u32;
+
 // A type descriptor, as the code generator writes it: see TirTypeDescriptor.
 typedef struct chipsharp_type chipsharp_type;
 
@@ -295,7 +300,7 @@ static uintptr_t object_size(const chipsharp_type *type, unsigned int length)
 
 static unsigned int length_of(char *array)
 {
-    return *(unsigned int *)(array + WORD);
+    return (unsigned int)*(u32 *)(array + WORD);
 }
 
 static uintptr_t block_size(char *block)
@@ -654,22 +659,23 @@ void *chipsharp_new_object(const chipsharp_type *type)
     return allocate(object_size(type, 0), type);
 }
 
-void *chipsharp_new_array(const chipsharp_type *type, int length)
+void *chipsharp_new_array(const chipsharp_type *type, s32 length)
 {
     if (length < 0)
     {
         ChipSharp_Runtime_Overflow();
     }
 
-    // more elements than fit in the whole heap would overflow the size, so they are out of memory at once
-    if (type->element_size != 0 && (uintptr_t)length > (uintptr_t)(heap_end - heap_start) / type->element_size)
+    // more elements than fit in the whole heap would overflow the size, so they are out of memory at once (compared as
+    // 32 bits: a length need not fit in an address)
+    if (type->element_size != 0 && (u32)length > (u32)((uintptr_t)(heap_end - heap_start) / type->element_size))
     {
         chipsharp_heap_check_thread();
         ChipSharp_Runtime_OutOfMemory();
     }
 
     char *array = allocate(object_size(type, (unsigned int)length), type);
-    *(unsigned int *)(array + WORD) = (unsigned int)length;
+    *(u32 *)(array + WORD) = (u32)length;
     return array;
 }
 

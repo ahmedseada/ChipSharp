@@ -1,0 +1,44 @@
+using ChipSharp.Abstractions;
+using ChipSharp.Targets;
+using ChipSharp.Tests.CBackend;
+
+namespace ChipSharp.Tests.Backends;
+
+/// <summary>
+/// A target the backend conformance suite builds every program for (<see cref="BackendConformanceTests"/>): the PC through
+/// one of ChipSharp's code generators, or a chip through one, run in its simulator. <paramref name="Chip"/> is the
+/// simulator's name for the chip (chipsim's pfs154, stm8s103), null for the PC.
+/// </summary>
+internal sealed record BackendTarget(string Name, string Backend, string? Chip)
+{
+    private static readonly TargetLoader Shipped = new(Path.Combine(AppContext.BaseDirectory, "targets"));
+
+    /// <summary>
+    /// The shipped target; a chip's with a console, which the tests' startup has (<see cref="ChipConsole"/>) and its
+    /// runtime is to have.
+    /// </summary>
+    public TargetDescription Load() => Chip is null ? Shipped.Load(Name) : CSdcc.With(Shipped.Load(Name), "console", "true");
+
+    public override string ToString() => Name;
+}
+
+/// <summary>
+/// Every backend ChipSharp has, by the targets it builds for: each program of every corpus goes through each, on the PC
+/// and on the simulated chips, and must print what .NET prints. A new code generator adds its targets here, and the
+/// programs it cannot take yet to <see cref="BackendSkips"/>, with why.
+/// </summary>
+internal static class BackendTargets
+{
+    public static IReadOnlyList<BackendTarget> All { get; } =
+    [
+        // the PC: the llvm code generator, the C one; clang and the windows-x64 runtime
+        new("host", "llvm", null),
+        new("host-c", "c", null),
+
+        // the SDCC chips: the C code generator and SDCC, in chipsim, with the tests' startup and console
+        new("pfs154-bare", "c", "pfs154"),
+        new("stm8s103-board", "c", "stm8s103"),
+    ];
+
+    public static BackendTarget Get(string name) => All.Single(target => target.Name == name);
+}

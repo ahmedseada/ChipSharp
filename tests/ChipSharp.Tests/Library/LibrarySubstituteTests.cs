@@ -30,6 +30,7 @@ public sealed class LibrarySubstituteTests
                 "ChipSharp.Library.Adc for ChipSharp.Hardware.Adc",
                 "ChipSharp.Library.Array for System.Array",
                 "ChipSharp.Library.BinaryPrimitives for System.Buffers.Binary.BinaryPrimitives",
+                "ChipSharp.Library.BitConverter for System.BitConverter",
                 "ChipSharp.Library.Clock for ChipSharp.Hardware.Clock",
                 "ChipSharp.Library.Collections.CollectionExtensions for System.Collections.Generic.CollectionExtensions",
                 "ChipSharp.Library.Collections.CollectionsMarshal for System.Runtime.InteropServices.CollectionsMarshal",

@@ -23,6 +23,29 @@ internal static class CCallGraph
     {
         var defined = module.Functions.Where(function => function.Kind == TirFunctionKind.Defined).ToList();
         var addressed = Addressed(module);
+        var callees = Callees(defined, addressed);
+        var reentrant = Recursive(defined, callees);
+        reentrant.UnionWith(addressed);
+        if (module.EntryPoint is { } entry)
+        {
+            var inInterrupts = Reached(defined.Where(function => function.ExportName is not null), callees);
+            var outside = Reached([entry], callees);
+            reentrant.UnionWith(inInterrupts.Where(outside.Contains));
+        }
+
+        return reentrant;
+    }
+
+    /// <summary>The defined functions of <paramref name="module"/> in a cycle of its calls: those that can call themselves again.</summary>
+    public static HashSet<TirFunction> Recursive(TirModule module)
+    {
+        var defined = module.Functions.Where(function => function.Kind == TirFunctionKind.Defined).ToList();
+        return Recursive(defined, Callees(defined, Addressed(module)));
+    }
+
+    /// <summary>What each defined function calls: a call through an address, every function whose address is taken.</summary>
+    private static Dictionary<TirFunction, List<TirFunction>> Callees(List<TirFunction> defined, HashSet<TirFunction> addressed)
+    {
         var callees = new Dictionary<TirFunction, List<TirFunction>>();
         foreach (var function in defined)
         {
@@ -46,16 +69,7 @@ internal static class CCallGraph
             callees[function] = calls;
         }
 
-        var reentrant = Recursive(defined, callees);
-        reentrant.UnionWith(addressed);
-        if (module.EntryPoint is { } entry)
-        {
-            var inInterrupts = Reached(defined.Where(function => function.ExportName is not null), callees);
-            var outside = Reached([entry], callees);
-            reentrant.UnionWith(inInterrupts.Where(outside.Contains));
-        }
-
-        return reentrant;
+        return callees;
     }
 
     /// <summary>The functions <paramref name="roots"/> run: themselves, and every function they call, directly or not.</summary>

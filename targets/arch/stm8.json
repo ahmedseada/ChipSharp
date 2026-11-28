@@ -16,11 +16,18 @@
     "fpu": false,         // no float hardware: SDCC's float routines
     "atomics": "none",    // no atomic read-modify-write: briefly disable interrupts (sim / rim) instead
     "unalignedAccess": true,  // any address will do
-    "stackCheck": false,  // nothing checks the stack, which grows down from the end of RAM
+    // the functions that may call themselves, or whose locals take 256 bytes or more, check that the stack (which
+    // grows down from the end of RAM) is above the bottom of its room ("link.stack") and a margin, a quarter of it,
+    // when they start: below, the program stops with "Stack overflow." (the runtime's chipsharp_stack_overflow)
+    // rather than write over the variables
+    "stackCheck": true,
     "recursion": true,    // SDCC's stm8 port keeps parameters and locals on the stack (--stack-auto is its default)
     // SDCC's double is its float, 32 bits: C#'s double has no C type to go to, and the C backend rejects it; float is
     // IEEE single precision, as in C#
     "double64": false,
+    // arithmetic in 8 and 16 bits where that gives C#'s result (C# widens every byte and short to an int, 4 bytes in
+    // registers of 8 or 16 bits)
+    "narrowing": true,
     "heap": false,        // a chip's file says what it has
     "console": false,
     "clock": false
@@ -30,7 +37,10 @@
   "c": {
     "int": 2, "long": 4, "longLong": 8, "float": 4, "double": 4,
     "pointer": 2, "functionPointer": 2,
-    "charSigned": false
+    "charSigned": false,
+    // SDCC reaches a frame through 8-bit offsets from SP and cannot return 3 or 4 bytes from a function whose frame
+    // they do not reach (an internal error): a function whose locals may take more returns them through a pointer
+    "largeFrame": 255
   },
   "sdcc": {
     "port": "stm8",               // sdcc -mstm8; its assembler is sdasstm8, its linker sdldstm8

@@ -145,6 +145,8 @@ internal static class CSdcc
             text.Append("}\n\n");
         }
 
+        // what a function that checks the stack calls when it has run out
+        text.Append("void chipsharp_stack_overflow(void)\n{\n    for (;;)\n    {\n    }\n}\n\n");
         text.Append("volatile int result;\n\nvoid main(void)\n{\n    result = chipsharp_entry();\n    for (;;)\n    {\n    }\n}\n");
         return text.ToString();
     }
