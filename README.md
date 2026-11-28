@@ -846,7 +846,7 @@ et10.0\<Name>.dll -t esp32c5-devkitc` in their folders, or flashed with
 `chipsharp flash ... -t esp32c5-devkitc` (through the USB-C port marked **USB** or **UART**, BOOT and RESET if esptool
 cannot connect); each has a README with its wiring and a `chipsim esp32c5` command. They use the portable API alone
 (`Pin`, `Timing`, `[Interrupt]`, `Console`), so the same C# builds for the Pico by changing the pin numbers and `-t`, on
-pins the board leaves a program (4, 5, 6, 10, 23, 24 and 9; the board's own LED is a WS2812, not a pin to switch).
+pins the board leaves a program (the board's own LED is a WS2812, not a pin to switch; the LCD traffic light also uses pins 0, 1, 2, 3, 11 and 12 for its 7-segment display, as its README explains).
 
 | Example | What it does | Image, SRAM |
 |---|---|---|
@@ -855,6 +855,9 @@ pins the board leaves a program (4, 5, 6, 10, 23, 24 and 9; the board's own LED 
 | `esp32c5-serial` | A command prompt on the USB console (`on`, `off`, `blink 200`, `status`) with `Console.ReadLine` and a `Dictionary<string, Action<string>>` | 21.3 KB, 22.6 KB + heap |
 | `esp32c5-timer-blink` | Blinks the LED from the timer event while `Main` prints the uptime from a `Stopwatch` and `DateTime.Now` | 13.1 KB, 13.5 KB + heap |
 | `esp32c5-classes` | A two-lane traffic light (6 LEDs, a button on GPIO 9 that cuts a green): `readonly record struct Lane`, a `Signal` class, an iterator over the steps, `List<Lane>`, status lines on the console | 13.7 KB, 15 KB + heap |
+| `esp32c5-lcd-traffic-light` | The `PicoTrafficLightLcd` traffic light as it is (only pins and the I2C bus differ): `List<Lane>`, `record struct`s, an iterator, a 16x2 LCD (I2C 0x27), a 7-segment turn countdown, a heartbeat on the timer event and a button on the pin event; same console and LCD text as on the Pico | 20.2 KB, 21.6 KB + heap |
+| `esp32c5-servo` | A servo on GPIO 6 sweeping 0 to 180 degrees with `Pwm.PulseMicroseconds` at 50 Hz | 7.0 KB, 7.3 KB |
+| `esp32c5-lcd-clock` | A DS1307 and a 16x2 LCD on I2C bus 0 (SDA 4, SCL 5) show the date and the time, with `DateTime` | 25.5 KB, 26.0 KB + heap |
 
 Wokwi has a part for the board (`board-esp32-c5-devkitc-1`, beta), so each example has a `diagram.json`, wired directly;
 they have not been tried in Wokwi.

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A two-lane traffic light with classes, a list, an iterator and events (it uses the heap), a 7-segment turn display, a
+       16x2 LCD and a heartbeat: build with ChipSharp for the target "esp32c5-devkitc" (see Program.cs) -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Pin, Timing, I2c and [Interrupt]: the chip's hardware from C#; Lcd and SevenSegment: parts connected to it, which
+         ChipSharp compiles with the program -->
+    <ProjectReference Include="..\..\src\ChipSharp.Hardware\ChipSharp.Hardware.csproj" />
+    <ProjectReference Include="..\..\src\ChipSharp.Components\ChipSharp.Components.csproj" />
+  </ItemGroup>
+</Project>
