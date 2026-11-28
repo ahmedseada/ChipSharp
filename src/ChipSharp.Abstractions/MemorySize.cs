@@ -28,5 +28,7 @@ public static class MemorySize
 
     /// <summary>A memory region's name as messages write it: "RAM" for ram, else the target's own name for it ("flash").</summary>
     public static string RegionName(string name) =>
-        string.Equals(name, "ram", StringComparison.OrdinalIgnoreCase) ? "RAM" : name;
+        string.Equals(name, "ram", StringComparison.OrdinalIgnoreCase) ? "RAM"
+        : string.Equals(name, "sram", StringComparison.OrdinalIgnoreCase) ? "SRAM"
+        : name;
 }
