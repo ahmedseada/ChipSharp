@@ -1,0 +1,247 @@
+{
+  // ChipSharp's description of the Padauk PFS154 (src/ChipSharp.Chips reads it; the tests make its C headers,
+  // src/ChipSharp.Chips/Generated/pfs154_*.h, from it): its I/O registers, from the PFS154 datasheet (V1.0x, section 9,
+  // "IO Registers") and free-pdk's pfs154.h. Every register is a byte in the I/O space, which only mov.io, set0, set1,
+  // t0sn and t1sn reach, so SDCC reaches them as __sfr __at(address); they are named as the datasheet names them (PA,
+  // PAC). The 16-bit timer's count (T16) is no register: stt16 and ldt16 move it.
+  "name": "pfs154",
+  "vendor": "Padauk",
+  "description": "PFS154: PDK14, 2K words of MTP program memory, 128 bytes of RAM, T16, TM2, TM3, 3 PWM generators, a comparator",
+  "cpu": "pdk14",
+  "endian": "little",
+  "width": 8,
+  "memory": {
+    "program": { "origin": "0x0", "size": "2K", "access": "rx", "description": "14-bit words: reset at 0, the one interrupt vector at 0x10" },
+    "ram": { "origin": "0x0", "size": "128", "access": "rw", "description": "the stack grows up from the variables' end" }
+  },
+  "peripherals": {
+    "SYSTEM": {
+      "space": "io", "prefix": "",
+      "description": "the processor, the clocks, the interrupts and the miscellaneous settings",
+      "registers": {
+        "FLAG": { "address": "0x00", "description": "ACC status flags", "fields": { "OV": 3, "AC": 2, "CF": 1, "ZF": 0 } },
+        "SP": { "address": "0x02", "description": "stack pointer (even addresses)" },
+        "CLKMD": {
+          "address": "0x03", "description": "clock mode",
+          "fields": {
+            "SYSCLK": { "bits": "7:5", "description": "the system clock, with CLKTYPE: type 0 000 IHRC/4, 001 IHRC/2, 011 EOSC/4, 100 EOSC/2, 101 EOSC, 110 ILRC/4, 111 ILRC; type 1 000 IHRC/16, 001 IHRC/8, 010 ILRC/16, 011 IHRC/32, 100 IHRC/64, 101 EOSC/8" },
+            "IHRC_EN": { "bits": 4, "description": "the internal high-speed oscillator on" },
+            "CLKTYPE": { "bits": 3, "description": "the clock type of SYSCLK's table" },
+            "ILRC_EN": { "bits": 2, "description": "the internal low-speed oscillator on" },
+            "WDT_EN": { "bits": 1, "description": "the watchdog on" },
+            "PRSTB": { "bits": 0, "description": "PA5 is the reset pin (PRSTB)" }
+          }
+        },
+        "INTEN": {
+          "address": "0x04", "reset": "0x00", "description": "interrupt enable: a 1 lets the source interrupt",
+          "fields": { "TM3": 7, "TM2": 6, "PWMG": 5, "COMPARATOR": 4, "T16": 2, "PB0": 1, "PA0": 0 }
+        },
+        "INTRQ": {
+          "address": "0x05", "description": "interrupt request: the sources that asked, written 0 to clear",
+          "fields": { "TM3": 7, "TM2": 6, "PWMG": 5, "COMPARATOR": 4, "T16": 2, "PB0": 1, "PA0": 0 }
+        },
+        "MISC": {
+          "address": "0x08", "reset": "0x00", "description": "miscellaneous",
+          "fields": {
+            "FAST_WAKEUP": { "bits": 5, "description": "wake up fast (45 ILRC clocks instead of 3000)" },
+            "LVR_DISABLE": { "bits": 2, "description": "the low voltage reset off" },
+            "WDT_PERIOD": { "bits": "1:0", "description": "the watchdog's time-out", "values": { "ILRC_8K": 0, "ILRC_16K": 1, "ILRC_64K": 2, "ILRC_256K": 3 } }
+          }
+        },
+        "EOSCR": {
+          "address": "0x0a", "access": "write-only", "reset": "0x00", "description": "external oscillator",
+          "fields": { "EOSC_EN": 7, "CRYSTAL": "6:5", "BANDGAP_OFF": 0 }
+        },
+        "IHRCR": { "address": "0x0b", "access": "write-only", "description": "IHRC trim (easypdkprog's calibration writes it)" },
+        "INTEGS": {
+          "address": "0x0c", "access": "write-only", "reset": "0x00", "description": "interrupt edges",
+          "fields": {
+            "T16_FALLING": { "bits": 4, "description": "T16: 0 rising edge of the selected bit, 1 falling" },
+            "PB0_EDGE": { "bits": "3:2", "description": "PB0", "values": { "BOTH": 0, "RISING": 1, "FALLING": 2 } },
+            "PA0_EDGE": { "bits": "1:0", "description": "PA0", "values": { "BOTH": 0, "RISING": 1, "FALLING": 2 } }
+          }
+        },
+        "MISC2": { "address": "0x0f", "access": "write-only", "reset": "0x00", "description": "miscellaneous 2" },
+        "BGTR": { "address": "0x1a", "access": "write-only", "description": "bandgap trim" },
+        "MISCLVR": { "address": "0x1b", "access": "write-only", "description": "low voltage reset level" },
+        "ILRCR": { "address": "0x39", "access": "write-only", "description": "ILRC trim" }
+      }
+    },
+    "T16": {
+      "space": "io", "prefix": "",
+      "description": "the 16-bit timer: counts up, its count moved with stt16 and ldt16",
+      "registers": {
+        "T16M": {
+          "address": "0x06", "reset": "0x00", "description": "timer16 mode",
+          "fields": {
+            "CLOCK": { "bits": "7:5", "description": "what it counts", "values": { "STOP": 0, "SYSCLK": 1, "PA4_FALLING": 3, "IHRC": 4, "EOSC": 5, "ILRC": 6, "PA0_FALLING": 7 } },
+            "DIVIDER": { "bits": "4:3", "description": "the clock divided by", "values": { "DIV1": 0, "DIV4": 1, "DIV16": 2, "DIV64": 3 } },
+            "INTERRUPT": { "bits": "2:0", "description": "the interrupt comes when this bit of the count changes: 0 bit 8 ... 7 bit 15" }
+          }
+        }
+      }
+    },
+    "PORTA": {
+      "space": "io", "prefix": "",
+      "description": "port A: PA0, PA3-PA7 (PA5 is input or open-drain only)",
+      "registers": {
+        "PADIER": { "address": "0x0d", "access": "write-only", "reset": "0x00", "description": "digital input enable: 1 on (0 for an analog pin), also lets the pin wake the chip" },
+        "PA": { "address": "0x10", "reset": "0x00", "description": "data: the pins' levels, the outputs' levels" },
+        "PAC": { "address": "0x11", "reset": "0x00", "description": "control: 1 an output" },
+        "PAPH": { "address": "0x12", "reset": "0x00", "description": "pull-high: 1 on" }
+      }
+    },
+    "PORTB": {
+      "space": "io", "prefix": "",
+      "description": "port B: PB0-PB7",
+      "registers": {
+        "PBDIER": { "address": "0x0e", "access": "write-only", "reset": "0x00", "description": "digital input enable: 1 on (0 for an analog pin), also lets the pin wake the chip" },
+        "PB": { "address": "0x14", "reset": "0x00", "description": "data: the pins' levels, the outputs' levels" },
+        "PBC": { "address": "0x15", "reset": "0x00", "description": "control: 1 an output" },
+        "PBPH": { "address": "0x16", "reset": "0x00", "description": "pull-high: 1 on" }
+      }
+    },
+    "TM2": {
+      "space": "io", "prefix": "",
+      "description": "timer 2: 8 bits, its PWM on PB2, PA3 or PB4",
+      "registers": {
+        "TM2B": { "address": "0x09", "access": "write-only", "reset": "0x00", "description": "bound: the period's or the duty's count" },
+        "TM2S": {
+          "address": "0x17", "access": "write-only", "reset": "0x00", "description": "scalar",
+          "fields": {
+            "PWM6": { "bits": 7, "description": "PWM resolution: 0 8 bits, 1 6 bits" },
+            "PRESCALER": { "bits": "6:5", "values": { "DIV1": 0, "DIV4": 1, "DIV16": 2, "DIV64": 3 } },
+            "SCALER": { "bits": "4:0", "description": "the clock divided by SCALER + 1" }
+          }
+        },
+        "TM2C": {
+          "address": "0x1c", "reset": "0x00", "description": "control",
+          "fields": {
+            "CLOCK": { "bits": "7:4", "description": "what it counts", "values": { "STOP": 0, "SYSCLK": 1, "IHRC": 2, "EOSC": 3, "ILRC": 4, "COMPARATOR": 5, "PA0_RISING": 8, "PA0_FALLING": 9, "PB0_RISING": 10, "PB0_FALLING": 11, "PA4_RISING": 12, "PA4_FALLING": 13 } },
+            "OUTPUT": { "bits": "3:2", "description": "the pin it drives", "values": { "NONE": 0, "PB2": 1, "PA3": 2, "PB4": 3 } },
+            "PWM": { "bits": 1, "description": "0 period mode, 1 PWM" },
+            "INVERT": { "bits": 0, "description": "the output inverted" }
+          }
+        },
+        "TM2CT": { "address": "0x1d", "reset": "0x00", "description": "counter" }
+      }
+    },
+    "TM3": {
+      "space": "io", "prefix": "",
+      "description": "timer 3: 8 bits, its PWM on PB5, PB6 or PB7",
+      "registers": {
+        "TM3C": {
+          "address": "0x32", "reset": "0x00", "description": "control",
+          "fields": {
+            "CLOCK": { "bits": "7:4", "description": "what it counts, as TM2C's", "values": { "STOP": 0, "SYSCLK": 1, "IHRC": 2, "EOSC": 3, "ILRC": 4, "COMPARATOR": 5, "PA0_RISING": 8, "PA0_FALLING": 9, "PB0_RISING": 10, "PB0_FALLING": 11, "PA4_RISING": 12, "PA4_FALLING": 13 } },
+            "OUTPUT": { "bits": "3:2", "description": "the pin it drives", "values": { "NONE": 0, "PB5": 1, "PB6": 2, "PB7": 3 } },
+            "PWM": { "bits": 1, "description": "0 period mode, 1 PWM" },
+            "INVERT": { "bits": 0, "description": "the output inverted" }
+          }
+        },
+        "TM3CT": { "address": "0x33", "reset": "0x00", "description": "counter" },
+        "TM3S": {
+          "address": "0x34", "access": "write-only", "reset": "0x00", "description": "scalar, as TM2S's",
+          "fields": {
+            "PWM6": { "bits": 7, "description": "PWM resolution: 0 8 bits, 1 6 bits" },
+            "PRESCALER": { "bits": "6:5", "values": { "DIV1": 0, "DIV4": 1, "DIV16": 2, "DIV64": 3 } },
+            "SCALER": { "bits": "4:0", "description": "the clock divided by SCALER + 1" }
+          }
+        },
+        "TM3B": { "address": "0x35", "access": "write-only", "reset": "0x00", "description": "bound" }
+      }
+    },
+    "COMPARATOR": {
+      "space": "io", "prefix": "",
+      "description": "the comparator, against a pin or its internal reference",
+      "registers": {
+        "GPCC": {
+          "address": "0x18", "reset": "0x00", "description": "comparator control",
+          "fields": {
+            "ENABLE": 7,
+            "RESULT": { "bits": 6, "access": "read-only", "description": "plus input above minus input" },
+            "SAMPLED": { "bits": 5, "description": "the result sampled by TM2's clock" },
+            "INVERT": 4,
+            "MINUS": { "bits": "3:1", "description": "the minus input", "values": { "PA3": 0, "PA4": 1, "BANDGAP": 2, "VINTERNAL": 3, "PB6": 4, "PB7": 5 } },
+            "PLUS": { "bits": 0, "description": "the plus input: 0 the internal reference, 1 PA4" }
+          }
+        },
+        "GPCS": {
+          "address": "0x19", "access": "write-only", "reset": "0x00", "description": "comparator selection",
+          "fields": { "OUTPUT_PA0": { "bits": 7, "description": "the result on PA0" }, "WAKEUP": 6, "HIGH_RANGE": 5, "LOW_RANGE": 4, "LEVEL": "3:0" }
+        }
+      }
+    },
+    "PWMG": {
+      "space": "io", "prefix": "",
+      "description": "the three 11-bit PWM generators",
+      "registers": {
+        "PWMG0C": { "address": "0x20", "reset": "0x00", "description": "PWMG0 control" },
+        "PWMG0S": { "address": "0x21", "access": "write-only", "reset": "0x00", "description": "PWMG0 scalar" },
+        "PWMG0DTH": { "address": "0x22", "access": "write-only", "description": "PWMG0 duty, high byte" },
+        "PWMG0DTL": { "address": "0x23", "access": "write-only", "description": "PWMG0 duty, low bits" },
+        "PWMG0CUBH": { "address": "0x24", "access": "write-only", "description": "PWMG0 counter upper bound, high byte" },
+        "PWMG0CUBL": { "address": "0x25", "access": "write-only", "description": "PWMG0 counter upper bound, low bits" },
+        "PWMG1C": { "address": "0x26", "reset": "0x00", "description": "PWMG1 control" },
+        "PWMG1S": { "address": "0x27", "access": "write-only", "reset": "0x00", "description": "PWMG1 scalar" },
+        "PWMG1DTH": { "address": "0x28", "access": "write-only", "description": "PWMG1 duty, high byte" },
+        "PWMG1DTL": { "address": "0x29", "access": "write-only", "description": "PWMG1 duty, low bits" },
+        "PWMG1CUBH": { "address": "0x2a", "access": "write-only", "description": "PWMG1 counter upper bound, high byte" },
+        "PWMG1CUBL": { "address": "0x2b", "access": "write-only", "description": "PWMG1 counter upper bound, low bits" },
+        "PWMG2C": { "address": "0x2c", "reset": "0x00", "description": "PWMG2 control" },
+        "PWMG2S": { "address": "0x2d", "access": "write-only", "reset": "0x00", "description": "PWMG2 scalar" },
+        "PWMG2DTH": { "address": "0x2e", "access": "write-only", "description": "PWMG2 duty, high byte" },
+        "PWMG2DTL": { "address": "0x2f", "access": "write-only", "description": "PWMG2 duty, low bits" },
+        "PWMG2CUBH": { "address": "0x30", "access": "write-only", "description": "PWMG2 counter upper bound, high byte" },
+        "PWMG2CUBL": { "address": "0x31", "access": "write-only", "description": "PWMG2 counter upper bound, low bits" }
+      }
+    },
+    "RFC": {
+      "space": "io", "prefix": "",
+      "description": "the resistance-to-frequency converter",
+      "registers": {
+        "RFCC": { "address": "0x36", "reset": "0x00", "description": "RFC control" },
+        "RFCCRH": { "address": "0x37", "access": "read-only", "description": "RFC count, high byte" },
+        "RFCCRL": { "address": "0x38", "access": "read-only", "description": "RFC count, low byte" }
+      }
+    }
+  },
+  // one interrupt vector (word 0x10) for every source: its request bit in INTRQ, enabled by the same bit of INTEN
+  "interrupts": {
+    "PA0": { "number": 0, "description": "PA0's edge (INTEGS)", "request": { "register": "INTRQ", "enable": "INTEN", "bit": 0 } },
+    "PB0": { "number": 0, "description": "PB0's edge (INTEGS)", "request": { "register": "INTRQ", "enable": "INTEN", "bit": 1 } },
+    "T16": { "number": 0, "peripheral": "T16", "description": "T16's selected bit changed (T16M)", "request": { "register": "INTRQ", "enable": "INTEN", "bit": 2 } },
+    "COMPARATOR": { "number": 0, "peripheral": "COMPARATOR", "description": "the comparator's result changed", "request": { "register": "INTRQ", "enable": "INTEN", "bit": 4 } },
+    "PWMG": { "number": 0, "peripheral": "PWMG", "description": "the PWM generators", "request": { "register": "INTRQ", "enable": "INTEN", "bit": 5 } },
+    "TM2": { "number": 0, "peripheral": "TM2", "description": "TM2 reached TM2B", "request": { "register": "INTRQ", "enable": "INTEN", "bit": 6 } },
+    "TM3": { "number": 0, "peripheral": "TM3", "description": "TM3 reached TM3B", "request": { "register": "INTRQ", "enable": "INTEN", "bit": 7 } }
+  },
+  "ports": {
+    "A": { "registers": { "data": "PA", "control": "PAC", "pullHigh": "PAPH", "digitalInput": "PADIER" } },
+    "B": { "registers": { "data": "PB", "control": "PBC", "pullHigh": "PBPH", "digitalInput": "PBDIER" } }
+  },
+  // the 16-pin package's pins and the functions the registers above give them
+  "pins": {
+    "PA0": { "functions": ["INT0", "COMPARATOR_OUT"] },
+    "PA3": { "functions": ["TM2_PWM_PA3", "COMPARATOR_MINUS_PA3"] },
+    "PA4": { "functions": ["COMPARATOR_MINUS_PA4", "COMPARATOR_PLUS", "T16_CLOCK"] },
+    "PA5": { "functions": ["PRSTB"] },
+    "PA6": { "functions": ["X2"] },
+    "PA7": { "functions": ["X1"] },
+    "PB0": { "functions": ["INT1"] },
+    "PB1": { "functions": [] },
+    "PB2": { "functions": ["TM2_PWM_PB2"] },
+    "PB3": { "functions": [] },
+    "PB4": { "functions": ["TM2_PWM_PB4"] },
+    "PB5": { "functions": ["TM3_PWM_PB5"] },
+    "PB6": { "functions": ["TM3_PWM_PB6", "COMPARATOR_MINUS_PB6"] },
+    "PB7": { "functions": ["TM3_PWM_PB7", "COMPARATOR_MINUS_PB7"] }
+  },
+  "constants": {
+    "CLKMD_IHRC_DIV2": { "value": "0x34", "description": "CLKMD: IHRC / 2 (8 MHz), IHRC and ILRC on, the watchdog off, PA5 a pin (as the others)" },
+    "CLKMD_IHRC_DIV4": { "value": "0x14", "description": "CLKMD: IHRC / 4 (4 MHz)" },
+    "CLKMD_IHRC_DIV8": { "value": "0x3c", "description": "CLKMD: IHRC / 8 (2 MHz), the PFS154's usual clock" },
+    "CLKMD_IHRC_DIV16": { "value": "0x1c", "description": "CLKMD: IHRC / 16 (1 MHz)" },
+    "CLKMD_ILRC": { "value": "0xe4", "description": "CLKMD: ILRC (about 55 kHz), IHRC off" }
+  }
+}

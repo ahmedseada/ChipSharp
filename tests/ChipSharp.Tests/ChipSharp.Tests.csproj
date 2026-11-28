@@ -21,6 +21,7 @@
     <ProjectReference Include="..\..\src\ChipSharp.Backend.C\ChipSharp.Backend.C.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Backend.Llvm\ChipSharp.Backend.Llvm.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Build\ChipSharp.Build.csproj" />
+    <ProjectReference Include="..\..\src\ChipSharp.Chips\ChipSharp.Chips.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Cli\ChipSharp.Cli.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Components\ChipSharp.Components.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Flasher.Avrdude\ChipSharp.Flasher.Avrdude.csproj" />

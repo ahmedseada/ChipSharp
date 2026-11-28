@@ -4,6 +4,8 @@
     <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <!-- the hardware contract, which every chip runtime's C includes (src/ChipSharp.Runtime.Shared) -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_hardware.h" LogicalName="chipsharp_hardware.h" />
     <EmbeddedResource Include="armv6m_startup.c" LogicalName="armv6m_startup.c" />
     <EmbeddedResource Include="armv6m_vectors.c" LogicalName="armv6m_vectors.c" />
     <EmbeddedResource Include="armv6m_helpers.c" LogicalName="armv6m_helpers.c" />

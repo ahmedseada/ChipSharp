@@ -26,6 +26,8 @@
 // A pin that is not an analog input, or one read before Adc.Input, stops the program (chipsharp_hardware_failure,
 // atmega328p_failures.c) with a message that says what to do; so do A4 and A5 while the I2C bus has them.
 
+#include "chipsharp_hardware.h"
+
 typedef unsigned char u8;
 typedef unsigned int u16;
 typedef long i32;

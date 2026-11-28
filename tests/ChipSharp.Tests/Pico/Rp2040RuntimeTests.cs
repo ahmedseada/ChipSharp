@@ -8,6 +8,7 @@ using ChipSharp.Runtime.ArmV6M;
 using ChipSharp.Runtime.Rp2040;
 using ChipSharp.Runtime.Windows;
 using ChipSharp.Targets;
+using ChipSharp.Tests.Contract;
 using ChipSharp.Toolchain.Clang;
 
 namespace ChipSharp.Tests.Pico;
@@ -43,7 +44,7 @@ public sealed class Rp2040RuntimeTests
 
         var softFloat = CompilerRt.Sources().Select(f => f.FileName).ToList();
         Assert.Equal(
-            ["armv6m_startup.c", "armv6m_helpers.c", "armv6m_divmod.S", "armv6m_float_compare.c",
+            [HardwareContract.HeaderFileName, "armv6m_startup.c", "armv6m_helpers.c", "armv6m_divmod.S", "armv6m_float_compare.c",
                 ArmV6MRuntime.FloatMathFileName, .. ArmV6MRuntime.MathFileNames, .. softFloat,
                 ArmV6MRuntime.FailuresFileName, "chipsharp_string.c", "chipsharp_exceptions.c",
                 "chipsharp_heap.c", "armv6m_heap.c", "chipsharp_string_heap.c", "chipsharp_float_text.c", "rp2040_boot2.S",
@@ -62,11 +63,11 @@ public sealed class Rp2040RuntimeTests
             runtime.InterruptEntry(pico).Files.Select(f => f.FileName));
         Assert.Empty(runtime.Atomics(pico).Files);
 
-        // ChipSharp's own C includes nothing (compiler-rt's includes its own headers and, on these targets, only the
+        // ChipSharp's own C includes nothing but the hardware contract (compiler-rt's includes its own headers and, on these targets, only the
         // C standard's freestanding ones, which come with clang)
         Assert.All(runtime.Startup(pico).Files.Concat(runtime.InterruptEntry(pico).Files)
                 .Where(file => !softFloat.Contains(file.FileName)),
-            file => Assert.DoesNotContain("#include", file.Content));
+            file => Assert.DoesNotContain("#include", HardwareHeader.WithoutInclude(file.Content)));
     }
 
     /// <summary>

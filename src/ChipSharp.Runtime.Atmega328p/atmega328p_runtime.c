@@ -1,9 +1,10 @@
 // ChipSharp runtime for the Microchip ATmega328P at 16 MHz (the Arduino Uno's chip, and the Nano's): what this chip needs
 // on top of the AVR runtime (src/ChipSharp.Runtime.Avr: start-up, the vector table, the math helpers, the stops).
 //
-// Freestanding: no headers, no C library, no avr-libc. Register addresses and bits are from the ATmega328P datasheet, as
-// data addresses (what LD and ST reach: the I/O registers at 0x20-0x5f, the extended ones at 0x60-0xff). A C# int is 32
-// bits, a long in AVR's C, whose int has 16.
+// Freestanding: no C library, no avr-libc, and no header but ChipSharp's hardware contract (chipsharp_hardware.h), which
+// this file and the others of the atmega328p runtime implement. Register addresses and bits are from the ATmega328P
+// datasheet, as data addresses (what LD and ST reach: the I/O registers at 0x20-0x5f, the extended ones at 0x60-0xff). A
+// C# int is 32 bits, a long in AVR's C, whose int has 16.
 //
 //   chipsharp_chip_init                start-up (chipsharp_start, avr_runtime.c, calls it before the program, with
 //                                      interrupts still off): Timer1 starts counting the clock
@@ -36,6 +37,8 @@
 // USART0: 115200 baud is 16 MHz / (8 * 17) with U2X0, 117647 baud really, 2.1% fast, as the Arduino core's
 // Serial.begin(115200) has it (without U2X0, 16 MHz / (16 * 9) is 111111, 3.5% slow). A byte goes out when the one before
 // has (polling UDRE0, no send buffer, which would take RAM): 87 microseconds each. Receiving is atmega328p_uart.c's.
+
+#include "chipsharp_hardware.h"
 
 typedef unsigned char u8;
 typedef unsigned int u16;

@@ -18,6 +18,8 @@
 // use, an output already driving another pin, and a pin used before Pwm.Output stop the program
 // (chipsharp_hardware_failure, rp2040_failures.c) with a message that says what to do.
 
+#include "chipsharp_hardware.h"
+
 #define REG(address) (*(volatile unsigned int *)(address))
 
 #define ALIAS_CLEAR 0x3000u

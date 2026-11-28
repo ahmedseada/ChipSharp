@@ -23,6 +23,8 @@
 // A port the chip does not have, a pin it cannot use, a speed it cannot run at, or a port used before Open stop the
 // program (as .NET's exceptions, on USART0 itself) with a message that says what to do.
 
+#include "chipsharp_hardware.h"
+
 typedef unsigned char u8;
 typedef unsigned int u16;
 typedef long i32;

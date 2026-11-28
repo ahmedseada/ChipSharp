@@ -18,6 +18,7 @@
     <Project Path="src/ChipSharp.Backend.C/ChipSharp.Backend.C.csproj" />
     <Project Path="src/ChipSharp.Backend.Llvm/ChipSharp.Backend.Llvm.csproj" />
     <Project Path="src/ChipSharp.Build/ChipSharp.Build.csproj" />
+    <Project Path="src/ChipSharp.Chips/ChipSharp.Chips.csproj" />
     <Project Path="src/ChipSharp.Cli/ChipSharp.Cli.csproj" />
     <Project Path="src/ChipSharp.Components/ChipSharp.Components.csproj" />
     <Project Path="src/ChipSharp.Flasher.Avrdude/ChipSharp.Flasher.Avrdude.csproj" />

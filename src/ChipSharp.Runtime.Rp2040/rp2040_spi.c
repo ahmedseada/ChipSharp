@@ -18,6 +18,8 @@
 // at once, so that none is lost while an interrupt handler runs. A bus, pin, frequency or mode the chip does not have,
 // or a bus that is not open, stops the program with a message on UART0, as a failure does (rp2040_failures.c).
 
+#include "chipsharp_hardware.h"
+
 #define REG(address) (*(volatile unsigned int *)(address))
 
 #define ALIAS_SET 0x2000u

@@ -1,7 +1,8 @@
 // ChipSharp runtime for AVR chips (ATmega, ATtiny, AVR Dx): the program's start, and how it stops.
 //
-// Freestanding: no headers and no C library. The reset handler (avr_startup.S) has set up r1, the stack, .data and .bss
-// and jumps to chipsharp_start:
+// Freestanding: no C library, and no header but ChipSharp's hardware contract (chipsharp_hardware.h), whose start and
+// stops this file has. The reset handler (avr_startup.S) has set up r1, the stack, .data and .bss and jumps to
+// chipsharp_start:
 //
 //   chipsharp_start          runs chipsharp_chip_init (empty unless the chip's runtime defines it), turns interrupts
 //                            on (no interrupt comes before the program or the chip's runtime enables one), runs the
@@ -20,6 +21,8 @@
 // I bit clear) means it has finished, as nothing can run any more. On the chip without a debugger BREAK does nothing,
 // and SLEEP does nothing either while no sleep mode is chosen (SMCR's SE bit clear, as after reset): the loop around it
 // keeps the chip there. A chip's runtime that wants it to sleep for real sets the sleep mode in chipsharp_before_halt.
+
+#include "chipsharp_hardware.h"
 
 #if __SIZEOF_DOUBLE__ != 8
 #error "Compile ChipSharp's AVR runtime with -mdouble=64: C# double is IEEE's 64-bit one, clang's AVR double 32-bit"

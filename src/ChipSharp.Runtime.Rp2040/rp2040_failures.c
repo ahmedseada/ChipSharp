@@ -48,6 +48,8 @@
 // CastClass and CastInterface); the others are the methods of ChipSharp.Library.Runtime, which says when each happens
 // (Array.Sort and Array.BinarySearch, ChipSharp.Library's, call four of the array ones that way too).
 
+#include "chipsharp_hardware.h"
+
 #define UNHANDLED "Unhandled exception. "
 #define TIMESPAN_TOO_LONG "TimeSpan overflowed because the duration is too long."
 #define TIMESPAN_NAN "TimeSpan does not accept floating point Not-a-Number values."

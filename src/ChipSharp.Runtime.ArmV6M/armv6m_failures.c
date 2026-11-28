@@ -30,6 +30,13 @@
 // The TimeSpan ones and NegateOverflow are the methods of ChipSharp.Library.Runtime, which says when each happens (so
 // are the four array ones Array.Sort and Array.BinarySearch call); InvalidCast is the program's casts'; the others are
 // the code generator's and the heap's (chipsharp_heap.c, armv6m_heap.c).
+//
+// And the hardware contract's (chipsharp_hardware.h) failure output and stop, for code shared with the other chips:
+//
+//   chipsharp_failure_write              where a failure's message goes: nowhere here (weak; the RP2040's is UART0)
+//   chipsharp_halt_failure               the failure stop: chipsharp_before_halt, then the breakpoint
+
+#include "chipsharp_hardware.h"
 
 __attribute__((noreturn)) static void fail(void)
 {
@@ -155,3 +162,15 @@ __attribute__((naked, noreturn)) void chipsharp_stack_overflow(void)
 
 __attribute__((weak, noreturn)) void ChipSharp_Runtime_StackOverflow(void) { fail(); }
 __attribute__((weak, noreturn)) void chipsharp_fatal(const char *message) { (void)message; fail(); }
+
+__attribute__((weak)) void chipsharp_failure_write(const char *text, unsigned int count)
+{
+    (void)text;
+    (void)count;
+}
+
+__attribute__((noreturn)) void chipsharp_halt_failure(void)
+{
+    chipsharp_before_halt();
+    fail();
+}
