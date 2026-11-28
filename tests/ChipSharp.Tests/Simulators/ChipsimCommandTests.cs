@@ -95,6 +95,15 @@ public sealed class ChipsimCommandTests : IDisposable
     [InlineData(new[] { "stm8s103", "IMAGE", "--input", "PA0=high" }, "the STM8S103 has no pin PA0; it has PA1, PA2, PA3, PB4, PB5")]
     [InlineData(new[] { "stm8s103", "IMAGE", "--send", "\\q" }, "--send: '\\q' is not one of")]
     [InlineData(new[] { "pfs154", "PDK", "--send", "hi" }, "the PFS154 has no UART for --send or --uart1")]
+    [InlineData(new[] { "stm8s103", "IMAGE", "--i2c", "0:0x80=lcd1602" }, "--i2c takes a bus, an address from 0 to 0x7f")]
+    [InlineData(new[] { "stm8s103", "IMAGE", "--i2c", "0:0x68=mpu6050@halted" }, "a date after '@' only for a ds1307")]
+    [InlineData(new[] { "stm8s103", "IMAGE", "--i2c", "1:0x68=ds1307" }, "the STM8S103 has I2C bus 0, not 1")]
+    [InlineData(new[] { "stm8s103", "IMAGE", "--spi", "0=74hc595" }, "--spi takes a bus and a device: 74hc595@<its latch pin>")]
+    [InlineData(new[] { "stm8s103", "IMAGE", "--spi", "0=loopback@PA0" }, "the STM8S103 has no pin PA0")]
+    [InlineData(new[] { "stm8s103", "IMAGE", "--adc", "PB5=1V" }, "the STM8S103 has no analog input on PB5; it has PC4, PD2")]
+    [InlineData(new[] { "stm8s103", "IMAGE", "--adc", "PD3=5V" }, "--adc: PD3 reads 0 to 3.3 V, 0 to 1023.")]
+    [InlineData(new[] { "pfs154", "PDK", "--adc", "PA4=1V" }, "the PFS154 has no analog inputs for --adc.")]
+    [InlineData(new[] { "pfs154", "PDK", "--i2c", "0:0x27=lcd1602" }, "the PFS154 has no I2C bus for --i2c.")]
     public void Wrong_arguments_exit_with_2(string[] arguments, string message)
     {
         var (stm8, pdk) = (Stm8Hello(), PfsStop());
