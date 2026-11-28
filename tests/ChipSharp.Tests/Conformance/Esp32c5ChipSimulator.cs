@@ -16,8 +16,8 @@ namespace ChipSharp.Tests.Conformance;
 /// and the USB Serial/JTAG port, the console, is port 1 here (<see cref="ConsolePort"/>). Its cases are skipped, saying
 /// why, while the chip's runtime does not implement the hardware contract (it does: pins, the clock and the delays, the
 /// console on USB, UART0, the events, I2C, SPI, the ADC and PWM). The buses are I2C0 (SDA GPIO4, SCL GPIO5) and SPI0
-/// (SCK GPIO0, MOSI GPIO1, MISO GPIO24), the analog input GPIO5 (ADC1's channel 4, 12 bits against 3.3 V) and the PWM
-/// output GPIO4 (a LEDC channel); chipsim puts the shared devices on the buses and the voltages on the input.
+/// (SCK GPIO0, MOSI GPIO1, MISO GPIO24), the analog input GPIO3 (ADC1's channel 2, 12 bits against 3.3 V) and the PWM
+/// output GPIO7 (a LEDC channel); chipsim puts the shared devices on the buses and the voltages on the input.
 /// </summary>
 internal sealed partial class Esp32c5ChipSimulator() : ChipSimulator("esp32c5-devkitc")
 {
@@ -70,8 +70,8 @@ internal sealed partial class Esp32c5ChipSimulator() : ChipSimulator("esp32c5-de
         Uart0 = (11, 12),
         I2c0 = (4, 5),
         Spi0 = (0, 1, 24),
-        Adc = 5,
-        Pwm = 4,
+        Adc = 3,
+        Pwm = 7,
     };
 
     // ADC1 in 12 bits, 12 dB attenuation: 4096 counts for 3.3 V
