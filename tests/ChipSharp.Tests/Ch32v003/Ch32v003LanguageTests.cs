@@ -1,4 +1,5 @@
-using ChipSharp.Tests.Backends;
+using System.Globalization;
+using System.Text;
 using ChipSharp.Tests.Lowering;
 using ChipSharp.Tests.Memory;
 using ChipSharp.Tests.Strings;
@@ -8,14 +9,14 @@ namespace ChipSharp.Tests.Ch32v003;
 
 /// <summary>
 /// What RV32EC and the ilp32e ABI make different on the CH32V003, run on the simulated chip against .NET, beyond the
-/// corpora of the backend conformance suite (<see cref="Ch32v003LanguagePrograms"/>): calls past the six argument
-/// registers, structs passed and returned, the runtime's multiplication and division helpers and compiler-rt's float
-/// in software, every edge case printed as .NET prints it. A division .NET stops with an exception stops the program
-/// at the failure stop, after what .NET printed before, through the runtime function of that exception. The stack
-/// check of the riscv32 architecture works on riscv32e too: a recursion with no end, through one function or two, is
-/// stopped by chipsharp_stack_overflow (the stack pointer put back at the top of the stack, then
-/// ChipSharp_Runtime_StackOverflow and the failure stop) before it reaches the variables, and recursions that end and a
-/// frame of 1 KB run as on .NET.
+/// corpora of the backend conformance suite (<see cref="Ch32v003LanguagePrograms"/>), its console USART1: calls past the
+/// six argument registers, structs passed and returned, the runtime's multiplication and division helpers and
+/// compiler-rt's float in software, every edge case printed as .NET prints it. A division .NET stops with an exception
+/// says .NET's message after what .NET printed before, through the runtime function of that exception, and stops at the
+/// failure stop. The stack check of the riscv32 architecture works on riscv32e too: a recursion with no end, through
+/// one function or two, is stopped by chipsharp_stack_overflow (the stack pointer put back at the top of the stack, then
+/// "Stack overflow." and the failure stop) before it reaches the variables, also one that prints a double at every
+/// level; recursions that end and a frame of 768 bytes run as on .NET.
 /// </summary>
 public sealed class Ch32v003LanguageTests : IDisposable
 {
@@ -44,52 +45,47 @@ public sealed class Ch32v003LanguageTests : IDisposable
             nameof(Ch32v003LanguagePrograms.Floats) => Ch32v003LanguagePrograms.Floats,
             _ => Ch32v003LanguagePrograms.Finite,
         };
-        var dotnet = await Dotnet(source, name);
+        var dotnet = await Dotnet(source, name, failing: false);
 
-        var run = Ch32v003Build.Run(Ch32v003Build.Build(source, name, Path.Combine(_scratch, name), Ch32v003Build.WithConsole()),
-            60_000, "chipsharp_stack_overflow");
+        var run = Ch32v003Build.Run(Ch32v003Build.Build(source, name, Path.Combine(_scratch, name)), 60_000,
+            "chipsharp_stack_overflow");
 
         Assert.True(run.Ended, run.ToString());
         Assert.Empty(run.Called);
-        Assert.Equal(dotnet.Text, System.Text.Encoding.UTF8.GetString(run.Output));
+        Assert.Equal(dotnet.Text, Encoding.UTF8.GetString(run.Output));
     }
 
     [Ch32v003Theory]
     [MemberData(nameof(Failures))]
-    public async Task A_division_dotnet_stops_with_an_exception_stops_at_the_failure_stop_after_what_dotnet_printed(string name)
+    public async Task A_division_dotnet_stops_with_an_exception_says_so_after_what_dotnet_printed_and_stops(string name)
     {
         var (_, source, failure) = Ch32v003LanguagePrograms.Failures.Single(f => f.Name == name);
-        var dotnet = await HostRun.RunOnDotnetAsync(CSharpCompiler.Compile([source, StringPrograms.Utf8Console], name), name,
-            Path.Combine(_scratch, "dotnet"), failing: true);
+        var dotnet = await Dotnet(source, name, failing: true);
 
-        var run = Ch32v003Build.Run(Ch32v003Build.Build(source, name, Path.Combine(_scratch, name), Ch32v003Build.WithConsole()),
-            1000, failure, "chipsharp_halt_failure");
+        var run = Ch32v003Build.Run(Ch32v003Build.Build(source, name, Path.Combine(_scratch, name)), 1000, failure,
+            "chipsharp_halt_failure");
 
         Assert.Equal(3, run.Simulation.ExitCode);
         Assert.Contains("ebreak", run.Simulation.Stopped);
         Assert.Equal([failure, "chipsharp_halt_failure"], run.Called.Order(StringComparer.Ordinal));
-        Assert.Equal(dotnet.Text, System.Text.Encoding.UTF8.GetString(run.Output));
         Assert.DoesNotContain("not printed", dotnet.Text);
+        Assert.Equal(dotnet.Text + dotnet.Errors.Split("\r\n")[0] + "\r\n", Encoding.UTF8.GetString(run.Output));
     }
 
     [Ch32v003Theory]
     [InlineData(nameof(StackOverflowTests.Endless))]
     [InlineData(nameof(Ch32v003LanguagePrograms.Mutual))]
-    public void An_endless_recursion_is_stopped_by_the_stack_check_before_it_reaches_the_variables(string name)
+    public void An_endless_recursion_says_Stack_overflow_and_stops_before_it_reaches_the_variables(string name)
     {
         var source = name == nameof(StackOverflowTests.Endless) ? StackOverflowTests.Endless : Ch32v003LanguagePrograms.Mutual;
-        var program = Ch32v003Build.Build(source, name, Path.Combine(_scratch, name), Ch32v003Build.WithConsole());
+        var program = Ch32v003Build.Build(source, name, Path.Combine(_scratch, name));
 
         var run = Ch32v003Build.Run(program, 1000, "chipsharp_stack_overflow", "ChipSharp_Runtime_StackOverflow");
 
         Assert.Equal(3, run.Simulation.ExitCode);
         Assert.Contains("ebreak", run.Simulation.Stopped);
         Assert.Equal(["ChipSharp_Runtime_StackOverflow", "chipsharp_stack_overflow"], run.Called.Order(StringComparer.Ordinal));
-        Assert.Equal("start\r\n", System.Text.Encoding.UTF8.GetString(run.Output));
-
-        // the variables (the console's among them) are where they were: the stack stopped above them
-        var sink = program.File.Symbols["chipsharp_test_console_count"] - Ch32v003Build.SramStart;
-        Assert.Equal(7u, BitConverter.ToUInt32(run.Simulation.Chip.Ram, (int)sink));
+        Assert.Equal("start\r\nStack overflow.\r\n", Encoding.UTF8.GetString(run.Output));
     }
 
     /// <summary>
@@ -99,26 +95,23 @@ public sealed class Ch32v003LanguageTests : IDisposable
     /// waiting surrogate became a U+FFFD among the numbers).
     /// </summary>
     [Simulators.Ch32v003Fact]
-    public void A_recursion_that_prints_doubles_is_stopped_by_the_stack_check_with_its_lines_whole()
+    public void A_recursion_that_prints_doubles_says_Stack_overflow_with_its_lines_whole()
     {
-        var program = Ch32v003Build.Build(Ch32v003LanguagePrograms.Printing, "Printing", Path.Combine(_scratch, "printing"),
-            Ch32v003Build.WithConsole());
+        var program = Ch32v003Build.Build(Ch32v003LanguagePrograms.Printing, "Printing", Path.Combine(_scratch, "printing"));
 
         var run = Ch32v003Build.Run(program, 5000, "chipsharp_stack_overflow");
 
         Assert.Equal(3, run.Simulation.ExitCode);
         Assert.Contains("chipsharp_stack_overflow", run.Called);
-        var lines = System.Text.Encoding.UTF8.GetString(run.Output).Split("\r\n");
+        var lines = Encoding.UTF8.GetString(run.Output).Split("\r\n");
         Assert.Equal("start", lines[0]);
         Assert.InRange(lines.Length, 10, 200);
-        Assert.Equal(Enumerable.Range(1, lines.Length - 2).Select(n => (n * 0.5).ToString(System.Globalization.CultureInfo.InvariantCulture)),
-            lines[1..^1]);
-        Assert.Equal("", lines[^1]);
-        var sink = program.File.Symbols["chipsharp_test_console_count"] - Ch32v003Build.SramStart;
-        Assert.Equal((uint)run.Output.Length, BitConverter.ToUInt32(run.Simulation.Chip.Ram, (int)sink));
+        Assert.Equal(Enumerable.Range(1, lines.Length - 3).Select(n => (n * 0.5).ToString(CultureInfo.InvariantCulture)),
+            lines[1..^2]);
+        Assert.Equal(["Stack overflow.", ""], lines[^2..]);
     }
 
-    private Task<ProgramRun> Dotnet(string source, string name) =>
+    private Task<ProgramRun> Dotnet(string source, string name, bool failing) =>
         HostRun.RunOnDotnetAsync(CSharpCompiler.Compile([source, StringPrograms.Utf8Console], name), name,
-            Path.Combine(_scratch, "dotnet"));
+            Path.Combine(_scratch, "dotnet"), failing);
 }

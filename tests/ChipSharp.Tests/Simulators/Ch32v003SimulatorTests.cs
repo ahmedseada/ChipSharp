@@ -204,8 +204,7 @@ public sealed class Ch32v003SimulatorTests(ITestOutputHelper output) : IDisposab
     /// <summary>
     /// C# built for ch32v003-evt as the build pipeline builds it (the target's start-up, the riscv32 runtime on RV32E,
     /// its multiply and divide helpers): it runs from 0 to its end at 48 MHz, the start-up's clock, its .bin as its ELF;
-    /// what it writes (the tests' console sink, in RAM, until the runtime has USART1) is what .NET writes; and a failure
-    /// stops at ebreak.
+    /// what it writes (the console, on USART1) is what .NET writes; and a failure stops at ebreak, saying why first.
     /// </summary>
     [Ch32v003Fact]
     public void A_C_sharp_program_runs_its_target_s_start_up_to_its_end_and_a_failure_stops_at_ebreak()
@@ -226,7 +225,7 @@ public sealed class Ch32v003SimulatorTests(ITestOutputHelper output) : IDisposab
                     return 0;
                 }
             }
-            """, "ended", Path.Combine(_scratch, "ended"), Ch32v003Build.WithConsole());
+            """, "ended", Path.Combine(_scratch, "ended"));
         var failed = Ch32v003Build.Build("""
             using System;
             class Program { static int Main() { Span<int> values = stackalloc int[3]; int i = 3; return values[i]; } }
@@ -243,15 +242,14 @@ public sealed class Ch32v003SimulatorTests(ITestOutputHelper output) : IDisposab
             Assert.Equal(["CPU clock 24 MHz", "CPU clock 48 MHz"], run.After("CPU clock")); // HPRE /1 first, then the PLL
             var chip = (Ch32v003Chip)run.Chip;
             Assert.Equal(0u, chip.Read(ended.File.Symbols["chipsharp_exit_code"], 4));
-            var sink = ended.File.Symbols["chipsharp_test_console"];
-            var count = (int)chip.Read(ended.File.Symbols["chipsharp_test_console_count"], 4);
-            var text = Encoding.ASCII.GetString([.. Enumerable.Range(0, count).Select(i => (byte)chip.Read(sink + (uint)i, 1))]);
-            Assert.Equal($"{1234567L * 89 / 13} {7.25 / 2} {-1234567 % 1000}", text);
+            Assert.Equal($"{1234567L * 89 / 13} {7.25 / 2} {-1234567 % 1000}", Encoding.ASCII.GetString(run.SerialOf("USART1")));
         }
 
         var failure = Simulation.Run(new SimulationOptions { Chip = "ch32v003", Image = failed.Elf, Milliseconds = 100 });
         Assert.True(failure.ExitCode == 3, failure.ToString());
         Assert.StartsWith("stopped: the program hit a breakpoint (ebreak)", failure.Stopped, StringComparison.Ordinal);
+        Assert.Equal("Unhandled exception. System.IndexOutOfRangeException: Index was outside the bounds of the array.\r\n",
+            Encoding.ASCII.GetString(failure.SerialOf("USART1")));
 
         // chipsharp build -t ch32v003-evt: its Name.bin, as chipsharp flash writes it; a wrong sum would fail at ebreak
         var dll = Path.Combine(_scratch, "Sums.dll");
@@ -314,8 +312,11 @@ public sealed class Ch32v003SimulatorTests(ITestOutputHelper output) : IDisposab
 
         var target = Ch32v003Build.Board;
         Assert.Equal(Ch32v003Map.InterruptCount, (int)target.Settings["vectors"]!);
-        Assert.Equal(Ch32v003Map.SysTickNumber, (int)target.Settings["interrupts"]!["timer"]!["irq"]!);
+        // the pin event is EXTI7_0's; the timer's and the uart's are past the PFIC's numbers, called by the runtime's
+        // handlers of SysTick and USART1
         Assert.Equal(Ch32v003Map.Exti7To0Number, (int)target.Settings["interrupts"]!["pin"]!["irq"]!);
+        Assert.All((string[])["timer", "uart"], name =>
+            Assert.True((int)target.Settings["interrupts"]![name]!["irq"]! >= Ch32v003Map.InterruptCount, name));
     }
 
     /// <summary>A .bin of <paramref name="bytes"/> in the scratch folder.</summary>

@@ -85,10 +85,10 @@ internal static class BackendRun
     /// <summary>
     /// The program built for a chip (<paramref name="description"/>, its target with a console) through the C code
     /// generator and SDCC, with the tests' startup and console, into <paramref name="folder"/>: the module and the .ihx,
-    /// or why the chip does not take it.
+    /// or why the chip does not take it. <paramref name="report"/> takes the place of the empty report() (<see cref="UcsimStm8.ReportFile"/>).
     /// </summary>
     public static (TirModule? Module, LinkedBinary? Binary, BackendOutcome? Skip) BuildForChip(TargetDescription description,
-        string file, string source, string folder)
+        string file, string source, string folder, GeneratedFile? report = null)
     {
         var analysis = WholeProgramPass.Check(IlAssembly.Load(CSharpCompiler.Compile(source, file), file + ".dll"), description);
         if (!analysis.IsSupported)
@@ -110,7 +110,7 @@ internal static class BackendRun
                 OutputFolder = folder,
                 ProgramName = file,
                 CacheFolder = Cache,
-            }).Build(new GeneratedCode([.. code.Files, ChipConsole.File(module, description), ChipConsole.ReportFile]),
+            }).Build(new GeneratedCode([.. code.Files, ChipConsole.File(module, description), report ?? ChipConsole.ReportFile]),
                 description), null);
         }
         catch (ChipSharpException e) when (BackendSkips.Classify(e.Message) is var reason && reason != BackendSkips.Other)
@@ -154,16 +154,15 @@ internal static class BackendRun
     }
 
     /// <summary>
-    /// The program built for the CH32V003 (the llvm code generator for riscv32 with the ilp32e ABI, the riscv32e and
-    /// ch32v003 runtimes) with the shared Console.Write and WriteLine and the tests' console
-    /// (<see cref="Ch32v003Build.ConsoleSink"/>), until the chip's runtime has its own on USART1, and run in chipsim's
-    /// ch32v003: what the program prints is the bytes of every call of chipsharp_console_write, read as it is called. A
-    /// stack check that finds the 2 KB run out (chipsharp_stack_overflow) is the reason the chip does not take it.
+    /// The program built for the CH32V003 as chipsharp build builds it (the llvm code generator for riscv32 with the ilp32e
+    /// ABI, the riscv32e and ch32v003 runtimes), and run in chipsim's ch32v003: what it writes to USART1, the console, is
+    /// what it prints. A stack check that finds the 2 KB run out (chipsharp_stack_overflow) is the reason the chip does
+    /// not take it.
     /// </summary>
     private static BackendOutcome OnTheCh32v003(BackendTarget target, string file, string source, string folder)
     {
         var assembly = CSharpCompiler.Compile(source, file);
-        var description = Ch32v003Build.WithConsole();
+        var description = Ch32v003Build.Board;
         var analysis = Ch32v003Build.Check(assembly, file, description);
         if (!analysis.IsSupported)
         {

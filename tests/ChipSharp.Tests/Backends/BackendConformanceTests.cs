@@ -10,8 +10,8 @@ namespace ChipSharp.Tests.Backends;
 /// target of <see cref="BackendTargets"/> prints, byte for byte, what .NET prints for it. On the PC through the llvm
 /// code generator (host) and the C one (host-c), as chipsharp build builds; on the simulated PFS154 and STM8S103
 /// through C and SDCC, with the tests' startup and console (<see cref="ChipConsole"/>); on the simulated ESP32-C5 as
-/// chipsharp build builds it, and on the simulated CH32V003 through llvm with the shared console and the tests' own
-/// end of it (<see cref="BackendRun"/>). A program a target cannot take
+/// chipsharp build builds it, and on the simulated CH32V003 through llvm, its console on USART1
+/// (<see cref="BackendRun"/>). A program a target cannot take
 /// (no heap, a double of 32 bits, too little memory, a runtime function the chip's runtime is still to have) is
 /// skipped exactly for the reason <see cref="BackendSkips"/> gives, and only then; one that prints otherwise by what the
 /// chip is (16-bit nint, big-endian memory) runs to its end and prints as many lines, as its list says.

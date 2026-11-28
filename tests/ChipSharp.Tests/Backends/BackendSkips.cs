@@ -169,7 +169,8 @@ internal static partial class BackendSkips
                 (Heap, WithObjects),
                 (ProgramMemory,
                 [
-                    "ArrayMethods/Sorting", "DateTime/Members", "DateTime/Text", "TimeSpan/Members", "samples/MathFunctions",
+                    "ArrayMethods/Sorting", "Chips/MathFunctions", "DateTime/Members", "DateTime/Text", "TimeSpan/Members",
+                    "samples/MathFunctions",
                 ]),
                 // a frame of 40 KB (an array of 10,000 ints), twenty times the SRAM: the stack check stops it
                 (Stack, ["Arrays/BigArrays"]),

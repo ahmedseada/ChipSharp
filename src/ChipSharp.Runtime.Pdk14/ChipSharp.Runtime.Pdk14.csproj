@@ -21,5 +21,7 @@
     <EmbeddedResource Include="pdk14_failure_write.c" LogicalName="pdk14_failure_write.c" />
     <EmbeddedResource Include="pdk14_local_utc_offset.s" LogicalName="pdk14_local_utc_offset.s" />
     <EmbeddedResource Include="pdk14_hardware_failure.c" LogicalName="pdk14_hardware_failure.c" />
+    <!-- fmodf, for C#'s % on floats: SDCC's library has none (shared with the STM8's runtime) -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_fmodf.c" LogicalName="chipsharp_fmodf.c" />
   </ItemGroup>
 </Project>

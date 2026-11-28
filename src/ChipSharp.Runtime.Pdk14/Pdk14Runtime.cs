@@ -30,6 +30,8 @@ namespace ChipSharp.Runtime.Pdk14;
 /// <c>ChipSharp_Runtime_LocalUtcOffset</c> 0, <c>chipsharp_hardware_failure</c> the failure stop.</item>
 /// <item><see cref="ArgumentFailures"/>: the failures that take parameters, a file each, written for the build: SDCC
 /// keeps a function's parameters in RAM, which only a program that can fail so gives them.</item>
+/// <item><see cref="FmodfFileName"/>: fmodf, which the C code generator calls for C#'s % on floats, exact, as .NET's;
+/// SDCC's library has no fmodf.</item>
 /// </list>
 /// The program's C (the code generator "c") calls the contract's functions as the header declares them; on its own, this
 /// runtime runs a program that only computes.
@@ -54,6 +56,12 @@ public sealed class Pdk14Runtime : IArchRuntime
 
     /// <summary>The header a chip runtime's C includes for what this runtime gives it.</summary>
     public const string HeaderFileName = "pdk14_runtime.h";
+
+    /// <summary>
+    /// fmodf, for C#'s % on two floats (src/ChipSharp.Runtime.Shared, shared with the STM8's runtime): SDCC's library
+    /// has none.
+    /// </summary>
+    public const string FmodfFileName = "chipsharp_fmodf.c";
 
     /// <summary>The functions of the contract a chip runtime may leave out, each in a file of its own in the library.</summary>
     public static IReadOnlyList<string> DefaultFileNames { get; } =
@@ -99,6 +107,7 @@ public sealed class Pdk14Runtime : IArchRuntime
             .. ArgumentsFileNames.Select(name => Source(name) with { Library = true }),
             .. DefaultFileNames.Select(name => Source(name) with { Library = true }),
             .. ArgumentFailures.Select(failure => ArgumentFailure(failure.Name, failure.Parameters)),
+            Source(FmodfFileName) with { Library = true },
         ]);
     }
 

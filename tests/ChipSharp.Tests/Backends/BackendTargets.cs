@@ -50,8 +50,8 @@ internal static class BackendTargets
         // it, in chipsim's esp32c5 (the console is the USB Serial/JTAG port)
         new("esp32c5-devkitc", "llvm", "esp32c5"),
 
-        // the CH32V003 (M5): the llvm code generator for riscv32 with the ilp32e ABI, the riscv32e and ch32v003 runtimes
-        // and the shared console, in chipsim's ch32v003, with the tests' console until the runtime's own on USART1 comes
+        // the CH32V003 (M5): the llvm code generator for riscv32 with the ilp32e ABI, the riscv32e and ch32v003 runtimes,
+        // in chipsim's ch32v003 (the console is USART1)
         new("ch32v003-evt", "llvm", "ch32v003"),
     ];
 

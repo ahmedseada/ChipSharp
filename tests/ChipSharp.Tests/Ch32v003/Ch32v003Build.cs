@@ -35,10 +35,8 @@ internal sealed record Ch32v003Run(byte[] Output, SimulationResult Simulation, I
 /// <summary>
 /// Builds C# for WCH's CH32V003 evaluation board the whole way to its .elf, as <c>chipsharp build -t ch32v003-evt</c>
 /// does: Roslyn (with ChipSharp.Hardware referenced), the whole-program pass, IL to TIR, the llvm code generator for
-/// riscv32 with the ilp32e ABI, the runtime "ch32v003" on the runtime "riscv32e", clang and ld.lld. The chip's runtime
-/// has no console yet (M5's wave 1 brings it, on USART1): a program that prints is built with the shared Console.Write
-/// and Console.WriteLine (chipsharp_console.c, chipsharp_float_text.c) and <see cref="ConsoleSink"/>, which keeps the
-/// last bytes in RAM, for a target with "console" (<see cref="WithConsole"/>).
+/// riscv32 with the ilp32e ABI, the runtime "ch32v003" on the runtime "riscv32e" (with its console on USART1), clang and
+/// ld.lld.
 /// </summary>
 internal static class Ch32v003Build
 {
@@ -53,30 +51,11 @@ internal static class Ch32v003Build
     /// <summary>The SRAM and its end, the top of the stack: 2 KB.</summary>
     public const uint SramStart = 0x20000000, SramEnd = 0x20000800;
 
-    /// <summary>The tests' console: the last 32 bytes the program writes, in RAM, where a debugger could read them.</summary>
-    public static GeneratedFile ConsoleSink { get; } = new("ch32v003_test_console.c", """
-        // The tests' console, until the CH32V003's runtime has its own (USART1): the program's last 32 bytes, in RAM.
-        char chipsharp_test_console[32];
-        volatile unsigned int chipsharp_test_console_count;
-
-        void chipsharp_console_write(const char *bytes, unsigned int count)
-        {
-            for (unsigned int i = 0; i < count; i++)
-            {
-                chipsharp_test_console[chipsharp_test_console_count++ % sizeof chipsharp_test_console] = bytes[i];
-            }
-        }
-        """);
-
-    /// <summary>The board with "console": true (and the "heap" given), for <see cref="ConsoleSink"/>.</summary>
-    public static TargetDescription WithConsole(string? heap = null)
+    /// <summary>The board with the "heap" given, which the shipped board has none of.</summary>
+    public static TargetDescription WithHeap(string heap)
     {
         var settings = Board.Settings.DeepClone().AsObject();
-        settings["capabilities"]!["console"] = true;
-        if (heap is not null)
-        {
-            settings["capabilities"]!["heap"] = heap;
-        }
+        settings["capabilities"]!["heap"] = heap;
 
         var target = Board;
         return new TargetDescription
@@ -96,10 +75,9 @@ internal static class Ch32v003Build
             Pins = target.Pins,
             Capabilities = new Dictionary<string, string>(target.Capabilities, StringComparer.OrdinalIgnoreCase)
             {
-                ["console"] = "true",
-                ["heap"] = heap ?? "false",
+                ["heap"] = heap,
             },
-            HeapSize = heap is null ? null : SizeParser.Parse(heap),
+            HeapSize = SizeParser.Parse(heap),
             Settings = settings,
             MissingValues = target.MissingValues,
         };
@@ -128,7 +106,6 @@ internal static class Ch32v003Build
             .. runtime.Startup(target).Files,
             .. runtime.InterruptEntry(target).Files,
             .. runtime.Atomics(target).Files,
-            .. target.HasConsole ? Console(target) : [],
         ]);
         var binary = new ClangToolchain(new ClangToolchainOptions { OutputFolder = folder, ProgramName = name })
             .Build(code, target);
@@ -136,15 +113,13 @@ internal static class Ch32v003Build
     }
 
     /// <summary>
-    /// Runs <paramref name="program"/> (built with the tests' console, <see cref="WithConsole"/>) in chipsim's ch32v003 for
-    /// at most <paramref name="milliseconds"/> of simulated time: what it printed is the bytes of every call of
-    /// chipsharp_console_write (a0, a1), read as it is called; <paramref name="watched"/> are functions whose calls are
-    /// noted (a failure's, the stack check's).
+    /// Runs <paramref name="program"/> in chipsim's ch32v003 for at most <paramref name="milliseconds"/> of simulated
+    /// time: what it printed is what USART1, the console, sent out of PD5; <paramref name="watched"/> are functions whose
+    /// calls are noted (a failure's, the stack check's), by hooks at their addresses.
     /// </summary>
     public static Ch32v003Run Run(Ch32v003Program program, double milliseconds, params string[] watched)
     {
         var symbols = program.File.Symbols;
-        var output = new List<byte>();
         var called = new HashSet<string>(StringComparer.Ordinal);
         var hooks = new Dictionary<int, Action<SimulatedChip>>();
         foreach (var name in watched)
@@ -155,36 +130,9 @@ internal static class Ch32v003Build
             }
         }
 
-        if (symbols.TryGetValue("chipsharp_console_write", out var write))
-        {
-            hooks[(int)write] = chip =>
-            {
-                var ch32 = (Ch32v003Chip)chip;
-                for (uint i = 0, bytes = ch32.Cpu.X[10], count = ch32.Cpu.X[11]; i < count; i++)
-                {
-                    output.Add((byte)ch32.Read(bytes + i, 1));
-                }
-            };
-        }
-
         var run = Simulation.Run(new SimulationOptions { Chip = "ch32v003", Image = program.Elf, Milliseconds = milliseconds },
-            setUp: chip => chip.Hooks = hooks);
-        return new Ch32v003Run([.. output], run, called);
-    }
-
-    /// <summary>The shared console's C (and, without a heap, the text of floats it prints with), and the sink.</summary>
-    private static IEnumerable<GeneratedFile> Console(TargetDescription target)
-    {
-        var shared = Path.Combine(Repository.Root, "src", "ChipSharp.Runtime.Shared");
-        yield return new GeneratedFile("chipsharp_console.c", File.ReadAllText(Path.Combine(shared, "chipsharp_console.c")));
-        if (!target.HasHeap)
-        {
-            // with a heap, the riscv32 runtime has it already
-            yield return new GeneratedFile("chipsharp_float_text.c",
-                File.ReadAllText(Path.Combine(shared, "chipsharp_float_text.c")));
-        }
-
-        yield return ConsoleSink;
+            setUp: chip => chip.Hooks = hooks.Count > 0 ? hooks : null);
+        return new Ch32v003Run(run.SerialOf("USART1"), run, called);
     }
 
     /// <summary>Runs an LLVM tool next to clang (llvm-objdump, llvm-readobj) on <paramref name="arguments"/>: its output.</summary>

@@ -50,9 +50,27 @@
   // and the runtime does not feed a watchdog. The WWDG is off after a reset (RM 5.2.1). The 1-wire debug interface (SWIO, PD1) is on
   // after every reset (DS 1.4.18).
   //
-  // What the runtime has (src/ChipSharp.Runtime.Ch32v003, M5's wave 0): the start-up, the clock at 48 MHz, the trap's
-  // dispatch, the helpers; pins, the delays, the clock, the console on USART1 and the events come with wave 1, and the
-  // capabilities below say what is there.
+  // What the runtime has (src/ChipSharp.Runtime.Ch32v003): the start-up, the clock at 48 MHz, the trap's dispatch, the
+  // helpers (M5's wave 0); the pins and their pulls, SysTick's delays, clock and timer event, the pin event, USART1 as
+  // the console and serial port 0 and its event (wave 1). I2C, SPI, the ADC and PWM come with wave 2: the capabilities
+  // below say what is there, and chipsharp check refuses a program that uses the rest.
+  //
+  // How the runtime uses the chip (ch32v003_chip.h has the whole of it):
+  //   - SysTick (RM 6.5.4, QKV2 4) counts at HCLK / 8, 6 MHz, from 0 at start-up, in 32 bits the runtime makes 64 (it
+  //     counts the rounds whenever it reads the count, at least every 2^31 counts: its compare's interrupt guards it);
+  //     its one compare is armed for the nearest of a delay's end and the timer event's time. The delays sleep (wfi)
+  //     until it; the clock and Stopwatch are its count, 6 a microsecond. TIM1 and TIM2 stay free for PWM (wave 2).
+  //   - The pins by port * 8 + bit (PA1-PA2 1-2, PC0-PC7 16-23, PD0-PD7 24-31). PD1 is SWIO, the one debug wire a
+  //     WCH-LinkE programs the chip through, and PD7 NRST (the option bytes' RST_MODE): the runtime leaves both alone (as
+  //     a pin the chip does not have) and chipsharp check refuses them ("pinFunctions"). Pull.Up and Pull.Down: CFGLR's
+  //     input with a pull, OUTDR's bit choosing up or down (RM 7).
+  //   - The pin event: EXTI's lines 0-7, line n for pin n of the port AFIO_EXTICR names, so one pin of each number is
+  //     watched at a time (PC3 or PD3, not both: the program stops, saying so, when it watches the second).
+  //   - USART1 on PD5 (TX) and PD6 (RX), its default pins, 8N1 at 48 MHz / BRR (733 to 3000000 baud; 115200 is BRR 417,
+  //     0.08% slow): the console (Console.Write, Console.Read, the failures' messages) and serial port 0, with a 16-byte
+  //     receive buffer its interrupt fills.
+  //   - The program's end: what USART1 still sends goes out, then interrupts off (mstatus.MIE and the PFIC's): the wfi of
+  //     the stop sleeps for good, and the program's events end with it, as on the Uno.
   "name": "ch32v003",
   "inherits": "riscv32e",
   "runtime": "ch32v003",
@@ -85,16 +103,35 @@
   // the entries of the trap's dispatch (riscv32 runtime): the PFIC's vector numbers 0-38, chipsharp_isr_irq0 to 38
   "vectors": 39,
   "interrupts": {
-    // the events an [Interrupt] method can handle: the PFIC's vector number of the source (RM Table 6-1), and the runtime
-    // function that runs first and clears the event (wave 1's runtime defines them)
-    "timer": { "irq": 12, "clear": "chipsharp_clear_timer_event" },  // SysTick: the core's 32-bit counter and its compare
-                                                                      // (PFIC_STK_*), which leaves TIM1 and TIM2 to PWM
-    "pin": { "irq": 20, "clear": "chipsharp_clear_pin_event" },       // EXTI7_0: EXTI lines 0-7, a pin each (AFIO_EXTICR)
-    "uart": { "irq": 32, "clear": "chipsharp_clear_uart_event" }      // USART1
+    // the events an [Interrupt] method can handle. The pin event's is the PFIC's vector number of its source (RM Table
+    // 6-1), whose handler is the method's entry, which runs the runtime's clear function first. The timer's and the
+    // uart's are past the PFIC's 39 (as the Uno's and the STM8S103's): their sources are the runtime's own, SysTick's
+    // compare (vector 12, shared with the delays and the count's guard) and USART1's receiving (vector 32, which fills
+    // the buffer whether or not a program watches the port); the runtime's handlers of those find out whether the event
+    // happened, then call the method's entry, an ordinary function, chipsharp_isr_irq<n> by the numbers here
+    "timer": { "irq": 39 },                                       // SysTick's compare, at the times Every and After give
+    "pin": { "irq": 20, "clear": "chipsharp_clear_pin_event" },   // EXTI7_0: EXTI lines 0-7, a pin each (AFIO_EXTICR)
+    "uart": { "irq": 40 }                                         // USART1, once the bytes are in a watched port's buffer
   },
   "capabilities": {
     "heap": false,          // 2 KB of SRAM: no objects
-    "console": false,       // USART1, with M5's wave 1
-    "clock": false          // SysTick, with M5's wave 1
+    "pullDown": true,       // an input pulls up or down (CFGLR's input with a pull, OUTDR's bit choosing which)
+    "console": true,        // Console.Write and Console.WriteLine go to USART1 (PD5, 115200 baud)
+    "consoleInput": true,   // Console.Read reads USART1 (PD6, 115200 baud); ReadLine makes a string, which needs a heap
+    "uart": 1,              // serial ports for Uart: USART1 (TX PD5, RX PD6)
+    "clock": true,          // a clock for DateTime.Now and Stopwatch: SysTick's count, 6 a microsecond
+    // with M5's wave 2: I2C1, SPI1, ADC1 and PWM on TIM1 and TIM2
+    "i2c": false,
+    "spi": false,
+    "adc": 0,
+    "pwm": 0
+  },
+  "pinFunctions": {
+    // the pins a program may use as plain pins and watch: all but PD1 (SWIO) and PD7 (NRST), which chipsharp check
+    // refuses as constants (the runtime leaves them alone, whatever the number)
+    "pin": [1, 2, 16, 17, 18, 19, 20, 21, 22, 23, 24, 26, 27, 28, 29, 30],
+    "pinEvent": [1, 2, 16, 17, 18, 19, 20, 21, 22, 23, 24, 26, 27, 28, 29, 30],
+    // USART1's pins without a remap (AFIO_PCFR1's USART1_RM 0), ChipSharp's serial port 0
+    "uart0.tx": [29], "uart0.rx": [30]
   }
 }

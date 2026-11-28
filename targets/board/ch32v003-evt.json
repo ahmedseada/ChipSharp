@@ -12,8 +12,9 @@
   //   - PA1 and PA2 are wired to a 24 MHz crystal (Y1, C7, C8); their resistors to the header (R4, R5) are not
   //     fitted, so they are not the board's pins unless the crystal is taken off.
   //   - PD1 is SWIO, the debug and programming pin.
-  // So the board leaves a program PC0-PC7 and PD0, PD2-PD6 (the runtime's pins come with M5's wave 1). The CPU runs at
-  // 48 MHz, the HSI's 24 MHz through the PLL (the crystal is not used).
+  // So the board leaves a program PC0-PC7 and PD0, PD2-PD6 ("pinFunctions" below). The CPU runs at 48 MHz, the HSI's
+  // 24 MHz through the PLL (the crystal is not used). USART1's TX (PD5) to the WCH-LinkE's RX brings the console to the
+  // LinkE's own USB serial port.
   "name": "ch32v003-evt",
   "inherits": "ch32v003",
   // chipsharp build writes the raw flash (Name.bin, from 0x08000000), chipsharp flash writes it with wlink through the
@@ -21,5 +22,11 @@
   "image": "bin",
   "flasher": "wlink",
   "wlink": { "chip": "CH32V003" },
-  "clockHz": 48000000
+  "clockHz": 48000000,
+  "pinFunctions": {
+    // the pins a program may use as plain pins and watch: the chip's ("pinFunctions" of ch32v003.json: not PD1 and PD7)
+    // but PA1 and PA2, which the board wires to its crystal and not to the header
+    "pin": [16, 17, 18, 19, 20, 21, 22, 23, 24, 26, 27, 28, 29, 30],
+    "pinEvent": [16, 17, 18, 19, 20, 21, 22, 23, 24, 26, 27, 28, 29, 30]
+  }
 }

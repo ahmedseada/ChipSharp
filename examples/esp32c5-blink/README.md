@@ -25,7 +25,7 @@ chipsharp build bin\Release\net10.0\Esp32c5Blink.dll -t esp32c5-devkitc
 chipsharp flash bin\Release\net10.0\Esp32c5Blink.dll -t esp32c5-devkitc
 ```
 
-It takes **1.8 KB** of the 8 MB of flash (`build` says `SRAM 2.1 KB of 369.4 KB, no heap`). `build` writes two ESP images (the program runs from the chip's SRAM): `Esp32c5Blink.bin`, the **ESP-IDF app** (what you upload to Wokwi, or flash at `0x10000` behind an ESP-IDF bootloader), and `Esp32c5Blink.rom.bin`, the **ROM-direct image**, which `flash` writes at flash offset `0x2000`, where the chip's ROM loads it with no bootloader, with esptool through either USB-C port of the board, the one marked **USB** (the chip's
+It takes **2.0 KB** of the 8 MB of flash (`build` says `SRAM 2.3 KB of 369.4 KB`). `build` writes two ESP images (the program runs from the chip's SRAM): `Esp32c5Blink.bin`, the **ESP-IDF app** (what you upload to Wokwi, or flash at `0x10000` behind an ESP-IDF bootloader), and `Esp32c5Blink.rom.bin`, the **ROM-direct image**, which `flash` writes at flash offset `0x2000`, where the chip's ROM loads it with no bootloader, with esptool through either USB-C port of the board, the one marked **USB** (the chip's
 own USB Serial/JTAG) or the one marked **UART** (the bridge); `--port COM6` says which when both are plugged in. If
 esptool cannot connect, hold **BOOT**, press and release **RESET**, release **BOOT**, and flash again; the program
 starts at the next reset. 

@@ -207,6 +207,21 @@ public sealed partial class HardwareContractTests : IDisposable
         Assert.All(Referenced(uno), name => Assert.True(symbols.ContainsKey(name), $"{name} is not in the program"));
     }
 
+    [PicoFact]
+    public void The_CH32V003s_runtime_defines_every_function_its_target_has_with_the_contracts_types()
+    {
+        var ch32 = Targets.Load("ch32v003-evt");
+
+        var elf = Link(ch32, new ClangToolchain(new ClangToolchainOptions
+        {
+            OutputFolder = _scratch, ProgramName = "Contract", UseCache = false,
+        }));
+
+        // all of them at once fit the 16 KB too
+        var symbols = ElfFile.Read(elf).Symbols;
+        Assert.All(Referenced(ch32), name => Assert.True(symbols.ContainsKey(name), $"{name} is not in the program"));
+    }
+
     [SdccFact]
     public void The_STM8S103s_runtime_defines_every_function_its_target_has_with_the_contracts_types()
     {
