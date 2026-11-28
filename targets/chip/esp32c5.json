@@ -89,6 +89,7 @@
     // the heap's budget: of the 369 KB of SRAM the program has, 16K is the stack (link.stack) and 224K the heap, which
     // leaves 129 KB for code, constants and variables (the program's and the runtime's)
     "heap": "224K",
+    "pullDown": true,     // the GPIO pads have pull-ups and pull-downs (IO_MUX FUN_WPU, FUN_WPD): PinInputPull
     "console": true,      // Console.Write and Console.WriteLine go to the USB Serial/JTAG port, the devkit's "USB" port
     "consoleInput": true, // Console.Read and Console.ReadLine read it
     "uart": 1,            // serial ports for Uart: UART0, on GPIO11 TX and GPIO12 RX, the devkit's "UART" port (the bridge)

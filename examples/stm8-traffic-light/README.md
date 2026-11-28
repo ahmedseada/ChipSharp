@@ -37,13 +37,13 @@ The board's pins are labelled on it without the P: A1, C3, D4, ...
 | PA2 | the yellow LED |
 | PA3 | the green LED |
 | PC3, PC4, PC5, PC6, PC7, PD2, PD3 | a common-cathode 7-segment display's segments A, B, C, D, E, F, G; its COM to GND |
-| PD4 | a push button, to 3V3; and a 10 kOhm resistor to GND |
+| PD4 | a push button, to GND |
 | PD5 (TX), PD6 (RX) | a 3.3 V USB-to-serial adapter's RX and TX, and GND: the serial output, 115200 baud |
 | PB5 | the board's own LED, the heartbeat |
 
-Each LED and segment through a 220 ohm resistor, from the pin to the LED's + (its - to GND). The resistor on PD4
-holds it low until the button is pressed: `Pin.Input` leaves the STM8's pull-up off, and the chip has no pull-down.
-(The button could go to GND instead, with the resistor to 3V3 and `Pin.WatchFalling`.) The display takes the seven
+Each LED and segment through a 220 ohm resistor, from the pin to the LED's + (its - to GND). PD4 needs no resistor:
+`Pin.Input(pin, Pull.Up)` turns the chip's own pull-up on, which holds it high until the button takes it to GND
+(`Pin.WatchFalling`; the STM8S103F3 has no pull-down, so a button to 3V3 would need a resistor to GND). The display takes the seven
 push-pull pins of one header but PD1, which is SWIM, the ST-LINK's; PB4 is free (true open-drain, like PB5: it can
 only pull low, so it could not light a segment).
 
@@ -64,7 +64,7 @@ Without a board (`chipsim` is `src\ChipSharp.Simulators\bin\Release\net10.0\chip
 during lane 1's green:
 
 ```
-chipsim stm8s103 chipsharp-output\stm8s103-board\Stm8TrafficLight.hex --ms 16000 --input PD4=high@2500ms --input PD4=low@2700ms
+chipsim stm8s103 chipsharp-output\stm8s103-board\Stm8TrafficLight.hex --ms 16000 --input PD4=low@2500ms --input PD4=high@2700ms
 ```
 
 PA3 (green) goes low 10 ms after the press and PA2 (yellow) high; UART1's lines are the ones above; PC3-PC7, PD2 and

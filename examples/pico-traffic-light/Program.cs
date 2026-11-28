@@ -73,7 +73,7 @@ for (int i = 0; i < 7; i++)
     Pin.Output(turnDisplay[i]);
 }
 
-Pin.Input(Button);
+Pin.Input(Button, Pull.Down);          // the button to 3V3: low until pressed
 Pin.WatchRising(Button);                 // a press runs Pressed() below
 
 // both lanes start at red

@@ -89,7 +89,8 @@ public sealed partial class Stm8ExampleTests(ITestOutputHelper output) : IDispos
     }
 
     /// <summary>
-    /// The traffic light, its button pressed at 2.5 s (PD4 to 3V3), during lane 1's green, for 16 s: over UART1 exactly
+    /// The traffic light, its button pressed at 2.5 s (PD4 to GND, held high by its pull-up), during lane 1's green, for 16 s:
+    /// over UART1 exactly
     /// what the Pico's and the Uno's traffic lights print; which light is on and what the turn display shows at the
     /// times the Uno's test looks; the green the press ends; the heartbeat on PB5 from the timer event.
     /// </summary>
@@ -99,7 +100,7 @@ public sealed partial class Stm8ExampleTests(ITestOutputHelper output) : IDispos
     {
         var example = await BuildAsync("stm8-traffic-light");
 
-        var run = Run(example, 16_000, "--input", "PD4=high@2500ms", "--input", "PD4=low@2700ms");
+        var run = Run(example, 16_000, "--input", "PD4=low@2500ms", "--input", "PD4=high@2700ms");
         var pins = run.Pins;
 
         Assert.Equal(TrafficLightExampleTests.Expected, Encoding.ASCII.GetString(run.Serial));
@@ -123,8 +124,8 @@ public sealed partial class Stm8ExampleTests(ITestOutputHelper output) : IDispos
         var greenAgain = pins.First(p => p.Pin == "PA3" && p.State == "high" && p.Milliseconds > 3000).Milliseconds;
         Assert.InRange(greenAgain, 6500, 6560);
 
-        // the button's pin with its pull-up off (the resistor to GND holds it low); PB5 changes every 500 ms
-        Assert.DoesNotContain(pins, p => p.Pin == "PD4" && p.State == "input pull-up");
+        // the button's pin with its pull-up on (Pull.Up: no resistor); PB5 changes every 500 ms
+        Assert.Contains(pins, p => p.Pin == "PD4" && p.State == "input pull-up");
         var heartbeat = pins.Where(p => p.Pin == "PB5").Skip(1).ToList();
         Assert.InRange(heartbeat.Count, 30, 32);
         for (var i = 1; i < heartbeat.Count; i++)

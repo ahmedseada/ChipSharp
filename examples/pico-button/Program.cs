@@ -1,16 +1,17 @@
 // A button toggles the Raspberry Pi Pico's LED: each press turns it on or off, through a pin interrupt, while Main
 // does nothing at all.
 //
-// Wire a push button between GPIO 15 and 3.3 V: pressing it takes the pin from low (the pad's pull-down) to high.
+// Wire a push button between GPIO 15 and 3.3 V: the pad's pull-down (Pull.Down) holds the pin low, and pressing the
+// button takes it high.
 // Pin.WatchRising starts the pin event; from then on the chip runs the [Interrupt(Event.Pin)] method each time the
 // pin goes high, whatever Main is doing. (A real button bounces, so one press may toggle the LED more than once.)
 // Build it with ChipSharp for the target "pico", as examples/pico-blink says.
 
 using ChipSharp.Hardware;
 
-Pin.Output(25);         // the Pico's LED
-Pin.Input(15);          // the button
-Pin.WatchRising(15);    // Pressed runs each time GPIO 15 goes from low to high
+Pin.Output(25);            // the Pico's LED
+Pin.Input(15, Pull.Down);  // the button: low until pressed
+Pin.WatchRising(15);       // Pressed runs each time GPIO 15 goes from low to high
 while (true)
 {
     // nothing to do here: the pin interrupt toggles the LED

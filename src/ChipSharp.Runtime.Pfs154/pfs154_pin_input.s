@@ -1,6 +1,5 @@
-; ChipSharp runtime for the Padauk PFS154: Pin.Input (see pfs154_pin.s): the pin an input (PAC, PBC) and its pull-up
-; off (PAPH, PBPH), as after reset, with interrupts off: it floats until something drives it. A program turns pull-ups
-; on with Registers.Write of PAPH (0x12) or PBPH (0x16) after Pin.Input.
+; ChipSharp runtime for the Padauk PFS154: Pin.Input (see pfs154_pin.s): the pin an input (PAC, PBC) with no pull-high (PAPH,
+; PBPH), with interrupts off: it floats until something drives it. Pin.Input(pin, Pull.Up) is pfs154_pin_input_pull.s.
 ;
 ;   void ChipSharp_Runtime_PinInput(chipsharp_i32 pin) __reentrant
 

@@ -149,6 +149,7 @@ public static class HardwareContract
         // ChipSharp.Hardware.Pin
         Call("Pins", null, "PinOutput", $"{Pin}.Output(int)", Void, ("pin", I32)),
         Call("Pins", null, "PinInput", $"{Pin}.Input(int)", Void, ("pin", I32)),
+        Call("Pins", null, "PinInputPull", $"{Pin}.Input(int, Pull)", Void, ("pin", I32), ("pull", I32)),
         Call("Pins", null, "PinWrite", $"{Pin}.Write(int, bool)", Void, ("pin", I32), ("high", I32)),
         Call("Pins", null, "PinToggle", $"{Pin}.Toggle(int)", Void, ("pin", I32)),
         Call("Pins", null, "PinRead", $"{Pin}.Read(int)", I32, ("pin", I32)),

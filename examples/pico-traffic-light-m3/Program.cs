@@ -139,7 +139,7 @@ static class Button
 
     public static void Watch()
     {
-        Pin.Input(PinNumber);
+        Pin.Input(PinNumber, Pull.Down); // the button to 3V3: low until pressed
         Pin.WatchRising(PinNumber);      // a press runs Pressed() below
     }
 

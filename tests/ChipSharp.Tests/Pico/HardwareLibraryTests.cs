@@ -23,7 +23,7 @@ public sealed class HardwareLibraryTests
     {
         Assert.Equal(
             [
-                "Pin.Input(Int32)", "Pin.Output(Int32)", "Pin.Read(Int32)", "Pin.Toggle(Int32)", "Pin.Unwatch(Int32)",
+                "Pin.Input(Int32)", "Pin.Input(Int32, Pull)", "Pin.Output(Int32)", "Pin.Read(Int32)", "Pin.Toggle(Int32)", "Pin.Unwatch(Int32)",
                 "Pin.Watch(Int32)", "Pin.WatchFalling(Int32)", "Pin.WatchRising(Int32)", "Pin.Write(Int32, Boolean)",
                 "Registers.Read(UInt32)", "Registers.Write(UInt32, UInt32)",
                 "Timing.AfterMicroseconds(Int32)", "Timing.AfterMilliseconds(Int32)", "Timing.Delay(TimeSpan)",
@@ -61,6 +61,7 @@ public sealed class HardwareLibraryTests
                 {
                     Pin.Output(25);
                     Pin.Input(3);
+                    Pin.Input(4, Pull.Up);
                     Pin.Write(25, true);
                     Pin.Toggle(25);
                     if (Pin.Read(3))
@@ -80,7 +81,8 @@ public sealed class HardwareLibraryTests
         var externals = module.Functions.Where(f => f.Kind == TirFunctionKind.External).ToList();
         Assert.Equal(
             [
-                "ChipSharp.Runtime.PinOutput", "ChipSharp.Runtime.PinInput", "ChipSharp.Runtime.PinWrite",
+                "ChipSharp.Runtime.PinOutput", "ChipSharp.Runtime.PinInput", "ChipSharp.Runtime.PinInputPull",
+                "ChipSharp.Runtime.PinWrite",
                 "ChipSharp.Runtime.PinToggle", "ChipSharp.Runtime.PinRead", "ChipSharp.Runtime.DelayMilliseconds",
                 "ChipSharp.Runtime.DelayMicroseconds", "ChipSharp.Runtime.RegisterRead", "ChipSharp.Runtime.RegisterWrite",
             ],

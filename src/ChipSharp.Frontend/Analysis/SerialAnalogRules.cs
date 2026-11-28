@@ -8,6 +8,7 @@ namespace ChipSharp.Frontend.Analysis;
 /// What a program may use of a target's serial ports, analog inputs and PWM outputs (ChipSharp.Hardware's Uart, Adc and
 /// Pwm, and Console.Read and Console.ReadLine), from its target file:
 /// <list type="bullet">
+/// <item>the capability "pullDown" (true when the chip has pull-down resistors): Pin.Input(pin, Pull.Down) is a problem on a chip without;</item>
 /// <item>the capabilities "uart" (how many serial ports), "adc" (how many analog inputs), "pwm" (how many PWM
 /// outputs) and "consoleInput" (true when the console reads too): a call of a class the target has none of is a
 /// problem, and so is Console.ReadLine, which makes a string, on a target without a heap;</item>
@@ -26,6 +27,7 @@ internal static class SerialAnalogRules
     private const string Adc = "ChipSharp.Hardware.Adc";
     private const string Pwm = "ChipSharp.Hardware.Pwm";
     private const string PinType = "ChipSharp.Hardware.Pin";
+    private const int PullDown = 2; // ChipSharp.Hardware.Pull.Down
 
     /// <summary>
     /// Adds a problem to <paramref name="problems"/> for each place in the program's own <paramref name="methods"/> that
@@ -111,7 +113,9 @@ internal static class SerialAnalogRules
 
             case PinType when callee.Name is "Output" or "Input" or "Write" or "Toggle" or "Read"
                 && callee.ParameterTypes.Count >= 1:
-                return PinProblem(target, "pin", constant(0), "a pin a program uses");
+                return PinProblem(target, "pin", constant(0), "a pin a program uses")
+                    ?? (callee.Name == "Input" && callee.ParameterTypes.Count == 2 && constant(1) == PullDown
+                        && !target.HasCapability("pullDown") ? Unsupported.NoPullDown(target.Name) : null);
 
             case PinType when callee.Name is "Watch" or "WatchRising" or "WatchFalling" or "Unwatch"
                 && callee.ParameterTypes.Count == 1:

@@ -19,8 +19,8 @@ namespace ChipSharp.Runtime.Pfs154;
 /// inputs on) and <c>chipsharp_before_halt</c>, with <see cref="ClockHeaderFileName"/>, written for the target from its
 /// "clockHz" and "clock" (<see cref="ClockHeader"/>).</item>
 /// <item><see cref="LibraryFileNames"/>, most in assembly, as SDCC's C keeps every value it works out in RAM of its
-/// own: Pin by ChipSharp's numbers (port * 8 + bit; an input's pull-up off, as after reset: Registers.Write of PAPH or
-/// PBPH turns it on); T16's count of microseconds, the delays on it, and the clock (T16 and its rounds, 48 bits:
+/// own: Pin by ChipSharp's numbers (port * 8 + bit; an input has no pull-high, and Input(pin, Pull.Up) turns it on in PAPH or
+/// PBPH, a file of its own; the chip has no pull-low); T16's count of microseconds, the delays on it, and the clock (T16 and its rounds, 48 bits:
 /// Stopwatch, Environment.TickCount64, DateTime.UtcNow and Clock.Start); the timer event (TM2 wakes the handler when
 /// the clock says) and the pin event (PA0 and PB0, the pins with an interrupt); PWM on TM3's pins (PB5-PB7) and TM2's
 /// (PA3, PB2, PB4, while the timer event is off), a pin a timer; and Registers, the I/O space by its addresses.</item>
@@ -53,7 +53,8 @@ public sealed class Pfs154Runtime : IArchRuntime
     /// </summary>
     public static IReadOnlyList<string> LibraryFileNames { get; } =
     [
-        "pfs154_pin.s", "pfs154_pin_output.s", "pfs154_pin_input.s", "pfs154_pin_write.s", "pfs154_pin_toggle.s",
+        "pfs154_pin.s", "pfs154_pin_output.s", "pfs154_pin_input.s", "pfs154_pin_input_pull.s", "pfs154_pin_write.s",
+        "pfs154_pin_toggle.s",
         "pfs154_pin_read.s", "pfs154_t16.s", "pfs154_delay_milliseconds.s", "pfs154_delay_microseconds.s",
         "pfs154_clock.s", "pfs154_tick_count.s", "pfs154_elapsed.s", "pfs154_date.s", "pfs154_timer.s",
         "pfs154_pin_event.s", "pfs154_pwm.s", "pfs154_register_read.s", "pfs154_register_write.s",

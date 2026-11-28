@@ -23,8 +23,7 @@
 //   the lights:      red PA1, yellow PA2, green PA3 (each LED: the pin -> 220 ohm resistor -> LED + ; LED - -> GND)
 //   the display:     a common-cathode 7-segment display, segments A PC3, B PC4, C PC5, D PC6, E PC7, F PD2, G PD3
 //                    (each through a 220 ohm resistor), COM to GND
-//   the button:      between PD4 and 3V3, with a 10 kohm resistor from PD4 to GND (Pin.Input leaves the STM8's
-//                    pull-up off, and it has no pull-down)
+//   the button:      between PD4 and GND (Pull.Up: the pin's own pull-up holds it high until the button is pressed)
 // PD5 and PD6 are the serial port's, PD1 the ST-LINK's (SWIM), PB5 the LED's; PB4 is free.
 //
 // Build it with ChipSharp for the target "stm8s103-board", then flash the .hex with an ST-LINK V2 (see README.md):
@@ -32,8 +31,8 @@
 //   chipsharp build bin\Release\net10.0\Stm8TrafficLight.dll -t stm8s103-board
 //   chipsharp flash bin\Release\net10.0\Stm8TrafficLight.dll -t stm8s103-board
 // Simulate (the button pressed at 2.5 s, during lane 1's green):
-//   chipsim stm8s103 chipsharp-output\stm8s103-board\Stm8TrafficLight.hex --ms 16000 --input PD4=high@2500ms
-//     --input PD4=low@2700ms
+//   chipsim stm8s103 chipsharp-output\stm8s103-board\Stm8TrafficLight.hex --ms 16000 --input PD4=low@2500ms
+//     --input PD4=high@2700ms
 
 using System;
 using ChipSharp.Components;
@@ -88,7 +87,7 @@ static class Heartbeat
     static void Tick() => Pin.Toggle(Led);
 }
 
-// The button on PD4, to 3V3. Its interrupt only sets a flag: a handler must not wait, create objects or store them.
+// The button on PD4, to GND. Its interrupt only sets a flag: a handler must not wait, create objects or store them.
 static class Button
 {
     const int PinNumber = 28;            // PD4
@@ -100,8 +99,8 @@ static class Button
 
     public static void Watch()
     {
-        Pin.Input(PinNumber);            // low, through the resistor to GND, until pressed
-        Pin.WatchRising(PinNumber);      // a press (PD4 to 3V3) runs Pressed() below
+        Pin.Input(PinNumber, Pull.Up);   // high, through the pin's pull-up, until pressed
+        Pin.WatchFalling(PinNumber);     // a press (PD4 to GND) runs Pressed() below
     }
 
     public static void Forget() => pressed = false;

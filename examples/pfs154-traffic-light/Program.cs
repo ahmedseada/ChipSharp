@@ -15,16 +15,16 @@
 // loop is doing.
 //
 // Wiring (README.md has it pin by pin): the lights red PA3, yellow PA6, green PA7; the display's segments A to G on
-// PB1 to PB7, its common cathode to GND; the heartbeat LED on PA4; the button between PA0 and GND, with a 10 kOhm
-// resistor from PA0 to VDD (Pin.Input leaves the chip's own pull-up off). Every LED and segment with its resistor.
+// PB1 to PB7, its common cathode to GND; the heartbeat LED on PA4; the button between PA0 and GND (Pull.Up: the
+// pin's own pull-high holds it high until pressed, so it needs no resistor). Every LED and segment with its resistor.
 // It uses ChipSharp.Hardware alone, so the same C# builds for "pico" or "uno" with other pin numbers.
 //
 // Build it with ChipSharp for the target "pfs154-bare", then write it into the chip with the Easy PDK programmer:
 //   dotnet build -c Release
 //   chipsharp build bin\Release\net10.0\Pfs154TrafficLight.dll -t pfs154-bare
 //   chipsharp flash bin\Release\net10.0\Pfs154TrafficLight.dll -t pfs154-bare
-// Simulate (the button pressed at 2.5 s, during the first green; PA0 high from the start, as the resistor holds it):
-//   chipsim pfs154 chipsharp-output\pfs154-bare\Pfs154TrafficLight.hex --ms 16000 --input PA0=high
+// Simulate (the button pressed at 2.5 s, during the first green; PA0 high from the start, as its pull-up holds it):
+//   chipsim pfs154 chipsharp-output\pfs154-bare\Pfs154TrafficLight.hex --ms 16000
 //     --input PA0=low@2500ms --input PA0=high@2700ms
 
 using ChipSharp.Hardware;
@@ -118,7 +118,7 @@ static class Button
 
     public static void Watch()
     {
-        Pin.Input(PinNumber);            // high through the resistor to VDD until pressed
+        Pin.Input(PinNumber, Pull.Up);   // high through the pin's pull-up until pressed
         Pin.WatchFalling(PinNumber);     // a press (PA0 to GND) runs Pressed() below
     }
 

@@ -17,6 +17,7 @@
     <EmbeddedResource Include="pfs154_pin.s" LogicalName="pfs154_pin.s" />
     <EmbeddedResource Include="pfs154_pin_output.s" LogicalName="pfs154_pin_output.s" />
     <EmbeddedResource Include="pfs154_pin_input.s" LogicalName="pfs154_pin_input.s" />
+    <EmbeddedResource Include="pfs154_pin_input_pull.s" LogicalName="pfs154_pin_input_pull.s" />
     <EmbeddedResource Include="pfs154_pin_write.s" LogicalName="pfs154_pin_write.s" />
     <EmbeddedResource Include="pfs154_pin_toggle.s" LogicalName="pfs154_pin_toggle.s" />
     <EmbeddedResource Include="pfs154_pin_read.s" LogicalName="pfs154_pin_read.s" />

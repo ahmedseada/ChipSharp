@@ -33,6 +33,7 @@
     "romFloat": true,
     // the heap's budget: of the 264K of RAM, 8K is the stack (link.stack) and 32K is left for static fields
     "heap": "224K",
+    "pullDown": true,     // Pin.Input(pin, Pull.Down): the pads have pull-downs as well as pull-ups
     "console": true,      // Console.Write and Console.WriteLine go to UART0 (GPIO 0, 115200 baud)
     "consoleInput": true, // Console.Read and Console.ReadLine read UART0 (GPIO 1, 115200 baud)
     "uart": 2,            // serial ports for Uart: UART0 (also the console's) and UART1

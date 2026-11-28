@@ -20,11 +20,11 @@ does not fit beside it (as C for SDCC, indexing it takes over 50 bytes).
 | PA7 (pin 7) | the green LED, to GND |
 | PB1-PB7 (pins 9-15) | a common-cathode 7-segment display's segments A-G, its COM to GND |
 | PA4 (pin 4) | the heartbeat LED, to GND |
-| PA0 (pin 0) | a push button, to GND; and a 10 kOhm resistor to VDD |
+| PA0 (pin 0) | a push button, to GND |
 | VDD, GND | 5 V and GND |
 
-Each LED and segment with its resistor. The resistor on PA0 holds it high until the button is pressed: `Pin.Input`
-leaves the chip's own pull-up off, as `pfs154-button`'s README says. PA5 (the reset pin, input or open-drain only) and
+Each LED and segment with its resistor. PA0 needs none: `Pin.Input(pin, Pull.Up)` turns the chip's own pull-high on,
+which holds it high until the button is pressed (`pfs154-button`'s README says more). PA5 (the reset pin, input or open-drain only) and
 PB0 are free.
 
 ## Build, flash, simulate
@@ -37,14 +37,14 @@ chipsharp build bin\Release\net10.0\Pfs154TrafficLight.dll -t pfs154-bare
 chipsharp flash bin\Release\net10.0\Pfs154TrafficLight.dll -t pfs154-bare
 ```
 
-It takes **1381 words** of the 2048 words of program memory and **72 bytes** of the 128 bytes of RAM, which leaves 56
+It takes **1432 words** of the 2048 words of program memory and **72 bytes** of the 128 bytes of RAM, which leaves 56
 for the stack. `flash` writes it with the Easy PDK programmer (`easypdkprog`), as `pfs154-blink`'s README says.
 
 Without a chip (`chipsim` is `src\ChipSharp.Simulators\bin\Release\net10.0\chipsim.exe`), the button pressed at 2.5 s,
 during the first green:
 
 ```
-chipsim pfs154 chipsharp-output\pfs154-bare\Pfs154TrafficLight.hex --ms 16000 --input PA0=high --input PA0=low@2500ms --input PA0=high@2700ms
+chipsim pfs154 chipsharp-output\pfs154-bare\Pfs154TrafficLight.hex --ms 16000 --input PA0=low@2500ms --input PA0=high@2700ms
 ```
 
 PA7 (green) goes low 6 ms after the press and PA6 (yellow) high; then PA3 (red) at 3.5 s, green again at 6.5 s, and so

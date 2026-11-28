@@ -11,10 +11,9 @@
 //   ChipSharp_Runtime_Pin...           ChipSharp.Hardware.Pin by the Uno's (Arduino's) pin numbers: 0-7 are D0-D7 (port D,
 //                                      bits 0-7), 8-13 are D8-D13 (port B, bits 0-5; the LED "L" is 13), 14-19 are A0-A5
 //                                      (port C, bits 0-5); other numbers are ignored (and read as low). Input is high
-//                                      impedance, as on the Pico, without the pull-up: a button needs a resistor, or the
-//                                      pull-up turned on through Registers after Pin.Input (its bit of PORTB, PORTC or
-//                                      PORTD set: 0x25, 0x28, 0x2b). While the console runs, USART0 has D1 (and D0 once it
-//                                      receives)
+//                                      impedance, as on the Pico, with no pull-up; Input(pin, Pull.Up) sets its bit of PORTB,
+//                                      PORTC or PORTD (the chip has no pull-down). While the console runs, USART0 has D1
+//                                      (and D0 once it receives)
 //   ChipSharp_Runtime_Delay...         ChipSharp.Hardware.Timing: waits, watching Timer1, a few microseconds more than given
 //   ChipSharp_Runtime_Clock...         the clock (DateTime.Now, Clock.Start) and the uptime (Stopwatch,
 //                                      Environment.TickCount), from Timer1's count of half microseconds
@@ -226,7 +225,7 @@ void ChipSharp_Runtime_PinOutput(i32 pin)
     change(port + DDR_REGISTER, mask, 1);
 }
 
-// Pin.Input: the pin stops driving, and its pull-up is off; Read reads it.
+// Pin.Input: the pin stops driving, with no pull-up (PORTx low); Read reads it.
 void ChipSharp_Runtime_PinInput(i32 pin)
 {
     u8 mask;
@@ -238,6 +237,22 @@ void ChipSharp_Runtime_PinInput(i32 pin)
 
     change(port + DDR_REGISTER, mask, 0);
     change(port + PORT_REGISTER, mask, 0);
+}
+
+// Pin.Input(pin, pull): 0 none, 1 the pull-up (PORTx high on an input). The chip has no pull-down: any other pull leaves
+// the pin with none, as Pin ignores a pin the chip does not have (chipsharp check refuses a constant Pull.Down).
+void ChipSharp_Runtime_PinInputPull(i32 pin, i32 pull)
+{
+    ChipSharp_Runtime_PinInput(pin);
+    if (pull == 1)
+    {
+        u8 mask;
+        u8 port = pin_port(pin, &mask);
+        if (port != 0)
+        {
+            change(port + PORT_REGISTER, mask, 1);
+        }
+    }
 }
 
 // A bool arrives as an int; anything but 0 is high.

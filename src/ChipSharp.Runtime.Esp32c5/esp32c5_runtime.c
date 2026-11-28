@@ -162,7 +162,8 @@ void ChipSharp_Runtime_PinOutput(chipsharp_i32 pin)
     GPIO_ENABLE_W1TS = mask;
 }
 
-// Pin.Input: the GPIO block stops driving the pin (its pull, if any, as it was); Read reads it.
+// Pin.Input: the GPIO block stops driving the pin and no pull is on it (IO MUX FUN_WPU and FUN_WPD cleared, whatever the
+// reset left: GPIO4, 12, 15-22, 27 and 28 have a pull-up); Read reads it.
 void ChipSharp_Runtime_PinInput(chipsharp_i32 pin)
 {
     if (!is_pin(pin))
@@ -172,6 +173,26 @@ void ChipSharp_Runtime_PinInput(chipsharp_i32 pin)
 
     GPIO_ENABLE_W1TC = 1u << pin;
     select_gpio(pin);
+    C5_IO_MUX(pin) &= ~(IO_MUX_GPIO0_FUN_WPU_MASK | IO_MUX_GPIO0_FUN_WPD_MASK);
+}
+
+// Pin.Input(pin, pull): as PinInput, then the pad's pull-up (1) or pull-down (2); any other number leaves no pull.
+void ChipSharp_Runtime_PinInputPull(chipsharp_i32 pin, chipsharp_i32 pull)
+{
+    ChipSharp_Runtime_PinInput(pin);
+    if (!is_pin(pin))
+    {
+        return;
+    }
+
+    if (pull == 1)
+    {
+        C5_IO_MUX(pin) |= IO_MUX_GPIO0_FUN_WPU_MASK;
+    }
+    else if (pull == 2)
+    {
+        C5_IO_MUX(pin) |= IO_MUX_GPIO0_FUN_WPD_MASK;
+    }
 }
 
 // A bool arrives as an int; anything but 0 is high.
