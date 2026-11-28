@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+using ChipSharp.Simulators.Devices;
 using ChipSharp.Simulators.Pdk14;
 using ChipSharp.Simulators.Stm8;
 
@@ -34,9 +35,15 @@ public sealed partial class SimulationOptions
 
     public IReadOnlyList<SerialSend> Sends { get; init; } = [];
 
+    /// <summary>The devices on the chip's buses (--i2c, --spi).</summary>
+    public IReadOnlyList<BusDevice> Devices { get; init; } = [];
+
+    /// <summary>The voltages on its analog inputs (--adc).</summary>
+    public IReadOnlyList<AnalogInput> Analog { get; init; } = [];
+
     /// <summary>
-    /// The options of the command line after the chip: the image, --ms, --uart1, --input and --send (see
-    /// <see cref="Simulation.Usage"/>). Throws <see cref="UsageException"/> when they are wrong.
+    /// The options of the command line after the chip: the image, --ms, --uart1, --input, --send, --i2c, --spi and --adc
+    /// (see <see cref="Simulation.Usage"/>). Throws <see cref="UsageException"/> when they are wrong.
     /// </summary>
     public static SimulationOptions Parse(string chip, IReadOnlyList<string> arguments)
     {
@@ -46,6 +53,8 @@ public sealed partial class SimulationOptions
         var milliseconds = 1000.0;
         var inputs = new List<PinInput>();
         var sends = new List<SerialSend>();
+        var devices = new List<BusDevice>();
+        var analog = new List<AnalogInput>();
         for (var i = 0; i < arguments.Count; i++)
         {
             var argument = arguments[i];
@@ -60,7 +69,7 @@ public sealed partial class SimulationOptions
                 continue;
             }
 
-            if (argument is not ("--ms" or "--uart1" or "--input" or "--send"))
+            if (argument is not ("--ms" or "--uart1" or "--input" or "--send" or "--i2c" or "--spi" or "--adc"))
             {
                 throw new UsageException($"unknown option '{argument}'.");
             }
@@ -83,6 +92,15 @@ public sealed partial class SimulationOptions
                     break;
                 case "--uart1":
                     serial = value;
+                    break;
+                case "--i2c":
+                    devices.Add(DeviceCatalog.ParseI2c(value));
+                    break;
+                case "--spi":
+                    devices.Add(DeviceCatalog.ParseSpi(value));
+                    break;
+                case "--adc":
+                    analog.Add(DeviceCatalog.ParseAnalog(value));
                     break;
                 case "--input":
                     var input = InputPattern().Match(value);
@@ -110,6 +128,8 @@ public sealed partial class SimulationOptions
             SerialFile = serial,
             Inputs = inputs,
             Sends = sends,
+            Devices = devices,
+            Analog = analog,
         };
 
         static double? Time(Group group) =>
@@ -253,6 +273,8 @@ public static partial class Simulation
                                                      [--uart1 <file to write UART1's bytes to>]
                                                      [--input <pin>=<high|low>[@<simulated milliseconds>ms]]...
                                                      [--send <text>[@<simulated milliseconds>ms]]...
+                                                     [--i2c 0:<address>=<device>]... [--spi 0=<device>[@<pin>]]...
+                                                     [--adc <pin>=<volts>V|<reading>[@<simulated milliseconds>ms]]...
 
         Runs an Intel HEX image (as SDCC writes it: sdcc -mpdk14, sdcc -mstm8) on a simulated Padauk PFS154 or STM8S103
         and prints what the program does, each with the simulated time.
@@ -265,6 +287,16 @@ public static partial class Simulation
         that time (or the start), e.g. --send "on\n@100ms": its UTF-8 bytes, \r, \n, \t, \\ and \xHH standing for those
         bytes. Sends follow each other. A byte that arrives while the receiver is off is lost, as on the chip.
 
+        --i2c and --spi put the Pico and Uno simulators' devices (tools/rp2040-sim/devices, in C#) on the STM8S103's
+        buses, I2C0 (PB5, PB4) and SPI0 (PC5, PC6, PC7): --i2c 0:0x27=lcd1602 a 16x2 LCD on a PCF8574 backpack at 0x27
+        (lcd2004: 20x4), --i2c 0:0x68=ds1307 a DS1307 real-time clock from the PC's time (ds1307@2026-11-27T18:00:00
+        from a date, ds1307@halted a new one), --i2c 0:0x68=mpu6050, 0:0x76=bmp280, 0:0x50=stuck (holds the clock low);
+        --spi 0=74hc595@PC4 a 74HC595 shift register with its latch on PC4, --spi 0=loopback RX wired to TX (@<pin>: only
+        while that pin is low). An I2C address without a device does not answer.
+
+        --adc sets the voltage on an analog input of the STM8S103 (AIN2-AIN6: PC4, PD2, PD3, PD5, PD6; 0 to 3.3 V against
+        VDD, 1.65V reads 512 of 1023; or 512, a reading), from the start or from a time on, e.g. --adc PD3=1.65V@10ms.
+
         Output lines:
 
             [    0.123 ms] PA3 high                  a pin changed: low or high when driven, else input or input pull-up
@@ -272,6 +304,15 @@ public static partial class Simulation
             [    1.234 ms] UART1: Hello              a line written to UART1 (without its line ending)
             [  100.000 ms] input: PA3 low            an --input with a time changed the pin from outside
             [  100.000 ms] input: UART1 "on\n"       a --send starts sending
+            [   10.000 ms] input: PD3 1.650 V (512)  an --adc with a time changed an analog input
+            [    2.100 ms] I2C0 100000 Hz            the clock the program set, when a transfer first uses it
+            [    2.500 ms] I2C0 0x68 write 75, read 68
+                                                     a transfer, its bytes each way in hex (": no answer" when nothing
+                                                     answered, "(refused)" when the device refused a byte)
+            [    3.000 ms] SPI0 mode 0, 1000000 Hz   the SPI mode and clock, when a transfer first uses them
+            [    3.100 ms] SPI0 74HC595 Q3 high      a shift register's output changed (its latch went high)
+            [   60.000 ms] LCD 0x27: |Hello           |
+                                                     a row of an LCD, once what it shows has changed and settled
             [   12.000 ms] PB4 PWM 1000.00 Hz, duty 25.00% (250.00 us high)
                                                      a pin a timer drives, measured from its edges: printed when a period
                                                      differs from the one before, instead of every edge
@@ -340,7 +381,13 @@ public static partial class Simulation
             ScheduleSends(chip, serial, options.Sends);
         }
 
+        DeviceCatalog.Attach(chip, options.Devices, options.Analog, name => Pin(chip, name));
         chip.Run(Tick(options.Milliseconds));
+        foreach (var bus in chip.I2cBuses)
+        {
+            bus.Finish();
+        }
+
         chip.SerialOutput?.Finish();
         var sent = chip.SerialOutput?.Bytes.ToArray() ?? [];
         if (options.SerialFile is not null)

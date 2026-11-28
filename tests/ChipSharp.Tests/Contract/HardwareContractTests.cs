@@ -9,6 +9,7 @@ using ChipSharp.Image.Uf2;
 using ChipSharp.Runtime.Atmega328p;
 using ChipSharp.Runtime.Pfs154;
 using ChipSharp.Runtime.Rp2040;
+using ChipSharp.Runtime.Stm8s103;
 using ChipSharp.Targets;
 using ChipSharp.Tests.Avr;
 using ChipSharp.Tests.Pico;
@@ -136,8 +137,8 @@ public sealed partial class HardwareContractTests : IDisposable
             Sections(Targets.Load("pico")));
         Assert.Equal(Sections(Targets.Load("pico")), Sections(Targets.Load("uno")));
 
-        // the SDCC chips, as their files say today: the PFS154 its events, its clock and PWM, the STM8S103 its buses,
-        // serial port, ADC and PWM; neither has a 64-bit double
+        // the SDCC chips, as their files say today: the PFS154 its events, its clock and PWM, the STM8S103 all the Pico's
+        // and the Uno's sections; neither has a 64-bit double
         Assert.Equal(
             [
                 "Start-up and the program", "Pins", "Delays", "Registers", "The timer event", "The pin event", "The clock",
@@ -147,12 +148,7 @@ public sealed partial class HardwareContractTests : IDisposable
         Assert.DoesNotContain(HardwareContract.For(Targets.Load("pfs154-bare")), f => f.NeedsDouble64);
         Assert.All(every, section => Assert.Contains(section, Sections(Targets.Load("pfs154-bare"))));
         var stm8 = HardwareContract.For(Targets.Load("stm8s103-board"));
-        Assert.Equal(
-            [
-                "Start-up and the program", "Pins", "Delays", "Registers", "Time zones", "Serial ports", "The I2C buses",
-                "The SPI buses", "Analog inputs", "PWM outputs", "Failure output and the stops",
-            ],
-            stm8.Select(f => f.Section).Distinct());
+        Assert.Equal(Sections(Targets.Load("pico")), stm8.Select(f => f.Section).Distinct());
         Assert.DoesNotContain(stm8, f => f.NeedsDouble64);
         Assert.Contains(HardwareContract.For(Targets.Load("uno")), f => f.NeedsDouble64);
         Assert.DoesNotContain(HardwareContract.For(Targets.Load("pico")), f => f.Kind == HardwareFunctionKind.Program);
@@ -162,6 +158,7 @@ public sealed partial class HardwareContractTests : IDisposable
     [InlineData("pico")]
     [InlineData("uno")]
     [InlineData("pfs154-bare")]
+    [InlineData("stm8s103-board")]
     public void A_chip_runtime_ships_the_header_and_each_C_file_that_defines_a_function_of_the_contract_includes_it(
         string name)
     {
@@ -206,6 +203,37 @@ public sealed partial class HardwareContractTests : IDisposable
 
         var symbols = ElfFile.Read(elf).Symbols;
         Assert.All(Referenced(uno), name => Assert.True(symbols.ContainsKey(name), $"{name} is not in the program"));
+    }
+
+    [SdccFact]
+    public void The_STM8S103s_runtime_defines_every_function_its_target_has_with_the_contracts_types()
+    {
+        // all of them at once do not fit in the STM8S103F3's 8 KB (a program has only those it uses): a board of the
+        // chip with the 32 KB the STM8's code addresses reach, for the link alone
+        var targets = Path.Combine(_scratch, "targets");
+        foreach (var file in Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "targets"), "*.json",
+            SearchOption.AllDirectories))
+        {
+            var copy = Path.Combine(targets, Path.GetRelativePath(Path.Combine(AppContext.BaseDirectory, "targets"), file));
+            Directory.CreateDirectory(Path.GetDirectoryName(copy)!);
+            File.Copy(file, copy);
+        }
+
+        File.WriteAllText(Path.Combine(targets, "board", "stm8s103-contract.json"), """
+            { "name": "stm8s103-contract", "inherits": "stm8s103-board", "memory": { "flash": { "size": "32K" } } }
+            """);
+        var stm8 = new TargetLoader(targets).Load("stm8s103-contract");
+
+        var ihx = Link(stm8, new SdccToolchain(new SdccToolchainOptions
+        {
+            OutputFolder = _scratch, ProgramName = "Contract", UseCache = false,
+        }));
+
+        // SDCC's map names each symbol with a '_' first, cut at 32 characters, and the module it is in (and sdcc fails a
+        // program that uses a symbol nothing defines)
+        var map = File.ReadAllText(Path.ChangeExtension(ihx, ".map"));
+        Assert.All(Referenced(stm8), name => Assert.Matches($@"\s{Regex.Escape(("_" + name)[..Math.Min(32, name.Length + 1)])}\s",
+            map));
     }
 
     [SdccFact]
@@ -350,7 +378,7 @@ public sealed partial class HardwareContractTests : IDisposable
     /// function its interrupts table names, linked with the runtime: a function missing, or defined with other types than
     /// the header's, fails the build (the C of the runtime includes the header).
     /// </summary>
-    private string Link(TargetDescription target, ClangToolchain toolchain)
+    private string Link(TargetDescription target, IToolchain toolchain)
     {
         var names = Referenced(target);
         var program = new StringBuilder()
@@ -382,6 +410,7 @@ public sealed partial class HardwareContractTests : IDisposable
             "rp2040" => (IArchRuntime)new Rp2040Runtime(),
             "atmega328p" => new Atmega328pRuntime(),
             "pfs154" => new Pfs154Runtime(),
+            "stm8s103f3" => new Stm8s103Runtime(),
             _ => throw new InvalidOperationException(target.Runtime),
         };
         return [.. runtime.Startup(target).Files, .. runtime.InterruptEntry(target).Files, .. runtime.Atomics(target).Files];

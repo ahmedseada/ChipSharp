@@ -43,6 +43,8 @@
     <Project Path="src/ChipSharp.Runtime.Pdk14/ChipSharp.Runtime.Pdk14.csproj" />
     <Project Path="src/ChipSharp.Runtime.Pfs154/ChipSharp.Runtime.Pfs154.csproj" />
     <Project Path="src/ChipSharp.Runtime.Rp2040/ChipSharp.Runtime.Rp2040.csproj" />
+    <Project Path="src/ChipSharp.Runtime.Stm8/ChipSharp.Runtime.Stm8.csproj" />
+    <Project Path="src/ChipSharp.Runtime.Stm8s103/ChipSharp.Runtime.Stm8s103.csproj" />
     <Project Path="src/ChipSharp.Runtime.Windows/ChipSharp.Runtime.Windows.csproj" />
     <Project Path="src/ChipSharp.Simulators/ChipSharp.Simulators.csproj" />
     <Project Path="src/ChipSharp.Targets/ChipSharp.Targets.csproj" />
