@@ -3,8 +3,10 @@ using ChipSharp.Backend.C;
 using ChipSharp.Backend.Llvm;
 using ChipSharp.Flasher.Avrdude;
 using ChipSharp.Flasher.EasyPdkProg;
+using ChipSharp.Flasher.Esptool;
 using ChipSharp.Flasher.Stm8Flash;
 using ChipSharp.Flasher.Uf2Copy;
+using ChipSharp.Image.Esp;
 using ChipSharp.Image.Hex;
 using ChipSharp.Image.Uf2;
 using ChipSharp.Runtime.ArmV6M;
@@ -75,7 +77,8 @@ public static class DefaultComponents
             .Register(new Stm8Runtime())            // runtime "stm8": any STM8 chip, through SDCC
             .Register(new Stm8s103Runtime())        // runtime "stm8s103f3": the blue STM8S103 board, on the runtime "stm8"
             .Register(new Uf2ImageFormat())         // image "uf2"
-            .Register(new IntelHexImageFormat()));  // image "hex": Intel HEX (an AVR's flash; SDCC's .ihx)
+            .Register(new IntelHexImageFormat())    // image "hex": Intel HEX (an AVR's flash; SDCC's .ihx)
+            .Register(new EspImageFormat()));       // image "esp": the ESP application image the ESP32-C5's ROM loads (.bin)
     }
 
     /// <summary>
@@ -84,9 +87,15 @@ public static class DefaultComponents
     /// </summary>
     public static ComponentRegistry CreateFlasherRegistry() => RegisterFlashers(new ComponentRegistry());
 
+    /// <summary>The file extension of the image format <paramref name="name"/> (without the dot): its name unless it says another.</summary>
+    public static string ImageExtension(string name) =>
+        new IImageFormat[] { new Uf2ImageFormat(), new IntelHexImageFormat(), new EspImageFormat() }
+            .FirstOrDefault(format => string.Equals(format.Name, name, StringComparison.OrdinalIgnoreCase))?.Extension ?? name;
+
     private static ComponentRegistry RegisterFlashers(ComponentRegistry registry) => registry
         .Register(new Uf2CopyFlasher())             // flasher "uf2-copy": the .uf2 onto the Pico's RPI-RP2 drive
         .Register(new AvrdudeFlasher())             // flasher "avrdude": the .hex through an Arduino's USB port
         .Register(new EasyPdkProgFlasher())         // flasher "easypdkprog": the .hex into a PFS154 in the Easy PDK programmer
-        .Register(new Stm8FlashFlasher());          // flasher "stm8flash": the .hex into an STM8 through an ST-LINK's SWIM
+        .Register(new Stm8FlashFlasher())           // flasher "stm8flash": the .hex into an STM8 through an ST-LINK's SWIM
+        .Register(new EsptoolFlasher());            // flasher "esptool": the .bin into an ESP32 board through its USB port
 }

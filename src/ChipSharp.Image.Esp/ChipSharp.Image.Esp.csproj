@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The esp image format: a linked .elf in, an ESP application image out (the ESP32-C5's ROM loads it from flash offset 0x2000) -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+    <!-- ElfFile, the .elf reader the uf2 format and this one share -->
+    <ProjectReference Include="..\ChipSharp.Image.Uf2\ChipSharp.Image.Uf2.csproj" />
+  </ItemGroup>
+</Project>

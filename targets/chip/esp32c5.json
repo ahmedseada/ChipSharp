@@ -16,7 +16,8 @@
   // interrupt at 0x20801000 + 4 * id (IP bit 0, IE bit 8, SHV bit 16, TRIG bits 18-17, MODE bits 23-22, CTL bits 31-24);
   // 48 interrupt ids, 0-15 the core's own and 16-47 the 32 CPU interrupt lines (SOC_CPU_INTR_NUM 32,
   // CLIC_EXT_INTR_NUM_OFFSET 16), to which the interrupt matrix (INTERRUPT_CORE0, 0x60010000) routes the 84 peripheral
-  // sources (soc/interrupts.h, 0 to 83: each source's <SOURCE>_INTR_MAP register, base + 4 * source, names a line).
+  // sources (soc/interrupts.h, 0 to 83: each source's <SOURCE>_INTR_MAP register, base + 4 * source, names a line by
+  // its CLIC id, 16 + the line: TRM 11.5.3, ESP-IDF's interrupt_clic_ll_route).
   // mtvec = the trap entry | 3 (CLIC mode, ESP-IDF's rv_utils.h: MTVEC_MODE_CSR 3), the entry 64-byte aligned (its
   // bits 5-0 are the mode): every exception and every interrupt that is not vectored (SHV 0) goes there, mcause's
   // bits 11-0 the interrupt's id; mtvt (CSR 0x307) is the table of the vectored ones, which ChipSharp does not use.
@@ -85,5 +86,12 @@
     "pullDown": true,     // the GPIO pads have pull-ups and pull-downs (IO_MUX FUN_WPU, FUN_WPD): the runtime of wave 1
     "console": false,     // UART0 (GPIO 11 TX, GPIO 12 RX): the runtime of wave 1
     "clock": false        // SYSTIMER's 64-bit count: the runtime of wave 1
-  }
+  },
+  // the image ("esp": src/ChipSharp.Image.Esp, esptool's esp32c5 target and bin_image.py): chipId is IMAGE_CHIP_ID, the
+  // revisions are esptool's elf2image defaults (--min-rev-full 0, --max-rev-full 65535: any), the SPI flash settings the
+  // header's bytes 2 and 3 (mode dio; frequency 40m, which esptool's write-flash keeps); the board gives the flash size
+  "esp": { "chipId": 23, "minRevFull": 0, "maxRevFull": 65535, "flashMode": "dio", "flashFreq": "40m", "flashSize": "2MB" },
+  // the flasher ("esptool": src/ChipSharp.Flasher.Esptool): esptool --chip esp32c5 -b 460800 write-flash 0x2000 <image>;
+  // 0x2000 is BOOTLOADER_FLASH_OFFSET, where the ROM looks for the image
+  "esptool": { "chip": "esp32c5", "offset": "0x2000", "baud": 460800 }
 }
