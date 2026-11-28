@@ -1,6 +1,8 @@
 using System.Buffers.Binary;
 using System.Globalization;
 using System.Security.Cryptography;
+using ChipSharp.Abstractions;
+using ChipSharp.Image.Uf2;
 
 namespace ChipSharp.Simulators.Esp32c5;
 
@@ -10,7 +12,8 @@ public sealed record Esp32c5Segment(uint Address, byte[] Bytes);
 /// <summary>
 /// What runs on a simulated ESP32-C5: the segments to load at their addresses (HP SRAM, LP SRAM, flash through the MMU)
 /// and where the CPU starts, as the ROM's loader leaves them, from an ELF file (its PT_LOAD segments at their physical
-/// addresses, its entry point, its symbols) or an ESP image (<see cref="FromEspImage"/>: what the ROM loads from flash).
+/// addresses, its entry point, its symbols: ChipSharp.Image.Uf2's reader) or an ESP image (<see cref="FromEspImage"/>:
+/// what the ROM loads from flash).
 /// </summary>
 public sealed class Esp32c5Image
 {
@@ -43,10 +46,26 @@ public sealed class Esp32c5Image
 
         if (bytes.Length >= 4 && bytes[0] == 0x7F && bytes[1] == (byte)'E' && bytes[2] == (byte)'L' && bytes[3] == (byte)'F')
         {
-            var elf = ElfFile.Read(bytes, path, machine: 243, "a RISC-V");
+            ElfFile elf;
+            try
+            {
+                elf = ElfFile.Parse(bytes, path);
+            }
+            catch (ChipSharpException e)
+            {
+                throw new ImageException(e.Message);
+            }
+
+            if (elf.Machine != 243)
+            {
+                throw new ImageException($"'{path}' is not a RISC-V ELF file (e_machine {elf.Machine}).");
+            }
+
             return new Esp32c5Image
             {
-                Segments = [.. elf.Segments.Select(segment => new Esp32c5Segment(segment.Address, segment.Bytes))],
+                // the bytes in the file, at their physical addresses: .bss is the memory's zeros
+                Segments = [.. elf.Segments.Where(segment => segment.Data.Length > 0)
+                    .Select(segment => new Esp32c5Segment(segment.PhysicalAddress, segment.Data))],
                 Entry = elf.Entry,
                 Symbols = elf.Symbols,
                 Format = "ELF",
@@ -129,97 +148,5 @@ public sealed class Esp32c5Image
         }
 
         return new Esp32c5Image { Segments = segments, Entry = entry, Format = "ESP image" };
-    }
-}
-
-/// <summary>
-/// An ELF32 executable (little-endian), as ld.lld writes one: its PT_LOAD segments (the bytes in the file, at their
-/// physical addresses), its entry point and its symbols (.symtab).
-/// </summary>
-public sealed class ElfFile
-{
-    private ElfFile(IReadOnlyList<Esp32c5Segment> segments, uint entry, IReadOnlyDictionary<string, uint> symbols)
-    {
-        Segments = segments;
-        Entry = entry;
-        Symbols = symbols;
-    }
-
-    public IReadOnlyList<Esp32c5Segment> Segments { get; }
-
-    public uint Entry { get; }
-
-    public IReadOnlyDictionary<string, uint> Symbols { get; }
-
-    /// <summary>Reads <paramref name="bytes"/>, which must be for <paramref name="machine"/> (e_machine; 243 RISC-V).</summary>
-    public static ElfFile Read(byte[] bytes, string path, int machine, string what)
-    {
-        ArgumentNullException.ThrowIfNull(bytes);
-        if (bytes.Length < 52 || bytes[4] != 1 || bytes[5] != 1)
-        {
-            throw new ImageException($"'{path}' is not a 32-bit little-endian ELF file.");
-        }
-
-        var span = bytes.AsSpan();
-        if (BinaryPrimitives.ReadUInt16LittleEndian(span[18..]) != machine)
-        {
-            throw new ImageException($"'{path}' is not {what} ELF file (e_machine {BinaryPrimitives.ReadUInt16LittleEndian(span[18..])}).");
-        }
-
-        try
-        {
-            var entry = BinaryPrimitives.ReadUInt32LittleEndian(span[24..]);
-            var phoff = (int)BinaryPrimitives.ReadUInt32LittleEndian(span[28..]);
-            var shoff = (int)BinaryPrimitives.ReadUInt32LittleEndian(span[32..]);
-            var phentsize = BinaryPrimitives.ReadUInt16LittleEndian(span[42..]);
-            var phnum = BinaryPrimitives.ReadUInt16LittleEndian(span[44..]);
-            var shentsize = BinaryPrimitives.ReadUInt16LittleEndian(span[46..]);
-            var shnum = BinaryPrimitives.ReadUInt16LittleEndian(span[48..]);
-            var segments = new List<Esp32c5Segment>();
-            for (var p = 0; p < phnum; p++)
-            {
-                var header = span[(phoff + p * phentsize)..];
-                var fileSize = (int)BinaryPrimitives.ReadUInt32LittleEndian(header[16..]);
-                if (BinaryPrimitives.ReadUInt32LittleEndian(header) != 1 || fileSize == 0)
-                {
-                    continue; // PT_LOAD with bytes in the file only: .bss is the memory's zeros
-                }
-
-                var offset = (int)BinaryPrimitives.ReadUInt32LittleEndian(header[4..]);
-                var physical = BinaryPrimitives.ReadUInt32LittleEndian(header[12..]);
-                segments.Add(new Esp32c5Segment(physical, span.Slice(offset, fileSize).ToArray()));
-            }
-
-            var symbols = new Dictionary<string, uint>(StringComparer.Ordinal);
-            for (var s = 0; s < shnum && shoff > 0; s++)
-            {
-                var section = span[(shoff + s * shentsize)..];
-                if (BinaryPrimitives.ReadUInt32LittleEndian(section[4..]) != 2)
-                {
-                    continue; // SHT_SYMTAB only
-                }
-
-                var table = (int)BinaryPrimitives.ReadUInt32LittleEndian(section[16..]);
-                var size = (int)BinaryPrimitives.ReadUInt32LittleEndian(section[20..]);
-                var strings = span[(shoff + (int)BinaryPrimitives.ReadUInt32LittleEndian(section[24..]) * shentsize)..];
-                var stringsOffset = (int)BinaryPrimitives.ReadUInt32LittleEndian(strings[16..]);
-                for (var at = table + 16; at + 16 <= table + size; at += 16)
-                {
-                    var nameAt = stringsOffset + (int)BinaryPrimitives.ReadUInt32LittleEndian(span[at..]);
-                    var end = span[nameAt..].IndexOf((byte)0);
-                    var name = System.Text.Encoding.ASCII.GetString(span.Slice(nameAt, end));
-                    if (name.Length > 0 && span[at + 14] != 0)
-                    {
-                        symbols.TryAdd(name, BinaryPrimitives.ReadUInt32LittleEndian(span[(at + 4)..]));
-                    }
-                }
-            }
-
-            return new ElfFile(segments, entry, symbols);
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            throw new ImageException($"'{path}' is cut short: an ELF header points past its end.");
-        }
     }
 }

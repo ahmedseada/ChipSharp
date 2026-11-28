@@ -48956,759 +48956,759 @@
 
 // ---- INTERRUPT_CORE0: Interrupt matrix: routes the 84 interrupt sources to the CPU's 32 interrupt lines
 
-// INTERRUPT_CORE0_INTR_MAP0: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP0: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP0_ADDRESS 0x60010000ul
 #define INTERRUPT_CORE0_INTR_MAP0 (*(volatile uint32_t *)0x60010000ul)
 #define INTERRUPT_CORE0_INTR_MAP0_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP0_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP0_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP0_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP0_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP0_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP0_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP1: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP1: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP1_ADDRESS 0x60010004ul
 #define INTERRUPT_CORE0_INTR_MAP1 (*(volatile uint32_t *)0x60010004ul)
 #define INTERRUPT_CORE0_INTR_MAP1_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP1_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP1_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP1_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP1_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP1_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP1_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP2: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP2: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP2_ADDRESS 0x60010008ul
 #define INTERRUPT_CORE0_INTR_MAP2 (*(volatile uint32_t *)0x60010008ul)
 #define INTERRUPT_CORE0_INTR_MAP2_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP2_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP2_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP2_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP2_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP2_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP2_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP3: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP3: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP3_ADDRESS 0x6001000cul
 #define INTERRUPT_CORE0_INTR_MAP3 (*(volatile uint32_t *)0x6001000cul)
 #define INTERRUPT_CORE0_INTR_MAP3_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP3_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP3_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP3_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP3_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP3_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP3_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP4: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP4: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP4_ADDRESS 0x60010010ul
 #define INTERRUPT_CORE0_INTR_MAP4 (*(volatile uint32_t *)0x60010010ul)
 #define INTERRUPT_CORE0_INTR_MAP4_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP4_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP4_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP4_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP4_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP4_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP4_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP5: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP5: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP5_ADDRESS 0x60010014ul
 #define INTERRUPT_CORE0_INTR_MAP5 (*(volatile uint32_t *)0x60010014ul)
 #define INTERRUPT_CORE0_INTR_MAP5_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP5_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP5_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP5_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP5_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP5_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP5_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP6: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP6: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP6_ADDRESS 0x60010018ul
 #define INTERRUPT_CORE0_INTR_MAP6 (*(volatile uint32_t *)0x60010018ul)
 #define INTERRUPT_CORE0_INTR_MAP6_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP6_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP6_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP6_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP6_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP6_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP6_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP7: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP7: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP7_ADDRESS 0x6001001cul
 #define INTERRUPT_CORE0_INTR_MAP7 (*(volatile uint32_t *)0x6001001cul)
 #define INTERRUPT_CORE0_INTR_MAP7_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP7_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP7_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP7_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP7_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP7_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP7_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP8: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP8: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP8_ADDRESS 0x60010020ul
 #define INTERRUPT_CORE0_INTR_MAP8 (*(volatile uint32_t *)0x60010020ul)
 #define INTERRUPT_CORE0_INTR_MAP8_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP8_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP8_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP8_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP8_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP8_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP8_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP9: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP9: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP9_ADDRESS 0x60010024ul
 #define INTERRUPT_CORE0_INTR_MAP9 (*(volatile uint32_t *)0x60010024ul)
 #define INTERRUPT_CORE0_INTR_MAP9_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP9_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP9_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP9_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP9_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP9_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP9_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP10: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP10: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP10_ADDRESS 0x60010028ul
 #define INTERRUPT_CORE0_INTR_MAP10 (*(volatile uint32_t *)0x60010028ul)
 #define INTERRUPT_CORE0_INTR_MAP10_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP10_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP10_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP10_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP10_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP10_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP10_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP11: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP11: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP11_ADDRESS 0x6001002cul
 #define INTERRUPT_CORE0_INTR_MAP11 (*(volatile uint32_t *)0x6001002cul)
 #define INTERRUPT_CORE0_INTR_MAP11_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP11_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP11_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP11_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP11_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP11_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP11_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP12: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP12: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP12_ADDRESS 0x60010030ul
 #define INTERRUPT_CORE0_INTR_MAP12 (*(volatile uint32_t *)0x60010030ul)
 #define INTERRUPT_CORE0_INTR_MAP12_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP12_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP12_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP12_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP12_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP12_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP12_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP13: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP13: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP13_ADDRESS 0x60010034ul
 #define INTERRUPT_CORE0_INTR_MAP13 (*(volatile uint32_t *)0x60010034ul)
 #define INTERRUPT_CORE0_INTR_MAP13_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP13_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP13_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP13_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP13_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP13_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP13_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP14: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP14: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP14_ADDRESS 0x60010038ul
 #define INTERRUPT_CORE0_INTR_MAP14 (*(volatile uint32_t *)0x60010038ul)
 #define INTERRUPT_CORE0_INTR_MAP14_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP14_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP14_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP14_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP14_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP14_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP14_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP15: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP15: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP15_ADDRESS 0x6001003cul
 #define INTERRUPT_CORE0_INTR_MAP15 (*(volatile uint32_t *)0x6001003cul)
 #define INTERRUPT_CORE0_INTR_MAP15_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP15_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP15_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP15_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP15_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP15_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP15_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP16: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP16: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP16_ADDRESS 0x60010040ul
 #define INTERRUPT_CORE0_INTR_MAP16 (*(volatile uint32_t *)0x60010040ul)
 #define INTERRUPT_CORE0_INTR_MAP16_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP16_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP16_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP16_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP16_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP16_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP16_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP17: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP17: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP17_ADDRESS 0x60010044ul
 #define INTERRUPT_CORE0_INTR_MAP17 (*(volatile uint32_t *)0x60010044ul)
 #define INTERRUPT_CORE0_INTR_MAP17_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP17_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP17_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP17_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP17_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP17_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP17_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP18: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP18: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP18_ADDRESS 0x60010048ul
 #define INTERRUPT_CORE0_INTR_MAP18 (*(volatile uint32_t *)0x60010048ul)
 #define INTERRUPT_CORE0_INTR_MAP18_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP18_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP18_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP18_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP18_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP18_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP18_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP19: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP19: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP19_ADDRESS 0x6001004cul
 #define INTERRUPT_CORE0_INTR_MAP19 (*(volatile uint32_t *)0x6001004cul)
 #define INTERRUPT_CORE0_INTR_MAP19_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP19_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP19_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP19_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP19_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP19_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP19_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP20: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP20: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP20_ADDRESS 0x60010050ul
 #define INTERRUPT_CORE0_INTR_MAP20 (*(volatile uint32_t *)0x60010050ul)
 #define INTERRUPT_CORE0_INTR_MAP20_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP20_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP20_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP20_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP20_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP20_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP20_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP21: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP21: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP21_ADDRESS 0x60010054ul
 #define INTERRUPT_CORE0_INTR_MAP21 (*(volatile uint32_t *)0x60010054ul)
 #define INTERRUPT_CORE0_INTR_MAP21_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP21_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP21_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP21_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP21_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP21_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP21_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP22: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP22: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP22_ADDRESS 0x60010058ul
 #define INTERRUPT_CORE0_INTR_MAP22 (*(volatile uint32_t *)0x60010058ul)
 #define INTERRUPT_CORE0_INTR_MAP22_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP22_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP22_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP22_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP22_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP22_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP22_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP23: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP23: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP23_ADDRESS 0x6001005cul
 #define INTERRUPT_CORE0_INTR_MAP23 (*(volatile uint32_t *)0x6001005cul)
 #define INTERRUPT_CORE0_INTR_MAP23_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP23_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP23_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP23_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP23_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP23_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP23_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP24: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP24: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP24_ADDRESS 0x60010060ul
 #define INTERRUPT_CORE0_INTR_MAP24 (*(volatile uint32_t *)0x60010060ul)
 #define INTERRUPT_CORE0_INTR_MAP24_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP24_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP24_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP24_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP24_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP24_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP24_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP25: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP25: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP25_ADDRESS 0x60010064ul
 #define INTERRUPT_CORE0_INTR_MAP25 (*(volatile uint32_t *)0x60010064ul)
 #define INTERRUPT_CORE0_INTR_MAP25_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP25_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP25_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP25_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP25_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP25_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP25_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP26: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP26: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP26_ADDRESS 0x60010068ul
 #define INTERRUPT_CORE0_INTR_MAP26 (*(volatile uint32_t *)0x60010068ul)
 #define INTERRUPT_CORE0_INTR_MAP26_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP26_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP26_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP26_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP26_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP26_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP26_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP27: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP27: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP27_ADDRESS 0x6001006cul
 #define INTERRUPT_CORE0_INTR_MAP27 (*(volatile uint32_t *)0x6001006cul)
 #define INTERRUPT_CORE0_INTR_MAP27_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP27_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP27_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP27_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP27_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP27_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP27_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP28: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP28: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP28_ADDRESS 0x60010070ul
 #define INTERRUPT_CORE0_INTR_MAP28 (*(volatile uint32_t *)0x60010070ul)
 #define INTERRUPT_CORE0_INTR_MAP28_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP28_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP28_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP28_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP28_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP28_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP28_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP29: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP29: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP29_ADDRESS 0x60010074ul
 #define INTERRUPT_CORE0_INTR_MAP29 (*(volatile uint32_t *)0x60010074ul)
 #define INTERRUPT_CORE0_INTR_MAP29_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP29_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP29_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP29_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP29_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP29_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP29_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP30: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP30: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP30_ADDRESS 0x60010078ul
 #define INTERRUPT_CORE0_INTR_MAP30 (*(volatile uint32_t *)0x60010078ul)
 #define INTERRUPT_CORE0_INTR_MAP30_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP30_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP30_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP30_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP30_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP30_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP30_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP31: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP31: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP31_ADDRESS 0x6001007cul
 #define INTERRUPT_CORE0_INTR_MAP31 (*(volatile uint32_t *)0x6001007cul)
 #define INTERRUPT_CORE0_INTR_MAP31_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP31_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP31_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP31_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP31_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP31_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP31_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP32: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP32: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP32_ADDRESS 0x60010080ul
 #define INTERRUPT_CORE0_INTR_MAP32 (*(volatile uint32_t *)0x60010080ul)
 #define INTERRUPT_CORE0_INTR_MAP32_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP32_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP32_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP32_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP32_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP32_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP32_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP33: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP33: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP33_ADDRESS 0x60010084ul
 #define INTERRUPT_CORE0_INTR_MAP33 (*(volatile uint32_t *)0x60010084ul)
 #define INTERRUPT_CORE0_INTR_MAP33_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP33_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP33_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP33_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP33_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP33_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP33_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP34: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP34: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP34_ADDRESS 0x60010088ul
 #define INTERRUPT_CORE0_INTR_MAP34 (*(volatile uint32_t *)0x60010088ul)
 #define INTERRUPT_CORE0_INTR_MAP34_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP34_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP34_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP34_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP34_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP34_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP34_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP35: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP35: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP35_ADDRESS 0x6001008cul
 #define INTERRUPT_CORE0_INTR_MAP35 (*(volatile uint32_t *)0x6001008cul)
 #define INTERRUPT_CORE0_INTR_MAP35_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP35_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP35_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP35_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP35_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP35_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP35_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP36: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP36: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP36_ADDRESS 0x60010090ul
 #define INTERRUPT_CORE0_INTR_MAP36 (*(volatile uint32_t *)0x60010090ul)
 #define INTERRUPT_CORE0_INTR_MAP36_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP36_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP36_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP36_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP36_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP36_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP36_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP37: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP37: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP37_ADDRESS 0x60010094ul
 #define INTERRUPT_CORE0_INTR_MAP37 (*(volatile uint32_t *)0x60010094ul)
 #define INTERRUPT_CORE0_INTR_MAP37_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP37_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP37_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP37_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP37_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP37_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP37_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP38: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP38: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP38_ADDRESS 0x60010098ul
 #define INTERRUPT_CORE0_INTR_MAP38 (*(volatile uint32_t *)0x60010098ul)
 #define INTERRUPT_CORE0_INTR_MAP38_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP38_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP38_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP38_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP38_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP38_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP38_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP39: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP39: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP39_ADDRESS 0x6001009cul
 #define INTERRUPT_CORE0_INTR_MAP39 (*(volatile uint32_t *)0x6001009cul)
 #define INTERRUPT_CORE0_INTR_MAP39_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP39_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP39_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP39_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP39_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP39_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP39_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP40: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP40: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP40_ADDRESS 0x600100a0ul
 #define INTERRUPT_CORE0_INTR_MAP40 (*(volatile uint32_t *)0x600100a0ul)
 #define INTERRUPT_CORE0_INTR_MAP40_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP40_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP40_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP40_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP40_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP40_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP40_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP41: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP41: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP41_ADDRESS 0x600100a4ul
 #define INTERRUPT_CORE0_INTR_MAP41 (*(volatile uint32_t *)0x600100a4ul)
 #define INTERRUPT_CORE0_INTR_MAP41_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP41_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP41_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP41_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP41_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP41_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP41_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP42: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP42: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP42_ADDRESS 0x600100a8ul
 #define INTERRUPT_CORE0_INTR_MAP42 (*(volatile uint32_t *)0x600100a8ul)
 #define INTERRUPT_CORE0_INTR_MAP42_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP42_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP42_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP42_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP42_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP42_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP42_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP43: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP43: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP43_ADDRESS 0x600100acul
 #define INTERRUPT_CORE0_INTR_MAP43 (*(volatile uint32_t *)0x600100acul)
 #define INTERRUPT_CORE0_INTR_MAP43_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP43_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP43_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP43_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP43_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP43_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP43_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP44: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP44: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP44_ADDRESS 0x600100b0ul
 #define INTERRUPT_CORE0_INTR_MAP44 (*(volatile uint32_t *)0x600100b0ul)
 #define INTERRUPT_CORE0_INTR_MAP44_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP44_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP44_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP44_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP44_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP44_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP44_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP45: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP45: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP45_ADDRESS 0x600100b4ul
 #define INTERRUPT_CORE0_INTR_MAP45 (*(volatile uint32_t *)0x600100b4ul)
 #define INTERRUPT_CORE0_INTR_MAP45_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP45_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP45_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP45_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP45_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP45_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP45_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP46: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP46: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP46_ADDRESS 0x600100b8ul
 #define INTERRUPT_CORE0_INTR_MAP46 (*(volatile uint32_t *)0x600100b8ul)
 #define INTERRUPT_CORE0_INTR_MAP46_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP46_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP46_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP46_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP46_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP46_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP46_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP47: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP47: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP47_ADDRESS 0x600100bcul
 #define INTERRUPT_CORE0_INTR_MAP47 (*(volatile uint32_t *)0x600100bcul)
 #define INTERRUPT_CORE0_INTR_MAP47_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP47_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP47_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP47_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP47_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP47_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP47_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP48: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP48: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP48_ADDRESS 0x600100c0ul
 #define INTERRUPT_CORE0_INTR_MAP48 (*(volatile uint32_t *)0x600100c0ul)
 #define INTERRUPT_CORE0_INTR_MAP48_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP48_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP48_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP48_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP48_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP48_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP48_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP49: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP49: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP49_ADDRESS 0x600100c4ul
 #define INTERRUPT_CORE0_INTR_MAP49 (*(volatile uint32_t *)0x600100c4ul)
 #define INTERRUPT_CORE0_INTR_MAP49_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP49_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP49_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP49_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP49_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP49_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP49_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP50: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP50: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP50_ADDRESS 0x600100c8ul
 #define INTERRUPT_CORE0_INTR_MAP50 (*(volatile uint32_t *)0x600100c8ul)
 #define INTERRUPT_CORE0_INTR_MAP50_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP50_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP50_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP50_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP50_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP50_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP50_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP51: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP51: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP51_ADDRESS 0x600100ccul
 #define INTERRUPT_CORE0_INTR_MAP51 (*(volatile uint32_t *)0x600100ccul)
 #define INTERRUPT_CORE0_INTR_MAP51_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP51_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP51_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP51_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP51_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP51_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP51_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP52: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP52: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP52_ADDRESS 0x600100d0ul
 #define INTERRUPT_CORE0_INTR_MAP52 (*(volatile uint32_t *)0x600100d0ul)
 #define INTERRUPT_CORE0_INTR_MAP52_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP52_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP52_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP52_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP52_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP52_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP52_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP53: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP53: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP53_ADDRESS 0x600100d4ul
 #define INTERRUPT_CORE0_INTR_MAP53 (*(volatile uint32_t *)0x600100d4ul)
 #define INTERRUPT_CORE0_INTR_MAP53_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP53_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP53_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP53_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP53_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP53_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP53_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP54: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP54: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP54_ADDRESS 0x600100d8ul
 #define INTERRUPT_CORE0_INTR_MAP54 (*(volatile uint32_t *)0x600100d8ul)
 #define INTERRUPT_CORE0_INTR_MAP54_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP54_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP54_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP54_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP54_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP54_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP54_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP55: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP55: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP55_ADDRESS 0x600100dcul
 #define INTERRUPT_CORE0_INTR_MAP55 (*(volatile uint32_t *)0x600100dcul)
 #define INTERRUPT_CORE0_INTR_MAP55_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP55_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP55_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP55_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP55_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP55_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP55_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP56: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP56: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP56_ADDRESS 0x600100e0ul
 #define INTERRUPT_CORE0_INTR_MAP56 (*(volatile uint32_t *)0x600100e0ul)
 #define INTERRUPT_CORE0_INTR_MAP56_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP56_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP56_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP56_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP56_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP56_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP56_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP57: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP57: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP57_ADDRESS 0x600100e4ul
 #define INTERRUPT_CORE0_INTR_MAP57 (*(volatile uint32_t *)0x600100e4ul)
 #define INTERRUPT_CORE0_INTR_MAP57_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP57_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP57_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP57_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP57_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP57_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP57_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP58: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP58: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP58_ADDRESS 0x600100e8ul
 #define INTERRUPT_CORE0_INTR_MAP58 (*(volatile uint32_t *)0x600100e8ul)
 #define INTERRUPT_CORE0_INTR_MAP58_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP58_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP58_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP58_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP58_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP58_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP58_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP59: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP59: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP59_ADDRESS 0x600100ecul
 #define INTERRUPT_CORE0_INTR_MAP59 (*(volatile uint32_t *)0x600100ecul)
 #define INTERRUPT_CORE0_INTR_MAP59_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP59_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP59_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP59_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP59_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP59_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP59_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP60: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP60: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP60_ADDRESS 0x600100f0ul
 #define INTERRUPT_CORE0_INTR_MAP60 (*(volatile uint32_t *)0x600100f0ul)
 #define INTERRUPT_CORE0_INTR_MAP60_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP60_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP60_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP60_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP60_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP60_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP60_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP61: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP61: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP61_ADDRESS 0x600100f4ul
 #define INTERRUPT_CORE0_INTR_MAP61 (*(volatile uint32_t *)0x600100f4ul)
 #define INTERRUPT_CORE0_INTR_MAP61_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP61_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP61_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP61_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP61_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP61_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP61_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP62: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP62: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP62_ADDRESS 0x600100f8ul
 #define INTERRUPT_CORE0_INTR_MAP62 (*(volatile uint32_t *)0x600100f8ul)
 #define INTERRUPT_CORE0_INTR_MAP62_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP62_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP62_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP62_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP62_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP62_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP62_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP63: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP63: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP63_ADDRESS 0x600100fcul
 #define INTERRUPT_CORE0_INTR_MAP63 (*(volatile uint32_t *)0x600100fcul)
 #define INTERRUPT_CORE0_INTR_MAP63_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP63_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP63_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP63_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP63_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP63_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP63_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP64: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP64: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP64_ADDRESS 0x60010100ul
 #define INTERRUPT_CORE0_INTR_MAP64 (*(volatile uint32_t *)0x60010100ul)
 #define INTERRUPT_CORE0_INTR_MAP64_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP64_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP64_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP64_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP64_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP64_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP64_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP65: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP65: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP65_ADDRESS 0x60010104ul
 #define INTERRUPT_CORE0_INTR_MAP65 (*(volatile uint32_t *)0x60010104ul)
 #define INTERRUPT_CORE0_INTR_MAP65_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP65_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP65_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP65_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP65_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP65_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP65_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP66: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP66: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP66_ADDRESS 0x60010108ul
 #define INTERRUPT_CORE0_INTR_MAP66 (*(volatile uint32_t *)0x60010108ul)
 #define INTERRUPT_CORE0_INTR_MAP66_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP66_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP66_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP66_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP66_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP66_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP66_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP67: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP67: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP67_ADDRESS 0x6001010cul
 #define INTERRUPT_CORE0_INTR_MAP67 (*(volatile uint32_t *)0x6001010cul)
 #define INTERRUPT_CORE0_INTR_MAP67_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP67_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP67_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP67_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP67_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP67_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP67_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP68: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP68: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP68_ADDRESS 0x60010110ul
 #define INTERRUPT_CORE0_INTR_MAP68 (*(volatile uint32_t *)0x60010110ul)
 #define INTERRUPT_CORE0_INTR_MAP68_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP68_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP68_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP68_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP68_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP68_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP68_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP69: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP69: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP69_ADDRESS 0x60010114ul
 #define INTERRUPT_CORE0_INTR_MAP69 (*(volatile uint32_t *)0x60010114ul)
 #define INTERRUPT_CORE0_INTR_MAP69_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP69_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP69_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP69_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP69_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP69_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP69_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP70: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP70: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP70_ADDRESS 0x60010118ul
 #define INTERRUPT_CORE0_INTR_MAP70 (*(volatile uint32_t *)0x60010118ul)
 #define INTERRUPT_CORE0_INTR_MAP70_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP70_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP70_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP70_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP70_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP70_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP70_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP71: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP71: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP71_ADDRESS 0x6001011cul
 #define INTERRUPT_CORE0_INTR_MAP71 (*(volatile uint32_t *)0x6001011cul)
 #define INTERRUPT_CORE0_INTR_MAP71_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP71_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP71_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP71_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP71_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP71_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP71_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP72: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP72: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP72_ADDRESS 0x60010120ul
 #define INTERRUPT_CORE0_INTR_MAP72 (*(volatile uint32_t *)0x60010120ul)
 #define INTERRUPT_CORE0_INTR_MAP72_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP72_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP72_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP72_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP72_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP72_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP72_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP73: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP73: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP73_ADDRESS 0x60010124ul
 #define INTERRUPT_CORE0_INTR_MAP73 (*(volatile uint32_t *)0x60010124ul)
 #define INTERRUPT_CORE0_INTR_MAP73_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP73_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP73_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP73_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP73_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP73_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP73_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP74: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP74: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP74_ADDRESS 0x60010128ul
 #define INTERRUPT_CORE0_INTR_MAP74 (*(volatile uint32_t *)0x60010128ul)
 #define INTERRUPT_CORE0_INTR_MAP74_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP74_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP74_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP74_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP74_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP74_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP74_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP75: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP75: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP75_ADDRESS 0x6001012cul
 #define INTERRUPT_CORE0_INTR_MAP75 (*(volatile uint32_t *)0x6001012cul)
 #define INTERRUPT_CORE0_INTR_MAP75_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP75_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP75_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP75_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP75_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP75_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP75_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP76: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP76: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP76_ADDRESS 0x60010130ul
 #define INTERRUPT_CORE0_INTR_MAP76 (*(volatile uint32_t *)0x60010130ul)
 #define INTERRUPT_CORE0_INTR_MAP76_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP76_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP76_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP76_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP76_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP76_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP76_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP77: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP77: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP77_ADDRESS 0x60010134ul
 #define INTERRUPT_CORE0_INTR_MAP77 (*(volatile uint32_t *)0x60010134ul)
 #define INTERRUPT_CORE0_INTR_MAP77_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP77_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP77_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP77_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP77_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP77_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP77_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP78: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP78: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP78_ADDRESS 0x60010138ul
 #define INTERRUPT_CORE0_INTR_MAP78 (*(volatile uint32_t *)0x60010138ul)
 #define INTERRUPT_CORE0_INTR_MAP78_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP78_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP78_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP78_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP78_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP78_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP78_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP79: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP79: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP79_ADDRESS 0x6001013cul
 #define INTERRUPT_CORE0_INTR_MAP79 (*(volatile uint32_t *)0x6001013cul)
 #define INTERRUPT_CORE0_INTR_MAP79_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP79_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP79_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP79_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP79_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP79_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP79_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP80: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP80: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP80_ADDRESS 0x60010140ul
 #define INTERRUPT_CORE0_INTR_MAP80 (*(volatile uint32_t *)0x60010140ul)
 #define INTERRUPT_CORE0_INTR_MAP80_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP80_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP80_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP80_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP80_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP80_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP80_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP81: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP81: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP81_ADDRESS 0x60010144ul
 #define INTERRUPT_CORE0_INTR_MAP81 (*(volatile uint32_t *)0x60010144ul)
 #define INTERRUPT_CORE0_INTR_MAP81_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP81_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP81_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP81_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP81_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP81_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP81_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP82: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP82: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP82_ADDRESS 0x60010148ul
 #define INTERRUPT_CORE0_INTR_MAP82 (*(volatile uint32_t *)0x60010148ul)
 #define INTERRUPT_CORE0_INTR_MAP82_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP82_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP82_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP82_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP82_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP82_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP82_MAP_MASK)
 
-// INTERRUPT_CORE0_INTR_MAP83: a source's CPU interrupt line (read-write, reset 0x00000000)
+// INTERRUPT_CORE0_INTR_MAP83: a source's CPU interrupt line, as its CLIC id (read-write, reset 0x00000000)
 #define INTERRUPT_CORE0_INTR_MAP83_ADDRESS 0x6001014cul
 #define INTERRUPT_CORE0_INTR_MAP83 (*(volatile uint32_t *)0x6001014cul)
 #define INTERRUPT_CORE0_INTR_MAP83_PASS_IN_SEC_POS 8   // the source passes in secure mode
 #define INTERRUPT_CORE0_INTR_MAP83_PASS_IN_SEC_MASK 0x100u
-#define INTERRUPT_CORE0_INTR_MAP83_MAP_POS 0   // the CPU interrupt line (CLIC id - 16) the source goes to
+#define INTERRUPT_CORE0_INTR_MAP83_MAP_POS 0   // the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none
 #define INTERRUPT_CORE0_INTR_MAP83_MAP_MASK 0x3fu
 #define INTERRUPT_CORE0_INTR_MAP83_MAP(value) ((((unsigned long)(value)) << 0) & INTERRUPT_CORE0_INTR_MAP83_MAP_MASK)
 

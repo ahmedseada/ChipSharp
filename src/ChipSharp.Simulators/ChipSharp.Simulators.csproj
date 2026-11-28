@@ -6,4 +6,8 @@
     <AssemblyName>chipsim</AssemblyName>
     <RootNamespace>ChipSharp.Simulators</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- the ELF reader, for the ESP32-C5's images -->
+    <ProjectReference Include="..\ChipSharp.Image.Uf2\ChipSharp.Image.Uf2.csproj" />
+  </ItemGroup>
 </Project>

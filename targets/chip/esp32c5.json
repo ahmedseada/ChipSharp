@@ -16,7 +16,8 @@
   // interrupt at 0x20801000 + 4 * id (IP bit 0, IE bit 8, SHV bit 16, TRIG bits 18-17, MODE bits 23-22, CTL bits 31-24);
   // 48 interrupt ids, 0-15 the core's own and 16-47 the 32 CPU interrupt lines (SOC_CPU_INTR_NUM 32,
   // CLIC_EXT_INTR_NUM_OFFSET 16), to which the interrupt matrix (INTERRUPT_CORE0, 0x60010000) routes the 84 peripheral
-  // sources (soc/interrupts.h, 0 to 83: each source's <SOURCE>_INTR_MAP register, base + 4 * source, names a line).
+  // sources (soc/interrupts.h, 0 to 83: each source's <SOURCE>_INTR_MAP register, base + 4 * source, names a line by
+  // its CLIC id, 16 + the line: TRM 11.5.3, ESP-IDF's interrupt_clic_ll_route).
   // mtvec = the trap entry | 3 (CLIC mode, ESP-IDF's rv_utils.h: MTVEC_MODE_CSR 3), the entry 64-byte aligned (its
   // bits 5-0 are the mode): every exception and every interrupt that is not vectored (SHV 0) goes there, mcause's
   // bits 11-0 the interrupt's id; mtvt (CSR 0x307) is the table of the vectored ones, which ChipSharp does not use.

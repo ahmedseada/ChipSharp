@@ -32,8 +32,8 @@
       "description": "Interrupt matrix: routes the 84 interrupt sources to the CPU's 32 interrupt lines",
       "width": 32,
       "registers": {
-        "INTR_MAP%s": { "offset": 0, "dim": 84, "dimIncrement": 4, "reset": 0, "description": "a source's CPU interrupt line", "fields": {
-          "MAP": { "bits": "5:0", "description": "the CPU interrupt line (CLIC id - 16) the source goes to" },
+        "INTR_MAP%s": { "offset": 0, "dim": 84, "dimIncrement": 4, "reset": 0, "description": "a source's CPU interrupt line, as its CLIC id", "fields": {
+          "MAP": { "bits": "5:0", "description": "the CLIC id the source goes to: 16 + its CPU interrupt line (TRM 11.5.3, ESP-IDF interrupt_clic_ll_route), 0 none" },
           "PASS_IN_SEC": { "bits": 8, "description": "the source passes in secure mode" } } },
         "INT_STATUS%s": { "offset": "0x150", "dim": 3, "dimIncrement": 4, "access": "read-only",
           "description": "the sources that ask, a bit each: 0-31, 32-63, 64-83" },

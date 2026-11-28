@@ -19,33 +19,20 @@ public sealed class Esp32c5FactAttribute : FactAttribute
     }
 }
 
-/// <summary>Like <see cref="Esp32c5FactAttribute"/>, for a test that runs once per case.</summary>
-[XunitTestCaseDiscoverer("ChipSharp.Tests.Support.OwnCollectionTheoryDiscoverer", "ChipSharp.Tests")]
-public sealed class Esp32c5TheoryAttribute : TheoryAttribute
-{
-    public Esp32c5TheoryAttribute()
-    {
-        if (PicoTools.MissingLlvm.Value is { } reason)
-        {
-            Skip = reason;
-        }
-    }
-}
-
 /// <summary>
-/// A program for a simulator test of the ESP32-C5, in C (and assembly), built with clang for riscv32 (rv32imac, ilp32)
+/// A program for a simulator test of the ESP32-C5, in C (and assembly), built with clang for riscv32 (the target's rv32imac_zicsr_zifencei, ilp32)
 /// and linked by ld.lld into an ELF file in HP SRAM, as the ROM would load it: <see cref="StartUp"/> sets the stack,
 /// clears .bss, calls init (report.c's weak one turns the watchdogs off; a program can have its own), then main, and
 /// halts as ChipSharp's runtimes do (interrupts off, wfi); main.c includes
 /// <see cref="Header"/> (c5.h: the registers, the watchdogs turned off, the interrupt matrix and the CLIC set up, the
 /// UART's and the USB port's output).
 /// </summary>
-internal sealed class Esp32c5Program
+internal sealed class Esp32c5CProgram
 {
     /// <summary>The flags of clang: the C5's ISA as ChipSharp builds for it, and no C library.</summary>
     public static readonly string[] CompileFlags =
-        ["--target=riscv32-unknown-elf", "-march=rv32imac", "-mabi=ilp32", "-O2", "-ffreestanding", "-nostdlib", "-mno-relax",
-        "-fwrapv"];
+        ["--target=riscv32-unknown-elf", "-march=rv32imac_zicsr_zifencei", "-mabi=ilp32", "-O2", "-ffreestanding", "-nostdlib",
+        "-mno-relax", "-fwrapv"];
 
     public const string StartUp = """
             .section .text.start, "ax"
@@ -170,7 +157,7 @@ internal sealed class Esp32c5Program
         void report(void);
         """;
 
-    private Esp32c5Program(string elf, IReadOnlyDictionary<string, uint> symbols)
+    private Esp32c5CProgram(string elf, IReadOnlyDictionary<string, uint> symbols)
     {
         Elf = elf;
         Symbols = symbols;
@@ -185,8 +172,8 @@ internal sealed class Esp32c5Program
     /// Builds main.c (<paramref name="source"/>), report.c (<see cref="Report"/>) and <paramref name="assembly"/>
     /// (more.S), in <paramref name="folder"/>.
     /// </summary>
-    public static async Task<Esp32c5Program> BuildAsync(string source, string folder, string? assembly = null,
-        string march = "rv32imac")
+    public static async Task<Esp32c5CProgram> BuildAsync(string source, string folder, string? assembly = null,
+        string march = "rv32imac_zicsr_zifencei")
     {
         Directory.CreateDirectory(folder);
         await File.WriteAllTextAsync(Path.Combine(folder, "start.S"), StartUp);
@@ -213,7 +200,7 @@ internal sealed class Esp32c5Program
             ["-T", "link.ld", .. files.Select(file => file + ".o"), "-o", "program.elf"], folder);
         Assert.True(link.ExitCode == 0, $"ld.lld failed:\n{link}");
         var elf = Path.Combine(folder, "program.elf");
-        return new Esp32c5Program(elf, Esp32c5Image.Load(elf).Symbols);
+        return new Esp32c5CProgram(elf, Esp32c5Image.Load(elf).Symbols);
     }
 
     /// <summary>The address of <paramref name="symbol"/>; the test fails when the program has none.</summary>

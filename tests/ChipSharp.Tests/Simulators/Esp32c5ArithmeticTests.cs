@@ -1,11 +1,12 @@
 using System.Globalization;
 using System.Text;
+using ChipSharp.Tests.Esp32c5;
 using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Simulators;
 
 /// <summary>
-/// The arithmetic of every integer width, as clang compiles it for the ESP32-C5 (rv32imac: add, sub, mul, mulh, div,
+/// The arithmetic of every integer width, as clang compiles it for the ESP32-C5 (rv32imac_zicsr_zifencei: add, sub, mul, mulh, div,
 /// rem, the shifts and their compressed forms; the 64-bit operations in pairs of registers with sltu's carries), run on
 /// the simulator: each program computes a + b, a - b, a * b, a / b, a % b, a &lt;&lt; n and a &gt;&gt; n for 48 pairs
 /// of edge and random values and reports every result, which must be what C's rules give (computed here: C's int is 32
@@ -65,7 +66,7 @@ public sealed class Esp32c5ArithmeticTests : IDisposable
         var bits = int.Parse(type.TrimStart('u', 'i', 'n', 't').TrimEnd('_', 't'), CultureInfo.InvariantCulture);
         var signed = type[0] == 'i';
         var (a, b, shifts) = Operands(bits, signed);
-        var program = await Esp32c5Program.BuildAsync(Source(type, bits, signed, a, b, shifts), _scratch);
+        var program = await Esp32c5CProgram.BuildAsync(Source(type, bits, signed, a, b, shifts), _scratch);
 
         var (run, values) = program.RunReports(500, bits == 64 ? 8 : 4);
 

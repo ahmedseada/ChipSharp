@@ -28,10 +28,11 @@ namespace ChipSharp.Simulators.Esp32c5;
 /// <para>
 /// Time: the CPU's cycles at its clock; a peripheral access 3 cycles more (the AHB bus). The run stops as a failure at
 /// ebreak (the runtimes' failure stop), at an exception without a trap handler, at a call of a ROM function the
-/// simulator does not have, at a watchdog's reset; it has finished when the CPU waits for an interrupt (wfi) and none
-/// can come: no interrupt is pending, enabled (clicintie) and above the threshold (mintthresh, the level being served:
-/// mstatus.MIE does not matter to wfi), and none will be, from a timer, a byte being sent, a watchdog, or an input to
-/// come.
+/// simulator does not have, at a watchdog's reset. It has finished when the CPU waits for an interrupt (wfi) with
+/// interrupts off (mstatus.MIE 0), once UART0 and the USB port have sent what they hold; or with interrupts on, when no
+/// interrupt can come: none is pending, enabled (clicintie) and above the threshold (mintthresh, the level being
+/// served), and none will be, from a timer, a byte being sent, a watchdog, or an input to come. With one to come, the
+/// interrupt wakes the CPU and its handler runs, as the riscv32 runtime's chipsharp_halt expects (events run on).
 /// </para>
 /// </summary>
 public sealed class Esp32c5Chip : SimulatedChip, IRiscVBus
