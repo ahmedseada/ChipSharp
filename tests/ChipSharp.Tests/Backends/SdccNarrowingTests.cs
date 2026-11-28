@@ -22,7 +22,7 @@ public sealed class SdccNarrowingTests(ITestOutputHelper output) : IDisposable
         Scratch.Delete(_scratch);
     }
 
-    public static TheoryData<string> Chips => [.. BackendTargets.All.Where(target => target.Chip is not null).Select(target => target.Name)];
+    public static TheoryData<string> Chips => [.. BackendTargets.All.Where(target => target.IsSdcc).Select(target => target.Name)];
 
     [SdccTheory]
     [RunsLong]

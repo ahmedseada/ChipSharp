@@ -1,3 +1,4 @@
+using ChipSharp.Tests.Esp32c5;
 using ChipSharp.Tests.Host;
 using ChipSharp.Tests.Simulators;
 using ChipSharp.Tests.Support;
@@ -26,6 +27,8 @@ public sealed class BackendConformanceTests : IDisposable
 
     public static TheoryData<string, string> OnTheChips => Cases(chip: true);
 
+    public static TheoryData<string, string> OnTheEsp32c5 => Cases(chip: true, c5: true);
+
     [HostTheory]
     [MemberData(nameof(OnThePc))]
     public Task Each_program_through_each_backend_on_the_PC_prints_what_dotnet_prints(string target, string program) =>
@@ -35,6 +38,11 @@ public sealed class BackendConformanceTests : IDisposable
     [MemberData(nameof(OnTheChips))]
     public Task Each_program_through_C_and_SDCC_on_each_simulated_chip_prints_what_dotnet_prints(string target,
         string program) => PrintsWhatDotnetPrints(target, program);
+
+    [Esp32c5Theory]
+    [MemberData(nameof(OnTheEsp32c5))]
+    public Task Each_program_through_llvm_on_the_simulated_ESP32_C5_prints_what_dotnet_prints(string target, string program) =>
+        PrintsWhatDotnetPrints(target, program);
 
     /// <summary>
     /// The skips and the differences name only targets and programs there are (one taken out of the corpora leaves the
@@ -86,10 +94,10 @@ public sealed class BackendConformanceTests : IDisposable
         Assert.Equal(dotnet.Output, run.Output);
     }
 
-    private static TheoryData<string, string> Cases(bool chip)
+    private static TheoryData<string, string> Cases(bool chip, bool c5 = false)
     {
         var data = new TheoryData<string, string>();
-        foreach (var target in BackendTargets.All.Where(target => (target.Chip is not null) == chip))
+        foreach (var target in BackendTargets.All.Where(target => (target.Chip is not null) == chip && (target.Chip == "esp32c5") == c5))
         {
             foreach (var (name, _) in ConformancePrograms.All)
             {

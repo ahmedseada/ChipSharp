@@ -523,7 +523,8 @@ objects and type descriptors, and the same `chipsharp_entry`. The C means what t
 every corpus the differential tests compare with .NET (the samples, the language corpora, the library tests, the Uno's,
 the narrowing's edges, and the small chips' own, `Chips/...`, of the features without a heap written without a double)
 goes through every backend of `BackendTargets` (`host`: llvm; `host-c`: C and clang; `pfs154-bare` and
-`stm8s103-board`: C and SDCC, in `chipsim`) and must print what .NET prints, byte for byte. A program a target cannot
+`stm8s103-board`: C and SDCC, in `chipsim`; `esp32c5-devkitc`: llvm for riscv32, built as `chipsharp build` builds it
+and run in `chipsim esp32c5`, the console the USB Serial/JTAG port, with no skips) and must print what .NET prints, byte for byte. A program a target cannot
 take is skipped, and the suite checks each skip's reason against its list (`BackendSkips`), so that the list can
 neither grow nor keep a program that runs: on the PC none; on the chips those that need a heap (65), use `double` (25),
 call the runtime's float math (2) or fixed text's searches (1), or do not fit (the PFS154: 18 in its 128 bytes of RAM,
@@ -798,7 +799,9 @@ console, events) comes next.
   `llvm-readobj` find RV32IMAC code, the start-up's gp, sp and mtvec, no float or Zcmp instruction); every program of
   the corpora without objects compiles and links for the board, each with objects is refused for the heap; the C5's
   headers compile with clang. The conformance suite has the chip's slot (`Esp32c5ChipSimulator`, which runs the image
-  in chipsim), skipped until the runtime implements the hardware contract.
+  in chipsim). The whole language runs on it: all 159 programs of the backend conformance suite, heap and `double`
+  included, print what .NET prints (`unalignedAccess` stays false: code that is right on a core that traps is right on
+  one that splits the access, and the manual is not read here to say which the C5 is).
 - **The simulator** (`chipsim esp32c5 program.elf`, in `src/ChipSharp.Simulators`: `RiscV` and `Esp32c5`) runs an ELF
   file or an ESP image as the ROM leaves the chip. The core: RV32IMAC, Zicsr, Zifencei, Zcb, Zcmp and Zcmt (Zcmp per
   its spec, not the C5's faulty one; no Xhwlp), machine and user mode, the CLIC's traps (mtvec in CLIC mode, the
@@ -867,8 +870,8 @@ Every chip is built the same way, so that a new one is data and one runtime, not
 
 The rule of thumb: what is a **value** (numbers, structs, enums, spans, fixed text, arrays that stay in their method)
 works on every chip, with no heap; what **makes objects while the program runs** (classes, strings that are kept,
-boxes, delegates, collections, exceptions) needs a heap, which the Pico and the PC have. A program that makes no object
-gets no heap at all, even on the Pico. `chipsharp check` tells you for your program, place by place.
+boxes, delegates, collections, exceptions) needs a heap, which the Pico, the ESP32-C5 and the PC have. A program that
+makes no object gets no heap at all, even on the Pico. `chipsharp check` tells you for your program, place by place.
 
 ### On every chip, with no heap
 
@@ -902,7 +905,11 @@ backend suite, with a list of what each chip skips and why), and the hardware su
 the PFS154 (7, 2 skipped). The chips' limits are in [Limits of the two chips](#limits-of-the-two-chips) and
 [what does not fit](#what-does-not-fit-the-small-chips).
 
-### On a chip with a heap (the Pico and the PC)
+### On a chip with a heap (the Pico, the ESP32-C5 and the PC)
+
+The ESP32-C5 (no FPU: `float` and `double` in software, bit for bit like .NET; 224 KB of heap, 16 KB of stack that the stack
+check guards) takes every program of every corpus the differential tests compare with .NET, this table's included: the
+backend conformance suite runs them in `chipsim esp32c5` with none skipped.
 
 | C# | What works |
 |---|---|
