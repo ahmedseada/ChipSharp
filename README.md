@@ -777,7 +777,7 @@ simulator and the runtime's hardware contract (pins, clock, console, events) com
 - **Flashing.** `chipsharp flash Name.dll -t esp32c5-devkitc` (or the `.bin`) runs
   `esptool --chip esp32c5 -p <port> -b 460800 write-flash 0x2000 Name.bin` (`write_flash` for esptool 4: `esptool
   version` says which). esptool is found through `CHIPSHARP_ESPTOOL` (the file or its folder), the PATH (`esptool`,
-  `esptool.py`), then Python's module (`py -m esptool`); install it with `py -m pip install esptool`. Plug in either
+  `esptool.py`), `D:ToolsesptoolScripts`, then Python's module (`py -m esptool`); install it with `py -m pip install esptool`. Plug in either
   USB-C port of the board: the one marked **USB** (the chip's own USB Serial/JTAG, `303A:1001`, which `chipsharp
   flash` takes first) or the one marked **UART** (the CP2102N bridge, `10C4:EA60`; CH343 `1A86:55D3` and CH340
   `1A86:7523` too); say which with `--port COM6` when both are plugged in. esptool puts the chip into the ROM's

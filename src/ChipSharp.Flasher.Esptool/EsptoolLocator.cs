@@ -19,7 +19,8 @@ public sealed record EsptoolTool(string Path, IReadOnlyList<string> Prefix, stri
 /// has one), else <c>esptool</c> (esptool.exe), then <c>esptool.py</c>, on the PATH, else Python's module
 /// (<c>py -m esptool</c>, <c>python -m esptool</c>, <c>python3 -m esptool</c>) when that Python can import it.
 /// </summary>
-internal sealed class EsptoolLocator(Func<string, string?> environment, Func<string, bool> canImportEsptool)
+internal sealed class EsptoolLocator(Func<string, string?> environment, Func<string, bool> canImportEsptool,
+    IReadOnlyList<string> toolsFolders)
 {
     /// <summary>What to do when esptool is missing.</summary>
     internal static string Advice =>
@@ -41,6 +42,11 @@ internal sealed class EsptoolLocator(Func<string, string?> environment, Func<str
             return Tool(found);
         }
 
+        if (ProgrammerTool.InFolders("esptool", toolsFolders) is { } installed)
+        {
+            return Tool(installed);
+        }
+
         foreach (var python in Pythons)
         {
             if (ProgrammerTool.OnPath(python, environment) is { } path && canImportEsptool(path))
@@ -49,7 +55,8 @@ internal sealed class EsptoolLocator(Func<string, string?> environment, Func<str
             }
         }
 
-        throw new ChipSharpException($"esptool was not found (looked on the PATH, and for a Python that has it). {Advice}");
+        var folders = toolsFolders.Count == 0 ? "" : $" and in {string.Join(", ", toolsFolders.Select(f => $"'{f}'"))}";
+        throw new ChipSharpException($"esptool was not found (looked on the PATH{folders}, and for a Python that has it). {Advice}");
     }
 
     private EsptoolTool FromVariable(string set)

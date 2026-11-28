@@ -227,10 +227,83 @@ public sealed class EspImageTests : IDisposable
         Assert.Equal(program.File.Entry, image.Entry);
         Assert.Equal(program.File.Symbols["chipsharp_reset"], image.Entry);
         Assert.Equal(23, image.ChipId);
-        Assert.Equal(
-            program.File.Segments.Where(s => s.Data.Length > 0).Select(s => (s.PhysicalAddress, s.Data.Length)),
-            image.Segments.Select(s => (s.Address, s.Data.Length)));
+        // the ELF's segments in address order, those that touch made one: the same bytes at the same addresses
+        Assert.Equal(program.File.Segments.Sum(s => s.Data.Length), image.Segments.Sum(s => s.Data.Length));
+        Assert.Equal(program.File.Segments.Min(s => s.PhysicalAddress), image.Segments[0].Address);
+        Assert.Equal(program.File.Segments.OrderBy(s => s.PhysicalAddress).SelectMany(s => s.Data), image.Segments.SelectMany(s => s.Data));
         Assert.All(image.Segments, s => Assert.InRange(s.Address + (ulong)s.Data.Length, 0x40800001UL, 0x4085c5a0UL));
         Assert.Equal(0L, new FileInfo(path).Length % 16);
+    }
+
+    private const string Program = """
+        static class Program
+        {
+            static int total = 7;
+            static int[] table = { 3, 1, 4, 1, 5, 9, 2, 6 };
+            static int Main()
+            {
+                for (int i = 0; i < table.Length; i++)
+                {
+                    total += table[i] * i;
+                }
+
+                return total;
+            }
+        }
+        """;
+
+    /// <summary>Runs the real esptool (never a write to a board) and returns what it printed.</summary>
+    private static string Esptool(params string[] arguments)
+    {
+        var tool = EsptoolTheoryAttribute.Tool!;
+        var start = new System.Diagnostics.ProcessStartInfo(tool.Path)
+        {
+            RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false,
+        };
+        foreach (var argument in tool.Prefix.Concat(arguments))
+        {
+            start.ArgumentList.Add(argument);
+        }
+
+        using var process = System.Diagnostics.Process.Start(start)!;
+        var error = process.StandardError.ReadToEndAsync();
+        var output = process.StandardOutput.ReadToEnd();
+        process.WaitForExit();
+        Assert.True(process.ExitCode == 0, $"esptool {string.Join(' ', arguments)}: {output}{error.Result}");
+        return output + error.Result;
+    }
+
+    [EsptoolTheory]
+    [InlineData("EspCheck")]
+    public void The_real_esptool_accepts_the_image_and_makes_the_same_bytes_from_the_same_elf(string name)
+    {
+        var program = Esp32c5Build.Build(Program, name, _scratch);
+        var path = Path.Combine(_scratch, name + ".bin");
+        using (var output = File.Create(path))
+        {
+            new EspImageFormat().Package(new LinkedBinary(program.Elf), Esp32c5Build.Board, output);
+        }
+
+        // image-info: the header, the chip id, the checksum and the SHA-256 are valid
+        var info = Esptool("--chip", "esp32c5", "image-info", path);
+        Assert.Contains("ESP32-C5", info, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("(valid)", info);
+        Assert.DoesNotContain("invalid", info, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Validation hash", info, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains($"Entry point: 0x{program.File.Entry:x8}", info, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Flash size: 8MB", info);
+        Assert.Contains("Flash freq: 40m", info);
+        Assert.Contains("Flash mode: DIO", info);
+
+        // esptool's own elf2image of the same ELF (from its segments, which is what the ROM loads): the same bytes
+        var reference = Path.Combine(_scratch, "reference.bin");
+        Esptool("--chip", "esp32c5", "elf2image", "--use-segments", "--flash-mode", "dio", "--flash-freq", "40m",
+            "--flash-size", "8MB", "-o", reference, program.Elf);
+        var mine = File.ReadAllBytes(path);
+        var theirs = File.ReadAllBytes(reference);
+        string Segs(byte[] b) => string.Join(" ", EspImage.Read(b).Segments.Select(x => $"{x.Address:x8}+{x.Data.Length}"));
+        Assert.Equal(Segs(theirs), Segs(mine));
+        Assert.Equal(theirs.Length, mine.Length);
+        Assert.Equal(Convert.ToHexString(theirs), Convert.ToHexString(mine));
     }
 }

@@ -21,11 +21,15 @@ public sealed class EsptoolFlasher : IFlasher
     /// <summary>The environment variable that points at esptool (esptool.exe, esptool.py, or their folder).</summary>
     public const string EsptoolVariable = "CHIPSHARP_ESPTOOL";
 
+    /// <summary>Where ChipSharp looks for esptool on Windows after the PATH, as for easypdkprog: D:\Tools\esptool\Scripts (a Python venv's).</summary>
+    public const string ToolsFolder = @"D:\Tools\esptool\Scripts";
+
     private readonly EsptoolLocator _locator;
     private readonly Func<IReadOnlyList<SerialPortInfo>> _ports;
 
     public EsptoolFlasher()
-        : this(Environment.GetEnvironmentVariable, SerialPorts.List, EsptoolLocator.Imports)
+        : this(Environment.GetEnvironmentVariable, SerialPorts.List, EsptoolLocator.Imports,
+            OperatingSystem.IsWindows() ? [ToolsFolder] : [])
     {
     }
 
@@ -34,15 +38,15 @@ public sealed class EsptoolFlasher : IFlasher
     /// <paramref name="ports"/> and asks <paramref name="canImportEsptool"/> whether a Python has esptool.
     /// </summary>
     internal EsptoolFlasher(Func<string, string?> environment, Func<IReadOnlyList<SerialPortInfo>> ports,
-        Func<string, bool> canImportEsptool)
+        Func<string, bool> canImportEsptool, IReadOnlyList<string>? toolsFolders = null)
     {
-        _locator = new EsptoolLocator(environment, canImportEsptool);
+        _locator = new EsptoolLocator(environment, canImportEsptool, toolsFolders ?? []);
         _ports = ports;
     }
 
     public string Name => "esptool";
 
-    /// <summary>esptool: the variable CHIPSHARP_ESPTOOL, else the PATH, else a Python that has it; else an error that says how to get it.</summary>
+    /// <summary>esptool: the variable CHIPSHARP_ESPTOOL, else the PATH, else <see cref="ToolsFolder"/>, else a Python that has it; else an error that says how to get it.</summary>
     public EsptoolTool FindEsptool() => _locator.Find();
 
     public async Task FlashAsync(string imagePath, TargetDescription target, FlashOptions options,

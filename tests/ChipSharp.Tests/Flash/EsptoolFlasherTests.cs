@@ -115,6 +115,9 @@ public sealed class EsptoolFlasherTests : IDisposable
         var error = Assert.Throws<ChipSharpException>(flasher.FindEsptool);
 
         Assert.StartsWith("esptool was not found (looked on the PATH, and for a Python that has it). ", error.Message);
+        var tools = Executable(Path.Combine(_scratch, "tools", "esptool.exe"));
+        Assert.Equal(new EsptoolTool(tools, [], "esptool.exe"),
+            new EsptoolFlasher(_ => null, () => [], _ => false, [Path.GetDirectoryName(tools)!]).FindEsptool());
         Assert.Contains("py -m pip install esptool", error.Message);
         Assert.EndsWith("set CHIPSHARP_ESPTOOL to its esptool.exe, or put its folder on the PATH.", error.Message);
         Assert.Equal(error.Message, (await Assert.ThrowsAsync<ChipSharpException>(() =>

@@ -7,7 +7,7 @@ namespace ChipSharp.Image.Esp;
 /// <summary>
 /// The "esp" image format: the ESP application image (<see cref="EspImage"/>) an Espressif chip's ROM loads from flash.
 /// The ESP32-C5's ROM reads it at flash offset 0x2000, where ESP-IDF's second-stage bootloader would be; ChipSharp's
-/// program is that image itself, so every segment (one per ELF program header with file bytes, at its load address)
+/// program is that image itself, so every segment (one per ELF program header with file bytes, at its load address, in address order; segments that touch are one, as esptool's elf2image makes them)
 /// must lie in the SRAM the program has (the target's "link.code" region: below the ROM's own stack and data), and
 /// the entry is the .elf's. The target's "esp" settings give the chip id ("esp.chipId", 23 for the C5, esptool's
 /// IMAGE_CHIP_ID), the revisions it runs on ("esp.minRevFull", "esp.maxRevFull") and the SPI flash's mode
@@ -76,6 +76,17 @@ public sealed class EspImageFormat : IImageFormat
             }
 
             segments.Add(new EspSegment(segment.PhysicalAddress, segment.Data));
+        }
+
+        // as esptool does: in address order, the segments that touch are one (the code and the .data right after it)
+        segments = [.. segments.OrderBy(s => s.Address)];
+        for (var i = segments.Count - 1; i > 0; i--)
+        {
+            if ((ulong)segments[i - 1].Address + (ulong)segments[i - 1].Data.Length == segments[i].Address)
+            {
+                segments[i - 1] = new EspSegment(segments[i - 1].Address, [.. segments[i - 1].Data, .. segments[i].Data]);
+                segments.RemoveAt(i);
+            }
         }
 
         if (segments.Count == 0)
