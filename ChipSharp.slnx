@@ -35,6 +35,8 @@
     <Project Path="src/ChipSharp.Runtime.ArmV6M/ChipSharp.Runtime.ArmV6M.csproj" />
     <Project Path="src/ChipSharp.Runtime.Atmega328p/ChipSharp.Runtime.Atmega328p.csproj" />
     <Project Path="src/ChipSharp.Runtime.Avr/ChipSharp.Runtime.Avr.csproj" />
+    <Project Path="src/ChipSharp.Runtime.Pdk14/ChipSharp.Runtime.Pdk14.csproj" />
+    <Project Path="src/ChipSharp.Runtime.Pfs154/ChipSharp.Runtime.Pfs154.csproj" />
     <Project Path="src/ChipSharp.Runtime.Rp2040/ChipSharp.Runtime.Rp2040.csproj" />
     <Project Path="src/ChipSharp.Runtime.Stm8/ChipSharp.Runtime.Stm8.csproj" />
     <Project Path="src/ChipSharp.Runtime.Stm8s103/ChipSharp.Runtime.Stm8s103.csproj" />

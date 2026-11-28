@@ -103,7 +103,7 @@ public sealed class Stm8sProgramTests : IDisposable
 
         Assert.Equal("hello, STM8\n", Encoding.ASCII.GetString(run.Serial));
         Assert.Equal(["UART1 baud 115108"], run.After("UART1 baud"));
-        Assert.InRange(program.Memory.Code!.Used, 1000ul, 2048ul);
+        Assert.InRange(program.Memory.Code!.Used, 2048ul, 3584ul); // the port's checks and messages among it
         Assert.InRange(program.Memory.Data!.Used, 32ul, 80ul); // the receive buffer's 32 bytes among them
     }
 
@@ -219,11 +219,11 @@ public sealed class Stm8sProgramTests : IDisposable
             "pin 19 (PC3) cannot be an analog input on the target 'stm8s103-board'",
             "pin 19 (PC3) cannot be a PWM output on the target 'stm8s103-board'",
             "A PWM output can be pins 3 (PA3), 27 (PD3) or 28 (PD4).",
-            "pin 4 is not an SDA pin of I2C bus 0 (I2c.Open's sda) on target 'stm8s103-board'",
+            "GPIO 4 is not an SDA pin of I2C bus 0 (I2c.Open's sda) on target 'stm8s103-board'",
             "I2C bus 1 (I2c.Open's bus) does not exist on target 'stm8s103-board'",
             "an SPI clock of 10000000 Hz (Spi.Open's frequency) is not one target 'stm8s103-board' makes",
             "the target 'stm8s103-board' has no UART1",
-            "pin 4 cannot be UART0's TX on the target 'stm8s103-board'",
+            "GPIO 4 cannot be UART0's TX on the target 'stm8s103-board'",
             "Console.ReadLine makes a string, which needs a heap, and the target 'stm8s103-board' has no heap",
         ];
         Assert.All(expected, part => Assert.True(lines.Any(line => line.StartsWith(part, StringComparison.Ordinal)

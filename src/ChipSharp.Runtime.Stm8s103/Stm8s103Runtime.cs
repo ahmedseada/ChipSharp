@@ -108,5 +108,5 @@ public sealed class Stm8s103Runtime : IArchRuntime
 
     /// <summary>One of this runtime's files by name, e.g. <see cref="UartFileName"/>.</summary>
     public static GeneratedFile Source(string fileName) =>
-        new(fileName, EmbeddedText.Read(typeof(Stm8s103Runtime), fileName));
+        new(fileName, EmbeddedText.Read(typeof(Stm8s103Runtime), fileName)) { Library = true };
 }

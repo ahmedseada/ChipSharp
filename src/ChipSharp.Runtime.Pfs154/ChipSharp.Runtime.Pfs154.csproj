@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The runtime of Padauk PFS154 programs: the clock's set-up and easypdkprog's calibration marker, the pins, the delays,
+       the clock, the timer and pin events, PWM and Registers; on top of the PDK14 runtime -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+    <ProjectReference Include="..\ChipSharp.Runtime.Pdk14\ChipSharp.Runtime.Pdk14.csproj" />
+    <!-- EmbeddedText, which the ARMv6-M runtime ships and the others share -->
+    <ProjectReference Include="..\ChipSharp.Runtime.ArmV6M\ChipSharp.Runtime.ArmV6M.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- the chip's registers, interrupts and pins, which ChipSharp.Chips writes from chips/pfs154.json -->
+    <EmbeddedResource Include="..\ChipSharp.Chips\Generated\pfs154_registers.h" LogicalName="pfs154_registers.h" />
+    <EmbeddedResource Include="..\ChipSharp.Chips\Generated\pfs154_interrupts.h" LogicalName="pfs154_interrupts.h" />
+    <EmbeddedResource Include="..\ChipSharp.Chips\Generated\pfs154_pins.h" LogicalName="pfs154_pins.h" />
+    <EmbeddedResource Include="pfs154_runtime.h" LogicalName="pfs154_runtime.h" />
+    <EmbeddedResource Include="pfs154_startup.c" LogicalName="pfs154_startup.c" />
+    <EmbeddedResource Include="pfs154_pin.s" LogicalName="pfs154_pin.s" />
+    <EmbeddedResource Include="pfs154_pin_output.s" LogicalName="pfs154_pin_output.s" />
+    <EmbeddedResource Include="pfs154_pin_input.s" LogicalName="pfs154_pin_input.s" />
+    <EmbeddedResource Include="pfs154_pin_write.s" LogicalName="pfs154_pin_write.s" />
+    <EmbeddedResource Include="pfs154_pin_toggle.s" LogicalName="pfs154_pin_toggle.s" />
+    <EmbeddedResource Include="pfs154_pin_read.s" LogicalName="pfs154_pin_read.s" />
+    <EmbeddedResource Include="pfs154_t16.s" LogicalName="pfs154_t16.s" />
+    <EmbeddedResource Include="pfs154_delay_milliseconds.s" LogicalName="pfs154_delay_milliseconds.s" />
+    <EmbeddedResource Include="pfs154_delay_microseconds.s" LogicalName="pfs154_delay_microseconds.s" />
+    <EmbeddedResource Include="pfs154_clock.s" LogicalName="pfs154_clock.s" />
+    <EmbeddedResource Include="pfs154_tick_count.s" LogicalName="pfs154_tick_count.s" />
+    <EmbeddedResource Include="pfs154_elapsed.s" LogicalName="pfs154_elapsed.s" />
+    <EmbeddedResource Include="pfs154_date.s" LogicalName="pfs154_date.s" />
+    <EmbeddedResource Include="pfs154_timer.s" LogicalName="pfs154_timer.s" />
+    <EmbeddedResource Include="pfs154_pin_event.s" LogicalName="pfs154_pin_event.s" />
+    <EmbeddedResource Include="pfs154_pwm.s" LogicalName="pfs154_pwm.s" />
+    <EmbeddedResource Include="pfs154_register_read.s" LogicalName="pfs154_register_read.s" />
+    <EmbeddedResource Include="pfs154_register_write.s" LogicalName="pfs154_register_write.s" />
+  </ItemGroup>
+</Project>

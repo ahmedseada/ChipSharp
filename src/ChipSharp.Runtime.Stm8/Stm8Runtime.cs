@@ -9,8 +9,9 @@ namespace ChipSharp.Runtime.Stm8;
 /// <summary>
 /// The runtime parts every STM8 chip (STM8S, STM8L, STM8AF) shares, as freestanding C that SDCC compiles with the
 /// program (the toolchain "sdcc": sdcc -mstm8). SDCC's linker takes an object whole, but a library's modules only when
-/// the program uses them, and the toolchain makes the runtime's objects a library; so the runtime is made of small
-/// modules, and a file whose parts a program may use one without the other is cut into modules (<see cref="Modules"/>):
+/// the program uses them, and every file of the runtime but the start-up is a <see cref="GeneratedFile.Library"/> file,
+/// which the toolchain puts in the program's library; so the runtime is made of small modules, and a file whose parts a
+/// program may use one without the other is cut into modules (<see cref="Modules"/>):
 /// <list type="bullet">
 /// <item><see cref="HardwareContract.HeaderFileName"/>: the hardware contract (src/ChipSharp.Runtime.Shared), which every
 /// runtime C file includes; and <see cref="HeaderFileName"/>, the fixed-width types and the interrupts' helpers the
@@ -138,7 +139,7 @@ public sealed class Stm8Runtime : IArchRuntime
         return new GeneratedFile($"stm8_isr_irq{number.ToString(CultureInfo.InvariantCulture)}.c",
             $"// ChipSharp runtime for STM8 chips: the entry of the program's [Interrupt] method of interrupt {number}, " +
             "empty, for a\n// program that has none (the linker takes this module only then). Written by the stm8 " +
-            $"runtime.\n\nvoid {symbol}(void)\n{{\n}}\n");
+            $"runtime.\n\nvoid {symbol}(void)\n{{\n}}\n") { Library = true };
     }
 
     /// <summary>
@@ -179,7 +180,7 @@ public sealed class Stm8Runtime : IArchRuntime
                 .Append(", which the stm8 runtime cuts into modules.\n#define CHIPSHARP_MODULES 1\n\n")
                 .Append(prelude).Append('\n')
                 .Append(string.Join('\n', lines[(start + 1)..end]).TrimEnd()).Append('\n');
-            modules.Add(new GeneratedFile($"{stem}_{name}.c", text.ToString()));
+            modules.Add(new GeneratedFile($"{stem}_{name}.c", text.ToString()) { Library = file.Library });
             start = end;
         }
 
@@ -190,5 +191,6 @@ public sealed class Stm8Runtime : IArchRuntime
     /// One of this runtime's files by name, its own or one of src/ChipSharp.Runtime.Shared it ships, e.g.
     /// <see cref="HaltFileName"/>.
     /// </summary>
-    public static GeneratedFile Source(string fileName) => new(fileName, EmbeddedText.Read(typeof(Stm8Runtime), fileName));
+    public static GeneratedFile Source(string fileName) =>
+        new(fileName, EmbeddedText.Read(typeof(Stm8Runtime), fileName)) { Library = fileName != StartupFileName };
 }

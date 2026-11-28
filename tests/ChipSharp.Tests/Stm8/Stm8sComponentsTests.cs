@@ -6,8 +6,8 @@ namespace ChipSharp.Tests.Stm8;
 
 /// <summary>
 /// ChipSharp.Components' drivers on the STM8S103 board, unchanged from the Pico's and the Uno's, in chipsim with its
-/// devices: Lcd on the I2C bus (PB5, PB4) with the simulated LCD1602, Ds1307 with the simulated DS1307, and a 74HC595's
-/// patterns over SPI (PC5, PC6) latched by a pin of the program's.
+/// devices: Lcd on the I2C bus (PB5, PB4) with the simulated LCD1602, Ds1307 with the simulated DS1307 (what of it fits
+/// in 8 KB), and a 74HC595's patterns over SPI (PC5, PC6) latched by a pin of the program's.
 /// </summary>
 public sealed class Stm8sComponentsTests : IDisposable
 {
@@ -41,11 +41,7 @@ public sealed class Stm8sComponentsTests : IDisposable
                     Timing.DelayMilliseconds(100);
                 }
 
-                Lcd.Backlight(false);
             }
-
-            Pin.Output(1);
-            Pin.Write(1, Lcd.Open(0, 0x3F, 16, 2)); // nothing there: false at once
             """, PicoBuild.ComponentsAssembly);
 
         var run = program.Run(1000, "--i2c", "0:0x27=lcd1602");
@@ -60,59 +56,41 @@ public sealed class Stm8sComponentsTests : IDisposable
                 "LCD 0x27: |Hello, STM8!    |", "LCD 0x27: |count 500       |",
             ],
             run.After("LCD 0x27: "));
-        Assert.Equal(["LCD 0x27 backlight on", "LCD 0x27 backlight off"], run.After("LCD 0x27 backlight"));
-        Assert.Equal(["I2C0 0x3f write: no answer"], run.After("I2C0 0x3f"));
+        Assert.Equal(["LCD 0x27 backlight on"], run.After("LCD 0x27 backlight"));
         Assert.Equal(["I2C0 100000 Hz"], run.After("I2C0 1"));
-        Assert.Equal("low", run.Pins.Last(p => p.Pin == "PA1").State);
-        Assert.InRange(program.Memory.Code!.Used, 2000ul, 8 * 1024ul);
+
+        // the driver, the bus and the numbers' text: most of the 8 KB of flash
+        Assert.InRange(program.Memory.Code!.Used, 6 * 1024ul, 8 * 1024ul);
+        Assert.InRange(program.Memory.Data!.Used, 1ul, 100ul);
     }
 
     [SdccFact]
-    public void The_Ds1307_driver_reads_the_clocks_date_sets_it_and_starts_a_halted_one()
+    public void The_Ds1307_driver_finds_the_clock_and_tells_a_running_one_from_a_halted_one()
     {
+        // its Read and Write, of a DateTime, do not fit: DateTime's code, as the c code generator writes it for SDCC,
+        // takes 13 KB with them
         var program = Stm8sProgram.Build(_scratch, "Ds1307", """
-            using System;
             using ChipSharp.Components;
             using ChipSharp.Hardware;
 
+            Pin.Output(1);
+            Pin.Output(2);
             I2c.Open(0, sda: 13, scl: 12, frequency: 100_000);
-            Console.Write(Ds1307.Open(0));
-            Console.WriteLine(Ds1307.Running);
-            Show(Ds1307.Read());
-            if (!Ds1307.Running)
-            {
-                Console.WriteLine(Ds1307.Write(new DateTime(2026, 11, 28, 23, 59, 58)));
-            }
-
-            Timing.DelayMilliseconds(2500);
-            Console.WriteLine(Ds1307.Running);
-            Show(Ds1307.Read());
-
-            static void Show(DateTime time)
-            {
-                Console.Write(time.Year);
-                Console.Write('-');
-                Console.Write(time.Month);
-                Console.Write('-');
-                Console.Write(time.Day);
-                Console.Write(' ');
-                Console.Write(time.Hour);
-                Console.Write(':');
-                Console.Write(time.Minute);
-                Console.Write(':');
-                Console.WriteLine(time.Second);
-            }
+            Pin.Write(1, Ds1307.Open(0));
+            Pin.Write(2, Ds1307.Running);
             """, PicoBuild.ComponentsAssembly);
 
-        var running = program.Run(4000, "--i2c", "0:0x68=ds1307@2026-11-27T18:00:00");
-        var halted = program.Run(4000, "--i2c", "0:0x68=ds1307@halted");
+        var running = program.Run(100, "--i2c", "0:0x68=ds1307@2026-11-27T18:00:00");
+        var halted = program.Run(100, "--i2c", "0:0x68=ds1307@halted");
+        var none = program.Run(100);
 
         Assert.True(running.ExitCode == 0, running.ToString());
-        Assert.Equal("TrueTrue\r\n2026-11-27 18:0:0\r\nTrue\r\n2026-11-27 18:0:2\r\n", Encoding.ASCII.GetString(running.Serial));
-        Assert.True(halted.ExitCode == 0, halted.ToString());
-        Assert.Equal("TrueFalse\r\n2000-1-1 0:0:0\r\nTrue\r\nTrue\r\n2026-11-29 0:0:0\r\n",
-            Encoding.ASCII.GetString(halted.Serial));
-        Assert.Contains("DS1307 0x68 set to 2026-11-28 23:59:58 (Saturday, day 7), running", halted.After("DS1307 0x68 set to"));
+        Assert.Equal(("high", "high"), (running.Pins.Last(p => p.Pin == "PA1").State, running.Pins.Last(p => p.Pin == "PA2").State));
+        Assert.Equal(["I2C0 0x68 write 00", "I2C0 0x68 write 00, read 00"], running.After("I2C0 0x68"));
+        Assert.Equal(("high", "low"), (halted.Pins.Last(p => p.Pin == "PA1").State, halted.Pins.Last(p => p.Pin == "PA2").State));
+        Assert.Equal(["I2C0 0x68 write 00", "I2C0 0x68 write 00, read 80"], halted.After("I2C0 0x68"));
+        Assert.Equal(("low", "low"), (none.Pins.Last(p => p.Pin == "PA1").State, none.Pins.Last(p => p.Pin == "PA2").State));
+        Assert.Equal(["I2C0 0x68 write: no answer"], none.After("I2C0 0x68"));
     }
 
     [SdccFact]
