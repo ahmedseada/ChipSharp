@@ -9,6 +9,7 @@
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="esp32c5_boot.c" LogicalName="esp32c5_boot.c" />
+    <EmbeddedResource Include="esp32c5_app_desc.c" LogicalName="esp32c5_app_desc.c" />
     <EmbeddedResource Include="esp32c5_chip.h" LogicalName="esp32c5_chip.h" />
     <EmbeddedResource Include="esp32c5_runtime.c" LogicalName="esp32c5_runtime.c" />
     <EmbeddedResource Include="esp32c5_interrupts.c" LogicalName="esp32c5_interrupts.c" />

@@ -70,7 +70,10 @@
   "link": {
     "code": "sram",
     "data": "sram",
-    "stack": "16K"
+    "stack": "16K",
+    // ESP-IDF's application description, esp_app_desc_t, the first 256 bytes of the first segment (esp32c5_app_desc.c): the
+    // second-stage bootloader reads it there (see "esp" below)
+    "head": [ { "section": ".esp_app_desc", "size": 256 } ]
   },
   // the entries of the trap entry's table (riscv32 runtime): the CLIC's 48 interrupt ids, chipsharp_isr_irq0 to 47
   "vectors": 48,
