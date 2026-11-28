@@ -37,7 +37,7 @@ while (true)
 
     Timing.DelayMilliseconds(20);                  // one pulse at each angle
     angle += step;
-    if (angle >= 180 || angle <= 0)
+    if (angle == 180 || angle == 0)
     {
         step = -step;
     }

@@ -20,8 +20,11 @@ namespace ChipSharp.Tests.Esp32c5;
 /// </summary>
 public sealed partial class Esp32c5ExampleTests(ITestOutputHelper output) : IDisposable
 {
-    /// <summary>The pins the board file leaves a program: what <c>chipsharp check</c> accepts.</summary>
-    private static readonly int[] FreePins = [0, 1, 4, 5, 6, 8, 9, 10, 23, 24];
+    /// <summary>
+    /// The pins the board file leaves a program that the examples use: what <c>chipsharp check</c> accepts (2, 3, 11 and 12 are
+    /// the LCD traffic light's segments: strapping and UART bridge pins, see its README).
+    /// </summary>
+    private static readonly int[] FreePins = [0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 23, 24];
 
     private readonly string _scratch = Path.Combine(Path.GetTempPath(), "chipsharp-tests", Guid.NewGuid().ToString("N"));
 
@@ -172,6 +175,162 @@ public sealed partial class Esp32c5ExampleTests(ITestOutputHelper output) : IDis
     }
 
     /// <summary>
+    /// What PicoTrafficLightLcd prints in its simulator (rp2040js, the owner's simulate.ps1: the button pressed at 2.5 s,
+    /// 15.5 s run): the serial port's lines and the LCD's screen, each time it changes.
+    /// </summary>
+    private static readonly string[] PicoConsole =
+    [
+        "road : 1",
+        "    green 4",
+        "    green 3",
+        "    green 2",
+        "lane : 1 interrupted, move to lane 2",
+        "    yellow 1",
+        "    red 2",
+        "    red 1",
+        "road : 2",
+        "    green 4",
+        "    green 3",
+        "    green 2",
+        "    green 1",
+        "    yellow 1",
+        "    red 2",
+        "    red 1",
+        "road : 1",
+        "    green 4",
+    ];
+
+    private static readonly string[] PicoLcd =
+    [
+        "LCD 0x27: |Road 1   turn 8s|",
+        "LCD 0x27: |green         4s|",
+        "LCD 0x27: |Road 1   turn 7s|",
+        "LCD 0x27: |green         3s|",
+        "LCD 0x27: |Road 1   turn 6s|",
+        "LCD 0x27: |green         2s|",
+        "LCD 0x27: |Road 1   turn 4s|",
+        "LCD 0x27: |yellow        1s|",
+        "LCD 0x27: |Road 1   turn 3s|",
+        "LCD 0x27: |red           2s|",
+        "LCD 0x27: |Road 1   turn 2s|",
+        "LCD 0x27: |red           1s|",
+        "LCD 0x27: |Road 1   turn 1s|",
+        "LCD 0x27: |switching       |",
+        "LCD 0x27: |Road 2   turn 8s|",
+        "LCD 0x27: |green         4s|",
+        "LCD 0x27: |Road 2   turn 7s|",
+        "LCD 0x27: |green         3s|",
+        "LCD 0x27: |Road 2   turn 6s|",
+        "LCD 0x27: |green         2s|",
+        "LCD 0x27: |Road 2   turn 5s|",
+        "LCD 0x27: |green         1s|",
+        "LCD 0x27: |Road 2   turn 4s|",
+        "LCD 0x27: |yellow        1s|",
+        "LCD 0x27: |Road 2   turn 3s|",
+        "LCD 0x27: |red           2s|",
+        "LCD 0x27: |Road 2   turn 2s|",
+        "LCD 0x27: |red           1s|",
+        "LCD 0x27: |Road 2   turn 1s|",
+        "LCD 0x27: |switching       |",
+        "LCD 0x27: |Road 1   turn 8s|",
+        "LCD 0x27: |green         4s|",
+    ];
+
+    /// <summary>
+    /// The owner's LCD traffic light, its Pico program with only the pins and the I2C bus changed, runs 15.5 s with the
+    /// button on GPIO 10 pressed at 2.5 s, during lane 1's green: its console lines and each text its LCD shows are
+    /// those the Pico version prints; the lights, the heartbeat and the turn display are on the pins the README says.
+    /// </summary>
+    [PicoFact]
+    [RunsLong]
+    public async Task The_LCD_traffic_light_prints_and_shows_what_the_Pico_version_does()
+    {
+        var example = await BuildAsync("esp32c5-lcd-traffic-light");
+
+        var run = Run(example, 15_500, "--i2c", "0:0x27=lcd1602", "--input", "GPIO10=high@2500ms", "--input", "GPIO10=low@2700ms");
+
+        // the same lines and the same screens, in the same order, as the Pico's
+        Assert.Equal(PicoConsole, Text(run).Split("\r\n", StringSplitOptions.RemoveEmptyEntries));
+        Assert.Equal(PicoLcd, run.After("LCD 0x27: "));
+        Assert.Contains(run.Pins, p => p is { Pin: "GPIO10", State: "input pull-down" });
+
+        // the press at 2.5 s cuts the green, as on the Pico
+        var times = run.Times("USB: lane : 1 interrupted");
+        Assert.Single(times);
+        Assert.InRange(times[0], 2500, 2515);
+
+        // the signal: lane 1 green on GPIO 9, then yellow (8), red (6); the heartbeat (23) toggles every 500 ms
+        Assert.True(IsHigh(run.Pins, "GPIO9", 1000) && !IsHigh(run.Pins, "GPIO6", 1000), $"{example}\n{run}");
+        Assert.True(IsHigh(run.Pins, "GPIO8", 3000) && !IsHigh(run.Pins, "GPIO9", 3000), $"{example}\n{run}");
+        Assert.True(IsHigh(run.Pins, "GPIO6", 5000) && !IsHigh(run.Pins, "GPIO8", 5000), $"{example}\n{run}");
+        Assert.True(IsHigh(run.Pins, "GPIO9", 8000), $"{example}\n{run}");
+        var heartbeat = Led(run, 23);
+        Assert.InRange(heartbeat.Count, 30, 32);
+        Assert.InRange(heartbeat[2].Milliseconds - heartbeat[1].Milliseconds, 499.9, 500.2);
+
+        // the turn display (A to G on GPIO 0, 1, 2, 3, 11, 12, 24) at 1 s into lane 1's turn shows 7: 0x07 is A, B and C
+        var segments = new[] { 0, 1, 2, 3, 11, 12, 24 };
+        Assert.Equal(
+            [true, true, true, false, false, false, false],
+            segments.Select(pin => IsHigh(run.Pins, "GPIO" + pin.ToString(CultureInfo.InvariantCulture), 1500)).ToArray());
+    }
+
+    /// <summary>The servo on GPIO 6 sweeps 0 to 180 degrees and back: pulses of 1 to 2 ms, 50 times a second.</summary>
+    [PicoFact]
+    [RunsLong]
+    public async Task The_servo_sweeps_with_pulses_of_1_to_2_ms_at_50_Hz_on_GPIO6()
+    {
+        var example = await BuildAsync("esp32c5-servo");
+
+        var run = Run(example, 3800);
+
+        Assert.Equal(
+            "servo at 0 degrees: pulse 1000 us\r\nservo at 30 degrees: pulse 1166 us\r\nservo at 60 degrees: pulse 1333 us\r\n" +
+            "servo at 90 degrees: pulse 1500 us\r\nservo at 120 degrees: pulse 1666 us\r\nservo at 150 degrees: pulse 1833 us\r\n" +
+            "servo at 180 degrees: pulse 2000 us\r\nservo at 150 degrees: pulse 1833 us\r\nservo at 120 degrees: pulse 1666 us\r\n" +
+            "servo at 90 degrees: pulse 1500 us\r\nservo at 60 degrees: pulse 1333 us\r\nservo at 30 degrees: pulse 1166 us\r\n" +
+            "servo at 0 degrees: pulse 1000 us\r\n",
+            Text(run));
+
+        // the pin's measured pulses: 50 Hz, from 1 ms up to 2 ms
+        var pulses = run.After("GPIO6 PWM").Select(line => PulseLine().Match(line)).Where(m => m.Success).ToList();
+        Assert.NotEmpty(pulses);
+        Assert.All(pulses, m => Assert.InRange(double.Parse(m.Groups["hz"].Value, CultureInfo.InvariantCulture), 49.9, 50.2));
+        var lengths = pulses.Select(m => double.Parse(m.Groups["us"].Value, CultureInfo.InvariantCulture)).ToList();
+        Assert.InRange(lengths.Min(), 990, 1010);
+        Assert.InRange(lengths.Max(), 1990, 2010);
+    }
+
+    /// <summary>
+    /// The clock reads the DS1307's date (halted: the program sets one), shows the date and the time on the LCD and
+    /// counts the seconds from its own clock.
+    /// </summary>
+    [PicoFact]
+    [RunsLong]
+    public async Task The_LCD_clock_shows_the_DS1307s_date_and_time_each_second()
+    {
+        var example = await BuildAsync("esp32c5-lcd-clock");
+
+        var running = Run(example, 3500, "--i2c", "0:0x27=lcd1602", "--i2c", "0:0x68=ds1307@2026-11-27T18:00:00");
+        var halted = Run(example, 2500, "--i2c", "0:0x27=lcd1602", "--i2c", "0:0x68=ds1307@halted");
+        var noLcd = Run(example, 500);
+
+        Assert.Equal("The time from the DS1307: 2026-11-27 18:00:00\r\n", Text(running));
+        Assert.Equal(
+            [
+                "|Fri 27 Nov 2026 |", "|18:00:00        |", "|Fri 27 Nov 2026 |", "|18:00:01        |",
+                "|Fri 27 Nov 2026 |", "|18:00:02        |", "|Fri 27 Nov 2026 |", "|18:00:03        |",
+            ],
+            running.After("LCD 0x27: ").Select(line => line[10..]));
+        var seconds = running.Times("LCD 0x27: |18:00");
+        Assert.InRange(seconds[1] - seconds[0], 999, 1002);
+
+        Assert.Equal("No DS1307 running: the clock starts at 2026-11-27 18:00:00\r\n", Text(halted));
+        Assert.Equal("|18:00:02        |", halted.After("LCD 0x27: ")[^1][10..]);
+        Assert.Equal("No LCD answers at 0x27: check its wiring.\r\n", Text(noLcd));
+    }
+
+    /// <summary>
     /// Each example has a README with the build, flash and chipsim commands, a Wokwi circuit that wires only the pins
     /// the program uses (directly: LEDs from their pin to GND), and a program of the portable API alone on pins the
     /// board leaves a program.
@@ -179,7 +338,7 @@ public sealed partial class Esp32c5ExampleTests(ITestOutputHelper output) : IDis
     [Fact]
     public void Each_example_has_a_README_a_circuit_and_a_program_of_the_portable_API_on_free_pins()
     {
-        Assert.Equal(["esp32c5-blink", "esp32c5-button", "esp32c5-classes", "esp32c5-serial", "esp32c5-timer-blink"],
+        Assert.Equal(["esp32c5-blink", "esp32c5-button", "esp32c5-classes", "esp32c5-lcd-clock", "esp32c5-lcd-traffic-light", "esp32c5-serial", "esp32c5-servo", "esp32c5-timer-blink"],
             Examples());
         foreach (var example in Examples())
         {
@@ -206,7 +365,7 @@ public sealed partial class Esp32c5ExampleTests(ITestOutputHelper output) : IDis
                 foreach (var end in new[] { from, to }.Where(end => end.StartsWith("esp:", StringComparison.Ordinal)))
                 {
                     var name = end["esp:".Length..];
-                    Assert.True(name.StartsWith("GND.", StringComparison.Ordinal) ||
+                    Assert.True(name.StartsWith("GND.", StringComparison.Ordinal) || name is "5V" or "3V3" ||
                         FreePins.Contains(int.Parse(name, CultureInfo.InvariantCulture)), $"{example}: {end}");
                 }
             }
@@ -282,6 +441,9 @@ public sealed partial class Esp32c5ExampleTests(ITestOutputHelper output) : IDis
     [
         .. ProjectReference().Matches(File.ReadAllText(project)).Select(match => match.Groups["name"].Value),
     ];
+
+    [GeneratedRegex(@"PWM (?<hz>[\d.]+) Hz, duty [\d.]+% \((?<us>[\d.]+) us high\)")]
+    private static partial Regex PulseLine();
 
     [GeneratedRegex(@"^SRAM \d+(\.\d)? KB( \+ heap \d+ KB)? of 369\.4 KB \(\d+\.\d%\) \(stack 16 KB reserved\)$")]
     private static partial Regex MemoryReport();
