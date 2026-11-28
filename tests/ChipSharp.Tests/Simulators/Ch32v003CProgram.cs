@@ -296,14 +296,15 @@ internal sealed class Ch32v003CProgram
 
     /// <summary>
     /// Builds main.c (<paramref name="source"/>), report.c, soft.c and <paramref name="assembly"/> (more.S), in
-    /// <paramref name="folder"/>, for <paramref name="march"/>.
+    /// <paramref name="folder"/>, for <paramref name="march"/>, with <see cref="StartUp"/> and <see cref="LinkerScript"/>
+    /// unless <paramref name="startUp"/> and <paramref name="linkerScript"/> are others.
     /// </summary>
     public static async Task<Ch32v003CProgram> BuildAsync(string source, string folder, string? assembly = null,
-        string march = "rv32ec_zicsr")
+        string march = "rv32ec_zicsr", string? startUp = null, string? linkerScript = null)
     {
         Directory.CreateDirectory(folder);
-        await File.WriteAllTextAsync(Path.Combine(folder, "start.S"), StartUp);
-        await File.WriteAllTextAsync(Path.Combine(folder, "link.ld"), LinkerScript);
+        await File.WriteAllTextAsync(Path.Combine(folder, "start.S"), startUp ?? StartUp);
+        await File.WriteAllTextAsync(Path.Combine(folder, "link.ld"), linkerScript ?? LinkerScript);
         await File.WriteAllTextAsync(Path.Combine(folder, "ch32.h"), Header);
         await File.WriteAllTextAsync(Path.Combine(folder, "main.c"), source);
         await File.WriteAllTextAsync(Path.Combine(folder, "report.c"), Report);

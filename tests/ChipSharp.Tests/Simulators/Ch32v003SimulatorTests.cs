@@ -62,6 +62,143 @@ public sealed class Ch32v003SimulatorTests(ITestOutputHelper output) : IDisposab
         }
     }
 
+    /// <summary>
+    /// The start-up of ChipSharp's ch32v003 target (milestone M5, wave 0), in its shape: linked at 0x0800_0000, words 0 and
+    /// 1 lui and jalr to the start-up from 0, where the chip boots (the flash's alias); mtvec 0x0800_0003 (the table of
+    /// addresses at the flash itself, exceptions through entry 3); INTSYSCR 0 (no HPE, no nesting: a handler saves its
+    /// registers itself); gp; sp at 0x2000_0800; 48 MHz from the PLL with the flash's wait state; then main with
+    /// interrupts on. Its .bin from 0x0800_0000 (the image format bin's) runs as its ELF does.
+    /// </summary>
+    [Ch32v003Fact]
+    public async Task The_target_s_start_up_linked_at_0x08000000_runs_from_the_alias_at_0_and_its_table_at_the_flash()
+    {
+        const string startUp = """
+                .section .init, "ax"
+                .global _start
+                .option push
+                .option norvc
+            _start:
+                lui t0, %hi(reset)          /* 0 and 1: from the alias at 0 to the flash at 0x08000000 */
+                jalr zero, %lo(reset)(t0)
+                .word unexpected            /* 2 NMI */
+                .word unexpected            /* 3 EXC */
+                .fill 8, 4, 0
+                .word isr_systick           /* 12 */
+                .fill 26, 4, 0              /* 13-38 */
+                .option pop
+
+                .text
+                .weak isr_systick
+            isr_systick:
+            unexpected:
+                ebreak
+            reset:
+                .option push
+                .option norelax
+                la gp, __global_pointer$
+                .option pop
+                li sp, 0x20000800
+                la a0, __bss_start
+                la a1, __bss_end
+            1:  bgeu a0, a1, 2f
+                sw zero, 0(a0)
+                addi a0, a0, 4
+                j 1b
+            2:  li t0, 0x08000003
+                csrw mtvec, t0
+                csrw 0x804, zero
+                li a0, 0x40022000
+                li a1, 1
+                sw a1, 0(a0)                /* FLASH_ACTLR: LATENCY 1 */
+                li a0, 0x40021000
+                lw a1, 4(a0)
+                li a2, 0xFFFEFF0F
+                and a1, a1, a2
+                sw a1, 4(a0)                /* RCC_CFGR0: HPRE /1, PLLSRC HSI */
+                lw a1, 0(a0)
+                li a2, 0x01000000
+                or a1, a1, a2
+                sw a1, 0(a0)                /* RCC_CTLR: PLLON */
+            3:  lw a1, 0(a0)
+                srli a1, a1, 25
+                andi a1, a1, 1
+                beqz a1, 3b                 /* PLLRDY */
+                lw a1, 4(a0)
+                andi a1, a1, -4
+                ori a1, a1, 2
+                sw a1, 4(a0)                /* SW: the PLL */
+            4:  lw a1, 4(a0)
+                andi a1, a1, 0xC
+                li a2, 8
+                bne a1, a2, 4b              /* SWS: the PLL */
+                csrsi mstatus, 8
+                call main
+                .global halt
+            halt:
+                csrci mstatus, 8
+            5:  wfi
+                j 5b
+            """;
+        const string linkerScript = """
+            MEMORY
+            {
+              flash (rx) : ORIGIN = 0x08000000, LENGTH = 16K
+              ram (rwx) : ORIGIN = 0x20000000, LENGTH = 2K
+            }
+            ENTRY(_start)
+            SECTIONS
+            {
+              .init : { KEEP(*(.init)) } > flash
+              .text : { *(.text*) *(.rodata*) *(.srodata*) . = ALIGN(4); } > flash
+              .bss (NOLOAD) : { . = ALIGN(4); __bss_start = .; *(.bss*) *(.sbss*) *(COMMON) . = ALIGN(4); __bss_end = .; } > ram
+              __global_pointer$ = ORIGIN(ram) + 0x800;
+            }
+            """;
+        var program = await Ch32v003CProgram.BuildAsync("""
+            #include "ch32.h"
+            volatile uint32_t out;
+            volatile int count;
+            __attribute__((interrupt("machine"))) void isr_systick(void)
+            {
+                STK_SR = 0;
+                if (++count == 2) STK_CTLR = 0;
+            }
+            int main(void)
+            {
+                uint32_t mtvec, intsyscr;
+                __asm__ volatile("csrr %0, mtvec" : "=r"(mtvec));
+                __asm__ volatile("csrr %0, 0x804" : "=r"(intsyscr));
+                usart_init(48000000, 115200);
+                usart_print("up\n");
+                STK_CMPR = 48000 - 1;
+                STK_CTLR = 0xF;
+                PFIC_IENR(12) = 1u << 12;
+                while (count < 2) wait();
+                usart_flush();
+                out = mtvec;
+                report();
+                out = intsyscr;
+                report();
+                return 0;
+            }
+            """, _scratch, startUp: startUp, linkerScript: linkerScript);
+        Assert.Equal(0x0800_0000u, Ch32v003Image.Load(program.Elf).Symbols["_start"]);
+
+        foreach (var image in new[] { program.Elf, await program.ConvertAsync("binary") })
+        {
+            var reports = new List<uint>();
+            var run = program.Run(20, image: image, setUp: chip => chip.Hooks = new Dictionary<int, Action<SimulatedChip>>
+            {
+                [(int)program.Address("report")] = c => reports.Add(((Ch32v003Chip)c).Read(program.Address("out"), 4)),
+            });
+
+            Assert.True(run.ExitCode == 0 && run.Stopped.Contains("has finished", StringComparison.Ordinal), run.ToString());
+            Assert.Equal(["CPU clock 48 MHz"], run.After("CPU clock"));
+            Assert.Equal(["up"], run.SerialLines);
+            Assert.Equal([0x0800_0003u, 0], reports);
+        }
+    }
+
     [Ch32v003Fact]
     public async Task The_simulator_runs_millions_of_instructions_a_second()
     {

@@ -8,15 +8,15 @@ using ChipSharp.Tests.Pico;
 namespace ChipSharp.Tests.Conformance;
 
 /// <summary>
-/// The CH32V003 board (ch32v003-board, milestone M5) in ChipSharp's own simulator (chipsim's "ch32v003", in process),
-/// which loads the image the build makes (Intel HEX, .bin or ELF) into the flash and runs it from 0 as reset leaves the
-/// chip. Pins are numbered port × 8 + bit (PA1 1, PC0 16, PD5 29), as the target's "pinNames" name them when it has
+/// The CH32V003 board (ch32v003-evt, milestone M5) in ChipSharp's own simulator (chipsim's "ch32v003", in process),
+/// which loads the image the build makes (the image format bin, from 0x0800_0000; Intel HEX or ELF too) into the flash
+/// and runs it from 0 as reset leaves the chip. Pins are numbered port × 8 + bit (PA1 1, PC0 16, PD5 29), as the target's "pinNames" name them when it has
 /// them: the program's pins are on ports C and D away from what later waves need (USART1's PD5 and PD6, PD1 the debug
 /// pin SWIO, PD7 NRST, PA1 and PA2 a crystal's, I2C1's PC1 and PC2, SPI1's PC5-PC7); USART1 (PD5 TX, PD6 RX) is serial
 /// port 0 and the console. Its cases are skipped, saying why, while the target or the chip's runtime (one that
 /// implements the hardware contract: milestone M5, wave 1) is not in ChipSharp.
 /// </summary>
-internal sealed partial class Ch32v003ChipSimulator() : ChipSimulator("ch32v003-board")
+internal sealed partial class Ch32v003ChipSimulator() : ChipSimulator("ch32v003-evt")
 {
     private static readonly string[] Ports = ["A", "B", "C", "D"];
 
@@ -65,7 +65,7 @@ internal sealed partial class Ch32v003ChipSimulator() : ChipSimulator("ch32v003-
             PinOutputDefinition().IsMatch(file.Content))
             ? null
             : "The CH32V003's runtime does not implement the hardware contract yet (pins, the clock and the delays, the " +
-                "console on USART1, the events: milestone M5, wave 1): 'ch32v003-board' runs the conformance suite in " +
+                "console on USART1, the events: milestone M5, wave 1): 'ch32v003-evt' runs the conformance suite in " +
                 "chipsim's ch32v003 once it does.";
     }
 

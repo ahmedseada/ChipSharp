@@ -20,7 +20,7 @@ public sealed class ChipSimulatorTests : IDisposable
     [Fact]
     public void Every_chips_pins_are_its_targets_and_each_is_used_once()
     {
-        Assert.Equal(["pico", "uno", "pfs154-bare", "stm8s103-board", "esp32c5-devkitc", "ch32v003-board"],
+        Assert.Equal(["pico", "uno", "pfs154-bare", "stm8s103-board", "esp32c5-devkitc", "ch32v003-evt"],
             ChipSimulators.All.Select(chip => chip.Target));
         Assert.All(ChipSimulators.All.Where(chip => chip.TargetExists), chip =>
         {
@@ -77,7 +77,7 @@ public sealed class ChipSimulatorTests : IDisposable
     [Simulators.Ch32v003Fact]
     public async Task The_CH32V003_s_adapter_runs_an_image_in_chipsim_and_gives_its_pins_and_USART1_by_number()
     {
-        var chip = ChipSimulators.Get("ch32v003-board");
+        var chip = ChipSimulators.Get("ch32v003-evt");
         var program = await Simulators.Ch32v003CProgram.BuildAsync("""
             #include "ch32.h"
             int main(void)
