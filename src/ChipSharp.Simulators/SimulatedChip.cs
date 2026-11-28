@@ -51,6 +51,9 @@ public abstract class SimulatedChip
     /// <summary>How many bytes of program memory the image filled.</summary>
     public abstract int ImageBytes { get; }
 
+    /// <summary>The RAM, from data address 0.</summary>
+    public abstract byte[] Ram { get; }
+
     /// <summary>The address of the next instruction, as the chip's listings give it (in bytes).</summary>
     public abstract int ProgramCounter { get; }
 

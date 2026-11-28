@@ -71,6 +71,9 @@ public sealed class Stm8Cpu
     /// <summary>How the CPU sleeps (halt, wfi), or <see cref="Stm8Sleep.None"/>.</summary>
     public Stm8Sleep Sleep { get; set; }
 
+    /// <summary>The highest address the stack holds (the end of RAM): popping past it stops the run as a failure.</summary>
+    public int StackTop { get; set; } = 0xFFFF;
+
     /// <summary>Whether the program ran break.</summary>
     public bool BreakHit { get; set; }
 
@@ -999,6 +1002,12 @@ public sealed class Stm8Cpu
 
     private byte Pop()
     {
+        if (SP >= StackTop)
+        {
+            throw new ProgramFault(string.Create(CultureInfo.InvariantCulture,
+                $"the program popped more than it pushed, at pc 0x{_at:x4} (SP 0x{SP:x4}, the top of the stack): e.g. main returned"));
+        }
+
         SP++;
         return Read(SP);
     }

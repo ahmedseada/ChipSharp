@@ -115,6 +115,8 @@ public sealed class Pfs154 : SimulatedChip, IPdk14Io
     /// <summary>The CPU: its registers and RAM.</summary>
     public Pdk14Cpu Cpu => _cpu;
 
+    public override byte[] Ram => _cpu.Ram;
+
     /// <summary>The system clock's frequency, in hertz.</summary>
     public double SystemClockHertz => (double)TicksPerSecond / _ticksPerCycle;
 

@@ -6,7 +6,8 @@ namespace ChipSharp.Simulators.Stm8;
 /// An STM8S103F3 (the 20-pin package): the STM8 core (<see cref="Stm8Cpu"/>), 8 KB of flash at 0x8000, 1 KB of RAM at
 /// 0x0000 (SP starts at 0x03FF), 640 bytes of EEPROM at 0x4000 and the option bytes (read only: writing them, or flash,
 /// changes nothing), the I/O registers at 0x5000 and the CPU's and the ITC's at 0x7F00, as the datasheet maps them.
-/// Any other address stops the run as a failure.
+/// Writing any other address stops the run as a failure, and so does popping more than was pushed; reading one gives 0
+/// (SDCC's library reads such an address to skip two bytes: bcp a, longmem).
 /// <para>
 /// Peripherals: the ports (PA1-PA3, PB4-PB5 open-drain, PC3-PC7, PD1-PD6; ODR, IDR, DDR, CR1 for push-pull or pull-up,
 /// CR2 for the external interrupt) and EXTI (vectors 3-7, by EXTI_CR1/CR2's edges, the level mode included); the ITC
@@ -73,7 +74,7 @@ public sealed class Stm8s103 : SimulatedChip, IStm8Bus
         _flashLoaded = flash.Loaded;
         _eeprom = eeprom?.Bytes ?? new byte[EepromSize];
         _imageBytes = flash.Count + (eeprom?.Count ?? 0);
-        _cpu = new Stm8Cpu(this) { SP = RamSize - 1, PC = FlashStart };
+        _cpu = new Stm8Cpu(this) { SP = RamSize - 1, PC = FlashStart, StackTop = RamSize - 1 };
         _ports =
         [
             new GpioPort(this, 'A', 0x0E), new GpioPort(this, 'B', 0x30), new GpioPort(this, 'C', 0xF8),
@@ -148,7 +149,7 @@ public sealed class Stm8s103 : SimulatedChip, IStm8Bus
     public Stm8Cpu Cpu => _cpu;
 
     /// <summary>The RAM (0x0000-0x03FF).</summary>
-    public byte[] Ram => _ram;
+    public override byte[] Ram => _ram;
 
     /// <summary>fMASTER, in hertz.</summary>
     public double MasterClockHertz => (double)TicksPerSecond / _ticksPerMaster;
@@ -193,7 +194,8 @@ public sealed class Stm8s103 : SimulatedChip, IStm8Bus
             return (byte)(address - 0x4865 + 0x30); // the unique ID
         }
 
-        throw Outside("read", address);
+        // nothing there: SDCC's library reads such addresses on purpose (bcp a, 0xa601 skips the ld a, #1 it hides)
+        return 0;
     }
 
     public void Write(int address, byte value)
@@ -665,6 +667,5 @@ public sealed class Stm8s103 : SimulatedChip, IStm8Bus
 
     private ProgramFault Outside(string what, int address) => new(string.Create(CultureInfo.InvariantCulture,
         $"the program {what} 0x{address:x4}, where the STM8S103 has no memory, at pc 0x{_cpu.PC:x4} (SP 0x{_cpu.SP:x4}" +
-        $"{(address is >= RamSize and < RamSize + 16 && _cpu.SP >= RamSize - 1 ? ": past the top of the stack, more popped than pushed" : "")}" +
         $"{(address >= 0xFF00 && _cpu.SP >= 0xFF00 ? ": the stack has grown past the bottom of RAM" : "")})"));
 }
