@@ -42,8 +42,14 @@ internal static partial class BackendSkips
     public const string Other = "other";
 
     /// <summary>Why the whole-program pass does not take a program: a heap, or the first thing it says.</summary>
-    public static string Classify(AnalysisResult analysis) =>
-        analysis.Groups.All(group => NeedsHeap().IsMatch(group.Line)) ? Heap : "not supported: " + analysis.Groups[0].Line;
+    public static string Classify(AnalysisResult analysis)
+    {
+        // the check refuses the program's own double too (DoubleRules), where the C code generator refuses the rest
+        var others = analysis.Groups.Where(group => !group.Line.StartsWith("double (C#'s 64-bit floating point)", StringComparison.Ordinal)).ToList();
+        return others.Count == 0 ? Double
+            : others.All(group => NeedsHeap().IsMatch(group.Line)) ? Heap
+            : "not supported: " + others[0].Line;
+    }
 
     /// <summary>Why a build failed, by its message: <see cref="Other"/> for anything but a reason the target has.</summary>
     public static string Classify(string message) => message switch
@@ -97,6 +103,8 @@ internal static partial class BackendSkips
         "PrintedText/LoopsAndPlaces", "Spans/Bytes", "Spans/Copies", "Spans/Views", "StaticArrays/ElementTypes",
         "Structs/Floats", "Text/WriteAndWriteLine", "TimeSpan/Members", "Tuples/Basics", "Uno/Copies",
         "samples/Generics", "samples/PrintedText", "samples/TimeSpans",
+        // they call the runtime's float math too (FloatMath's reason), but the check finds their double first
+        "DateTime/Members", "DateTime/Text", "samples/FloatMath", "samples/MathFunctions",
     ];
 
     /// <summary>
@@ -107,8 +115,7 @@ internal static partial class BackendSkips
     [
         (Heap, WithObjects),
         (Double, WithDoubles),
-        (FloatMath, ["Chips/MathFunctions", "DateTime/Members", "DateTime/Text", "samples/FloatMath",
-            "samples/MathFunctions", "samples/Projectile"]),
+        (FloatMath, ["Chips/MathFunctions", "samples/Projectile"]),
         (FixedText, ["Uno/Text"]),
         (Addresses, ["Arrays/BigArrays"]),
     ];

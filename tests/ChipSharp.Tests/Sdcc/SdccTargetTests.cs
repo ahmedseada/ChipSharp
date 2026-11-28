@@ -142,7 +142,7 @@ public sealed class SdccTargetTests
         var pfs = SdccSettings.Read(SdccPrograms.Pfs154);
         var stm = SdccSettings.Read(SdccPrograms.Stm8s103);
 
-        Assert.Equal(("pdk14", "program", "ram", 16UL, 2UL), (pfs.Port, pfs.Code.Name, pfs.Data.Name, pfs.StackSize, pfs.CodeWordSize));
+        Assert.Equal(("pdk14", "program", "ram", 48UL, 2UL), (pfs.Port, pfs.Code.Name, pfs.Data.Name, pfs.StackSize, pfs.CodeWordSize));
         Assert.Equal(["--opt-code-size"], pfs.Flags);
         // the Padauk's code goes where SDCC puts it, after the vectors at words 0 and 0x10
         Assert.Empty(pfs.PlacementFlags);

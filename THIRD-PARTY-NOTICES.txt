@@ -10,6 +10,7 @@ its notice too. Each source file keeps its own copyright lines and license text 
   3. musl libc: math functions (MIT, with the notices of the code it derives from)
   4. AMD AOCL-LibM (aocl-libm-ose): math functions (BSD-3-Clause)
   5. .NET runtime (dotnet/runtime): library code ported to C# in ChipSharp.Library (MIT)
+  6. Espressif: the ESP32-C5's SVD file, and the headers made from it (Apache-2.0)
 
 
 1. LLVM compiler-rt
@@ -158,3 +159,25 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
 COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+6. Espressif: the ESP32-C5's SVD file
+-------------------------------------
+
+Where: chips/svd/esp32c5.svd, Espressif's SVD file of the ESP32-C5 ("ESP32-C5", version 1), unchanged, as esp-rs/esp-pacs
+keeps it (esp32c5/svd/esp32c5.base.svd, commit a96d437ebad40b00854aa3e78011ad7732713a4d): the chip's peripherals,
+registers, fields and interrupt sources, which src/ChipSharp.Chips reads; and the headers the tests make from it with
+chips/esp32c5.json (src/ChipSharp.Chips/Generated/esp32c5_*), which the ESP32-C5's runtime is compiled with. The file
+carries its own copyright line and license text (its licenseText).
+License: Apache License, Version 2.0 (SPDX: Apache-2.0).
+
+Copyright 2025 Espressif Systems (Shanghai) PTE LTD
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the
+License. You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific
+language governing permissions and limitations under the License.

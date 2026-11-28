@@ -53,8 +53,10 @@
     "code": "program",            // the reset vector (word 0), the interrupt vector (word 0x10), code and constants
     "data": "ram",                // the variables (after SDCC's pseudo-register p at 0-1), then the stack, growing up
     // RAM the variables must leave for the stack: 2 bytes a call, 8 the interrupt (its return and what the runtime's
-    // handler saves, pdk14_interrupt.s), 4 a C# int a handler's functions take (SDCC's __reentrant: on the stack)
-    "stack": "16"
+    // handler saves, pdk14_interrupt.s), 4 a C# int a handler's functions take (SDCC's __reentrant: on the stack).
+    // 48, not 16: the pfs154-traffic-light example measured about 48 when the timer event arrives while the program
+    // is writing a pin (calls from main, the pin write's own, then the interrupt and its handler's calls on top)
+    "stack": "48"
   },
   "image": "hex"                  // Intel HEX, SDCC's .ihx: what the Easy PDK programmer (easypdkprog) writes
 }

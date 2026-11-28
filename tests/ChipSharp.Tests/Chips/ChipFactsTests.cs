@@ -153,4 +153,34 @@ public sealed partial class ChipFactsTests
         Assert.Contains("XOSC_CTRL", checkedNames);
         Assert.True(checkedNames.Distinct().Count() >= 15, string.Join(", ", checkedNames.Distinct()));
     }
+
+    /// <summary>
+    /// The ESP32-C5's target file and its description agree: the program's SRAM is the chip's, up to where the ROM's stack
+    /// and data start; the trap dispatch has the CLIC's ids, and the events' are CPU interrupt lines (16 and up); the
+    /// pins are GPIO 0-28; the description is found from the target, and takes its registers from Espressif's SVD.
+    /// </summary>
+    [Fact]
+    public void The_ESP32_C5s_target_file_has_the_descriptions_SRAM_interrupt_ids_and_pins()
+    {
+        var target = ChipFiles.Targets.Load("esp32c5-devkitc");
+        var chip = ChipFiles.Read("esp32c5-devkitc");
+        ulong Constant(string name) => chip.Constants.Single(c => c.Name == name).Value;
+
+        Assert.Equal(Path.Combine(ChipFiles.Folder, "esp32c5.json"), ChipCatalog.FindFile(target, ChipFiles.Folder));
+        var sram = chip.Memory.Single(m => m.Name == "sram");
+        Assert.Equal(sram.Origin, target.Memory["sram"].Origin);
+        Assert.Equal(Constant("ROM_RESERVED_START"), target.Memory["sram"].End);
+        Assert.InRange(target.Memory["sram"].End, sram.Origin, sram.Origin + sram.Size);
+        Assert.Equal(Constant("CLIC_INTERRUPTS").ToString(CultureInfo.InvariantCulture), target.Setting("vectors"));
+        Assert.Equal(48, chip.Peripheral("CLIC")!.Registers.Count(r => r.Name.StartsWith("INT_CTRL", StringComparison.Ordinal)));
+        foreach (var (_, node) in target.Settings["interrupts"]!.AsObject())
+        {
+            Assert.InRange(node!["irq"]!.GetValue<int>(), (int)Constant("CLIC_EXT_INTR_NUM_OFFSET"), (int)Constant("CLIC_INTERRUPTS") - 1);
+        }
+
+        Assert.Equal(Enumerable.Range(0, 29), chip.Pins.Select(p => p.Number));
+        Assert.Equal("GPIO27", chip.Pins.Single(p => p.Number == int.Parse(target.Pins["RGB_LED"], CultureInfo.InvariantCulture)).Name);
+        Assert.Equal("rv32imac_zicsr_zifencei", target.Setting("march"));
+        Assert.StartsWith("RV32IMAC", Svd.Read(ChipFiles.Esp32c5Svd).Cpu, StringComparison.Ordinal);
+    }
 }

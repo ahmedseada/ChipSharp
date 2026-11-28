@@ -16,14 +16,20 @@ internal static class ChipFiles
     /// <summary>The environment variable that makes the generated headers' test write them instead of comparing them.</summary>
     public const string RegenerateVariable = "CHIPSHARP_REGENERATE";
 
-    /// <summary>The chips whose headers are generated and kept: the chip's target, built with SDCC.</summary>
-    public static IReadOnlyList<string> Generated { get; } = ["pfs154", "stm8s103f3"];
+    /// <summary>
+    /// The chips whose headers are generated and kept: the chip's target, built with SDCC (the PFS154, the STM8S103) or
+    /// with clang (the ESP32-C5, whose description takes its registers from Espressif's SVD).
+    /// </summary>
+    public static IReadOnlyList<string> Generated { get; } = ["pfs154", "stm8s103f3", "esp32c5"];
 
     public static string Folder => Path.Combine(Repository.Root, ChipCatalog.FolderName);
 
     public static string GeneratedFolder => Path.Combine(Repository.Root, "src", "ChipSharp.Chips", ChipCatalog.GeneratedFolderName);
 
     public static string Svd => Path.Combine(Folder, "svd", "RP2040.svd");
+
+    /// <summary>Espressif's SVD file of the ESP32-C5, which chips/esp32c5.json takes the registers from.</summary>
+    public static string Esp32c5Svd => Path.Combine(Folder, "svd", "esp32c5.svd");
 
     /// <summary>The description of the chip target <paramref name="name"/>, as the catalog finds it.</summary>
     public static ChipDescription Read(string name) =>

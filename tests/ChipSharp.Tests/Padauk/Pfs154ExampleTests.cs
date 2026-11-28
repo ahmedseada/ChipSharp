@@ -264,7 +264,7 @@ public sealed partial class Pfs154ExampleTests(ITestOutputHelper output) : IDisp
         .. ProjectReference().Matches(File.ReadAllText(project)).Select(match => match.Groups["name"].Value),
     ];
 
-    [GeneratedRegex(@"^program (?<words>\d+) words of 2048 words \(\d+\.\d%\), RAM (?<ram>\d+) bytes of 128 bytes \(stack 16 bytes reserved\)$")]
+    [GeneratedRegex(@"^program (?<words>\d+) words of 2048 words \(\d+\.\d%\), RAM (?<ram>\d+) bytes of 128 bytes \(stack 48 bytes reserved\)$")]
     private static partial Regex MemoryReport();
 
     [GeneratedRegex(@"<ProjectReference Include=""[^""]*\\(?<name>[^\\""]+)\.csproj""")]

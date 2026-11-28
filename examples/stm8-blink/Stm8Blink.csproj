@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Blinks the blue STM8S103F3P6 board's LED (PB5): build with ChipSharp for the target "stm8s103-board", flash the
+       .hex with chipsharp flash and an ST-LINK V2 -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ChipSharp.Hardware\ChipSharp.Hardware.csproj" />
+  </ItemGroup>
+</Project>

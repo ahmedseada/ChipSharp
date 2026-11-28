@@ -8,6 +8,7 @@ using ChipSharp.Image.Hex;
 using ChipSharp.Runtime.Pdk14;
 using ChipSharp.Runtime.Pfs154;
 using ChipSharp.Targets;
+using ChipSharp.Tests.CBackend;
 using ChipSharp.Tests.Conformance;
 using ChipSharp.Tests.Sdcc;
 using ChipSharp.Tests.Support;
@@ -317,7 +318,7 @@ public sealed class Pfs154RuntimeTests(ITestOutputHelper output) : IDisposable
             {
                 Pin.Toggle(9);
             }
-            """, "Clock");
+            """, "Clock", stack: "16"); // its 101 bytes of variables and the target's 48 for the stack outgrow the 128; the loop is shallow
 
         var run = await Pfs154.RunAsync(program.Ihx, new ChipStimulus(200));
 
@@ -333,15 +334,21 @@ public sealed class Pfs154RuntimeTests(ITestOutputHelper output) : IDisposable
     /// <summary>
     /// C# with ChipSharp.Hardware built for pfs154-bare as a build does (the whole-program pass, the c code generator,
     /// the runtime, the toolchain sdcc), SDCC's files kept: the .ihx, its map's symbols, what it takes of the chip, and
-    /// the library files linked.
+    /// the library files linked. <paramref name="stack"/> replaces the target's RAM for the stack (link.stack), for a
+    /// program that is shallow and needs the room.
     /// </summary>
-    private LinkedProgram Link(string source, string name)
+    private LinkedProgram Link(string source, string name, string? stack = null)
     {
         var folder = Path.Combine(_scratch, name);
         Directory.CreateDirectory(folder);
         var dll = Path.Combine(folder, name + ".dll");
         File.WriteAllBytes(dll, CSharpCompiler.Compile([source], [typeof(ChipSharp.Hardware.Pin).Assembly.Location], name));
         var target = Targets.Load("pfs154-bare");
+        if (stack is not null)
+        {
+            target = CSdcc.WithStack(target, stack);
+        }
+
         var module = ChipSharpBuilder.Translate(dll, target);
         var linked = module.UsesHeap ? target : target.WithoutHeap();
         var runtime = new Pfs154Runtime();

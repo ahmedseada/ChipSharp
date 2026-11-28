@@ -162,7 +162,7 @@ public sealed class CSimulatorTests : IDisposable
     public async Task A_program_through_C_prints_on_the_simulated_chip_what_dotnet_prints(string board, string name)
     {
         var source = name switch { nameof(Tiny) => Tiny, nameof(Small) => Small, _ => Longs };
-        var target = CSdcc.With(board == "pfs154-bare" ? CSdcc.Pfs154 : CSdcc.Stm8s103, "console", "true");
+        var target = CSdcc.With(board == "pfs154-bare" ? CSdcc.WithStack(CSdcc.Pfs154, "16") : CSdcc.Stm8s103, "console", "true");
         var (module, c) = CSdcc.Required(source, name, target);
         if (board == "pfs154-bare")
         {

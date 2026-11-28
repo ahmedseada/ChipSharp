@@ -33,9 +33,20 @@ public sealed partial class SdccMap
         "DATA", "INITIALIZED", "OSEG", "SSEG", "DABS", "PREG", "PREG2", "RSEG", "RSEG0",
     };
 
-    private SdccMap(IReadOnlyList<SdccArea> areas) => Areas = areas;
+    private SdccMap(IReadOnlyList<SdccArea> areas, IReadOnlyList<SdccFunction> functions)
+    {
+        Areas = areas;
+        Functions = functions;
+    }
 
     public IReadOnlyList<SdccArea> Areas { get; }
+
+    /// <summary>
+    /// The functions, the biggest first: a C symbol (leading underscore taken off) of the area CODE (or HOME), from
+    /// its address to the next symbol's or the end of its area, in bytes. SDCC's own symbols (s_CODE, l_CODE) and
+    /// the assembly's local labels are left out.
+    /// </summary>
+    public IReadOnlyList<SdccFunction> Functions { get; }
 
     /// <summary>
     /// The stack's area (SSEG): one byte, where the stack starts on a Padauk chip (it grows up from there) and nothing
@@ -63,11 +74,40 @@ public sealed partial class SdccMap
     public static SdccMap Parse(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
-        return new SdccMap([.. AreaLine().Matches(text).Select(match => new SdccArea(
+        var areas = AreaLine().Matches(text).Select(match => new SdccArea(
             match.Groups["name"].Value,
             ulong.Parse(match.Groups["address"].Value, NumberStyles.HexNumber, CultureInfo.InvariantCulture),
             ulong.Parse(match.Groups["size"].Value, NumberStyles.HexNumber, CultureInfo.InvariantCulture),
-            match.Groups["attributes"].Value.Split(',').Contains("ABS", StringComparer.Ordinal)))]);
+            match.Groups["attributes"].Value.Split(',').Contains("ABS", StringComparer.Ordinal))).ToList();
+        return new SdccMap(areas, FindFunctions(text, areas));
+    }
+
+    /// <summary>The symbols the map lists after each code area's line, as functions (see <see cref="Functions"/>).</summary>
+    private static List<SdccFunction> FindFunctions(string text, List<SdccArea> areas)
+    {
+        var symbols = new List<(SdccArea Area, ulong Address, string Name)>();
+        SdccArea? current = null;
+        var next = 0;
+        foreach (var line in text.Split('\n'))
+        {
+            if (AreaLine().Match(line) is { Success: true } area && next < areas.Count)
+            {
+                current = areas[next++];
+            }
+            else if (current is { Absolute: false, Name: "CODE" or "HOME" } && SymbolLine().Match(line) is { Success: true } symbol
+                && symbol.Groups["name"].Value is ['_', ..] name)
+            {
+                symbols.Add((current, ulong.Parse(symbol.Groups["address"].Value, NumberStyles.HexNumber,
+                    CultureInfo.InvariantCulture), name[1..]));
+            }
+        }
+
+        return [.. symbols.GroupBy(symbol => symbol.Area).SelectMany(group =>
+        {
+            var sorted = group.OrderBy(symbol => symbol.Address).ToList();
+            return sorted.Select((symbol, i) => new SdccFunction(symbol.Name, symbol.Area.Name,
+                (i + 1 < sorted.Count ? sorted[i + 1].Address : symbol.Area.End) - symbol.Address));
+        }).Where(function => function.Size > 0).OrderByDescending(function => function.Size)];
     }
 
     /// <summary>
@@ -89,11 +129,18 @@ public sealed partial class SdccMap
             settings.Data, Reach(settings.Data, area => IsData(area.Name) && area.Name != StackArea), settings.StackSize);
     }
 
+    // "     00008038  _main                              main"
+    [GeneratedRegex(@"^\s+(?<address>[0-9A-Fa-f]{4,8})\s+(?<name>[A-Za-z_.$][\w.$]*)\s")]
+    private static partial Regex SymbolLine();
+
     // "CODE                                00008038    00000037 =          55. bytes (REL,CON)"
     [GeneratedRegex(@"^(?<name>[A-Za-z_][\w$.]*)\s+(?<address>[0-9A-Fa-f]{4,8})\s+(?<size>[0-9A-Fa-f]{4,8})\s+=\s+\d+\.\s+bytes\s+\((?<attributes>[A-Z,]*)\)",
         RegexOptions.Multiline)]
     private static partial Regex AreaLine();
 }
+
+/// <summary>A function of a linked program: its C name and the code area it is in, and its size in bytes (up to the next symbol).</summary>
+public sealed record SdccFunction(string Name, string Area, ulong Size);
 
 /// <summary>
 /// How much of the target's memory an SDCC program takes (<see cref="SdccMap.Use"/>): its code, constants and the

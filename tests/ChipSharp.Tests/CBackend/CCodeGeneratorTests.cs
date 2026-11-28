@@ -617,7 +617,7 @@ public sealed class CCodeGeneratorTests
         Assert.Contains("static uint32_t Program_Twice(uint32_t p_n)\n{\n    {\n", stm8);
 
         var pdk14 = CSdcc.Required(source, "Checks", CSdcc.Pfs154).C;
-        Assert.Contains("#define CS_STACK_LIMIT 0x007Cu", pdk14);
+        Assert.Contains("#define CS_STACK_LIMIT 0x0074u", pdk14);
         Assert.Contains("if ((uintptr_t)&cs_frame > CS_STACK_LIMIT - 19u)", pdk14);
     }
 

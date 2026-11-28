@@ -211,10 +211,13 @@ internal abstract class ChipSimulator
         return ChipSharpBuilder.Build(dll, new BuildOptions
         {
             Target = Target,
-            TargetsFolder = Path.Combine(AppContext.BaseDirectory, "targets"),
+            TargetsFolder = TargetsFolderFor(folder),
             OutputFolder = Path.Combine(folder, Target),
         }).OutputPath;
     }
+
+    /// <summary>The folder of target files a build in <paramref name="folder"/> reads: the shipped ones.</summary>
+    protected virtual string TargetsFolderFor(string folder) => Path.Combine(AppContext.BaseDirectory, "targets");
 
     /// <summary>Runs <paramref name="image"/> in the chip's simulator with <paramref name="stimulus"/>.</summary>
     public abstract Task<ChipRun> RunAsync(string image, ChipStimulus stimulus);

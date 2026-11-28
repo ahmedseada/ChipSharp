@@ -1,0 +1,16 @@
+{
+  // Espressif ESP32-C5-DevKitC-1 (docs.espressif.com/projects/esp-dev-kits, esp32c5/esp32-c5-devkitc-1, user guide): an
+  // ESP32-C5-WROOM-1 module (N8R8: 8 MB flash, 8 MB PSRAM; GPIO 15-22 are the module's flash and PSRAM, not the
+  // board's) and two USB-C ports: "USB Type-C to UART Port", a USB-to-UART bridge on UART0 (GPIO 11 TX, GPIO 12 RX),
+  // through which esptool flashes the board (it resets the chip into the ROM's download mode); and "ESP32-C5 USB Type-C
+  // Port", the chip's own USB Serial/JTAG (GPIO 13 D-, GPIO 14 D+). Its Boot ("download") button, held at reset, starts
+  // the ROM's download mode instead of the program: GPIO 26-28 choose the boot mode (DS, strapping pins), GPIO 28 low is
+  // download mode (esptool's boot mode selection for the ESP32-C5)
+  "name": "esp32c5-devkitc",
+  "inherits": "esp32c5",
+  "pins": {
+    // the board's one LED is an addressable RGB LED (a WS2812-like chain of one, "driven by GPIO27"), not a pin an output
+    // turns on: a program sends it colors (24 bits, timed pulses). GPIO 27 is a strapping pin too
+    "RGB_LED": 27
+  }
+}

@@ -90,7 +90,7 @@ public sealed class CSdccTests(ITestOutputHelper output) : IDisposable
     [SdccFact]
     public void A_program_with_recursion_structs_and_a_table_links_for_the_PFS154_the_recursive_function_reentrant()
     {
-        var target = CSdcc.Pfs154;
+        var target = CSdcc.WithStack(CSdcc.Pfs154, "16"); // 106 bytes of variables: the target's 48 for the stack do not fit beside them
         var c = CSdcc.Required(Program, "Linked", target).C;
 
         // the PFS154 keeps locals at fixed addresses: Fib calls itself, Make does not
