@@ -10,5 +10,9 @@
   "pins": {
     "LED": 13                     // PB5
   },
-  "ledActiveLow": true
+  "ledActiveLow": true,
+  // chipsharp flash -t stm8s103-board: stm8flash writes the .hex through an ST-LINK V2 (-c stlinkv2: the clones too)
+  // into the chip (-p, as stm8flash names it); another kind of ST-LINK, alone, is taken instead
+  "flasher": "stm8flash",
+  "stm8flash": { "programmer": "stlinkv2", "part": "stm8s103f3" }
 }

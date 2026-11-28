@@ -1,6 +1,8 @@
 using ChipSharp.Abstractions;
 using ChipSharp.Backend.Llvm;
 using ChipSharp.Flasher.Avrdude;
+using ChipSharp.Flasher.EasyPdkProg;
+using ChipSharp.Flasher.Stm8Flash;
 using ChipSharp.Flasher.Uf2Copy;
 using ChipSharp.Image.Hex;
 using ChipSharp.Image.Uf2;
@@ -70,5 +72,7 @@ public static class DefaultComponents
 
     private static ComponentRegistry RegisterFlashers(ComponentRegistry registry) => registry
         .Register(new Uf2CopyFlasher())             // flasher "uf2-copy": the .uf2 onto the Pico's RPI-RP2 drive
-        .Register(new AvrdudeFlasher());            // flasher "avrdude": the .hex through an Arduino's USB port
+        .Register(new AvrdudeFlasher())             // flasher "avrdude": the .hex through an Arduino's USB port
+        .Register(new EasyPdkProgFlasher())         // flasher "easypdkprog": the .hex into a PFS154 in the Easy PDK programmer
+        .Register(new Stm8FlashFlasher());          // flasher "stm8flash": the .hex into an STM8 through an ST-LINK's SWIM
 }

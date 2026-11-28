@@ -15,7 +15,9 @@ public sealed record RuntimeSources(IReadOnlyList<GeneratedFile> Files);
 /// <summary>Where and how to flash.</summary>
 /// <param name="Port">
 /// Where the board is, as its flasher names it: a serial port for avrdude (COM5), the drive (or folder) of a UF2 boot
-/// loader for uf2-copy (E:\). Null: the flasher finds it, and says which it found, or why it cannot.
+/// loader for uf2-copy (E:\), the Easy PDK programmer's serial port for easypdkprog (COM7), the ST-LINK's serial number
+/// for stm8flash (when more than one is plugged in). Null: the flasher finds it, and says which it found, or why it
+/// cannot.
 /// </param>
 public sealed record FlashOptions(string? Port = null);
 

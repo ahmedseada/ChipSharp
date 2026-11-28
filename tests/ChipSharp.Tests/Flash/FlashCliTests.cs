@@ -7,7 +7,7 @@ namespace ChipSharp.Tests.Flash;
 
 /// <summary>
 /// Runs the real <c>chipsharp flash</c>: what it needs (a board whose target names a flasher, the target's image or a
-/// .dll), a .hex through a stand-in avrdude (<see cref="FakeAvrdude"/>), a .uf2 onto a folder that stands for the
+/// .dll), a .hex through a stand-in avrdude (<see cref="FakeTool"/>), a .uf2 onto a folder that stands for the
 /// Pico's drive, and a .dll built for the Uno, then flashed.
 /// </summary>
 public sealed class FlashCliTests : IDisposable
@@ -26,7 +26,8 @@ public sealed class FlashCliTests : IDisposable
     public async Task Flash_needs_a_board_whose_target_names_a_flasher_and_that_boards_image()
     {
         var hex = Write("Blink.hex", ":00000001FF\r\n");
-        const string Boards = "the boards with a flasher: pico (uf2-copy), pico-w (uf2-copy), uno (avrdude).";
+        const string Boards = "the boards with a flasher: pfs154-bare (easypdkprog), pico (uf2-copy), pico-w (uf2-copy), " +
+            "stm8s103-board (stm8flash), uno (avrdude).";
 
         Assert.Equal((1, $"error: chipsharp flash needs the board to flash, with -t (e.g. -t uno): {Boards}"),
             await Error("flash", hex));
@@ -48,7 +49,7 @@ public sealed class FlashCliTests : IDisposable
     public async Task Flash_of_a_hex_runs_avrdude_on_the_port_given_and_prints_each_stage()
     {
         var hex = Write("Blink.hex", ":00000001FF\r\n");
-        var avrdude = new FakeAvrdude(Path.Combine(_scratch, "avrdude"));
+        var avrdude = new FakeTool(Path.Combine(_scratch, "avrdude"), "avrdude");
 
         var (exitCode, printed, error) = await Run(avrdude, "flash", hex, "-t", "uno", "--port", "COM42");
 
@@ -64,7 +65,7 @@ public sealed class FlashCliTests : IDisposable
     public async Task A_failed_flash_ends_with_avrdudes_error_and_exit_code_1()
     {
         var hex = Write("Blink.hex", ":00000001FF\r\n");
-        var avrdude = new FakeAvrdude(Path.Combine(_scratch, "avrdude"), 1,
+        var avrdude = new FakeTool(Path.Combine(_scratch, "avrdude"), "avrdude", 1,
             "avrdude: stk500_getsync() attempt 10 of 10: not in sync: resp=0x00");
 
         var (exitCode, printed, error) = await Run(avrdude, "flash", hex, "-t", "uno", "--port", "COM42");
@@ -108,7 +109,7 @@ public sealed class FlashCliTests : IDisposable
                 Timing.DelayMilliseconds(500);
             }
             """], [typeof(ChipSharp.Hardware.Pin).Assembly.Location], "UnoBlink"));
-        var avrdude = new FakeAvrdude(Path.Combine(_scratch, "avrdude"));
+        var avrdude = new FakeTool(Path.Combine(_scratch, "avrdude"), "avrdude");
         var output = Path.Combine(_scratch, "uno");
 
         var (exitCode, printed, error) = await Run(avrdude, "flash", dll, "-t", "uno", "--port", "COM42", "-o", output,
@@ -138,7 +139,7 @@ public sealed class FlashCliTests : IDisposable
     }
 
     /// <summary>chipsharp with <paramref name="avrdude"/> as its avrdude (CHIPSHARP_AVRDUDE).</summary>
-    private Task<(int ExitCode, string Output, string Error)> Run(FakeAvrdude avrdude, params string[] arguments) =>
+    private Task<(int ExitCode, string Output, string Error)> Run(FakeTool avrdude, params string[] arguments) =>
         ChipSharpCli.RunWithAsync(_scratch, new Dictionary<string, string> { [AvrdudeFlasher.AvrdudeVariable] = avrdude.Path },
             arguments);
 

@@ -1,10 +1,9 @@
 using System.Globalization;
 using System.Runtime.Versioning;
 using System.Text.RegularExpressions;
-using ChipSharp.Abstractions;
 using Microsoft.Win32;
 
-namespace ChipSharp.Flasher.Avrdude;
+namespace ChipSharp.Flasher.Shared;
 
 /// <summary>
 /// A serial port of this computer: its name (COM5, /dev/ttyACM0), what the system calls its device ("Arduino Uno",
@@ -12,34 +11,15 @@ namespace ChipSharp.Flasher.Avrdude;
 /// </summary>
 public sealed record SerialPortInfo(string Name, string? Description = null, int? VendorId = null, int? ProductId = null)
 {
-    /// <summary>The USB vendor ids of Arduino's own boards: Arduino LLC's and Arduino SRL's.</summary>
-    private static readonly int[] ArduinoVendors = [0x2341, 0x2a03];
-
-    /// <summary>
-    /// The USB serial chips of the Uno's (and Nano's) clones, by vendor and product: WCH's CH340, CH341 and CH9102,
-    /// FTDI's FT232R, Silicon Labs' CP210x.
-    /// </summary>
-    private static readonly (int Vendor, int Product)[] CloneChips =
-        [(0x1a86, 0x7523), (0x1a86, 0x5523), (0x1a86, 0x55d4), (0x0403, 0x6001), (0x10c4, 0xea60)];
-
-    /// <summary>The names Linux and macOS give USB serial ports, whose ids are not known here.</summary>
-    private static readonly string[] UsbPortNames = ["ttyACM", "ttyUSB", "cu.usbmodem", "cu.usbserial", "cu.wchusbserial"];
-
-    /// <summary>
-    /// True when the port is an Arduino's, or a clone's: its USB ids are Arduino's or a clone's USB serial chip's, or
-    /// (with no ids) the system calls it an Arduino, or names it as a USB serial port.
-    /// </summary>
-    public bool LooksLikeArduino => VendorId is { } vendor
-        ? ArduinoVendors.Contains(vendor) || CloneChips.Contains((vendor, ProductId ?? -1))
-        : Description?.Contains("Arduino", StringComparison.OrdinalIgnoreCase) == true
-            || UsbPortNames.Any(name => Path.GetFileName(Name).StartsWith(name, StringComparison.Ordinal));
+    /// <summary>True when the port's device is the USB device with these ids.</summary>
+    public bool IsUsb(int vendorId, int productId) => VendorId == vendorId && ProductId == productId;
 
     /// <summary>"COM5 (Arduino Uno)", or the name alone.</summary>
     public override string ToString() => Description is null ? Name : $"{Name} ({Description})";
 }
 
-/// <summary>This computer's serial ports, and which of them a board is on.</summary>
-internal static partial class SerialPorts
+/// <summary>This computer's serial ports, with what is on them (which of them a board is on is each flasher's to say).</summary>
+public static partial class SerialPorts
 {
     /// <summary>
     /// The serial ports there are now, by name. On Windows: those the registry's SERIALCOMM lists, each with the
@@ -63,33 +43,8 @@ internal static partial class SerialPorts
         }
     }
 
-    /// <summary>
-    /// The one port of <paramref name="ports"/> that looks like an Arduino's (<see cref="SerialPortInfo.LooksLikeArduino"/>);
-    /// otherwise an error that lists the ports and says what to do: plug the board in, or name its port with --port.
-    /// </summary>
-    public static string Choose(IReadOnlyList<SerialPortInfo> ports)
-    {
-        ArgumentNullException.ThrowIfNull(ports);
-
-        var arduinos = ports.Where(port => port.LooksLikeArduino).ToList();
-        if (arduinos.Count == 1)
-        {
-            return arduinos[0].Name;
-        }
-
-        static string Listed(IEnumerable<SerialPortInfo> list) => string.Join(", ", list);
-        var example = OperatingSystem.IsWindows() ? "COM5" : "/dev/ttyACM0";
-        throw new ChipSharpException(arduinos.Count > 1
-            ? string.Create(CultureInfo.InvariantCulture,
-                $"{arduinos.Count} serial ports look like an Arduino's: {Listed(arduinos)}. Say which is the board's " +
-                $"with --port, e.g. --port {arduinos[0].Name}.")
-            : ports.Count == 0
-                ? $"No serial port was found: plug the board in by USB, or give its port with --port (e.g. --port " +
-                  $"{example}). On Windows its port shows in Device Manager, under \"Ports (COM & LPT)\"; a clone with a " +
-                  "CH340 USB chip needs that chip's driver first."
-                : $"None of the serial ports looks like an Arduino's: {Listed(ports)}. Plug the board in by USB, or give " +
-                  $"its port with --port, e.g. --port {ports[^1].Name}.");
-    }
+    /// <summary>A port name as an example for messages: COM5 on Windows, /dev/ttyACM0 elsewhere.</summary>
+    public static string Example => OperatingSystem.IsWindows() ? "COM5" : "/dev/ttyACM0";
 
     /// <summary>"Arduino Uno (COM5)" without its port: "Arduino Uno".</summary>
     internal static string? Description(string? friendlyName) =>

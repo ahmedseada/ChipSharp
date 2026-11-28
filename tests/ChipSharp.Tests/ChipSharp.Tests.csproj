@@ -23,6 +23,9 @@
     <ProjectReference Include="..\..\src\ChipSharp.Cli\ChipSharp.Cli.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Components\ChipSharp.Components.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Flasher.Avrdude\ChipSharp.Flasher.Avrdude.csproj" />
+    <ProjectReference Include="..\..\src\ChipSharp.Flasher.EasyPdkProg\ChipSharp.Flasher.EasyPdkProg.csproj" />
+    <ProjectReference Include="..\..\src\ChipSharp.Flasher.Shared\ChipSharp.Flasher.Shared.csproj" />
+    <ProjectReference Include="..\..\src\ChipSharp.Flasher.Stm8Flash\ChipSharp.Flasher.Stm8Flash.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Flasher.Uf2Copy\ChipSharp.Flasher.Uf2Copy.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Frontend\ChipSharp.Frontend.csproj" />
     <ProjectReference Include="..\..\src\ChipSharp.Hardware\ChipSharp.Hardware.csproj" />

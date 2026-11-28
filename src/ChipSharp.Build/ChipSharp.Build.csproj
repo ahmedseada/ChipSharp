@@ -4,6 +4,8 @@
   <ItemGroup>
     <ProjectReference Include="..\ChipSharp.Backend.Llvm\ChipSharp.Backend.Llvm.csproj" />
     <ProjectReference Include="..\ChipSharp.Flasher.Avrdude\ChipSharp.Flasher.Avrdude.csproj" />
+    <ProjectReference Include="..\ChipSharp.Flasher.EasyPdkProg\ChipSharp.Flasher.EasyPdkProg.csproj" />
+    <ProjectReference Include="..\ChipSharp.Flasher.Stm8Flash\ChipSharp.Flasher.Stm8Flash.csproj" />
     <ProjectReference Include="..\ChipSharp.Flasher.Uf2Copy\ChipSharp.Flasher.Uf2Copy.csproj" />
     <ProjectReference Include="..\ChipSharp.Frontend\ChipSharp.Frontend.csproj" />
     <ProjectReference Include="..\ChipSharp.Image.Hex\ChipSharp.Image.Hex.csproj" />
