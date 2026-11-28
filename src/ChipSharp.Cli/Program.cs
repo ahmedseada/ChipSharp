@@ -205,7 +205,7 @@ try
                 usage:
                   chipsharp build <assembly.dll> [-t|--target <name>] [-o|--output <folder>] [--keep] [--verify-heap]
                                   [--no-cache] [--quiet-notes]
-                  chipsharp flash <assembly.dll | image.hex | image.uf2> -t|--target <board> [--port <port>]
+                  chipsharp flash <assembly.dll | image.hex | image.uf2 | image.bin> -t|--target <board> [--port <port>]
                                   [build's options, for a .dll]
                   chipsharp check <assembly.dll> [--details] [-t|--target <name>] [--quiet-notes]
                   chipsharp tir <assembly.dll> [--method <name>] [-t|--target <name>]

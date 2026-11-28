@@ -26,6 +26,9 @@ public interface IToolchain : INamedComponent
 /// <summary>Packages a linked program in the form a chip loads, e.g. "uf2", "esp-image", "ihex".</summary>
 public interface IImageFormat : INamedComponent
 {
+    /// <summary>The file extension of the image, without the dot; the format's name unless it says another (esp: "bin").</summary>
+    string Extension => Name;
+
     void Package(LinkedBinary binary, TargetDescription target, Stream output);
 }
 

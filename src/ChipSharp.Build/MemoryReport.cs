@@ -45,11 +45,24 @@ public sealed record MemoryReport(string FileName, ulong FileSize, RegionUse? Co
     /// </summary>
     public string Text => Code is null || Data is null
         ? $"{FileName}: {MemorySize.Text(FileSize)}"
-        : string.Create(CultureInfo.InvariantCulture,
+        : Code.Region == Data.Region
+            ? SharedRegionText(Code, Data)
+            : string.Create(CultureInfo.InvariantCulture,
             $"{Of(Code)} ({100.0 * Code.Used / Code.Size:0.0}%), {MemorySize.RegionName(Data.Region)} " +
             $"{MemorySize.Text(Data.Used)}{(Heap > 0 ? $" + heap {MemorySize.Text(Heap)}" : "")} of " +
             $"{MemorySize.Text(Data.Size)}") +
           (Stack > 0 ? $" (stack {MemorySize.Text(Stack)} reserved)" : "");
+
+    /// <summary>
+    /// "SRAM 5.2 KB of 369.4 KB (1.4%) (stack 16 KB reserved)": a chip whose code and variables share one region (the
+    /// ESP32-C5's SRAM, loaded as the image and run in place), the code first, then the variables.
+    /// </summary>
+    private string SharedRegionText(RegionUse code, RegionUse data) =>
+        string.Create(CultureInfo.InvariantCulture,
+            $"{MemorySize.RegionName(code.Region).ToUpperInvariant()} {MemorySize.Text(Math.Max(code.Used, data.Used))}" +
+            $"{(Heap > 0 ? $" + heap {MemorySize.Text(Heap)}" : "")} of {MemorySize.Text(code.Size)} " +
+            $"({100.0 * Math.Max(code.Used, data.Used) / code.Size:0.0}%)") +
+        (Stack > 0 ? $" (stack {MemorySize.Text(Stack)} reserved)" : "");
 
     public override string ToString() => Text;
 

@@ -1,9 +1,11 @@
 using ChipSharp.Flasher.Avrdude;
 using ChipSharp.Flasher.EasyPdkProg;
+using ChipSharp.Flasher.Esptool;
 using ChipSharp.Flasher.Shared;
 using ChipSharp.Flasher.Stm8Flash;
 using ChipSharp.Flasher.Uf2Copy;
 using ChipSharp.Tests.Avr;
+using ChipSharp.Tests.Esp32c5;
 using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Flash;
@@ -26,7 +28,7 @@ public sealed class FlashCliTests : IDisposable
     public async Task Flash_needs_a_board_whose_target_names_a_flasher_and_that_boards_image()
     {
         var hex = Write("Blink.hex", ":00000001FF\r\n");
-        const string Boards = "the boards with a flasher: pfs154-bare (easypdkprog), pico (uf2-copy), pico-w (uf2-copy), " +
+        const string Boards = "the boards with a flasher: esp32c5-devkitc (esptool), pfs154-bare (easypdkprog), pico (uf2-copy), pico-w (uf2-copy), " +
             "stm8s103-board (stm8flash), uno (avrdude).";
 
         Assert.Equal((1, $"error: chipsharp flash needs the board to flash, with -t (e.g. -t uno): {Boards}"),
@@ -227,12 +229,76 @@ public sealed class FlashCliTests : IDisposable
     }
 
     [Fact]
+    public async Task Flash_of_a_bin_for_the_C5_runs_esptool_at_0x2000_on_the_port_given()
+    {
+        var bin = Write("Blink.bin", "image");
+        var esptool = new FakeTool(Path.Combine(_scratch, "esptool"), "esptool", 0, "esptool v5.0.2");
+
+        var (exitCode, printed, error) = await ChipSharpCli.RunWithAsync(_scratch,
+            new Dictionary<string, string> { [EsptoolFlasher.EsptoolVariable] = esptool.Path },
+            "flash", bin, "-t", "esp32c5-devkitc", "--port", "COM42");
+
+        Assert.Equal("", error);
+        Assert.Equal(0, exitCode);
+        Assert.Equal($"--chip esp32c5 -p COM42 -b 460800 write-flash 0x2000 {bin}", esptool.CommandLine);
+        Assert.Equal(
+            [
+                $"COM42: esptool.cmd --chip esp32c5 -p COM42 -b 460800 write-flash 0x2000 {ChipSharpCli.Quoted(bin)}",
+                "COM42: written and verified; the esp32c5-devkitc runs it",
+            ],
+            Lines(printed));
+        Assert.Equal((1, $"error: '{Write("Blink.hex", "")}' is not a .bin file, which is what the target 'esp32c5-devkitc' " +
+                "flashes: give the program's .dll (chipsharp flash builds it for the target first) or the .bin chipsharp " +
+                "build -t esp32c5-devkitc wrote."),
+            await Error("flash", Path.Combine(_scratch, "Blink.hex"), "-t", "esp32c5-devkitc"));
+    }
+
+    [Esp32c5Theory]
+    [InlineData("C5Count")]
+    public async Task Flash_of_a_dll_builds_the_ESP_image_for_the_C5_then_flashes_the_bin(string name)
+    {
+        var dll = Path.Combine(Directory.CreateDirectory(_scratch).FullName, name + ".dll");
+        File.WriteAllBytes(dll, CSharpCompiler.Compile(["""
+            static class Program
+            {
+                static int Main()
+                {
+                    int sum = 0;
+                    for (int i = 0; i < 10; i++)
+                    {
+                        sum += i;
+                    }
+
+                    return sum;
+                }
+            }
+            """], [typeof(ChipSharp.Hardware.Pin).Assembly.Location], name));
+        var esptool = new FakeTool(Path.Combine(_scratch, "esptool"), "esptool", 0, "esptool v5.0.2");
+        var output = Path.Combine(_scratch, "c5");
+
+        var (exitCode, printed, error) = await ChipSharpCli.RunWithAsync(_scratch,
+            new Dictionary<string, string> { [EsptoolFlasher.EsptoolVariable] = esptool.Path },
+            "flash", dll, "-t", "esp32c5-devkitc", "--port", "COM42", "-o", output, "--no-cache");
+
+        Assert.True(exitCode == 0, error);
+        var bin = Path.Combine(output, name + ".bin");
+        var lines = Lines(printed);
+        Assert.Equal(bin, lines[0]);
+        Assert.Matches(@"^SRAM \d+(\.\d)? (bytes|KB) of 369\.4 KB \(\d+\.\d%\) \(stack 16 KB reserved\)$", lines[1]);
+        Assert.EndsWith(bin, esptool.CommandLine);
+        Assert.Contains("write-flash 0x2000", esptool.CommandLine);
+        var image = ChipSharp.Image.Esp.EspImage.Read(File.ReadAllBytes(bin));
+        Assert.Equal(23, image.ChipId);
+        Assert.Equal("COM42: written and verified; the esp32c5-devkitc runs it", lines[^1]);
+    }
+
+    [Fact]
     public async Task The_usage_shows_flash_and_its_port()
     {
         var (exitCode, printed, _) = await ChipSharpCli.RunAsync("flash");
 
         Assert.Equal(2, exitCode);
-        Assert.Contains("chipsharp flash <assembly.dll | image.hex | image.uf2> -t|--target <board> [--port <port>]", printed);
+        Assert.Contains("chipsharp flash <assembly.dll | image.hex | image.uf2 | image.bin> -t|--target <board> [--port <port>]", printed);
         Assert.Contains("--port <port>           flash: the board's serial port (avrdude: COM5) or boot drive", printed);
     }
 

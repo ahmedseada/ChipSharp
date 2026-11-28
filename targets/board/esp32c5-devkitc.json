@@ -8,6 +8,11 @@
   // download mode (esptool's boot mode selection for the ESP32-C5)
   "name": "esp32c5-devkitc",
   "inherits": "esp32c5",
+  // chipsharp build writes the ESP image (Name.bin), chipsharp flash writes it with esptool through either USB-C port;
+  // the module's flash is 8 MB (N8R8)
+  "image": "esp",
+  "flasher": "esptool",
+  "esp": { "flashSize": "8MB" },
   "pins": {
     // the board's one LED is an addressable RGB LED (a WS2812-like chain of one, "driven by GPIO27"), not a pin an output
     // turns on: a program sends it colors (24 bits, timed pulses). GPIO 27 is a strapping pin too

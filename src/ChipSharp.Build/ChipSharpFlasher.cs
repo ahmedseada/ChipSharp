@@ -98,7 +98,7 @@ public static class ChipSharpFlasher
         }
 
         var path = Path.GetFullPath(imagePath);
-        var image = string.IsNullOrWhiteSpace(target.Image) ? null : "." + target.Image;
+        var image = string.IsNullOrWhiteSpace(target.Image) ? null : "." + DefaultComponents.ImageExtension(target.Image);
         if (image is not null && !string.Equals(Path.GetExtension(path), image, StringComparison.OrdinalIgnoreCase))
         {
             throw new ChipSharpException(
