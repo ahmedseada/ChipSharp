@@ -73,6 +73,11 @@ internal static class CSdcc
         return (module, Assert.Single(new CCodeGenerator().Generate(module, target).Files).Content);
     }
 
+    /// <summary>The C of the C# program <paramref name="source"/> for <paramref name="target"/>; fails the test, saying why, when there is none.</summary>
+    public static (TirModule Module, string C) Required(string source, string name, TargetDescription target) =>
+        Generate(source, name, target) ?? throw new Xunit.Sdk.XunitException(
+            WholeProgramPass.Check(IlAssembly.Load(CSharpCompiler.Compile(source, name), name + ".dll"), target).Summary);
+
     /// <summary>
     /// Compiles <paramref name="c"/> with sdcc for <paramref name="target"/>'s port and flags in
     /// <paramref name="folder"/>; returns what sdcc said, and fails the test when it fails.
@@ -145,16 +150,20 @@ internal static class CSdcc
     }
 
     /// <summary>Links the C of <paramref name="source"/> for <paramref name="target"/> with the stand-in runtime; returns the .ihx.</summary>
-    public static string Link(string source, string name, TargetDescription target, string folder)
+    public static string Link(string source, string name, TargetDescription target, string folder) =>
+        Link(Required(source, name, target).Module, target, folder);
+
+    /// <summary>Links the C of <paramref name="module"/> for <paramref name="target"/> with the stand-in runtime; returns the .ihx.</summary>
+    public static string Link(TirModule module, TargetDescription target, string folder)
     {
-        var (module, c) = Generate(source, name, target)
-            ?? throw new InvalidOperationException($"{name} is not supported on {target.Name}.");
-        var binary = new SdccToolchain(new SdccToolchainOptions { OutputFolder = folder, ProgramName = name, UseCache = false })
-            .Build(new GeneratedCode(
-            [
-                new GeneratedFile(name + ".c", c),
-                new GeneratedFile("runtime.c", Runtime(module, target)),
-            ]), target);
+        var c = Assert.Single(new CCodeGenerator().Generate(module, target).Files);
+        var binary = new SdccToolchain(new SdccToolchainOptions
+            {
+                OutputFolder = folder,
+                ProgramName = module.Name,
+                UseCache = false,
+            })
+            .Build(new GeneratedCode([c, new GeneratedFile("runtime.c", Runtime(module, target))]), target);
         return binary.Path;
     }
 }

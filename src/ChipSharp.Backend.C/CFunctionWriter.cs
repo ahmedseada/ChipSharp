@@ -53,10 +53,16 @@ internal sealed class CFunctionWriter
     private readonly Dictionary<TirSlot, string> _slots = [];
     private readonly Dictionary<TirBlock, string> _labels = [];
     private readonly Dictionary<TirInstruction, int> _numbers = [];
+
+    /// <summary>Where each instruction is in its block.</summary>
+    private readonly Dictionary<TirInstruction, int> _positions = [];
     private readonly HashSet<TirInstruction> _live = [];
 
     /// <summary>The instructions whose value a written instruction uses.</summary>
     private readonly HashSet<TirInstruction> _used = [];
+
+    /// <summary>How many written instructions use each instruction's value.</summary>
+    private readonly Dictionary<TirInstruction, int> _uses = [];
     private List<string> _lines = [];
     private bool _declares;
 
@@ -114,6 +120,14 @@ internal sealed class CFunctionWriter
         foreach (var instruction in _function.Blocks.SelectMany(block => block.Instructions).Where(i => i.HasResult))
         {
             _numbers[instruction] = _numbers.Count;
+        }
+
+        foreach (var block in _function.Blocks)
+        {
+            for (var i = 0; i < block.Instructions.Count; i++)
+            {
+                _positions[block.Instructions[i]] = i;
+            }
         }
 
         FindLive();
@@ -269,12 +283,20 @@ internal sealed class CFunctionWriter
                 Define(convert, ConvertText(convert));
                 break;
 
+            case TirLoad load when Forwarded(load):
+                _values[load] = new Expression(_slots[load.Slot], Postfix);
+                break;
+
             case TirLoad load:
                 Define(load, _slots[load.Slot]);
                 break;
 
             case TirStore store:
                 Line($"{_slots[store.Slot]} = {Value(store.Value).Text};");
+                break;
+
+            case TirPointerLoad load when !load.IsVolatile && !load.IsUnaligned && Forwarded(load):
+                _values[load] = new Expression(Access(load.Address, load.Type, isVolatile: false), Unary);
                 break;
 
             case TirPointerLoad load when load.IsUnaligned && !load.IsVolatile && _types.Layout.AlignmentOf(load.Type) > 1:
@@ -492,9 +514,36 @@ internal sealed class CFunctionWriter
                 {
                     _live.Add(operand);
                     _used.Add(operand);
+                    _uses[operand] = _uses.GetValueOrDefault(operand) + 1;
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// True for a struct or array value (a slot's, memory's, a call's) that only the instruction right after it uses, to
+    /// store or return: it is written there, <c>s_temp = s_p;</c>, rather than copied into a temporary first, which SDCC
+    /// keeps in RAM of its own (scarce on a Padauk). Nothing runs between them that could change what it reads.
+    /// </summary>
+    private bool Forwarded(TirInstruction instruction)
+    {
+        if (!instruction.Type.IsAggregate || _uses.GetValueOrDefault(instruction) != 1)
+        {
+            return false;
+        }
+
+        var instructions = instruction.Block!.Instructions;
+        var at = _positions[instruction];
+        return at + 1 < instructions.Count && instructions[at + 1] switch
+        {
+            TirStore store => store.Value == instruction,
+            // memory to memory: C's struct assignment wants the two not to overlap but exactly, which a temporary keeps
+            TirPointerStore store => store.Value == instruction && !store.IsUnaligned && instruction is not TirPointerLoad,
+            // return f(...) of a struct: SDCC's stm8 code generator fails on it (an internal error), so the call's
+            // result goes through a temporary
+            TirReturn ret => ret.Value == instruction && instruction is not (TirCall or TirCallIndirect),
+            _ => false,
+        };
     }
 
     /// <summary>The slots a written instruction loads, stores or takes the address of.</summary>
@@ -562,7 +611,7 @@ internal sealed class CFunctionWriter
             TirBinaryOp.Or => $"{L()} | {R()}",
             TirBinaryOp.Xor => $"{L()} ^ {R()}",
             TirBinaryOp.Shl => $"{(promoted ? Wide(left) : Operand(left, Binary - 1, typed: true))} << {Amount()}",
-            TirBinaryOp.Shr => $"{Signed(left)} >> {Amount()}",
+            TirBinaryOp.Shr => $"{Signed(left, typed: true)} >> {Amount()}",
             TirBinaryOp.ShrUnsigned => $"{L()} >> {Amount()}",
             _ => throw Unsupported(binary.Op.ToString()),
         };
@@ -658,13 +707,17 @@ internal sealed class CFunctionWriter
         return widens && signed ? $"({target}){Signed(value)}" : $"({target}){Operand(value, Unary, typed: true)}";
     }
 
-    /// <summary>An integer operand as its signed type: <c>(int32_t)t3</c>, or a constant's signed value: <c>-5</c>.</summary>
-    private string Signed(TirValue value)
+    /// <summary>
+    /// An integer operand as its signed type: <c>(int32_t)t3</c>, or a constant's signed value, <c>-5</c> (an int, which
+    /// C converts to the other operand's type), cast too when <paramref name="typed"/>: the left operand of a shift,
+    /// whose type is the result's, <c>(int64_t)-7 &gt;&gt; 62</c>.
+    /// </summary>
+    private string Signed(TirValue value, bool typed = false)
     {
         if (Resolve(value) is TirConst constant)
         {
             var number = constant.IntegerValue;
-            return number is >= -32767 and <= 32767
+            return !typed && number is >= -32767 and <= 32767
                 ? CText.Integer(number)
                 : $"({_types.Signed(value.Type)}){CText.SignedInteger(number)}";
         }
@@ -712,7 +765,10 @@ internal sealed class CFunctionWriter
             return $"(({PointerType(element, isVolatile: false)})&{place.LValue})[{at}]";
         }
 
-        return $"(({PointerType(element, isVolatile: false)}){Operand(address, Unary)})[{at}]";
+        // an address is a uint8_t * already: a byte needs no cast
+        return element == "uint8_t"
+            ? $"{Operand(address, Postfix)}[{at}]"
+            : $"(({PointerType(element, isVolatile: false)}){Operand(address, Unary)})[{at}]";
     }
 
     /// <summary>
@@ -745,7 +801,9 @@ internal sealed class CFunctionWriter
                 : $"*({PointerType(cType, isVolatile)})&{place.LValue}";
         }
 
-        return $"*({PointerType(cType, isVolatile)}){Operand(address, Unary)}";
+        return cType == "uint8_t" && !isVolatile
+            ? $"*{Operand(address, Unary)}"
+            : $"*({PointerType(cType, isVolatile)}){Operand(address, Unary)}";
     }
 
     /// <summary>A pointer to <paramref name="cType"/>: <c>uint32_t *</c>, <c>volatile uint32_t *</c>, <c>uint8_t *volatile *</c>.</summary>
@@ -777,7 +835,11 @@ internal sealed class CFunctionWriter
     /// <summary>A call: its result into a temporary when something uses it, else the call alone.</summary>
     private void Call(TirInstruction call, string text)
     {
-        if (call.HasResult && _used.Contains(call))
+        if (call.HasResult && Forwarded(call))
+        {
+            _values[call] = new Expression(text, Postfix);
+        }
+        else if (call.HasResult && _used.Contains(call))
         {
             Define(call, text);
         }
