@@ -4,8 +4,8 @@
 // the chip in the Easy PDK programmer's socket with chipsharp flash (easypdkprog), or run it in chipsim (README.md):
 //
 //     dotnet build -c Release
-//     chipsharp build bin\Release\net10.0\Pfs154Blink.dll -t pfs154-bare   # chipsharp-output\pfs154-bare\Pfs154Blink.hex
-//     chipsharp flash bin\Release\net10.0\Pfs154Blink.dll -t pfs154-bare   # builds it, then easypdkprog -n PFS154 write
+//     chipsharp build bin\Release\net10.0\Pfs154Blink.dll -t pfs154-bare   # chipsharp-output\pfs154-bare\*.hex
+//     chipsharp flash bin\Release\net10.0\Pfs154Blink.dll -t pfs154-bare   # builds it, then easypdkprog writes it
 //     chipsim pfs154 chipsharp-output\pfs154-bare\Pfs154Blink.hex --ms 2000
 //
 // (Run on .NET, Pin.Output throws.) It is the Pico's and the Uno's blink with another pin number: the same C# builds

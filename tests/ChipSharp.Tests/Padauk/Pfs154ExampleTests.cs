@@ -133,8 +133,10 @@ public sealed partial class Pfs154ExampleTests(ITestOutputHelper output) : IDisp
         // the press ends the green within one 10 ms wait; each light's changes as the steps say, a second a few ms long
         var greenOff = pins.First(p => p.Pin == 7 && p.State == "low" && p.Milliseconds > 1000).Milliseconds;
         Assert.InRange(greenOff, 2500, 2511);
-        Assert.InRange(pins.First(p => p.Pin == 7 && p.State == "high" && p.Milliseconds > 3000).Milliseconds, 6500, 6560);
-        Assert.InRange(pins.First(p => p.Pin == 7 && p.State == "low" && p.Milliseconds > 7000).Milliseconds, 10500, 10600);
+        double Green(string state, double after) =>
+            pins.First(p => p.Pin == 7 && p.State == state && p.Milliseconds > after).Milliseconds;
+        Assert.InRange(Green("high", 3000), 6500, 6560);
+        Assert.InRange(Green("low", 7000), 10500, 10600);
 
         // the button's pin with its pull-up off (the resistor holds it high); PA4 changes every 500 ms from the timer
         Assert.DoesNotContain(pins, p => p.Pin == Button && p.State == "input pull-up");
@@ -248,7 +250,7 @@ public sealed partial class Pfs154ExampleTests(ITestOutputHelper output) : IDisp
     private static bool IsHigh(IReadOnlyList<ChipPinChange> pins, int pin, double at) =>
         pins.LastOrDefault(p => p.Pin == pin && p.Milliseconds <= at && p.State is "low" or "high")?.State == "high";
 
-    /// <summary>The digit the turn display shows at <paramref name="at"/> (segments A to G on PB1 to PB7), or -1.</summary>
+    /// <summary>The digit the turn display shows at <paramref name="at"/> (A to G on PB1 to PB7), or -1.</summary>
     private static int Shown(IReadOnlyList<ChipPinChange> pins, double at)
     {
         var segments = Enumerable.Range(0, 7).Select(i => IsHigh(pins, 9 + i, at) ? 1 << i : 0).Sum();
