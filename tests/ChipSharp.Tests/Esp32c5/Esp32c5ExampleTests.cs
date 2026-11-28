@@ -27,6 +27,13 @@ public sealed partial class Esp32c5ExampleTests(ITestOutputHelper output) : IDis
     /// </summary>
     private static readonly int[] FreePins = [0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 23, 24];
 
+    /// <summary>
+    /// The GPIOs Wokwi's board-esp32-c5-devkitc-1 names otherwise than by their number (wokwi-boards,
+    /// boards/esp32-c5-devkitc-1/board.json: "TX" is GPIO11 and "RX" GPIO12, UART0's pins; it has no pins "11" and "12",
+    /// so a wire to esp:11 connects nothing).
+    /// </summary>
+    private static readonly Dictionary<string, int> WokwiPinNames = new(StringComparer.Ordinal) { ["TX"] = 11, ["RX"] = 12 };
+
     private readonly string _scratch = Path.Combine(Path.GetTempPath(), "chipsharp-tests", Guid.NewGuid().ToString("N"));
 
     public void Dispose()
@@ -382,14 +389,25 @@ public sealed partial class Esp32c5ExampleTests(ITestOutputHelper output) : IDis
             // the pins it names (Pin.Output(4), "Red: 4", ...) are among those the board leaves a program
             var diagram = JsonNode.Parse(File.ReadAllText(Path.Combine(folder, "diagram.json")))!.AsObject();
             Assert.Equal("board-esp32-c5-devkitc-1", (string?)diagram["parts"]![0]!["type"]);
+
+            // the console is the USB Serial/JTAG port, which Wokwi's serial monitor shows when the board says so
+            // (docs.wokwi.com/guides/esp32: { "serialInterface": "USB_SERIAL_JTAG" }); without it, it shows UART0
+            if (program.Contains("Console.", StringComparison.Ordinal))
+            {
+                Assert.True((string?)diagram["parts"]![0]!["attrs"]?["serialInterface"] == "USB_SERIAL_JTAG",
+                    $"{example}: the board part has no \"serialInterface\": \"USB_SERIAL_JTAG\"");
+            }
             var wires = diagram["connections"]!.AsArray().Select(wire => (From: (string)wire![0]!, To: (string)wire[1]!)).ToList();
             foreach (var (from, to) in wires)
             {
                 foreach (var end in new[] { from, to }.Where(end => end.StartsWith("esp:", StringComparison.Ordinal)))
                 {
                     var name = end["esp:".Length..];
+                    Assert.DoesNotContain(name, new[] { "11", "12" }); // Wokwi's TX and RX
                     Assert.True(name.StartsWith("GND.", StringComparison.Ordinal) || name is "5V" or "3V3" ||
-                        FreePins.Contains(int.Parse(name, CultureInfo.InvariantCulture)), $"{example}: {end}");
+                        FreePins.Contains(WokwiPinNames.TryGetValue(name, out var gpio)
+                            ? gpio
+                            : int.Parse(name, CultureInfo.InvariantCulture)), $"{example}: {end}");
                 }
             }
 
