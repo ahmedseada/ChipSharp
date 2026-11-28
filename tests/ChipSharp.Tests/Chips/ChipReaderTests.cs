@@ -1,6 +1,7 @@
 using System.Text;
 using ChipSharp.Abstractions;
 using ChipSharp.Chips;
+using ChipSharp.Tests.Support;
 
 namespace ChipSharp.Tests.Chips;
 
@@ -175,6 +176,80 @@ public sealed class ChipReaderTests
         Assert.Equal(26, rp2040.Interrupts.Count);
         Assert.Equal([("TIMER_IRQ_0", 0), ("TIMER_IRQ_1", 1), ("IO_IRQ_BANK0", 13), ("UART0_IRQ", 20), ("UART1_IRQ", 21)],
             rp2040.Interrupts.Where(i => i.Number is 0 or 1 or 13 or 20 or 21).Select(i => (i.Name, i.Number)));
+    }
+
+    [Fact]
+    public void A_description_over_an_SVD_file_adds_peripherals_register_arrays_pins_and_replaces_what_the_SVD_has_wrong()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "chipsharp-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            File.WriteAllText(Path.Combine(folder, "chip5.svd"), SmallSvd);
+            File.WriteAllText(Path.Combine(folder, "chip5.json"), """
+                {
+                  "name": "chip5", "svd": "chip5.svd", "interruptMatrix": true,
+                  "memory": { "sram": { "origin": "0x40800000", "size": "384K" } },
+                  "peripherals": {
+                    "GPIO1": { "replace": true, "base": "0x60006000", "width": 32, "registers": { "OUT": { "offset": 0 } } },
+                    "CLIC": { "base": "0x20800000", "width": 32, "registers": {
+                      "INT_CTRL%s": { "offset": "0x1000", "dim": 3, "dimIncrement": 4, "fields": { "IE": 8 } } } }
+                  },
+                  "interrupts": { "SOFTWARE": { "number": 3 } },
+                  "pins": { "GPIO2": { "number": 2, "port": "GPIO", "bit": 2, "functions": ["U0TXD"] } },
+                  "ports": { "GPIO": { "registers": { "out": "GPIO_OUT" } } }
+                }
+                """);
+
+            var chip = ChipJson.Read(Path.Combine(folder, "chip5.json"));
+
+            Assert.Equal(("chip5", "Somebody", "RV32IMAC", 32, true), (chip.Name, chip.Vendor, chip.Cpu, chip.Width, chip.InterruptMatrix));
+            Assert.Equal(["GPIO", "GPIO1", "CLIC"], chip.Peripherals.Select(p => p.Name));
+            Assert.Equal(["GPIO1_OUT"], chip.Peripheral("GPIO1")!.Registers.Select(r => r.FullName));
+            Assert.Equal(0x60006000UL, chip.Register("GPIO1_OUT")!.Address);
+            Assert.Equal([("CLIC_INT_CTRL0", 0x20801000UL), ("CLIC_INT_CTRL1", 0x20801004UL), ("CLIC_INT_CTRL2", 0x20801008UL)],
+                chip.Peripheral("CLIC")!.Registers.Select(r => (r.FullName, r.Address)));
+            Assert.Equal(0x100UL, chip.Register("CLIC_INT_CTRL2")!.Fields.Single().Mask);
+            Assert.Equal([("SOFTWARE", 3), ("GPIO", 16), ("GPIO1", 17)], chip.Interrupts.Select(i => (i.Name, i.Number)));
+            Assert.Equal(("GPIO2", 2, "GPIO", 2), chip.Pins.Select(p => (p.Name, p.Number, p.Port, p.Bit)).Single());
+            Assert.Equal("sram", Assert.Single(chip.Memory).Name);
+
+            File.WriteAllText(Path.Combine(folder, "wrong.json"), """{ "name": "w", "svd": "chip5.svd", "peripherals": { "GPIO": {} } }""");
+            Assert.Contains("peripheral GPIO is in the SVD file already",
+                Assert.Throws<ChipSharpException>(() => ChipJson.Read(Path.Combine(folder, "wrong.json"))).Message);
+            File.WriteAllText(Path.Combine(folder, "wrong.json"), """{ "name": "w", "svd": "chip5.svd", "interrupts": { "X": { "number": 16 } } }""");
+            Assert.Contains("interrupt X has the number 16, which the SVD file gives GPIO",
+                Assert.Throws<ChipSharpException>(() => ChipJson.Read(Path.Combine(folder, "wrong.json"))).Message);
+            File.WriteAllText(Path.Combine(folder, "wrong.json"), """{ "name": "w", "svd": "none.svd" }""");
+            Assert.Contains("\"svd\" is \"none.svd\", and there is no ",
+                Assert.Throws<ChipSharpException>(() => ChipJson.Read(Path.Combine(folder, "wrong.json"))).Message);
+        }
+        finally
+        {
+            Scratch.Delete(folder);
+        }
+    }
+
+    [Fact]
+    public void Espressifs_ESP32_C5_SVD_reads_with_its_peripherals_registers_and_interrupt_sources()
+    {
+        var c5 = Svd.Read(ChipFiles.Esp32c5Svd);
+
+        Assert.Equal(("ESP32-C5", "ESPRESSIF SYSTEMS (SHANGHAI) CO., LTD.", "RV32IMAC"), (c5.Name, c5.Vendor, c5.Cpu));
+        Assert.Equal(62, c5.Peripherals.Count);
+        Assert.Equal(0x600b1c1cUL, c5.Register("LP_WDT_SWD_CONFIG")!.Address);
+        Assert.Equal(0x60009064UL, c5.Register("TIMG1_WDTWPROTECT")!.Address); // TIMG1 is derived from TIMG0
+        Assert.Equal(0x60001000UL, c5.Register("UART1_FIFO")!.Address);        // UART1 from UART0
+        Assert.Equal((0x60091004UL, 0x600910d4UL), (c5.Register("GPIO_OUT")!.Address, c5.Register("GPIO_PIN0")!.Address));
+        Assert.Equal(c5.Register("GPIO_PIN0")!.Address + 4 * 28, c5.Register("GPIO_PIN28")!.Address); // a dim array
+        var autoFeed = c5.Register("LP_WDT_SWD_CONFIG")!.Fields.Single(f => f.Name == "SWD_AUTO_FEED_EN");
+        Assert.Equal((18, 1), (autoFeed.Offset, autoFeed.Width));
+        Assert.Equal([("GPIO", 31), ("UART0", 47), ("SYSTIMER_TARGET1", 62)],
+            c5.Interrupts.Where(i => i.Name is "GPIO" or "UART0" or "SYSTIMER_TARGET1").Select(i => (i.Name, i.Number)));
+
+        // the descriptions' line breaks (two backslashes in Espressif's files) are "; "
+        Assert.Equal("Configure whether or not to enable RWDT. 0:Disable; 1:Enable",
+            c5.Register("LP_WDT_CONFIG0")!.Fields.Single(f => f.Name == "WDT_EN").Description);
     }
 
     /// <summary>The registers the peripherals derived from others have: the SVD file writes them once.</summary>

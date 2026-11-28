@@ -264,8 +264,23 @@ public static partial class Svd
         ? ParseNumber(text) ?? throw new ChipSharpException($"{source}: <{name}>{text}</{name}> is not a number.")
         : null;
 
-    /// <summary>A description on one line.</summary>
-    private static string? Clean(string? text) => text is null ? null : Spaces().Replace(text, " ").Trim();
+    /// <summary>
+    /// A description on one line. Espressif's SVD files break a description's lines with two backslashes
+    /// ("...the RWDT.\\0: Disable\\1: Enable"): each break is "; " (a space after a full stop or a colon), and one at
+    /// the end goes, so that no backslash ends a line of C (it would join the next line to its comment).
+    /// </summary>
+    private static string? Clean(string? text)
+    {
+        if (text is null)
+        {
+            return null;
+        }
+
+        var line = Spaces().Replace(text, " ").Trim();
+        line = LineBreaks().Replace(line, match => match.Index + match.Length == line.Length ? ""
+            : match.Index > 0 && line[match.Index - 1] is '.' or ':' or ';' ? " " : "; ");
+        return line.TrimEnd('\\', ' ');
+    }
 
     [GeneratedRegex(@"^\s*\[(\d+):(\d+)\]\s*$")]
     private static partial Regex BitRange();
@@ -275,6 +290,9 @@ public static partial class Svd
 
     [GeneratedRegex(@"\s+")]
     private static partial Regex Spaces();
+
+    [GeneratedRegex(@"\s*\\\\\s*")]
+    private static partial Regex LineBreaks();
 
     /// <summary>The register settings an element gives what it holds, over those of the element around it.</summary>
     private sealed record Defaults(int Size, RegisterAccess Access, ulong? Reset)

@@ -1,0 +1,53 @@
+{
+  // RISC-V, 32 bits (RV32), machine mode only, no operating system: Espressif's ESP32-C2/C3/C5/C6/H2, WCH's CH32V, ...
+  // Milestone M4: the llvm code generator, clang and ld.lld (LLVM's Windows release has the RISC-V target), and the
+  // runtime "riscv32" (src/ChipSharp.Runtime.Riscv32: start-up, the trap entry, memcpy and the 64-bit division clang
+  // calls, float in software, how a program stops); a chip's file (esp32c5.json) adds its own runtime, memory, pins
+  // and capabilities
+  "name": "riscv32",
+  "backend": "llvm",
+  "toolchain": "clang",
+  "runtime": "riscv32",
+  "triple": "riscv32-unknown-elf",
+  // clang's -march and -mabi (ChipSettings): the instruction set every RV32 chip here has, the integer ABI (ilp32: int,
+  // long and pointers 32 bits, long long and double 64 bits and 8-byte aligned, no float registers); a chip's file names
+  // its own -march
+  "march": "rv32imac_zicsr_zifencei",
+  "mabi": "ilp32",
+  "pointerSize": 4,
+  "endian": "little",
+  "capabilities": {
+    "hwMultiply": true,   // M: mul, mulh, mulhu (a 64-bit product is three of them)
+    "hwDivide": true,     // M: div, divu, rem, remu on 32 bits; 64-bit division calls the runtime's __udivdi3 and friends
+    "fpu": false,         // no F or D: float math calls compiler-rt's __addsf3, __muldf3 and friends
+    // A: lr.w/sc.w and the amo*.w instructions, on 32-bit words; nothing reads it yet (ChipSharp's few atomic steps,
+    // an event's add and remove, turn interrupts off around them: the heap's lock)
+    "atomics": "word",
+    "unalignedAccess": false, // RV32's loads and stores of a word at an address not a multiple of its size may trap:
+                              // MemoryMarshal.Read and Write read byte by byte, MemoryMarshal.Cast checks its span
+    "stackCheck": true,   // nothing stops a stack that runs into the variables (no MPU set up): the functions that can
+                          // recurse check the stack pointer when they start (see LlvmStackChecks)
+    "heap": false,        // a chip's file says what it has (see armv6m.json)
+    "console": false,
+    "clock": false
+  },
+  "clang": {
+    // passed to clang after --target, -march and -mabi. No C library and no float hardware: the runtime provides what
+    // the compiler calls; -ffreestanding -fno-builtin keep its C from being turned into calls to memcpy and friends;
+    // no unwind tables (nothing unwinds the stack)
+    "flags": [
+      "-O2", "-ffreestanding", "-fno-builtin", "-nostdlib", "-fuse-ld=lld", "-ffunction-sections", "-fdata-sections",
+      "-fno-unwind-tables", "-fno-asynchronous-unwind-tables", "-Wno-override-module"
+    ]
+  },
+  "link": {
+    "entry": "chipsharp_reset",   // in the runtime: where the chip's boot ROM (or a debugger) starts the program
+    "code": "flash",              // the trap entry, code, constants and .data's starting values; a chip's file says
+    "data": "ram",                // variables and the stack, which starts at the end of the region
+    "stack": "8K",                // RAM the variables must leave for the stack
+    // the trap entry (section .vectors), which mtvec points at: 64 bytes, so that a CLIC's mode (mtvec's bits 5-0) can
+    // be set on it too (direct mode needs 4)
+    "vectorAlign": 64,
+    "flags": ["--gc-sections"]    // passed to ld.lld: drops every function and variable nothing uses
+  }
+}

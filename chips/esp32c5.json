@@ -1,0 +1,130 @@
+{
+  // ChipSharp's description of the Espressif ESP32-C5 (src/ChipSharp.Chips reads it; the tests make its C headers,
+  // src/ChipSharp.Chips/Generated/esp32c5_*.h, from it). The peripherals, registers, fields and interrupt sources are
+  // Espressif's SVD file (svd/esp32c5.svd: Espressif's "ESP32-C5" SVD, version 1, Apache-2.0, as esp-rs/esp-pacs keeps
+  // it, esp32c5/svd/esp32c5.base.svd, commit a96d437); this file adds what the SVD does not say: the memory, the CLIC
+  // (the core's own interrupt controller, which the SVD leaves out), the pins and their IO MUX functions, the GPIO
+  // port, and the constants the start-up and the runtime need. The facts and their sources are in the target file,
+  // targets/chip/esp32c5.json.
+  "name": "esp32c5",
+  "svd": "svd/esp32c5.svd",
+  "description": "ESP32-C5: RV32IMAC at up to 240 MHz, 384 KB SRAM, Wi-Fi 6 (2.4 and 5 GHz), Bluetooth LE, 802.15.4",
+  "cpu": "rv32imac",
+  // the SVD's interrupts are the interrupt matrix's 84 sources (soc/interrupts.h, ETS_*_INTR_SOURCE), each routed to
+  // one of the CPU's 32 interrupt lines by its INTERRUPT_CORE0_<SOURCE>_INTR_MAP register
+  "interruptMatrix": true,
+  "memory": {
+    // soc.h; ESP-IDF's bootloader.memory.ld.in for the ROM's part of SRAM while it boots
+    "rom": { "origin": "0x40000000", "size": "0x50000", "access": "rx", "description": "the boot ROM (SOC_IROM_MASK_LOW-HIGH)" },
+    "sram": { "origin": "0x40800000", "size": "384K", "access": "rwx",
+      "description": "HP SRAM, instructions and data at the same addresses; from 0x4085c5a0 on the ROM's stack, .bss and .data while it boots" },
+    "lpram": { "origin": "0x50000000", "size": "16K", "access": "rwx", "description": "LP SRAM" },
+    "flash": { "origin": "0x42000000", "size": "32M", "access": "rx", "description": "flash and PSRAM through the cache and its MMU (not used)" }
+  },
+  "peripherals": {
+    // ---- the interrupt matrix, in place of the SVD's, whose map registers are at the wrong addresses from source 61
+    // on (its SYSTIMER_TARGET1_INTR_MAP at 0xf0, which is TG1_WDT's): one map register per source, at 4 * the source's
+    // number (ESP-IDF soc/interrupt_matrix_reg.h: WIFI_MAC_INTR_MAP_REG + 0x0 ... KM_INTR_MAP_REG + 0x14c; esp-pacs makes
+    // the same fix), e.g. INTERRUPT_CORE0_INTR_MAP0_ADDRESS + 4 * ESP32C5_IRQ_SYSTIMER_TARGET1
+    "INTERRUPT_CORE0": {
+      "replace": true,
+      "base": "0x60010000",
+      "description": "Interrupt matrix: routes the 84 interrupt sources to the CPU's 32 interrupt lines",
+      "width": 32,
+      "registers": {
+        "INTR_MAP%s": { "offset": 0, "dim": 84, "dimIncrement": 4, "reset": 0, "description": "a source's CPU interrupt line", "fields": {
+          "MAP": { "bits": "5:0", "description": "the CPU interrupt line (CLIC id - 16) the source goes to" },
+          "PASS_IN_SEC": { "bits": 8, "description": "the source passes in secure mode" } } },
+        "INT_STATUS%s": { "offset": "0x150", "dim": 3, "dimIncrement": 4, "access": "read-only",
+          "description": "the sources that ask, a bit each: 0-31, 32-63, 64-83" },
+        "CLOCK_GATE": { "offset": "0x170", "fields": { "REG_CLK_EN": { "bits": 0, "description": "the registers' clock" } } }
+      }
+    },
+
+    // ---- the CLIC (ESP-IDF soc/clic_reg.h; ESP32-C5 TRM, interrupt controller): 48 interrupt ids, 0-15 the core's
+    // own, 16-47 the CPU interrupt lines 0-31 of the interrupt matrix
+    "CLIC": {
+      "base": "0x20800000",
+      "description": "Core-Local Interrupt Controller",
+      "width": 32,
+      "registers": {
+        "INT_CONFIG": { "offset": 0, "description": "how many bits of CTL are the level (per mode)", "fields": {
+          "MNLBITS": { "bits": "3:0", "description": "machine mode's level bits" },
+          "NMBITS": { "bits": "5:4", "description": "the bits of CTL that are the privilege mode" },
+          "SNLBITS": { "bits": "19:16", "description": "supervisor mode's level bits" },
+          "UNLBITS": { "bits": "27:24", "description": "user mode's level bits" } } },
+        "INT_INFO": { "offset": 4, "access": "read-only", "fields": {
+          "NUM_INT": { "bits": "12:0", "description": "the number of interrupts" },
+          "VERSION": { "bits": "20:13", "description": "the CLIC's architecture and implementation versions" },
+          "CTLBITS": { "bits": "24:21", "description": "the bits of CTL that are implemented" } } },
+        "INT_THRESH": { "offset": 8, "fields": {
+          "THRESH": { "bits": "31:24", "description": "interrupts of this level or lower do not interrupt" } } },
+        // one word per interrupt id (0x20801000 + 4 * id), its four bytes each writable alone
+        "INT_CTRL%s": { "offset": "0x1000", "dim": 48, "dimIncrement": 4, "description": "an interrupt's pending, enable, attributes and level", "fields": {
+          "IP": { "bits": 0, "description": "pending (an edge-triggered one is cleared by writing 0)" },
+          "IE": { "bits": 8, "description": "enabled" },
+          "SHV": { "bits": 16, "description": "vectored: through mtvt's table, not the trap entry" },
+          "TRIG": { "bits": "18:17", "description": "bit 17: edge (1) or level (0); bit 18: falling (1) or rising (0) edge",
+            "values": { "LEVEL": 0, "RISING": 1, "FALLING": 3 } },
+          "MODE": { "bits": "23:22", "description": "privilege mode", "values": { "USER": 0, "MACHINE": 3 } },
+          "CTL": { "bits": "31:24", "description": "level and priority" } } }
+      }
+    }
+  },
+  // the GPIO matrix connects a peripheral to any GPIO; the IO MUX also gives each pin the functions below directly
+  // (ESP-IDF soc/io_mux_reg.h, FUNC_*: function 1 is the plain GPIO), and GPIO 13 and 14 are the USB Serial/JTAG's
+  // D- and D+ (DS). SOC_GPIO_PIN_COUNT 29: GPIO 0 to 28, bit n of the GPIO registers
+  "ports": {
+    "GPIO": {
+      "registers": {
+        "out": "GPIO_OUT", "set": "GPIO_OUT_W1TS", "clear": "GPIO_OUT_W1TC",
+        "direction": "GPIO_ENABLE", "directionSet": "GPIO_ENABLE_W1TS", "directionClear": "GPIO_ENABLE_W1TC",
+        "in": "GPIO_IN"
+      }
+    }
+  },
+  "pins": {
+    "GPIO0": { "number": 0, "port": "GPIO", "bit": 0, "functions": ["XTAL_32K_P"] },
+    "GPIO1": { "number": 1, "port": "GPIO", "bit": 1, "functions": ["XTAL_32K_N"] },
+    "GPIO2": { "number": 2, "port": "GPIO", "bit": 2, "functions": ["MTMS", "FSPIQ"] },
+    "GPIO3": { "number": 3, "port": "GPIO", "bit": 3, "functions": ["MTDI"] },
+    "GPIO4": { "number": 4, "port": "GPIO", "bit": 4, "functions": ["MTCK", "FSPIHD"] },
+    "GPIO5": { "number": 5, "port": "GPIO", "bit": 5, "functions": ["MTDO", "FSPIWP"] },
+    "GPIO6": { "number": 6, "port": "GPIO", "bit": 6, "functions": ["FSPICLK"] },
+    "GPIO7": { "number": 7, "port": "GPIO", "bit": 7, "functions": ["SDIO_DATA1", "FSPID"] },
+    "GPIO8": { "number": 8, "port": "GPIO", "bit": 8 },
+    "GPIO9": { "number": 9, "port": "GPIO", "bit": 9 },
+    "GPIO10": { "number": 10, "port": "GPIO", "bit": 10, "functions": ["SDIO_CMD", "FSPICS0"] },
+    "GPIO11": { "number": 11, "port": "GPIO", "bit": 11, "functions": ["U0TXD"] },
+    "GPIO12": { "number": 12, "port": "GPIO", "bit": 12, "functions": ["U0RXD"] },
+    "GPIO13": { "number": 13, "port": "GPIO", "bit": 13, "functions": ["SDIO_DATA3", "USB_DM"] },
+    "GPIO14": { "number": 14, "port": "GPIO", "bit": 14, "functions": ["SDIO_DATA2", "USB_DP"] },
+    "GPIO15": { "number": 15, "port": "GPIO", "bit": 15, "functions": ["SPICS1"] },
+    "GPIO16": { "number": 16, "port": "GPIO", "bit": 16, "functions": ["SPICS0"] },
+    "GPIO17": { "number": 17, "port": "GPIO", "bit": 17, "functions": ["SPIQ"] },
+    "GPIO18": { "number": 18, "port": "GPIO", "bit": 18, "functions": ["SPIWP"] },
+    "GPIO19": { "number": 19, "port": "GPIO", "bit": 19, "functions": ["VDD_SPI"] },
+    "GPIO20": { "number": 20, "port": "GPIO", "bit": 20, "functions": ["SPIHD"] },
+    "GPIO21": { "number": 21, "port": "GPIO", "bit": 21, "functions": ["SPICLK"] },
+    "GPIO22": { "number": 22, "port": "GPIO", "bit": 22, "functions": ["SPID"] },
+    "GPIO23": { "number": 23, "port": "GPIO", "bit": 23 },
+    "GPIO24": { "number": 24, "port": "GPIO", "bit": 24 },
+    "GPIO25": { "number": 25, "port": "GPIO", "bit": 25 },
+    "GPIO26": { "number": 26, "port": "GPIO", "bit": 26 },
+    "GPIO27": { "number": 27, "port": "GPIO", "bit": 27 },
+    "GPIO28": { "number": 28, "port": "GPIO", "bit": 28 }
+  },
+  "constants": {
+    // the watchdogs' write keys (ESP-IDF hal/lpwdt_ll.h LP_WDT_WKEY_VALUE, LP_WDT_SWD_WKEY_VALUE; hal/mwdt_ll.h): their
+    // WPROTECT register takes this to let the others be written, and anything else to lock them again
+    "LP_WDT_WKEY_VALUE": { "value": "0x50D83AA1", "description": "LP_WDT_WPROTECT's key" },
+    "LP_WDT_SWD_WKEY_VALUE": { "value": "0x50D83AA1", "description": "LP_WDT_SWD_WPROTECT's key" },
+    "TIMG_WDT_WKEY_VALUE": { "value": "0x50D83AA1", "description": "a timer group's WDTWPROTECT key" },
+    "CLIC_INTERRUPTS": { "value": 48, "description": "the CLIC's interrupt ids" },
+    "CLIC_EXT_INTR_NUM_OFFSET": { "value": 16, "description": "the CLIC id of the CPU interrupt line 0" },
+    "INTERRUPT_SOURCES": { "value": 84, "description": "the interrupt matrix's sources (ETS_MAX_INTR_SOURCE)" },
+    "ROM_RESERVED_START": { "value": "0x4085c5a0", "description": "the ROM's stack, .bss and .data while it boots, to SRAM's end" },
+    "BOOTLOADER_FLASH_OFFSET": { "value": "0x2000", "description": "where the ROM reads the image in flash" },
+    "IMAGE_CHIP_ID": { "value": 23, "description": "the image header's chip id (esptool)" }
+  }
+}

@@ -126,6 +126,13 @@ public sealed class ChipDescription
 
     public IReadOnlyList<ChipInterrupt> Interrupts { get; init; } = [];
 
+    /// <summary>
+    /// True when <see cref="Interrupts"/> are sources an interrupt matrix routes to the processor's own interrupts
+    /// (Espressif's chips: each source's <c>INTERRUPT_CORE0_&lt;SOURCE&gt;_INTR_MAP</c> register names one), not entries
+    /// of the processor's vector table.
+    /// </summary>
+    public bool InterruptMatrix { get; init; }
+
     public IReadOnlyList<ChipPort> Ports { get; init; } = [];
 
     public IReadOnlyList<ChipPin> Pins { get; init; } = [];

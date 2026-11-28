@@ -20,7 +20,8 @@ public sealed class ChipSimulatorTests : IDisposable
     [Fact]
     public void Every_chips_pins_are_its_targets_and_each_is_used_once()
     {
-        Assert.Equal(["pico", "uno", "pfs154-bare", "stm8s103-board"], ChipSimulators.All.Select(chip => chip.Target));
+        Assert.Equal(["pico", "uno", "pfs154-bare", "stm8s103-board", "esp32c5-devkitc"],
+            ChipSimulators.All.Select(chip => chip.Target));
         Assert.All(ChipSimulators.All, chip =>
         {
             var pins = chip.Pins;

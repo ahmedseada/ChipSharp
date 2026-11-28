@@ -35,8 +35,19 @@ namespace ChipSharp.Chips;
 /// }
 /// </code>
 /// A register's C name is its peripheral's "prefix" (the peripheral's name unless it says), an underscore and its own:
-/// <c>UART1_SR</c>; with <c>"prefix": ""</c> its own alone. A field's values (<c>"values": { "DIV8": 3 }</c>) are
-/// unshifted. Numbers are JSON numbers, or text: hex (0x...), or a size (8K).
+/// <c>UART1_SR</c>; with <c>"prefix": ""</c> its own alone. A register with <c>"dim"</c> is an array, as in SVD:
+/// <c>"INT_CTRL%s": { "offset": 0, "dim": 48, "dimIncrement": 4 }</c> is INT_CTRL0 to INT_CTRL47, 4 bytes apart. A
+/// field's values (<c>"values": { "DIV8": 3 }</c>) are unshifted. Numbers are JSON numbers, or text: hex (0x...), or a
+/// size (8K).
+/// <para>
+/// A chip its vendor describes in SVD has a description here too when the SVD does not say all a runtime needs (it never
+/// says pins or memory): <c>"svd": "svd/esp32c5.svd"</c> (a path from the description's folder) takes the peripherals,
+/// registers and interrupts from the SVD file (<see cref="Svd"/>), and the description adds the rest: its name (which
+/// the headers are named by), its memory, pins, ports and constants, and the peripherals and interrupts the SVD leaves
+/// out (a processor's own, such as a RISC-V core's CLIC); a peripheral with <c>"replace": true</c> is described here in
+/// place of the SVD's, which has it wrong. <c>"interruptMatrix": true</c> says the chip's interrupts are
+/// sources an interrupt matrix routes to the processor's interrupts (Espressif's chips), not entries of a vector table.
+/// </para>
 /// </summary>
 public static partial class ChipJson
 {
@@ -46,15 +57,18 @@ public static partial class ChipJson
         AllowTrailingCommas = true,
     };
 
-    /// <summary>Reads the description in <paramref name="path"/>.</summary>
+    /// <summary>Reads the description in <paramref name="path"/> (and the SVD file it names, from its folder).</summary>
     public static ChipDescription Read(string path)
     {
         ArgumentNullException.ThrowIfNull(path);
-        return Parse(File.ReadAllText(path), path);
+        return Parse(File.ReadAllText(path), path, Path.GetDirectoryName(Path.GetFullPath(path)));
     }
 
-    /// <summary>Reads a description from its text; <paramref name="source"/> names it in messages.</summary>
-    public static ChipDescription Parse(string text, string source = "chip description")
+    /// <summary>
+    /// Reads a description from its text; <paramref name="source"/> names it in messages, and the SVD file its "svd" names
+    /// is found from <paramref name="folder"/> (the current folder when null).
+    /// </summary>
+    public static ChipDescription Parse(string text, string source = "chip description", string? folder = null)
     {
         ArgumentNullException.ThrowIfNull(text);
         JsonNode? node;
@@ -73,26 +87,59 @@ public static partial class ChipJson
         }
 
         var reader = new Reader(source);
-        var width = chip["width"] is { } w ? (int)reader.Number(w, "width") : 8;
+        var vendor = reader.Text(chip["svd"], "svd") is { } svd ? ReadSvd(svd, folder, reader) : null;
+        var width = chip["width"] is { } w ? (int)reader.Number(w, "width") : vendor?.Width ?? 8;
         var peripherals = reader.Peripherals(chip["peripherals"] as JsonObject, width);
+        var interrupts = reader.Interrupts(chip["interrupts"] as JsonObject);
+        if (vendor is not null)
+        {
+            // a peripheral the SVD file has wrong is described here instead, with "replace": true
+            var replaced = (chip["peripherals"] as JsonObject ?? [])
+                .Where(p => p.Value is JsonObject o && o["replace"] is JsonValue r && r.TryGetValue(out bool yes) && yes)
+                .Select(p => vendor.Peripheral(p.Key) is not null ? p.Key
+                    : throw reader.Error($"peripheral {p.Key} replaces the SVD file's, which has none of that name."))
+                .ToHashSet(StringComparer.Ordinal);
+            peripherals = [.. vendor.Peripherals.Where(p => !replaced.Contains(p.Name)), .. peripherals];
+            if (peripherals.GroupBy(p => p.Name).FirstOrDefault(group => group.Count() > 1) is { } twice)
+            {
+                throw reader.Error($"peripheral {twice.Key} is in the SVD file already.");
+            }
+
+            if (interrupts.FirstOrDefault(i => vendor.Interrupts.Any(v => v.Number == i.Number)) is { } taken)
+            {
+                throw reader.Error($"interrupt {taken.Name} has the number {taken.Number}, which the SVD file gives " +
+                    $"{vendor.Interrupts.First(v => v.Number == taken.Number).Name}.");
+            }
+
+            interrupts = [.. vendor.Interrupts.Concat(interrupts).OrderBy(i => i.Number)];
+        }
+
         var pins = reader.Pins(chip["pins"] as JsonObject);
         var description = new ChipDescription
         {
             Name = reader.Text(chip["name"], "name") ?? throw reader.Error("\"name\" is missing."),
-            Vendor = reader.Text(chip["vendor"], "vendor"),
-            Description = reader.Text(chip["description"], "description"),
-            Cpu = reader.Text(chip["cpu"], "cpu"),
-            Endian = reader.Text(chip["endian"], "endian") ?? "little",
+            Vendor = reader.Text(chip["vendor"], "vendor") ?? vendor?.Vendor,
+            Description = reader.Text(chip["description"], "description") ?? vendor?.Description,
+            Cpu = reader.Text(chip["cpu"], "cpu") ?? vendor?.Cpu,
+            Endian = reader.Text(chip["endian"], "endian") ?? vendor?.Endian ?? "little",
             Width = width,
             Memory = reader.Memory(chip["memory"] as JsonObject),
             Peripherals = peripherals,
-            Interrupts = reader.Interrupts(chip["interrupts"] as JsonObject),
+            Interrupts = interrupts,
+            InterruptMatrix = chip["interruptMatrix"] is JsonValue matrix && matrix.TryGetValue(out bool routed) && routed,
             Ports = reader.Ports(chip["ports"] as JsonObject, pins),
             Pins = pins,
             Constants = reader.Constants(chip["constants"] as JsonObject),
         };
         Check(description, reader);
         return description;
+    }
+
+    /// <summary>The SVD file a description's "svd" names, from <paramref name="folder"/>.</summary>
+    private static ChipDescription ReadSvd(string svd, string? folder, Reader reader)
+    {
+        var path = Path.Combine(folder ?? Directory.GetCurrentDirectory(), svd);
+        return File.Exists(path) ? Svd.Read(path) : throw reader.Error($"\"svd\" is \"{svd}\", and there is no {path}.");
     }
 
     /// <summary>What every description must be: one register per C name, fields inside their registers apart.</summary>
@@ -225,7 +272,7 @@ public static partial class ChipJson
                     registers = [];
                     foreach (var (registerName, registerNode) in peripheral["registers"] as JsonObject ?? [])
                     {
-                        registers.Add(Register(name, prefix, baseAddress, size, registerName, registerNode));
+                        registers.AddRange(Array(name, prefix, baseAddress, size, registerName, registerNode));
                     }
                 }
 
@@ -236,6 +283,38 @@ public static partial class ChipJson
         }
 
         private static string FullName(string prefix, string name) => prefix.Length == 0 ? name : $"{prefix}_{name}";
+
+        /// <summary>
+        /// A register, or with "dim" an array of them: %s in the name replaced by 0, 1, ..., each "dimIncrement" bytes
+        /// after the one before.
+        /// </summary>
+        private IEnumerable<ChipRegister> Array(string peripheral, string prefix, ulong baseAddress, int width, string name,
+            JsonNode? node)
+        {
+            if (node is not JsonObject { } register || register["dim"] is not { } dimNode)
+            {
+                return [Register(peripheral, prefix, baseAddress, width, name, node)];
+            }
+
+            var dim = Number(dimNode, $"{peripheral}.{name}.dim");
+            var increment = register["dimIncrement"] is { } step ? Number(step, $"{peripheral}.{name}.dimIncrement")
+                : throw Error($"register {peripheral}.{name} is an array (\"dim\") without a \"dimIncrement\".");
+            if (!name.Contains("%s", StringComparison.Ordinal))
+            {
+                throw Error($"register {peripheral}.{name} is an array (\"dim\"): its name needs a %s for the index.");
+            }
+
+            var first = Register(peripheral, prefix, baseAddress, width, name, node);
+            return Enumerable.Range(0, (int)dim).Select(i =>
+            {
+                var index = i.ToString(CultureInfo.InvariantCulture);
+                var each = name.Replace("%s", index, StringComparison.Ordinal);
+                return first with
+                {
+                    Name = each, FullName = FullName(prefix, each), Address = first.Address + (ulong)i * increment,
+                };
+            });
+        }
 
         private ChipRegister Register(string peripheral, string prefix, ulong baseAddress, int width, string name, JsonNode? node)
         {

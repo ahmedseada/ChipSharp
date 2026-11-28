@@ -5,7 +5,9 @@ namespace ChipSharp.Chips;
 /// <summary>
 /// Where the chips' descriptions are: the repository's <see cref="FolderName"/> folder, one file per chip, ChipSharp's
 /// own JSON (<c>pfs154.json</c>, <c>stm8s103f3.json</c>, named as the chip's target file) or a vendor's SVD (in
-/// <c>svd</c>, which the chip's target file names with <c>"svd"</c>: rp2040.json's <c>"svd/RP2040.svd"</c>).
+/// <c>svd</c>, which the chip's target file names with <c>"svd"</c>: rp2040.json's <c>"svd/RP2040.svd"</c>), or both: a
+/// JSON description that takes its registers from a vendor's SVD file and adds the rest (<c>esp32c5.json</c>'s
+/// <c>"svd": "svd/esp32c5.svd"</c>, see <see cref="ChipJson"/>).
 /// </summary>
 public static class ChipCatalog
 {

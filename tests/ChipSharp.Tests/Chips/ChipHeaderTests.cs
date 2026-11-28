@@ -27,12 +27,16 @@ public sealed partial class ChipHeaderTests : IDisposable
     [Theory]
     [InlineData("pfs154")]
     [InlineData("stm8s103f3")]
+    [InlineData("esp32c5")]
     public void The_kept_headers_are_what_the_generator_makes_of_the_chips_description(string chip)
     {
         var headers = ChipFiles.Headers(chip);
         var regenerate = Environment.GetEnvironmentVariable(ChipFiles.RegenerateVariable) == "1";
 
-        Assert.Equal([$"{chip}_registers.h", $"{chip}_interrupts.h", $"{chip}_pins.h"], headers.Select(h => h.FileName));
+        // a chip clang builds has the table of its interrupts' handlers too
+        string[] vectors = ChipCatalog.DialectOf(ChipFiles.Targets.Load(chip)) == CDialect.Gnu ? [$"{chip}_vectors.c"] : [];
+        Assert.Equal([$"{chip}_registers.h", $"{chip}_interrupts.h", $"{chip}_pins.h", .. vectors],
+            headers.Select(h => h.FileName));
         foreach (var header in headers)
         {
             var path = Path.Combine(ChipFiles.GeneratedFolder, header.FileName);
@@ -264,5 +268,96 @@ public sealed partial class ChipHeaderTests : IDisposable
             Assert.True(names.Count == names.Distinct().Count(), $"{file.FileName}: " +
                 string.Join(", ", names.GroupBy(n => n).Where(g => g.Count() > 1).Select(g => g.Key).Take(5)));
         });
+    }
+
+    /// <summary>
+    /// Espressif's SVD breaks a description's lines with two backslashes; one at the end of a line of C would make the next
+    /// line part of its comment (the next field's mask, gone): the reader makes them "; ", and no line ends with one.
+    /// </summary>
+    [Fact]
+    public void No_line_of_a_header_ends_with_a_backslash()
+    {
+        IEnumerable<GeneratedFile> all =
+        [
+            .. ChipFiles.Generated.SelectMany(ChipFiles.Headers),
+            .. ChipHeaders.All(Svd.Read(ChipFiles.Svd), CDialect.Gnu, "RP2040.svd"),
+        ];
+        Assert.All(all, file => Assert.DoesNotContain(file.Content.Split('\n'), line => line.EndsWith('\\')));
+
+        var registers = ChipFiles.Headers("esp32c5")[0].Content;
+        Assert.Contains("#define LP_WDT_CONFIG0_WDT_EN_POS 31   // Configure whether or not to enable RWDT. 0:Disable; " +
+            "1:Enable\n#define LP_WDT_CONFIG0_WDT_EN_MASK 0x80000000ul\n", registers);
+    }
+
+    /// <summary>
+    /// The ESP32-C5's description: Espressif's SVD (its peripherals, registers and the interrupt matrix's sources), and
+    /// what chips/esp32c5.json adds to it (the CLIC, the pins and their GPIO port, the constants); the headers compile with
+    /// clang for the chip's RISC-V, and say what the start-up uses (the watchdogs).
+    /// </summary>
+    [Fact]
+    public void The_ESP32_C5s_headers_from_its_SVD_and_description_compile_with_clang_for_its_RISC_V()
+    {
+        if (PicoTools.MissingLlvm.Value is not null)
+        {
+            return;
+        }
+
+        var files = ChipFiles.Headers("esp32c5");
+        Directory.CreateDirectory(_scratch);
+        foreach (var file in files)
+        {
+            File.WriteAllText(Path.Combine(_scratch, file.FileName), file.Content);
+        }
+
+        File.WriteAllText(Path.Combine(_scratch, "use.c"), """
+            #include "esp32c5_registers.h"
+            #include "esp32c5_interrupts.h"
+            #include "esp32c5_pins.h"
+
+            _Static_assert(LP_WDT_CONFIG0_ADDRESS == 0x600b1c00ul && LP_WDT_WPROTECT_ADDRESS == 0x600b1c18ul, "LP_WDT");
+            _Static_assert(LP_WDT_SWD_CONFIG_ADDRESS == 0x600b1c1cul && LP_WDT_SWD_CONFIG_SWD_AUTO_FEED_EN_POS == 18, "SWD");
+            _Static_assert(TIMG0_WDTCONFIG0_ADDRESS == 0x60008048ul && TIMG1_WDTWPROTECT_ADDRESS == 0x60009064ul, "TIMG");
+            _Static_assert(TIMG0_WDTCONFIG0_WDT_FLASHBOOT_MOD_EN_MASK == (1ul << 14), "flash boot");
+            _Static_assert(CLIC_INT_CTRL0_ADDRESS == 0x20801000ul && CLIC_INT_CTRL47_ADDRESS == 0x208010bcul, "CLIC");
+            _Static_assert(CLIC_INT_CTRL17_IE_MASK == 0x100u && CLIC_INT_CTRL17_TRIG_FALLING == (0x3u << 17), "CLIC fields");
+            _Static_assert(INTERRUPT_CORE0_INTR_MAP0_ADDRESS + 4 * ESP32C5_IRQ_SYSTIMER_TARGET1 == 0x600100f8ul && INTERRUPT_CORE0_INTR_MAP83_ADDRESS == 0x6001014cul,
+                "a source's map register");
+            _Static_assert(ESP32C5_IRQ_COUNT <= INTERRUPT_SOURCES && INTERRUPT_CORE0_INT_STATUS2_ADDRESS == 0x60010158ul, "the interrupt matrix");
+            _Static_assert(ESP32C5_PIN_GPIO11 == 11 && ESP32C5_U0TXD_PIN == 11 && ESP32C5_U0RXD_PIN == 12, "UART0");
+            _Static_assert(ESP32C5_PINS == 0x1ffffffful, "pins");
+
+            void stop_the_watchdogs(void)
+            {
+                LP_WDT_WPROTECT = LP_WDT_WKEY_VALUE;
+                LP_WDT_CONFIG0 &= ~(LP_WDT_CONFIG0_WDT_EN_MASK | LP_WDT_CONFIG0_WDT_FLASHBOOT_MOD_EN_MASK);
+                LP_WDT_WPROTECT = 0;
+                GPIO_OUT_W1TS = ESP32C5_PIN_GPIO27_MASK;
+            }
+
+            void esp32c5_irq_GPIO(void)
+            {
+                GPIO_STATUS_W1TC = GPIO_STATUS;
+            }
+            """);
+        foreach (var source in (string[])["use.c", "esp32c5_vectors.c"])
+        {
+            var (exitCode, output) = Run(new ClangToolchain().FindClang(),
+                ["--target=riscv32-unknown-elf", "-march=rv32imac_zicsr_zifencei", "-mabi=ilp32", "-ffreestanding",
+                    "-std=c11", "-Wall", "-Werror", "-c", source, "-o", source + ".o"]);
+            Assert.True(exitCode == 0, $"{source}: {output}");
+        }
+
+        var chip = ChipFiles.Read("esp32c5");
+        Assert.Equal(("esp32c5", "rv32imac", true), (chip.Name, chip.Cpu, chip.InterruptMatrix));
+        Assert.Equal("ESPRESSIF SYSTEMS (SHANGHAI) CO., LTD.", chip.Vendor);
+        Assert.Equal(0x20800000UL, chip.Peripheral("CLIC")!.Base);
+        Assert.Equal(0x60008000UL, chip.Peripheral("TIMG0")!.Base);
+        Assert.Equal(0x60009048UL, chip.Register("TIMG1_WDTCONFIG0")!.Address); // TIMG1 is derived from TIMG0
+        Assert.Equal(29, chip.Pins.Count);
+        Assert.Equal(["GPIO_OUT", "GPIO_OUT_W1TS", "GPIO_OUT_W1TC", "GPIO_ENABLE", "GPIO_ENABLE_W1TS", "GPIO_ENABLE_W1TC",
+            "GPIO_IN"], Assert.Single(chip.Ports).Registers.Values);
+        Assert.Equal(82, chip.Interrupts.Max(i => i.Number)); // ECDSA: the SVD has no KM (83)
+        Assert.DoesNotContain(chip.Registers, r => r.FullName == "INTERRUPT_CORE0_SYSTIMER_TARGET1_INTR_MAP"); // replaced
+        Assert.Contains("    esp32c5_irq_GPIO,   // ", files.Single(f => f.FileName == "esp32c5_vectors.c").Content);
     }
 }

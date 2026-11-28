@@ -8,8 +8,9 @@ namespace ChipSharp.Backend.Llvm;
 /// LLVM first moves what it still needs from them to the stack, where the collector reads it). The collector reads the
 /// registers conservatively, and a register keeps a reference the program no longer uses until something else is put
 /// there: a list a method made and returned from, still in a register of its inlined body, would live on through the
-/// collection the program asked for to free it. The registers a frame pointer could be in (rbp on a PC, r7 on Thumb) are
-/// among them: a function of ChipSharp's never needs one, as its stack never grows by an amount known only when it runs.
+/// collection the program asked for to free it. The registers a frame pointer could be in (rbp on a PC, r7 on Thumb, s0
+/// on RISC-V) are among them: a function of ChipSharp's never needs one, as its stack never grows by an amount known only
+/// when it runs.
 /// </summary>
 internal static class LlvmCollectCalls
 {
@@ -38,6 +39,14 @@ internal static class LlvmCollectCalls
         {
             return "call void asm sideeffect \"movs r4, #0\\0Amovs r5, #0\\0Amovs r6, #0\\0Amovs r7, #0\\0Amov r8, r4\\0A" +
                 "mov r9, r4\\0Amov r10, r4\\0Amov r11, r4\",\"~{r4},~{r5},~{r6},~{r7},~{r8},~{r9},~{r10},~{r11},~{cpsr}\"()";
+        }
+
+        if (triple.StartsWith("riscv32", StringComparison.Ordinal))
+        {
+            // s0-s11: x8, x9 and x18-x27 (s0 is the frame pointer a function of ChipSharp's never needs)
+            int[] saved = [8, 9, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27];
+            return "call void asm sideeffect \"" + string.Join("\\0A", saved.Select(x => $"li x{x}, 0")) + "\", \"" +
+                string.Join(",", saved.Select(x => $"~{{x{x}}}")) + "\"()";
         }
 
         return null;
