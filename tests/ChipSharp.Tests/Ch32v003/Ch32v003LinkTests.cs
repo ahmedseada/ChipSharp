@@ -88,7 +88,8 @@ public sealed partial class Ch32v003LinkTests : IDisposable
         Assert.False(board.HasHeap);
         Assert.False(board.HasConsole);
         Assert.False(board.HasCapability("clock"));
-        Assert.Null(board.Image); // the image and the WCH-LinkE flasher come with M5's wave 0 (B)
+        // from the board: the raw flash, which wlink writes through a WCH-LinkE
+        Assert.Equal(("bin", "wlink", "CH32V003"), (board.Image, board.Flasher, board.Setting("wlink.chip")));
         // from the board
         Assert.Equal("48000000", board.Setting("clockHz"));
         Assert.Empty(board.Pins); // the board's LEDs are on a header, wired to no pin
@@ -186,7 +187,7 @@ public sealed partial class Ch32v003LinkTests : IDisposable
     }
 
     [PicoFact]
-    public void Chipsharp_build_makes_the_elf_with_the_registered_runtimes_and_no_image_yet()
+    public void Chipsharp_build_makes_the_bin_of_the_flash_with_the_registered_runtimes()
     {
         var dll = Path.Combine(_scratch, "Computes.dll");
         Directory.CreateDirectory(_scratch);
@@ -199,8 +200,12 @@ public sealed partial class Ch32v003LinkTests : IDisposable
             OutputFolder = Path.Combine(_scratch, "out"),
         });
 
-        Assert.Equal(Path.Combine(_scratch, "out", "Computes.elf"), result.OutputPath);
-        Assert.Equal(243, ElfFile.Read(result.OutputPath).Machine);
+        // the flash's bytes from 0x08000000: the vector table first, its first word the reset's lui t0
+        Assert.Equal(Path.Combine(_scratch, "out", "Computes.bin"), result.OutputPath);
+        var image = File.ReadAllBytes(result.OutputPath);
+        Assert.InRange(image.Length, 156, 16 * 1024);
+        Assert.Equal(0x2b7u, BinaryPrimitives.ReadUInt32LittleEndian(image) & 0xfff);
+        Assert.Equal(Ch32v003Build.FlashStart + 156, BinaryPrimitives.ReadUInt32LittleEndian(image.AsSpan(8)));
     }
 
     [PicoFact]

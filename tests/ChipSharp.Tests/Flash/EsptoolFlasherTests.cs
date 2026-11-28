@@ -49,7 +49,7 @@ public sealed class EsptoolFlasherTests : IDisposable
 
         var registry = DefaultComponents.CreateFlasherRegistry();
         Assert.IsType<EsptoolFlasher>(registry.Get<IFlasher>("esptool"));
-        Assert.Equal(["avrdude", "easypdkprog", "esptool", "stm8flash", "uf2-copy"], registry.Names<IFlasher>());
+        Assert.Equal(["avrdude", "easypdkprog", "esptool", "minichlink", "stm8flash", "uf2-copy", "wlink"], registry.Names<IFlasher>());
     }
 
     [Fact]
