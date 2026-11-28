@@ -1,0 +1,25 @@
+{
+  // RISC-V, 32 bits, the embedded base: RV32E (16 registers, x0-x15, where RV32I has 32), machine mode only: WCH's
+  // QingKe V2 cores (the CH32V003's V2A), ... Milestone M5. Everything riscv32 says holds (the llvm code generator, clang
+  // and ld.lld, the start-up, the trap entry and its dispatch, float in software), with what differs here:
+  //   - the ABI is ilp32e (RISC-V psABI, "ILP32E Calling Convention"): six argument registers (a0-a5), two callee-saved
+  //     ones (s0, s1), three temporaries (t0-t2), and the stack 4-byte aligned, not 16; int, long and pointers 32 bits,
+  //     long long and double 64 bits and still 8-byte aligned (clang's ilp32e data layout,
+  //     e-m:e-p:32:32-i64:64-n32-S32). The triple stays riscv32-unknown-elf: E is an extension -march names
+  //   - the runtime "riscv32e" (src/ChipSharp.Runtime.Riscv32, the riscv32 runtime's E variant): the trap entry saves the
+  //     ten registers a C function may change there (ra, t0-t2, a0-a5), and with no M it has the 32-bit multiply,
+  //     divide and remainder LLVM calls (__mulsi3, __divsi3, __udivsi3, __modsi3, __umodsi3) and the 64-bit multiply
+  //     (__muldi3), besides riscv32's 64-bit division and memory functions
+  "name": "riscv32e",
+  "inherits": "riscv32",
+  "runtime": "riscv32e",
+  // clang's -march and -mabi: the instruction set every RV32E chip here has, and the ABI for it; a chip's file names
+  // its own -march
+  "march": "rv32ec_zicsr",
+  "mabi": "ilp32e",
+  "capabilities": {
+    "hwMultiply": false,  // no M (nor Zmmul): a 32-bit product calls __mulsi3, a 64-bit one __muldi3
+    "hwDivide": false,    // no M: a 32-bit division calls __divsi3 and friends, as a 64-bit one calls __divdi3
+    "atomics": "none"     // no A: ChipSharp's few atomic steps turn interrupts off around them
+  }
+}

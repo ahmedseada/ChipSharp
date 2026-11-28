@@ -41,9 +41,38 @@ namespace ChipSharp.Runtime.Riscv32;
 /// The sources use the symbols of the linker script the clang toolchain writes for chips (__chipsharp_data_start,
 /// __chipsharp_stack_top, __global_pointer$, ...). A chip's runtime adds its own files to these (the esp32c5 runtime);
 /// on its own, this runtime runs a program that only computes. The linker keeps only the functions a program uses.
+/// <para>
+/// <see cref="Embedded"/> is the runtime "riscv32e", for RV32E chips (the CH32V003's RV32EC): the same files, which say
+/// on their own what differs there (<c>__riscv_e</c>: the trap entry saves the ten registers RV32E's C functions may
+/// change, the heap's scan its two callee-saved ones), and, as such a core has no M, <see cref="ArithmeticFileName"/>:
+/// the 32-bit multiplication and division and the 64-bit multiplication LLVM calls.
+/// </para>
 /// </summary>
 public sealed class Riscv32Runtime : IArchRuntime
 {
+    /// <summary>The runtime "riscv32": RV32 chips with M (the ESP32-C5's RV32IMAC).</summary>
+    public Riscv32Runtime()
+        : this(embedded: false)
+    {
+    }
+
+    private Riscv32Runtime(bool embedded)
+    {
+        IsEmbedded = embedded;
+    }
+
+    /// <summary>The runtime "riscv32e": RV32E chips with no M (the CH32V003's RV32EC, target "riscv32e").</summary>
+    public static Riscv32Runtime Embedded() => new(embedded: true);
+
+    /// <summary>True for the runtime "riscv32e" (<see cref="Embedded"/>).</summary>
+    public bool IsEmbedded { get; }
+
+    /// <summary>
+    /// The C file with what LLVM calls on a core without M (the riscv32e runtime's): __mulsi3, __divsi3, __udivsi3,
+    /// __modsi3, __umodsi3 and __muldi3.
+    /// </summary>
+    public const string ArithmeticFileName = "riscv32e_arithmetic.c";
+
     public const string StartupFileName = "riscv32_startup.S";
 
     /// <summary>The C file with chipsharp_start and the program's end.</summary>
@@ -97,11 +126,11 @@ public sealed class Riscv32Runtime : IArchRuntime
     /// <summary>The most interrupt ids a dispatch may have: a CLIC's 4096.</summary>
     public const int MostVectors = 4096;
 
-    public string Name => "riscv32";
+    public string Name => IsEmbedded ? "riscv32e" : "riscv32";
 
     /// <summary>
-    /// The reset handler, the start and the stops, the compiler's helper functions and float math, strings, the failures;
-    /// the heap for a target with one.
+    /// The reset handler, the start and the stops, the compiler's helper functions (riscv32e's multiplication and
+    /// division too) and float math, strings, the failures; the heap for a target with one.
     /// </summary>
     public RuntimeSources Startup(TargetDescription target)
     {
@@ -109,7 +138,8 @@ public sealed class Riscv32Runtime : IArchRuntime
         return new RuntimeSources(
         [
             Source(HardwareContract.HeaderFileName),
-            Source(StartupFileName), Source(RuntimeFileName), Source(HelpersFileName), .. CompilerRt.Sources(),
+            Source(StartupFileName), Source(RuntimeFileName), Source(HelpersFileName),
+            .. IsEmbedded ? [Source(ArithmeticFileName)] : Array.Empty<GeneratedFile>(), .. CompilerRt.Sources(),
             Source(FloatMathFileName), .. MathFileNames.Select(Source), Source(StringFileName), Source(ExceptionsFileName),
             Source(FailuresFileName),
             .. target.HasHeap

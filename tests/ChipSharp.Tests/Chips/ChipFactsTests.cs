@@ -183,4 +183,48 @@ public sealed partial class ChipFactsTests
         Assert.Equal("rv32imac_zicsr_zifencei", target.Setting("march"));
         Assert.StartsWith("RV32IMAC", Svd.Read(ChipFiles.Esp32c5Svd).Cpu, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// The CH32V003's target file and its description agree: the flash and the SRAM are the chip's (the program linked
+    /// at the flash, 0x08000000, the core starting at its alias, 0x00000000); the trap dispatch and the vector table at
+    /// the start of flash have the PFIC's 39 numbers, the highest interrupt's and one; each event is one of the chip's
+    /// interrupts; the pins are the F4P6's 18; the description is found from the target, and takes its registers from
+    /// WCH's SVD.
+    /// </summary>
+    [Fact]
+    public void The_CH32V003s_target_file_has_the_descriptions_memory_vector_numbers_events_and_pins()
+    {
+        var target = ChipFiles.Targets.Load("ch32v003-evt");
+        var chip = ChipFiles.Read("ch32v003-evt");
+        ulong Constant(string name) => chip.Constants.Single(c => c.Name == name).Value;
+
+        Assert.Equal(Path.Combine(ChipFiles.Folder, "ch32v003.json"), ChipCatalog.FindFile(target, ChipFiles.Folder));
+        var flash = chip.Memory.Single(m => m.Name == "flash");
+        Assert.Equal((0x08000000UL, flash.Size), (target.Memory["flash"].Origin, target.Memory["flash"].Size));
+        Assert.Equal(flash.Origin, target.Memory["flash"].Origin);
+        var sram = chip.Memory.Single(m => m.Name == "sram");
+        Assert.Equal((sram.Origin, sram.Size), (target.Memory["sram"].Origin, target.Memory["sram"].Size));
+
+        var vectors = (int)Constant("VECTORS");
+        Assert.Equal(vectors.ToString(CultureInfo.InvariantCulture), target.Setting("vectors"));
+        Assert.Equal(vectors, chip.Interrupts.Max(i => i.Number) + 1);
+        var head = Assert.Single(target.Settings["link"]!["head"]!.AsArray());
+        Assert.Equal((".ch32v003_vectors", 4 * vectors), (head!["section"]!.GetValue<string>(), head["size"]!.GetValue<int>()));
+        Assert.Equal(0UL, target.Memory["flash"].Origin % Constant("MTVEC_ALIGN"));
+        var sources = new Dictionary<string, string> { ["timer"] = "SysTick", ["pin"] = "EXTI7_0", ["uart"] = "USART1" };
+        foreach (var (name, node) in target.Settings["interrupts"]!.AsObject())
+        {
+            Assert.Equal(sources[name], chip.Interrupts.Single(i => i.Number == node!["irq"]!.GetValue<int>()).Name);
+        }
+
+        Assert.Equal([1, 2, .. Enumerable.Range(16, 16)], chip.Pins.Select(p => p.Number));
+        Assert.Equal(["A", "C", "D"], chip.Ports.Select(p => p.Name));
+        Assert.Equal("PD1", chip.Pins.Single(p => p.Functions.Contains("SWIO")).Name);
+        Assert.Equal("PD7", chip.Pins.Single(p => p.Functions.Contains("NRST")).Name);
+        Assert.Equal(("rv32ec", "rv32ec_zicsr"), (chip.Cpu, target.Setting("march")));
+        Assert.Equal((Constant("PLL_HZ"), 2 * Constant("HSI_HZ")),
+            (ulong.Parse(target.Setting("clockHz")!, CultureInfo.InvariantCulture), Constant("PLL_HZ")));
+        Assert.Equal("WCH Ltd.", chip.Vendor); // from the SVD
+        Assert.Equal(0x40021000UL, chip.Peripheral("RCC")!.Base);
+    }
 }

@@ -11,6 +11,7 @@ its notice too. Each source file keeps its own copyright lines and license text 
   4. AMD AOCL-LibM (aocl-libm-ose): math functions (BSD-3-Clause)
   5. .NET runtime (dotnet/runtime): library code ported to C# in ChipSharp.Library (MIT)
   6. Espressif: the ESP32-C5's SVD file, and the headers made from it (Apache-2.0)
+  7. WCH: the CH32V003's SVD file, as ch32fun keeps it, and the headers made from it (MIT)
 
 
 1. LLVM compiler-rt
@@ -181,3 +182,34 @@ License. You may obtain a copy of the License at
 Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an
 "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific
 language governing permissions and limitations under the License.
+
+7. WCH: the CH32V003's SVD file
+-------------------------------
+
+Where: chips/svd/CH32V003xx.svd, WCH's SVD file of the CH32V003 ("CH32V00xxx", version 1.2), unchanged, as the ch32fun
+project keeps it (github.com/cnlohr/ch32fun, misc/CH32V003xx.svd, commit 4d544ed6b922ee31efbb8882330f71fe56074159): the
+chip's peripherals, registers, fields and interrupts, which src/ChipSharp.Chips reads; and the headers the tests make
+from it with chips/ch32v003.json (src/ChipSharp.Chips/Generated/ch32v003_*), which the CH32V003's runtime is compiled
+with. WCH (Nanjing Qinheng Microelectronics) publishes the file with no license of its own; ch32fun distributes it under
+its MIT license, whose copyright lines include WCH's, and ChipSharp takes it under that license.
+License: MIT (SPDX: MIT).
+
+Copyright (c) 2023-2024 CNLohr <lohr85@gmail.com>, et. al.
+Copyright (c) 2021 Nanjing Qinheng Microelectronics Co., Ltd.
+Copyright (c) 2023-2024 E. Brombaugh
+Copyright (c) 2023-2024 A. Mandera
+Copyright (c) 2005-2020 Rich Felker, et al.
+Copyright (c) 2013,2014 Michal Ludvig <michal@logix.cz>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit
+persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
+Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

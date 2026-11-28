@@ -14,6 +14,7 @@ using ChipSharp.Image.Uf2;
 using ChipSharp.Runtime.ArmV6M;
 using ChipSharp.Runtime.Atmega328p;
 using ChipSharp.Runtime.Avr;
+using ChipSharp.Runtime.Ch32v003;
 using ChipSharp.Runtime.Esp32c5;
 using ChipSharp.Runtime.Pdk14;
 using ChipSharp.Runtime.Pfs154;
@@ -74,6 +75,8 @@ public static class DefaultComponents
             .Register(new Atmega328pRuntime())      // runtime "atmega328p": Arduino Uno, on the runtime "avr"
             .Register(new Riscv32Runtime())         // runtime "riscv32": any 32-bit RISC-V chip (RV32, machine mode)
             .Register(new Esp32c5Runtime())         // runtime "esp32c5": the ESP32-C5-DevKitC-1, on the runtime "riscv32"
+            .Register(Riscv32Runtime.Embedded())    // runtime "riscv32e": any RV32E chip (16 registers, no M)
+            .Register(new Ch32v003Runtime())        // runtime "ch32v003": WCH's CH32V003 evaluation board, on "riscv32e"
             .Register(new Pdk14Runtime())           // runtime "pdk14": any Padauk PDK14 chip (PFS154), through SDCC
             .Register(new Pfs154Runtime())          // runtime "pfs154": a PFS154 on its own, on the runtime "pdk14"
             .Register(new Stm8Runtime())            // runtime "stm8": any STM8 chip, through SDCC
