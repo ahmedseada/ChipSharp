@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- The runtime of CH32V003 programs (WCH's CH32V003 evaluation board): the vector table at the start of flash, the
-       chip's first steps (HPE off, mtvec, the clock at 48 MHz); on top of the RISC-V runtime's E variant (riscv32e) -->
+       chip's first steps (HPE off, mtvec, the clock at 48 MHz), pins and their pulls, SysTick's delays, clock and timer
+       event, the pin event (EXTI), USART1's console and serial port and the uart event; on top of the RISC-V runtime's
+       E variant (riscv32e) -->
   <ItemGroup>
     <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
     <ProjectReference Include="..\ChipSharp.Runtime.Riscv32\ChipSharp.Runtime.Riscv32.csproj" />
@@ -10,6 +12,15 @@
   <ItemGroup>
     <EmbeddedResource Include="ch32v003_vector_table.S" LogicalName="ch32v003_vector_table.S" />
     <EmbeddedResource Include="ch32v003_boot.c" LogicalName="ch32v003_boot.c" />
+    <EmbeddedResource Include="ch32v003_chip.h" LogicalName="ch32v003_chip.h" />
+    <EmbeddedResource Include="ch32v003_runtime.c" LogicalName="ch32v003_runtime.c" />
+    <EmbeddedResource Include="ch32v003_pins.c" LogicalName="ch32v003_pins.c" />
+    <EmbeddedResource Include="ch32v003_timer.c" LogicalName="ch32v003_timer.c" />
+    <EmbeddedResource Include="ch32v003_usart.c" LogicalName="ch32v003_usart.c" />
+    <EmbeddedResource Include="ch32v003_failures.c" LogicalName="ch32v003_failures.c" />
+    <!-- Console.Write and Console.WriteLine, and float and double as text, shared with the other runtimes -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_console.c" LogicalName="chipsharp_console.c" />
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_text.c" LogicalName="chipsharp_float_text.c" />
     <!-- the chip's registers, interrupts and pins, as ChipSharp.Chips writes them from WCH's SVD and chips/ch32v003.json -->
     <EmbeddedResource Include="..\ChipSharp.Chips\Generated\ch32v003_registers.h" LogicalName="ch32v003_registers.h" />
     <EmbeddedResource Include="..\ChipSharp.Chips\Generated\ch32v003_interrupts.h" LogicalName="ch32v003_interrupts.h" />

@@ -7,11 +7,10 @@ namespace ChipSharp.Tests.Ch32v003;
 /// <summary>
 /// The samples and the test corpora (<see cref="ConformancePrograms"/>) for the CH32V003, up to the linked .elf: every
 /// program that makes no object compiles with the llvm code generator for riscv32 with the ilp32e ABI, and links with
-/// the riscv32e and ch32v003 runtimes (and the tests' console, <see cref="Ch32v003Build.ConsoleSink"/>) into the 16 KB
-/// of flash and the 2 KB of SRAM, or, one of <see cref="TooLarge"/>, is refused by the build for its size, with the
-/// memory report's numbers; one that makes objects is refused, as the chip has no heap, with the whole-program pass
-/// saying so place by place. They run once the chip's simulator and runtime come (M5's waves 0 and 1: the backend
-/// conformance suite's slot for the chip).
+/// the riscv32e and ch32v003 runtimes (with the console on USART1) into the 16 KB of flash and the 2 KB of SRAM, or,
+/// one of <see cref="TooLarge"/>, is refused by the build for its size, with the memory report's numbers; one that makes
+/// objects is refused, as the chip has no heap, with the whole-program pass saying so place by place. They run in
+/// chipsim's ch32v003 in the backend conformance suite.
 /// </summary>
 public sealed class Ch32v003ProgramTests : IDisposable
 {
@@ -29,7 +28,8 @@ public sealed class Ch32v003ProgramTests : IDisposable
     /// </summary>
     public static readonly IReadOnlySet<string> TooLarge = new HashSet<string>(StringComparer.Ordinal)
     {
-        "ArrayMethods/Sorting", "DateTime/Members", "DateTime/Text", "TimeSpan/Members", "samples/MathFunctions",
+        "ArrayMethods/Sorting", "Chips/MathFunctions", "DateTime/Members", "DateTime/Text", "TimeSpan/Members",
+        "samples/MathFunctions",
     };
 
     public static TheoryData<string> ProgramNames => [.. ConformancePrograms.All.Select(program => program.Name)];
@@ -40,7 +40,7 @@ public sealed class Ch32v003ProgramTests : IDisposable
     {
         var file = name.Replace('/', '_');
         var assembly = CSharpCompiler.Compile(ConformancePrograms.Source(name), file);
-        var target = Ch32v003Build.WithConsole();
+        var target = Ch32v003Build.Board;
         var check = Ch32v003Build.Check(assembly, file, target);
         if (!check.IsSupported)
         {
@@ -54,7 +54,7 @@ public sealed class Ch32v003ProgramTests : IDisposable
         {
             var error = Assert.Throws<ChipSharpException>(() => Ch32v003Build.Build(assembly, file, Path.Combine(_scratch, "ch32"), target));
             Assert.Matches(@"^\S+ does not fit in target 'ch32v003-evt': its code, constants and the starting values of its " +
-                @"variables need [0-9.]+ KB of flash, [0-9.]+ KB more than the target's 16 KB", error.Message);
+                @"variables need [0-9.]+ KB of flash, [0-9.]+ (KB|bytes) more than the target's 16 KB", error.Message);
             return;
         }
 
