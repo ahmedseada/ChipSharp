@@ -509,7 +509,11 @@ objects and type descriptors, and the same `chipsharp_entry`. The C means what t
   grows up to the end of RAM (`"c": { "stack": "up" }`), the limit 4 bytes before it; the STM8's grows down toward
   the variables, the limit their end: the program's own, as much again as a quarter of `link.stack` for the runtime's,
   and that quarter.
-- `"narrowing": true` on both chips: arithmetic in 8 and 16 bits where that gives C#'s result (see [Narrowing](#narrowing)).
+- `"narrowing": true` on both chips: arithmetic in 8 and 16 bits where that gives C#'s result (see
+  [Narrowing](#narrowing)), which SDCC's 8-bit code needs: on the STM8, 4% less flash for the 59 programs of the corpora
+  that fit both ways (137,824 bytes instead of 143,947; ForLoops 652 instead of 1,196, IfElse 812 instead of 1,008), on
+  the PFS154 5% less program memory for its 10 (5,073 words instead of 5,360; Square 309 instead of 463). The suite's
+  `SdccNarrowingTests` measures it.
 - Target `host-c` builds the C for the PC with clang (and `-fno-strict-aliasing`: C# may read memory as another type
   than it wrote, as the LLVM IR allows). Every sample built for it, with narrowing and without, prints what .NET prints;
   every sample that needs neither a heap nor `double` compiles with sdcc for both chips without a warning.
@@ -521,8 +525,8 @@ goes through every backend of `BackendTargets` (`host`: llvm; `host-c`: C and cl
 `stm8s103-board`: C and SDCC, in `chipsim`) and must print what .NET prints, byte for byte. A program a target cannot
 take is skipped, and the suite checks each skip's reason against its list (`BackendSkips`), so that the list can
 neither grow nor keep a program that runs: on the PC none; on the chips those that need a heap (65), use `double` (21),
-call the runtime's float math (6) or fixed text's searches (1), or do not fit (the PFS154: 19 in its 128 bytes of RAM,
-30 in its 2K words; the STM8: 6 in its 8 KB), or whose recursion outgrows the stack (2 and 1). Three run to the end and
+call the runtime's float math (6) or fixed text's searches (1), or do not fit (the PFS154: 18 in its 128 bytes of RAM,
+31 in its 2K words; the STM8: 6 in its 8 KB), or whose recursion outgrows the stack (2 and 1). Three run to the end and
 print otherwise, by what the chip is: `nuint` and `nint` have 16 bits (2), and the STM8's `MemoryMarshal` is big-endian
 (`samples/Spans`). On the chips, until their runtimes come, a startup and a console of the tests' own run the program:
 each `Console.Write` reports its value to the test (through two variables and a hook in the simulator), which writes

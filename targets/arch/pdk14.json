@@ -28,8 +28,9 @@
     // SDCC's double is its float, 32 bits (sdcc warns "types 'double', 'long double' not supported. Assuming 'float'"):
     // C#'s double has no C type to go to, and the C backend rejects it; float is IEEE single precision, as in C#
     "double64": false,
-    // arithmetic in 8 and 16 bits where that gives C#'s result (C# widens every byte and short to an int, 4 bytes in
-    // registers of 8 or 16 bits)
+    // arithmetic in 8 and 16 bits where that gives C#'s result (C# widens every byte and short to an int, four bytes
+    // through one accumulator): 5% less program memory, 5,073 words for the 10 programs of the corpora that fit both
+    // ways instead of 5,360 (Square 309 instead of 463)
     "narrowing": true,
     "heap": false,        // a chip's file says what it has
     "console": false,

@@ -26,7 +26,8 @@
     // IEEE single precision, as in C#
     "double64": false,
     // arithmetic in 8 and 16 bits where that gives C#'s result (C# widens every byte and short to an int, 4 bytes in
-    // registers of 8 or 16 bits)
+    // registers of 8 or 16 bits): 4% less flash, 137,824 bytes for the 59 programs of the corpora that fit both ways
+    // instead of 143,947 (ForLoops 652 instead of 1,196)
     "narrowing": true,
     "heap": false,        // a chip's file says what it has
     "console": false,
