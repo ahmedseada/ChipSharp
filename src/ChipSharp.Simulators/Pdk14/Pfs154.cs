@@ -58,6 +58,22 @@ public sealed class Pfs154 : SimulatedChip, IPdk14Io
 
     private const byte Pa0Request = 0x01, Pb0Request = 0x02, T16Request = 0x04, Tm2Request = 0x40, Tm3Request = 0x80;
 
+    /// <summary>The I/O registers the simulator models, by the names of the chip's target file (targets/chip/pfs154.json).</summary>
+    public static IReadOnlyDictionary<string, int> IoRegisters { get; } = new Dictionary<string, int>
+    {
+        ["flag"] = Pdk14Cpu.FlagAddress, ["sp"] = Pdk14Cpu.SpAddress, ["clkmd"] = Clkmd, ["inten"] = Inten,
+        ["intrq"] = Intrq, ["t16m"] = T16m, ["misc"] = Misc, ["tm2b"] = Tm2b, ["integs"] = Integs, ["padier"] = 0x0D,
+        ["pbdier"] = 0x0E, ["pa"] = Pa, ["pac"] = Pac, ["paph"] = Paph, ["pb"] = Pb, ["pbc"] = Pbc, ["pbph"] = Pbph,
+        ["tm2s"] = Tm2s, ["tm2c"] = Tm2c, ["tm2ct"] = Tm2ct, ["tm3c"] = Tm3c, ["tm3ct"] = Tm3ct, ["tm3s"] = Tm3s,
+        ["tm3b"] = Tm3b,
+    };
+
+    /// <summary>The interrupt requests the simulator raises, as INTRQ / INTEN bit numbers, by the target file's names.</summary>
+    public static IReadOnlyDictionary<string, int> InterruptBits { get; } = new Dictionary<string, int>
+    {
+        ["pa0"] = 0, ["pb0"] = 1, ["t16"] = 2, ["tm2"] = 6, ["tm3"] = 7,
+    };
+
     private readonly Pdk14Cpu _cpu;
     private readonly bool[] _loaded;
     private readonly byte[] _io = new byte[64];

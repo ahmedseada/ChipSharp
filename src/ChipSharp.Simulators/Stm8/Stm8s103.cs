@@ -39,6 +39,24 @@ public sealed class Stm8s103 : SimulatedChip, IStm8Bus
     private const int Uart1 = 0x5230, Tim1 = 0x5250, Tim2 = 0x5300, Tim4Base = 0x5340;
     private const byte Hsi = 0xE1, Lsi = 0xD2;
 
+    /// <summary>The interrupts the simulator raises, by the names of the chip's target file (targets/chip/stm8s103f3.json).</summary>
+    public static IReadOnlyDictionary<string, int> Interrupts { get; } = new Dictionary<string, int>
+    {
+        ["clk"] = 2, ["extiA"] = 3, ["extiB"] = 4, ["extiC"] = 5, ["extiD"] = 6, ["extiE"] = 7, ["tim1Update"] = 11,
+        ["tim1Capture"] = 12, ["tim2Update"] = 13, ["tim2Capture"] = 14, ["uart1Tx"] = 17, ["uart1Rx"] = 18,
+        ["tim4Update"] = 23,
+    };
+
+    /// <summary>The first registers of the peripherals the simulator models, by the target file's names.</summary>
+    public static IReadOnlyDictionary<string, int> Peripherals { get; } = new Dictionary<string, int>
+    {
+        ["exti"] = ExtiCr1, ["clk"] = ClkIckr, ["iwdg"] = IwdgKr, ["uart1"] = Uart1, ["tim1"] = Tim1, ["tim2"] = Tim2,
+        ["tim4"] = Tim4Base, ["itc"] = CpuStart + 0x70,
+    };
+
+    /// <summary>The address of a port's first register (ODR): PA's 0x5000, then 5 registers a port.</summary>
+    public static int PortAddress(char letter) => IoStart + 5 * (char.ToUpperInvariant(letter) - 'A');
+
     private static readonly string[] InterruptNames =
     [
         "TLI", "AWU", "CLK", "EXTI0 (port A)", "EXTI1 (port B)", "EXTI2 (port C)", "EXTI3 (port D)", "EXTI4 (port E)",

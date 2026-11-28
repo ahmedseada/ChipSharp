@@ -175,7 +175,7 @@ public sealed partial class SimulationOptions
 }
 
 /// <summary>What a run printed, how it ended, and the chip as it was at the end.</summary>
-public sealed class SimulationResult(int exitCode, IReadOnlyList<string> lines, byte[] serial, SimulatedChip chip)
+public sealed partial class SimulationResult(int exitCode, IReadOnlyList<string> lines, byte[] serial, SimulatedChip chip)
 {
     /// <summary>0: the program ran (to its end, or for the whole time); 3: it went wrong.</summary>
     public int ExitCode { get; } = exitCode;
@@ -209,8 +209,28 @@ public sealed class SimulationResult(int exitCode, IReadOnlyList<string> lines, 
             .Select(line => double.Parse(line[1..11], CultureInfo.InvariantCulture)),
     ];
 
+    /// <summary>Every pin change printed, in order (not an input's, nor a PWM output's edges).</summary>
+    public IReadOnlyList<PinChange> Pins =>
+    [
+        .. Lines.Select(line => PinLine().Match(line)).Where(match => match.Success).Select(match => new PinChange(
+            double.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture), match.Groups[2].Value, match.Groups[3].Value)),
+    ];
+
+    /// <summary>The lines the serial port wrote, without their time and line endings.</summary>
+    public IReadOnlyList<string> SerialLines =>
+        [.. Lines.Select(line => SerialLine().Match(line)).Where(match => match.Success).Select(match => match.Groups[1].Value)];
+
     public override string ToString() => $"exit code {ExitCode}\n{Output}";
+
+    [GeneratedRegex(@"^\[\s*([0-9.]+) ms\] (P[A-F][0-7]) (?!PWM )(.+)$")]
+    private static partial Regex PinLine();
+
+    [GeneratedRegex(@"^\[\s*[0-9.]+ ms\] UART\d: (.*)$")]
+    private static partial Regex SerialLine();
 }
+
+/// <summary>A pin change a run printed: when (simulated milliseconds), which pin (PA3), its new state ("high", "input pull-up").</summary>
+public sealed record PinChange(double Milliseconds, string Pin, string State);
 
 /// <summary>
 /// Runs a program on a simulated chip, as tools/avr-sim/run.mjs does on the Uno: it prints every pin change and every
