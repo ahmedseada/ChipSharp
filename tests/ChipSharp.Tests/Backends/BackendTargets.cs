@@ -7,7 +7,7 @@ namespace ChipSharp.Tests.Backends;
 /// <summary>
 /// A target the backend conformance suite builds every program for (<see cref="BackendConformanceTests"/>): the PC through
 /// one of ChipSharp's code generators, or a chip through one, run in its simulator. <paramref name="Chip"/> is the
-/// simulator's name for the chip (chipsim's pfs154, stm8s103), null for the PC.
+/// simulator's name for the chip (chipsim's pfs154, stm8s103, esp32c5, ch32v003), null for the PC.
 /// </summary>
 internal sealed record BackendTarget(string Name, string Backend, string? Chip)
 {
@@ -50,10 +50,9 @@ internal static class BackendTargets
         // it, in chipsim's esp32c5 (the console is the USB Serial/JTAG port)
         new("esp32c5-devkitc", "llvm", "esp32c5"),
 
-        // the CH32V003 (M5): the llvm code generator for riscv32 (ilp32e) and the ch32v003 runtime, in chipsim's
-        // ch32v003, once the simulator (wave 0) and the runtime's console on USART1 (wave 1) come: new("ch32v003-evt",
-        // "llvm", "ch32v003"), with the programs too large for its 16 KB (Ch32v003ProgramTests.TooLarge) in
-        // BackendSkips. Until then its programs compile and link (Ch32v003ProgramTests)
+        // the CH32V003 (M5): the llvm code generator for riscv32 with the ilp32e ABI, the riscv32e and ch32v003 runtimes
+        // and the shared console, in chipsim's ch32v003, with the tests' console until the runtime's own on USART1 comes
+        new("ch32v003-evt", "llvm", "ch32v003"),
     ];
 
     public static BackendTarget Get(string name) => All.Single(target => target.Name == name);

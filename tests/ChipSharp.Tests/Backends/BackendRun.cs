@@ -7,6 +7,8 @@ using ChipSharp.Frontend.Il;
 using ChipSharp.Frontend.Lowering;
 using ChipSharp.Ir;
 using ChipSharp.Simulators;
+using ChipSharp.Simulators.Ch32v003;
+using ChipSharp.Tests.Ch32v003;
 using ChipSharp.Tests.Lowering;
 using ChipSharp.Tests.Sdcc;
 using ChipSharp.Tests.Strings;
@@ -27,8 +29,9 @@ internal sealed record BackendOutcome(string? Skipped, string? Why, ProgramRun? 
 
 /// <summary>
 /// Builds a program for a target of <see cref="BackendTargets"/> and runs it: on the PC as chipsharp build does it, for
-/// the target's code generator, and with .NET; on a chip through the C code generator and SDCC with the tests' startup
-/// and console (<see cref="ChipConsole"/>), in chipsim, in process.
+/// the target's code generator, and with .NET; on an SDCC chip through the C code generator and SDCC with the tests'
+/// startup and console (<see cref="ChipConsole"/>), on the ESP32-C5 and the CH32V003 through llvm, in chipsim, in
+/// process.
 /// </summary>
 internal static class BackendRun
 {
@@ -45,6 +48,7 @@ internal static class BackendRun
         {
             null => await OnThePcAsync(target, file, source, folder),
             "esp32c5" => OnTheEsp32c5(target, file, source, folder),
+            "ch32v003" => OnTheCh32v003(target, file, source, folder),
             _ => OnTheChip(target, file, source, folder),
         };
         if (outcome.Skipped is not null)
@@ -148,6 +152,69 @@ internal static class BackendRun
         var ended = run.Stopped.StartsWith("stopped: the program has finished", StringComparison.Ordinal);
         var errors = ended && run.ExitCode == 0 ? "" : $"{run.Stopped} (exit code {run.ExitCode}){Environment.NewLine}{run.Output}";
         return new BackendOutcome(null, null, new ProgramRun(run.SerialOf("USB"), ended ? run.ExitCode : 1, errors), null);
+    }
+
+    /// <summary>
+    /// The program built for the CH32V003 (the llvm code generator for riscv32 with the ilp32e ABI, the riscv32e and
+    /// ch32v003 runtimes) with the shared Console.Write and WriteLine and the tests' console
+    /// (<see cref="Ch32v003Build.ConsoleSink"/>), until the chip's runtime has its own on USART1, and run in chipsim's
+    /// ch32v003: what the program prints is the bytes of every call of chipsharp_console_write, read as it is called. A
+    /// stack check that finds the 2 KB run out (chipsharp_stack_overflow) is the reason the chip does not take it.
+    /// </summary>
+    private static BackendOutcome OnTheCh32v003(BackendTarget target, string file, string source, string folder)
+    {
+        var assembly = CSharpCompiler.Compile(source, file);
+        var description = Ch32v003Build.WithConsole();
+        var analysis = Ch32v003Build.Check(assembly, file, description);
+        if (!analysis.IsSupported)
+        {
+            return BackendOutcome.Skip(BackendSkips.Classify(analysis), analysis.Summary);
+        }
+
+        Ch32v003Program program;
+        try
+        {
+            program = Ch32v003Build.Build(assembly, file, Path.Combine(folder, target.Name), description);
+        }
+        catch (ChipSharpException e) when (BackendSkips.Classify(e.Message) is var reason && reason != BackendSkips.Other)
+        {
+            return BackendOutcome.Skip(reason, e.Message);
+        }
+
+        var symbols = program.File.Symbols;
+        var output = new List<byte>();
+        var overflowed = false;
+        var hooks = new Dictionary<int, Action<SimulatedChip>>();
+        if (symbols.TryGetValue("chipsharp_console_write", out var write))
+        {
+            // chipsharp_console_write(bytes, count): a0 and a1, as the function starts
+            hooks[(int)write] = chip =>
+            {
+                var ch32 = (Ch32v003Chip)chip;
+                for (uint i = 0, bytes = ch32.Cpu.X[10], count = ch32.Cpu.X[11]; i < count; i++)
+                {
+                    output.Add((byte)ch32.Read(bytes + i, 1));
+                }
+            };
+        }
+
+        if (symbols.TryGetValue(CStackChecks.OverflowSymbol, out var overflow))
+        {
+            hooks[(int)overflow] = _ => overflowed = true;
+        }
+
+        var run = Simulation.Run(new SimulationOptions
+        {
+            Chip = target.Chip!,
+            Image = program.Elf,
+            Milliseconds = ChipMilliseconds,
+        }, setUp: chip => chip.Hooks = hooks);
+
+        var ended = run.Stopped.StartsWith("stopped: the program has finished", StringComparison.Ordinal);
+        var errors = ended && run.ExitCode == 0 ? "" : $"{run.Stopped} (exit code {run.ExitCode}){Environment.NewLine}{run.Output}";
+        return overflowed
+            ? BackendOutcome.Skip(BackendSkips.Stack, errors)
+            : new BackendOutcome(null, null, new ProgramRun([.. output], ended ? run.ExitCode : 1, errors), null);
     }
 
     private static BackendOutcome OnTheChip(BackendTarget target, string file, string source, string folder)

@@ -10,8 +10,8 @@ namespace ChipSharp.Tests.Ch32v003;
 /// the riscv32e and ch32v003 runtimes (and the tests' console, <see cref="Ch32v003Build.ConsoleSink"/>) into the 16 KB
 /// of flash and the 2 KB of SRAM, or, one of <see cref="TooLarge"/>, is refused by the build for its size, with the
 /// memory report's numbers; one that makes objects is refused, as the chip has no heap, with the whole-program pass
-/// saying so place by place. They run once the chip's simulator and runtime come (M5's waves 0 and 1: the backend
-/// conformance suite's slot for the chip).
+/// saying so place by place. The backend conformance suite runs them in chipsim's ch32v003 against .NET
+/// (<see cref="BackendConformanceTests"/>).
 /// </summary>
 public sealed class Ch32v003ProgramTests : IDisposable
 {
