@@ -22,6 +22,21 @@ public sealed record BuildResult(string OutputPath, IReadOnlyList<string> Interm
     /// </summary>
     public IReadOnlyList<Note> Notes { get; init; } = [];
 
+    /// <summary>The target's extra images (<see cref="IImageFormat.Variants"/>) written beside <see cref="OutputPath"/>, with what each is for.</summary>
+    public IReadOnlyList<(string Path, ImageVariant Variant)> Variants { get; init; } = [];
+
+    /// <summary>The file <c>chipsharp flash</c> writes: the extra image that says so, else <see cref="OutputPath"/>.</summary>
+    public string FlashPath => Variants.FirstOrDefault(v => v.Variant.Flashed).Path ?? OutputPath;
+
+    /// <summary>One line that says which file is for what, when there is more than one image; else null.</summary>
+    public string? ImagesLine => Variants.Count == 0
+        ? null
+        : string.Join("; ", Variants.Select(v => $"{System.IO.Path.GetFileName(v.Path)}: {v.Variant.Meaning}")
+            .Prepend($"{System.IO.Path.GetFileName(OutputPath)}: {MainMeaning}"));
+
+    /// <summary>What the main image is for, when there are extra ones.</summary>
+    public string MainMeaning { get; init; } = "";
+
     /// <summary>The <see cref="Notes"/> by difference, as <c>chipsharp build</c> prints them.</summary>
     public IReadOnlyList<NoteGroup> NoteGroups { get; init; } = [];
 }

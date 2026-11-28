@@ -86,6 +86,7 @@ public static class ChipSharpBuilder
         var memory = MemoryReport.Read(binary, linked);
 
         string output;
+        var variants = new List<(string Path, ImageVariant Variant)>();
         if (parts.Image is null)
         {
             output = CopyInto(outputFolder, binary.Path);
@@ -98,10 +99,19 @@ public static class ChipSharpBuilder
             }
 
             output = Package(parts.Image, binary, target, Path.Combine(outputFolder, $"{programName}.{parts.Image.Extension}"));
+            foreach (var variant in parts.Image.Variants)
+            {
+                variants.Add((PackageVariant(parts.Image, variant, binary, target,
+                    Path.Combine(outputFolder, $"{programName}.{variant.Suffix}.{parts.Image.Extension}")), variant));
+            }
         }
 
         DeleteFolder(workFolder);
-        return new BuildResult(output, kept, target, memory) { Notes = analysis.Notes, NoteGroups = analysis.NoteGroups };
+        return new BuildResult(output, kept, target, memory)
+        {
+            Notes = analysis.Notes, NoteGroups = analysis.NoteGroups, Variants = variants,
+            MainMeaning = parts.Image?.MainMeaning ?? "",
+        };
     }
 
     /// <summary>
@@ -230,6 +240,29 @@ public static class ChipSharpBuilder
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             throw new ChipSharpException($"Cannot copy the linked program '{source}' to '{path}': {e.Message}", e);
+        }
+    }
+
+    private static string PackageVariant(IImageFormat image, ImageVariant variant, LinkedBinary binary, TargetDescription target, string path)
+    {
+        try
+        {
+            using (var stream = File.Create(path))
+            {
+                image.PackageVariant(variant.Suffix, binary, target, stream);
+            }
+
+            return path;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            DeleteFile(path);
+            throw new ChipSharpException($"Cannot write the {image.Name} image '{path}': {e.Message}", e);
+        }
+        catch
+        {
+            DeleteFile(path);
+            throw;
         }
     }
 

@@ -223,6 +223,20 @@ public sealed class EspImageTests : IDisposable
             new EspImageFormat().Package(new LinkedBinary(program.Elf), board, output);
         }
 
+        // the ROM-direct image beside it: the same segments, none mapped, Name.rom.bin
+        var romPath = Path.Combine(_scratch, name + ".rom.bin");
+        using (var output = File.Create(romPath))
+        {
+            new EspImageFormat().PackageVariant("rom", new LinkedBinary(program.Elf), board, output);
+        }
+
+        var rom = EspImage.Read(File.ReadAllBytes(romPath));
+        Assert.DoesNotContain(rom.Segments, s => EspIdfBootloaderRules.IsMapped(s.Address));
+        Assert.Equal(rom.Segments.Select(s => (s.Address, s.Data.Length)),
+            EspImage.Read(File.ReadAllBytes(path)).Segments.Where(s => !EspIdfBootloaderRules.IsMapped(s.Address)).Select(s => (s.Address, s.Data.Length)));
+        Assert.Equal(rom.Segments.SelectMany(s => s.Data), EspImage.Read(File.ReadAllBytes(path)).Segments.Where(s => !EspIdfBootloaderRules.IsMapped(s.Address)).SelectMany(s => s.Data));
+        Assert.True(rom.Segments.Sum(s => s.Data.Length) > 0);
+
         var image = EspImage.Read(File.ReadAllBytes(path));
         Assert.Equal(program.File.Entry, image.Entry);
         Assert.Equal(program.File.Symbols["chipsharp_reset"], image.Entry);
@@ -347,13 +361,20 @@ public sealed class EspImageTests : IDisposable
         var reference = Path.Combine(_scratch, "reference.bin");
         Esptool("--chip", "esp32c5", "elf2image", "--use-segments", "--flash-mode", "dio", "--flash-freq", "40m",
             "--flash-size", "8MB", "--elf-sha256-offset", "0xb0", "-o", reference, program.Elf);
-        var plain = EspImageFormat.Make(program.File, Esp32c5Build.Board, program.Elf, null, SHA256.HashData(File.ReadAllBytes(program.Elf)));
-        var mine = new EspImage
-        {
-            FlashMode = plain.FlashMode, FlashSizeAndFrequency = plain.FlashSizeAndFrequency, Entry = plain.Entry, ChipId = plain.ChipId,
-            Segments = [.. plain.Segments.Where(s => !EspIdfBootloaderRules.IsMapped(s.Address))],
-        }.Write();
+        // the ROM-direct image, but for the project name (esptool does not know it): the same bytes as elf2image makes
+        var elfHash = SHA256.HashData(File.ReadAllBytes(program.Elf));
+        var mine = EspImageFormat.Make(program.File, Esp32c5Build.Board, program.Elf, null, elfHash, app: false).Write();
         var theirs = File.ReadAllBytes(reference);
+        // and the one on disk, Name.rom.bin, is that image with the project name in it, valid for esptool too
+        var romPath = Path.Combine(_scratch, name + ".rom.bin");
+        using (var romOutput = File.Create(romPath))
+        {
+            new EspImageFormat().PackageVariant("rom", new LinkedBinary(program.Elf), Esp32c5Build.Board, romOutput);
+        }
+
+        Assert.Contains("(valid)", Esptool("--chip", "esp32c5", "image-info", romPath));
+        Assert.Equal(EspImage.Read(mine).Segments.Select(s => (s.Address, s.Data.Length)),
+            EspImage.Read(File.ReadAllBytes(romPath)).Segments.Select(s => (s.Address, s.Data.Length)));
         string Segs(byte[] b) => string.Join(" ", EspImage.Read(b).Segments.Select(x => $"{x.Address:x8}+{x.Data.Length}"));
         Assert.Equal(Segs(theirs), Segs(mine));
         Assert.Equal(theirs.Length, mine.Length);

@@ -406,6 +406,9 @@ public sealed partial class Esp32c5ExampleTests(ITestOutputHelper output) : IDis
     /// <summary>What a build of an example printed: the .bin, and what it takes of the chip.</summary>
     private sealed record BuiltExample(string Name, string Bin, string Size, long Bytes)
     {
+        /// <summary>The ROM-direct image, Name.rom.bin; <see cref="Bin"/> is the ESP-IDF app.</summary>
+        public string Rom { get; init; } = "";
+
         public override string ToString() => $"{Name}: {Size}, {Bytes} bytes of flash";
     }
 
@@ -423,13 +426,20 @@ public sealed partial class Esp32c5ExampleTests(ITestOutputHelper output) : IDis
 
         Assert.True(exitCode == 0, error);
         var lines = printed.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
-        Assert.Equal(2, lines.Length);
+        Assert.Equal(4, lines.Length);
+        // Name.bin, the ESP-IDF app (Wokwi); Name.rom.bin, the ROM-direct image chipsharp flash writes; the memory; which is which
         Assert.Equal(Path.GetFileNameWithoutExtension(project) + ".bin", Path.GetFileName(lines[0]));
-        Assert.True(MemoryReport().IsMatch(lines[1]), lines[1]);
+        Assert.Equal(Path.GetFileNameWithoutExtension(project) + ".rom.bin", Path.GetFileName(lines[1]));
+        Assert.True(MemoryReport().IsMatch(lines[2]), lines[2]);
+        Assert.Contains("Wokwi", lines[3]);
+        Assert.Contains("chipsharp flash writes it at 0x2000", lines[3]);
+        var rom = EspImage.Read(File.ReadAllBytes(lines[1]));
+        Assert.DoesNotContain(rom.Segments, segment => EspIdfBootloaderRules.IsMapped(segment.Address));
+        Assert.True(EspAppDescription.IsPresent(rom.Segments[0].Data));
 
         // behind ESP-IDF's bootloader too (Wokwi, a devkit with its factory bootloader): every rule it checks holds
         Assert.Equal([], EspIdfBootloaderRules.Check(File.ReadAllBytes(lines[0])));
-        var built = new BuiltExample(example, lines[0], lines[1], new FileInfo(lines[0]).Length);
+        var built = new BuiltExample(example, lines[0], lines[2], new FileInfo(lines[0]).Length) { Rom = lines[1] };
         output.WriteLine(built.ToString());
         return built;
     }
@@ -441,7 +451,7 @@ public sealed partial class Esp32c5ExampleTests(ITestOutputHelper output) : IDis
     private static SimulationResult Run(BuiltExample example, double milliseconds, params string[] options)
     {
         var run = Simulation.Run(SimulationOptions.Parse("esp32c5",
-            [example.Bin, "--ms", milliseconds.ToString(CultureInfo.InvariantCulture), .. options]));
+            [options.Contains("--idf-bootloader") ? example.Bin : example.Rom, "--ms", milliseconds.ToString(CultureInfo.InvariantCulture), .. options]));
         Assert.True(run.ExitCode == 0, $"{example}\n{run}");
         Assert.DoesNotContain("failed", run.Stopped, StringComparison.Ordinal);
         return run;

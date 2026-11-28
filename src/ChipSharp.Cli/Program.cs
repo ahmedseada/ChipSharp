@@ -79,13 +79,23 @@ try
         }
 
         Console.WriteLine(result.OutputPath);
+        foreach (var (variantPath, _) in result.Variants)
+        {
+            Console.WriteLine(variantPath);
+        }
+
         foreach (var file in result.IntermediatePaths)
         {
             Console.WriteLine(file);
         }
 
         Console.WriteLine(result.Memory.Text);
-        return result.OutputPath;
+        if (result.ImagesLine is { } images)
+        {
+            Console.WriteLine(images);
+        }
+
+        return result.FlashPath;
     }
 
     switch (rest)
