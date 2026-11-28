@@ -1031,9 +1031,10 @@ says it has none, and `chipsharp check` refuses a program that uses them.
 
 Built with `chipsharp build bin\Release\net10.0\<Name>.dll -t ch32v003-evt` in their folders, or flashed with
 `chipsharp flash ... -t ch32v003-evt` through a WCH-LinkE; each has a README with its wiring and a `chipsim ch32v003`
-command. They use the portable API alone (`Pin`, `Timing`, `[Interrupt]`, `Console`, `Clock`), so the same C# builds
-for the Pico by changing the pin numbers and `-t`. The board's LEDs are on its header P4, from VCC through 1K: a wire
-from LED1 to PD0 lights it while PD0 is low.
+command. They use the portable API alone (`Pin`, `Timing`, `[Interrupt]`, `Console`, `Clock`, and `SevenSegment` from
+ChipSharp.Components; no `Registers`), so the same C# builds for the Pico by changing the pin numbers and `-t`. The
+board's LEDs are on its header P4, from VCC through 1K: a wire from LED1 to PD0 lights it while PD0 is low. Wokwi has
+no CH32V003 part, so they have no `diagram.json`.
 
 | Example | What it does | Flash, SRAM |
 |---|---|---|
@@ -1042,6 +1043,7 @@ from LED1 to PD0 lights it while PD0 is low.
 | `ch32v003-timer-blink` | Blinks the LED from the timer event while `Main` prints the uptime (`Stopwatch`) on USART1 | 5.7 KB, 72 bytes |
 | `ch32v003-serial` | The STM8's command prompt on USART1 (`on`, `off`, `status`), each char echoed as it is typed; no heap | 4.7 KB, 88 bytes |
 | `ch32v003-clock` | The time once a second on USART1 from `Clock.Start` and `DateTime.Now`, with `Environment.TickCount64` | 6.1 KB, 56 bytes |
+| `ch32v003-traffic-light` | The STM8's traffic light, the same C# but for four pin numbers: red PC0, yellow PC1, green PC2, the turn's countdown on a 7-segment display (PC3 to PC7, PD2, PD3, the STM8's pins, as the two chips share a pinout), a pedestrian button on PD4 (to GND, with `Pull.Up`) that cuts a green short, LED1 on PD0 blinking from the timer event; over USART1 exactly what the Pico's, the Uno's and the STM8's traffic lights print, line for line | 6.6 KB, 80 bytes |
 
 ### Flashing the CH32V003
 
@@ -1918,7 +1920,7 @@ blink, a serial prompt, a traffic light, an LCD, a PWM fade) in
 [Examples for the STM8S103 board](#examples-for-the-stm8s103-board). The ESP32-C5's eight (`esp32c5-*`: the blink, a button on the
 pin event, a serial prompt, a timer blink, a traffic light with classes, the Pico's LCD traffic light unchanged, a
 servo and a DS1307 and LCD clock) are in [Examples for the ESP32-C5](#examples-for-the-esp32-c5), the CH32V003's
-(`ch32v003-*`: the blink, a button on the pin event, a timer blink, a serial prompt, a clock) in
+(`ch32v003-*`: the blink, a button on the pin event, a timer blink, a serial prompt, a clock, a traffic light) in
 [Examples for the CH32V003](#examples-for-the-ch32v003).
 
 The samples that need neither a heap nor a `double` also build for the PFS154 and the STM8S103 when they fit, and
@@ -2208,5 +2210,5 @@ of its own (`src/ChipSharp.Backend.Llvm/LlvmStackChecks.cs`).
 | M6 (done) | C backend through SDCC: the Padauk PFS154 (2K words, 128 bytes of RAM) and the STM8S103 (8 KB, 1 KB), no heap, 32-bit `double` refused; the chips as data, a hardware contract with a conformance suite, the runtimes, `chipsim`, the flashers (`easypdkprog`, `stm8flash`) and examples (see [PFS154 and STM8S103](#pfs154-and-stm8s103-through-c-and-sdcc)) |
 | M7 (done) | Arduino Uno: the ATmega328P, an 8-bit AVR with 2 KB of RAM and no heap, through the LLVM in Zig; constants in flash, 8- and 16-bit arithmetic, its pins, timers, clock, serial port, I2C, SPI, ADC and PWM, `chipsharp flash` with avrdude, Wokwi circuits and examples (see [Arduino Uno](#arduino-uno)) |
 | M4 (done) | ESP32-C5 (RISC-V): its target files, the llvm code generator for riscv32, the start-up, Espressif's SVD through the shared generator, `chipsim esp32c5`, the ESP image (byte for byte esptool's) and the esptool flasher, the runtime (pins with pulls, events, the SYSTIMER clock, the USB Serial/JTAG console, UART0, a 224 KB heap with the collector, I2C, SPI, the ADC and PWM), the whole corpus on the simulated chip and 8 examples; not yet tried on a board (see [ESP32-C5](#esp32-c5)) |
-| M5 (under way) | CH32V003, C# on a 10-cent chip with 2 KB of RAM: M2-style code and the M3 pieces that need no heap (generics over values, spans, fixed and printed text, record structs). Done: its target files, the riscv32e runtime and the start-up, WCH's SVD through the shared generator, every corpus program linked, `chipsim ch32v003`, the chip's runtime (pins and pulls, SysTick's delays, clock and timer event, the pin event, USART1's console and serial port) passing the conformance suite in it, five examples (see [CH32V003](#ch32v003)). Next: I2C, SPI, the ADC and PWM (wave 2) |
+| M5 (under way) | CH32V003, C# on a 10-cent chip with 2 KB of RAM: M2-style code and the M3 pieces that need no heap (generics over values, spans, fixed and printed text, record structs). Done: its target files, the riscv32e runtime and the start-up, WCH's SVD through the shared generator, every corpus program linked, `chipsim ch32v003`, the chip's runtime (pins and pulls, SysTick's delays, clock and timer event, the pin event, USART1's console and serial port) passing the conformance suite in it, six examples (see [CH32V003](#ch32v003)). Next: I2C, SPI, the ADC and PWM (wave 2) |
 | Later | Catching exceptions (`try`/`catch`); more chips, and an interpreter mode for the smallest |
