@@ -554,8 +554,9 @@ The toolchain `sdcc`:
   fails with how much it needs, as on the other chips. The `.hex` is SDCC's `.ihx` in address order (byte addresses:
   a Padauk chip's word n at bytes 2n and 2n + 1, as the Easy PDK programmer reads it).
 - **The simulator, `chipsim`** (`src/ChipSharp.Simulators`, ChipSharp's own instruction-set simulators, in C#): `chipsim
-  pfs154 Blink.ihx --ms 1000` (or `stm8s103`; `esp32c5` runs an `.elf` or an image, see [ESP32-C5](#esp32-c5); without
-  installing, `src\ChipSharp.Simulators\bin\Release\net10.0\chipsim.exe`)
+  pfs154 Blink.ihx --ms 1000` (or `stm8s103`; `esp32c5` runs an `.elf` or an image, see [ESP32-C5](#esp32-c5);
+  `ch32v003` a `.bin`, `.hex` or `.elf`, see [The CH32V003 in chipsim](#the-ch32v003-in-chipsim); without installing,
+  `src\ChipSharp.Simulators\bin\Release\net10.0\chipsim.exe`)
   runs a `.ihx` and prints what the Uno's simulator prints: every pin change (`[   12.000 ms] PA4 high`), UART1's lines
   (`UART1: Hello`) and baud rate, a timer's pin as PWM periods, what the buses do, and `stopped: <why>`.
   `--input PA3=low@100ms` drives a pin, `--send "on\n@100ms"` sends to UART1's RX (the STM8S103's PD6), `--uart1 file`
@@ -1028,6 +1029,31 @@ writes the flash and resets the chip, which runs the program.
   could not unprotect (`wlink --chip CH32V003 unprotect`); then the tool's last lines.
 - **Not yet tried on a real board.** wlink and minichlink are tested against stand-ins that print what the real ones
   print; neither has written a chip from ChipSharp yet.
+
+### The CH32V003 in chipsim
+
+`chipsim ch32v003 Name.bin --ms 1000` (or a `.hex`, at 0x08000000 or at the alias 0, or an `.elf`) loads the flash and
+starts at 0, as reset leaves the chip: the core at 8 MHz (HSI / 3), the option bytes as WCH ships them (IWDG off,
+PD7 NRST), mtvec 0. `src/ChipSharp.Simulators/Ch32v003` has what WCH's reference manual (V1.6), datasheet and QingKe V2
+manual give:
+
+- **The core**: the C5's RISC-V core configured as the QingKe V2A (`RiscVCore.QingKeV2A`): RV32EC, Zicsr, Zifencei and
+  WCH's XW (`-march=rv32ec_zicsr_xwchc`: clang compresses byte and halfword accesses into them); x16-x31, M (clang calls
+  `__mulsi3`, `__divsi3` and their kin: the runtime has them), A and the counters are illegal, a misaligned access
+  traps. The PFIC (enables, pending, IPRIOR's preemption bit, the threshold, 2 levels of nesting, the 2 VTF channels,
+  SYSRESET), mtvec's modes (WCH's start-up: a table of addresses at 0, MODE 3; exceptions through entry 3), the HPE
+  (INTSYSCR's HWSTKEN: x1, x5-x7, x10-x15 pushed 48 bytes down, popped by mret, 2 levels), SysTick (32 bits up, HCLK or
+  HCLK / 8, STRE, SWIE). Its cycles are the C5 core's (WCH does not publish the V2A's), a load or store one more, and
+  with a flash wait state one more for each flash word fetched; it runs some 15 million instructions a second.
+- **The peripherals**: RCC (HSI, the PLL × 2 to 48 MHz, HPRE, the clock enables: a register used with its clock off
+  stops the run, as the chip would ignore it), FLASH_ACTLR (48 MHz without its wait state stops the run), GPIOA/C/D
+  (`PA1`, `PA2`, `PC0`-`PC7`, `PD0`-`PD7`: CFGLR's modes, the pulls by OUTDR, BSHR, BCR, LCKR; PD7 as NRST and PD1 as
+  SWIO refuse to be outputs), AFIO (USART1's remap, EXTICR), EXTI, USART1 (`USART1: Hello`, `--send`, `--usart1 file`;
+  what it sends leaves the chip only through an alternate-function TX pin), IWDG and WWDG. TIM1, TIM2, I2C1, SPI1, ADC1
+  and DMA1 come with M5's wave 2: a program that touches them stops, saying so.
+- **The stops**: `ebreak` (the failure stop), a trap with no handler, a watchdog or a software reset fail (exit code
+  3); `wfi` with interrupts off ends the run once USART1 has sent what it holds, and with interrupts on once nothing
+  can come.
 
 ## A new chip: one contract, one suite, chips as data
 

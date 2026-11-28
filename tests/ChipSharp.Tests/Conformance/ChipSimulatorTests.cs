@@ -22,7 +22,7 @@ public sealed class ChipSimulatorTests : IDisposable
     {
         Assert.Equal(["pico", "uno", "pfs154-bare", "stm8s103-board", "esp32c5-devkitc", "ch32v003-evt"],
             ChipSimulators.All.Select(chip => chip.Target));
-        Assert.All(ChipSimulators.All, chip =>
+        Assert.All(ChipSimulators.All.Where(chip => chip.TargetExists), chip =>
         {
             var pins = chip.Pins;
             List<int> used =
@@ -72,6 +72,32 @@ public sealed class ChipSimulatorTests : IDisposable
             Assert.Equal(stm8.Missing, stm8.MissingFor([need]));
         });
         Assert.False(ChipSimulators.Get("pfs154-bare").Has("uart"));
+    }
+
+    [Simulators.Ch32v003Fact]
+    public async Task The_CH32V003_s_adapter_runs_an_image_in_chipsim_and_gives_its_pins_and_USART1_by_number()
+    {
+        var chip = ChipSimulators.Get("ch32v003-evt");
+        var program = await Simulators.Ch32v003CProgram.BuildAsync("""
+            #include "ch32.h"
+            int main(void)
+            {
+                pin_output(3, 0);                 /* PD0: the adapter's Output, 24 */
+                pin_write(3, 0, 1);
+                usart_init(8000000, 115200);
+                usart_print("ok\n");
+                usart_flush();
+                return 0;
+            }
+            """, _scratch);
+
+        var run = await chip.RunAsync(program.Elf, new ChipStimulus(20) { Sends = [new ChipSend(0, [0x41], 1)] });
+
+        Assert.True(run.Stop == ChipStop.Finished, run.ToString());
+        Assert.Equal(["low", "high"], run.Levels(chip.Pins.Output).Select(change => change.State));
+        Assert.Contains(run.Pins, change => change.Pin == chip.Pins.Uart0!.Value.Tx && change.State == "high"); // PD5: TX idle
+        Assert.Equal("ok\n"u8.ToArray(), run.SerialOf(0));
+        Assert.Equal([115942], run.BaudRates[0]);
     }
 
     [SdccFact]

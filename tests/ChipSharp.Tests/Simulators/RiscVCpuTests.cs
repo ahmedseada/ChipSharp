@@ -838,13 +838,16 @@ public sealed partial class RiscVCpuTests : IDisposable
         Assert.Equal(Code + 0x42, cpu.X[1]);
     }
 
-    /// <summary>Assembles <paramref name="lines"/> with clang (-march) and reads each instruction back from llvm-objdump.</summary>
-    internal static async Task<List<(byte[] Bytes, string Text)>> AssembleAsync(IEnumerable<string> lines, string march, string folder)
+    /// <summary>
+    /// Assembles <paramref name="lines"/> with clang (-march, -mabi) and reads each instruction back from llvm-objdump.
+    /// </summary>
+    internal static async Task<List<(byte[] Bytes, string Text)>> AssembleAsync(IEnumerable<string> lines, string march, string folder,
+        string abi = "ilp32")
     {
         Directory.CreateDirectory(folder);
         await File.WriteAllLinesAsync(Path.Combine(folder, "forms.S"), [".text", .. lines.Select(line => "\t" + line)]);
         var assembled = await LlvmTools.RunAsync(LlvmTools.Clang,
-            ["--target=riscv32-unknown-elf", $"-march={march}", "-mabi=ilp32", "-mno-relax", "-c", "forms.S", "-o", "forms.o"], folder);
+            ["--target=riscv32-unknown-elf", $"-march={march}", $"-mabi={abi}", "-mno-relax", "-c", "forms.S", "-o", "forms.o"], folder);
         Assert.True(assembled.ExitCode == 0, $"clang failed:\n{assembled}");
         var listing = await LlvmTools.RunAsync(PicoTools.LlvmTool("llvm-objdump"), ["-d", "-M", "no-aliases", "forms.o"], folder);
         Assert.True(listing.ExitCode == 0, $"llvm-objdump failed:\n{listing}");
