@@ -116,6 +116,7 @@ public sealed class CCodeGenerator : ICodeGenerator
                 ForgetRegisters = forget,
                 PointerReturns = pointerReturns,
                 StructReturnPointer = settings.StructReturnPointer,
+                LoopsTestFirst = settings.LoopsTestFirst,
                 StackLimit = stackChecks.Contains(function) ? stackLimit : null,
             }.Write(functions);
             functions.Append(apart ? "#pragma restore\n" : "");

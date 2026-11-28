@@ -20,7 +20,9 @@ namespace ChipSharp.Backend.C;
 ///   "constQualifier": "__code", // what else constant data is declared with, besides const (none by default)
 ///   "largeFrame": 255,         // how many bytes of a frame the compiler reaches (none: all of it)
 ///   "stack": "up",             // which way the stack grows, for "stackCheck" (down by default)
-///   "structReturn": "pointer"  // a function gives a struct it returns through a pointer (by value by default)
+///   "structReturn": "pointer", // a function gives a struct it returns through a pointer (by value by default)
+///   "loops": "testFirst"       // a function's blocks in reverse postorder: a loop starts with its test (TIR's order
+///                              // by default, IL's: a loop entered by a jump down to its test)
 /// }
 /// </code>
 /// <list type="bullet">
@@ -44,11 +46,14 @@ namespace ChipSharp.Backend.C;
 /// the stack pointer, and cannot return 3 or 4 bytes from a function whose frame they do not reach (an internal error
 /// of its code generator): with "largeFrame", a function whose locals may take more returns such a value through a
 /// pointer (see <see cref="CFunctionWriter.ResultName"/>).</item>
+/// <item>The blocks: in TIR's order, unless "loops" is "testFirst" (SDCC's STM8, which gives a value a loop entered at
+/// its test still needs the stack place of one the loop sets): then in reverse postorder (see
+/// <see cref="CFunctionWriter.LoopsTestFirst"/>).</item>
 /// </list>
 /// </summary>
 internal sealed record CSettings(int DoubleBits, string? Reentrant, int? MaxAlignment, string? ConstQualifier,
     IReadOnlyList<(string Expression, int Bytes)> Sizes, bool? CharSigned, int? LargeFrame = null,
-    bool StackGrowsUp = false, bool StructReturnPointer = false)
+    bool StackGrowsUp = false, bool StructReturnPointer = false, bool LoopsTestFirst = false)
 {
     /// <summary>The keyword that gives a function a frame on the stack, for "recursion": "reentrant".</summary>
     public const string ReentrantKeyword = "__reentrant";
@@ -137,8 +142,15 @@ internal sealed record CSettings(int DoubleBits, string? Reentrant, int? MaxAlig
             _ => throw Error("'c.structReturn' must be \"pointer\" or \"value\": how a function gives a struct it returns."),
         };
 
+        var loopsTestFirst = c["loops"] switch
+        {
+            null => false,
+            JsonValue value when value.TryGetValue(out string? order) && order is "testFirst" or "asTir" => order == "testFirst",
+            _ => throw Error("'c.loops' must be \"testFirst\" or \"asTir\": where a loop's test is written."),
+        };
+
         return new CSettings(doubleBits, reentrant, maxAlignment, qualifier, sizes, charSigned, largeFrame, stackGrowsUp,
-            structReturnPointer);
+            structReturnPointer, loopsTestFirst);
     }
 
     /// <summary>

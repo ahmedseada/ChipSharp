@@ -34,6 +34,8 @@ namespace ChipSharp.Runtime.Stm8;
 /// <c>ChipSharp_Runtime_LocalUtcOffset</c>, 0.</item>
 /// <item><see cref="StringFileName"/> and <see cref="ExceptionsFileName"/>, shared with the other runtimes: what reads
 /// strings and chars, and the text of the exceptions a substitute stops with (in modules).</item>
+/// <item><see cref="FmodfFileName"/>: fmodf, which the C code generator calls for C#'s % on floats, exact, as .NET's;
+/// SDCC's library has no fmodf.</item>
 /// </list>
 /// <see cref="InterruptEntry"/> gives each event of the target's "interrupts" table the default the program's
 /// <c>[Interrupt]</c> method takes the place of: an empty <c>chipsharp_isr_irq&lt;n&gt;</c> in a module of its own, which
@@ -69,6 +71,12 @@ public sealed class Stm8Runtime : IArchRuntime
     /// <summary>The text of the exceptions of the library's substitutes (src/ChipSharp.Runtime.Shared), in modules.</summary>
     public const string ExceptionsFileName = "chipsharp_exceptions.c";
 
+    /// <summary>
+    /// fmodf, for C#'s % on two floats (src/ChipSharp.Runtime.Shared, shared with the PDK14's runtime): SDCC's library
+    /// has none.
+    /// </summary>
+    public const string FmodfFileName = "chipsharp_fmodf.c";
+
     /// <summary>What a line that starts a module of a file starts with, then the module's name.</summary>
     public const string ModuleMarker = "//@module ";
 
@@ -91,7 +99,7 @@ public sealed class Stm8Runtime : IArchRuntime
             Source(HaltFileName), Source(InterruptsFileName), Source(MultiplyFileName),
             .. Modules(Source(FailuresFileName)),
             .. Modules(Source(DefaultsFileName)), .. Modules(Source(StringFileName)),
-            .. Modules(Source(ExceptionsFileName)),
+            .. Modules(Source(ExceptionsFileName)), Source(FmodfFileName),
         ]);
     }
 

@@ -82,10 +82,10 @@ internal static class BackendRun
     /// <summary>
     /// The program built for a chip (<paramref name="description"/>, its target with a console) through the C code
     /// generator and SDCC, with the tests' startup and console, into <paramref name="folder"/>: the module and the .ihx,
-    /// or why the chip does not take it.
+    /// or why the chip does not take it. <paramref name="report"/> takes the place of the empty report() (<see cref="UcsimStm8.ReportFile"/>).
     /// </summary>
     public static (TirModule? Module, LinkedBinary? Binary, BackendOutcome? Skip) BuildForChip(TargetDescription description,
-        string file, string source, string folder)
+        string file, string source, string folder, GeneratedFile? report = null)
     {
         var analysis = WholeProgramPass.Check(IlAssembly.Load(CSharpCompiler.Compile(source, file), file + ".dll"), description);
         if (!analysis.IsSupported)
@@ -107,7 +107,7 @@ internal static class BackendRun
                 OutputFolder = folder,
                 ProgramName = file,
                 CacheFolder = Cache,
-            }).Build(new GeneratedCode([.. code.Files, ChipConsole.File(module, description), ChipConsole.ReportFile]),
+            }).Build(new GeneratedCode([.. code.Files, ChipConsole.File(module, description), report ?? ChipConsole.ReportFile]),
                 description), null);
         }
         catch (ChipSharpException e) when (BackendSkips.Classify(e.Message) is var reason && reason != BackendSkips.Other)

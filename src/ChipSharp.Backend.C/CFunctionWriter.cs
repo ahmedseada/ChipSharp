@@ -9,7 +9,8 @@ namespace ChipSharp.Backend.C;
 /// Writes one defined function as C. Parameters are <c>p_name</c>, slots <c>s_name</c> (locals declared first, each
 /// starting at zero), temporaries <c>tN</c>, numbered as <see cref="TirPrinter"/> numbers them (<c>t3</c> is the TIR's
 /// <c>%3</c>), each declared where it is made, with its type, in the block (a C compound statement) that makes it.
-/// Blocks follow one another in TIR's order; a jump or branch to a block other than the next is a <c>goto</c> to its
+/// Blocks follow one another in TIR's order, or in reverse postorder (<see cref="LoopsTestFirst"/>: a loop starts with
+/// its test); a jump or branch to a block other than the next is a <c>goto</c> to its
 /// label (its TIR name), one to the next falls through.
 /// <para>
 /// <b>Arithmetic</b> is C#'s whatever the compiler's int: integers are unsigned, so add, sub and mul wrap around, and
@@ -64,7 +65,7 @@ internal sealed class CFunctionWriter
     /// <summary>How many written instructions use each instruction's value.</summary>
     private readonly Dictionary<TirInstruction, int> _uses = [];
 
-    /// <summary>The blocks the function reaches (see <see cref="CLiveness.Blocks"/>), in TIR's order: those written.</summary>
+    /// <summary>The blocks the function reaches (see <see cref="CLiveness.Blocks"/>), in the order they are written.</summary>
     private List<TirBlock> _blocks = [];
     private List<string> _lines = [];
     private bool _declares;
@@ -106,6 +107,12 @@ internal sealed class CFunctionWriter
     /// through an address calls one.
     /// </summary>
     public bool StructReturnPointer { get; init; }
+
+    /// <summary>
+    /// Whether the blocks are written in reverse postorder, each loop starting with its test ("c.loops": "testFirst",
+    /// see <see cref="ReversePostorder"/>); else in TIR's order.
+    /// </summary>
+    public bool LoopsTestFirst { get; init; }
 
     /// <summary>The stores a call wrote its result to itself, through the pointer: they are not written again.</summary>
     private readonly HashSet<TirInstruction> _done = [];
@@ -171,7 +178,7 @@ internal sealed class CFunctionWriter
             _uses[instruction] = count;
         }
 
-        _blocks = [.. _function.Blocks.Where(liveness.Blocks.Contains)];
+        _blocks = LoopsTestFirst ? ReversePostorder(liveness.Blocks) : [.. _function.Blocks.Where(liveness.Blocks.Contains)];
 
         var gotos = Gotos();
         foreach (var block in _blocks.Where(gotos.Contains))
@@ -536,6 +543,59 @@ internal sealed class CFunctionWriter
         }
     }
 
+    /// <summary>
+    /// The blocks the function reaches, in reverse postorder from its entry: each block before the blocks it goes to,
+    /// but along a loop's way back. C# (and so IL and TIR) puts a loop's test after its body, entered by a jump down to
+    /// it (<c>goto test; body: ...; test: if (i &lt; n) goto body;</c>), and SDCC 4.6 gets the lifetimes of the
+    /// variables in such a loop wrong on the STM8: it gives a variable the loop still needs (the counter of the loop
+    /// around it, a local read after the loop) the stack place of one the loop sets, and the program counts forever or
+    /// reads another's value. In this order a loop starts with its test (<c>test: if (!(i &lt; n)) goto out; body:
+    /// ...; goto test;</c>), the shape of a C <c>for</c>, which SDCC compiles right. A branch's false way is taken
+    /// first, so the true way comes right after it, as in TIR.
+    /// </summary>
+    private List<TirBlock> ReversePostorder(IReadOnlySet<TirBlock> reached)
+    {
+        var order = new List<TirBlock>();
+        if (_function.EntryBlock is not { } entry || !reached.Contains(entry))
+        {
+            return order;
+        }
+
+        var visited = new HashSet<TirBlock> { entry };
+        var stack = new Stack<(TirBlock Block, int Next)>();
+        stack.Push((entry, 0));
+        while (stack.TryPop(out var top))
+        {
+            var successors = Successors(top.Block);
+            if (top.Next < successors.Count)
+            {
+                stack.Push((top.Block, top.Next + 1));
+                var successor = successors[top.Next];
+                if (reached.Contains(successor) && visited.Add(successor))
+                {
+                    stack.Push((successor, 0));
+                }
+
+                continue;
+            }
+
+            order.Add(top.Block);
+        }
+
+        order.Reverse();
+        return order;
+    }
+
+    /// <summary>Where a block goes: a jump's target, a branch's false way then its true way (one only on a constant).</summary>
+    private static IReadOnlyList<TirBlock> Successors(TirBlock block) => block.Terminator switch
+    {
+        TirBranch branch when (CLiveness.Taken(branch)
+            ?? (branch.WhenTrue == branch.WhenFalse ? branch.WhenTrue : null)) is { } only => [only],
+        TirBranch branch => [branch.WhenFalse, branch.WhenTrue],
+        TirJump jump => [jump.Target],
+        _ => [],
+    };
+
     /// <summary>The blocks some jump or branch goes to with a goto: every target that is not the block right after.</summary>
     private HashSet<TirBlock> Gotos()
     {
@@ -741,7 +801,7 @@ internal sealed class CFunctionWriter
             TirBinaryOp.Xor => $"{L()} ^ {R()}",
             TirBinaryOp.Shl => $"{(promoted ? Wide(left) : Operand(left, Binary - 1, typed: true))} << {Amount()}",
             TirBinaryOp.Shr => $"{Signed(left, typed: true)} >> {Amount()}",
-            TirBinaryOp.ShrUnsigned => $"{L()} >> {Amount()}",
+            TirBinaryOp.ShrUnsigned => $"{Operand(left, Binary - 1, typed: true)} >> {Amount()}",
             _ => throw Unsupported(binary.Op.ToString()),
         };
 

@@ -132,7 +132,7 @@ chipsharp build bin\Release\net10.0\UnoBlink.dll -t uno
 
 ```
 ...\chipsharp-output\uno\UnoBlink.hex
-flash 1.2 KB of 31.5 KB (3.7%), RAM 15 bytes of 2 KB (stack 512 bytes reserved)
+flash 1.2 KB of 31.5 KB (3.7%), RAM 17 bytes of 2 KB (stack 512 bytes reserved)
 ```
 
 Run it in the simulator (`node tools\avr-sim\run.mjs chipsharp-output\uno\UnoBlink.hex --ms 3000`), in
@@ -228,7 +228,7 @@ chipsharp build bin\Release\net10.0\UnoBlink.dll -t uno
 
 ```
 ...\chipsharp-output\uno\UnoBlink.hex
-flash 1.2 KB of 31.5 KB (3.7%), RAM 15 bytes of 2 KB (stack 512 bytes reserved)
+flash 1.2 KB of 31.5 KB (3.7%), RAM 17 bytes of 2 KB (stack 512 bytes reserved)
 ```
 
 The program has 31.5 KB of flash: the Uno's bootloader (optiboot), through which a program is uploaded over USB,
@@ -256,7 +256,7 @@ flash's contents, the starting values of the variables included.
   ```
   > chipsharp flash bin\Release\net10.0\UnoBlink.dll -t uno --port COM5
   ...\chipsharp-output\uno\UnoBlink.hex
-  flash 1.2 KB of 31.5 KB (3.7%), RAM 15 bytes of 2 KB (stack 512 bytes reserved)
+  flash 1.2 KB of 31.5 KB (3.7%), RAM 17 bytes of 2 KB (stack 512 bytes reserved)
   COM5: avrdude -c arduino -p atmega328p -P COM5 -b 115200 -D -U flash:w:...\chipsharp-output\uno\UnoBlink.hex:i
   COM5: written and verified; the uno runs it
   ```
@@ -503,7 +503,15 @@ objects and type descriptors, and the same `chipsharp_entry`. The C means what t
   starting zero overwrote the parameter (a slot the function stores to first gets no zero); a struct passed as
   `*(struct S *)p` is passed wrong (only a slot is passed as it is, anything else through a copy); and on the STM8 a
   function whose frame its 8-bit offsets do not reach cannot return 3 or 4 bytes (`"c": { "largeFrame": 255 }`: such
-  a function returns them through a pointer too).
+  a function returns them through a pointer too). A loop entered by a jump down to its test, as C# lays loops out,
+  made SDCC give a value the loop still needs (the counter of the loop around it, a local read after it) the stack
+  place of one the loop sets, on the STM8 (nested loops counted forever): there the C writes a function's blocks in
+  reverse postorder (`"c": { "loops": "testFirst" }`), so each loop starts with its test, the shape of a C `for`. A file SDCC's generalized constant
+  propagation crashes on (`FATAL Compiler Internal Error in file '.../SDCCgenconstprop.cc'`) is compiled again with
+  `--nogenconstprop`. SDCC's libraries have no `fmodf` (C#'s `%` on floats did not link): the runtimes have one, exact.
+  The differential fuzz test (`DifferentialFuzzTests`, random programs of the integers up to 32 bits, run in chipsim
+  and in SDCC's own uCsim) still finds SDCC 4.6 miscompiling about one in twenty of its programs on the STM8 (a store in a loop
+  dropped, a 32-bit argument pushed as 2 bytes), and stopping with an internal error in `stm8/gen.c` on a few.
 - `"stackCheck": true` on both chips: the functions that may call themselves (and on the STM8, every frame on its
   stack, those whose locals and parameters take 256 bytes or more) check, when they start, that one more call of
   them has room, with the address of a byte of their frame (4 instructions on the STM8, 5 on the PDK14), and past the
@@ -1134,7 +1142,10 @@ makes no object gets no heap at all, even on the Pico. `chipsharp check` tells y
 
 The first table holds on both chips, which have no heap, with these differences. There is no `double`: SDCC's has 32
 bits, so a program that uses one is refused (`chipsharp check` names each place); `float` and `MathF` work, in SDCC's
-software routines. `nint` and `nuint` have 16 bits. `Console` writes only on the STM8 (UART1). What runs is what the
+software routines, which are not IEEE 754's: they drop the bits a sum or product shifts out instead of rounding to
+nearest, flush subnormals to zero and do not carry NaN and infinity through as IEEE 754 does (SDCC's
+`lib/src/_fsadd.c` and the others), so `65535f + 2147483648f` is 2.147549E+09 (.NET: 2.1475492E+09), and a value .NET
+makes NaN can come out as a number. Keep float results away from their last bit and from NaN on these chips. `nint` and `nuint` have 16 bits. `Console` writes only on the STM8 (UART1). What runs is what the
 suites show: every program of every corpus the differential tests compare with .NET that needs neither a heap nor a
 `double` and fits the chip builds with the `c` code generator and SDCC, runs in chipsim and prints what .NET prints (the
 backend suite, with a list of what each chip skips and why), and the hardware suite's cases pass on the STM8 (16) and on
@@ -1290,8 +1301,8 @@ The full list, with the pins and ranges, is [The ESP32-C5 limits](#the-esp32-c5-
 heap region and none of the collector's code, on the PC no memory taken from Windows. `chipsharp build` says which:
 
 ```
-flash 5.7 KB of 2048 KB (0.3%), RAM 20 bytes of 264 KB (stack 8 KB reserved)                    examples/pico-traffic-light
-flash 17.3 KB of 2048 KB (0.8%), RAM 1.1 KB + heap 224 KB of 264 KB (stack 8 KB reserved)        examples/pico-traffic-light-m3
+flash 5.1 KB of 2048 KB (0.2%), RAM 20 bytes of 264 KB (stack 8 KB reserved)                    examples/pico-traffic-light
+flash 16.9 KB of 2048 KB (0.8%), RAM 1.1 KB + heap 224 KB of 264 KB (stack 8 KB reserved)        examples/pico-traffic-light-m3
 ```
 
 Flash holds the code, the constants (string literals, constant tables, type descriptors and type objects) and the
