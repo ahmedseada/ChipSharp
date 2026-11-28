@@ -11,7 +11,7 @@ namespace ChipSharp.Tests.Conformance;
 /// </summary>
 public abstract class ConformanceTests : IDisposable
 {
-    private readonly string _scratch = Path.Combine(Path.GetTempPath(), "chipsharp-tests", Guid.NewGuid().ToString("N"));
+    protected readonly string _scratch = Path.Combine(Path.GetTempPath(), "chipsharp-tests", Guid.NewGuid().ToString("N"));
 
     public void Dispose()
     {

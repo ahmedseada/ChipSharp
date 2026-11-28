@@ -83,6 +83,7 @@
   },
   "capabilities": {
     "heap": false,        // the runtime's heap comes later: no objects yet
+    "pullDown": true,     // the GPIO pads have pull-ups and pull-downs (IO_MUX FUN_WPU, FUN_WPD): the runtime of wave 1
     "console": false,     // UART0 (GPIO 11 TX, GPIO 12 RX): the runtime of wave 1
     "clock": false        // SYSTIMER's 64-bit count: the runtime of wave 1
   },

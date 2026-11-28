@@ -153,7 +153,7 @@ internal static class WholeProgram
           System.UInt32: Parse(string), TryParse(string, out uint)
           System.Int64: Parse(string), TryParse(string, out long)
           System.UInt64: Parse(string), TryParse(string, out ulong)
-          ChipSharp.Hardware.Pin: Output(int), Input(int), Write(int, bool), Toggle(int), Read(int), Watch(int), WatchRising(int), WatchFalling(int), Unwatch(int)
+          ChipSharp.Hardware.Pin: Output(int), Input(int), Input(int, Pull), Write(int, bool), Toggle(int), Read(int), Watch(int), WatchRising(int), WatchFalling(int), Unwatch(int)
           ChipSharp.Hardware.Timing: DelayMilliseconds(int), DelayMicroseconds(int), EveryMilliseconds(int), EveryMicroseconds(int), AfterMilliseconds(int), AfterMicroseconds(int), Stop(), Delay(System.TimeSpan)
           ChipSharp.Hardware.Registers: Read(uint), Write(uint, uint)
           ChipSharp.Hardware.Adc: Input(int), Read(int), Volts(int), Temperature()

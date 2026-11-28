@@ -9,7 +9,7 @@
 //                                      watchdog tick generator (the timer counts microseconds), and GPIO and
 //                                      timer taken out of reset
 //   ChipSharp_Runtime_Pin...           ChipSharp.Hardware.Pin: GPIO 0-29 through SIO (Output or Input first, then
-//                                      Write, Toggle, Read); other pin numbers are ignored
+//                                      Write, Toggle, Read; Input with no pull, or the pad's pull-up or pull-down); other pin numbers are ignored
 //   ChipSharp_Runtime_Delay...         ChipSharp.Hardware.Timing: sleeps on timer alarm 0 (TIMER_IRQ_0, IRQ 0)
 //   ChipSharp_Runtime_Clock...         the clock (DateTime.Now, Clock.Start) and the uptime (Stopwatch,
 //                                      Environment.TickCount): the timer's 64-bit count of microseconds
@@ -93,6 +93,8 @@
 
 #define IO_BANK0_GPIO_CTRL(pin) (0x40014004u + 8u * (unsigned int)(pin))
 #define PADS_BANK0_GPIO(pin) (0x4001c004u + 4u * (unsigned int)(pin))
+#define PAD_PULL_DOWN (1u << 2)
+#define PAD_PULL_UP (1u << 3)
 #define PAD_INPUT_ENABLE (1u << 6)
 #define PAD_OUTPUT_DISABLE (1u << 7)
 #define FUNCTION_UART 2u
@@ -235,7 +237,7 @@ void ChipSharp_Runtime_PinOutput(int pin)
     REG(SIO_GPIO_OE_SET) = mask;
 }
 
-// Pin.Input: SIO stops driving the pin; Read reads it.
+// Pin.Input: SIO stops driving the pin, with no pull-up or pull-down (the pad's reset has a pull-down on); Read reads it.
 void ChipSharp_Runtime_PinInput(int pin)
 {
     if (!is_pin(pin))
@@ -245,6 +247,25 @@ void ChipSharp_Runtime_PinInput(int pin)
 
     REG(SIO_GPIO_OE_CLR) = 1u << pin;
     select_function(pin, FUNCTION_SIO);
+    REG(PADS_BANK0_GPIO(pin)) &= ~(PAD_PULL_UP | PAD_PULL_DOWN);
+}
+
+__attribute__((noreturn)) void chipsharp_hardware_failure(const char *text, int n0, int n1, int n2, int n3);
+
+// Pin.Input(pin, pull): 0 none, 1 the pad's pull-up, 2 its pull-down.
+void ChipSharp_Runtime_PinInputPull(int pin, int pull)
+{
+    if ((unsigned int)pull > 2u)
+    {
+        chipsharp_hardware_failure("System.ArgumentOutOfRangeException: The pull ({0}) is not Pull.None, Pull.Up or Pull.Down. "
+            "(Parameter 'pull')", pull, 0, 0, 0);
+    }
+
+    ChipSharp_Runtime_PinInput(pin);
+    if (pull != 0 && is_pin(pin))
+    {
+        REG(PADS_BANK0_GPIO(pin)) |= pull == 1 ? PAD_PULL_UP : PAD_PULL_DOWN;
+    }
 }
 
 // A bool arrives as an int; anything but 0 is high.

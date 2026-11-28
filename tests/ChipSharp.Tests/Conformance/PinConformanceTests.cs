@@ -5,7 +5,8 @@ namespace ChipSharp.Tests.Conformance;
 
 /// <summary>
 /// The conformance suite's pins, on every chip: outputs low until written, Write and Toggle; inputs read the level
-/// driven from outside; a pin no chip has is ignored; and the pin event, on the chips with one, for the edges watched.
+/// driven from outside, with a pull-up, a pull-down (where the chip has one) or none; a pin no chip has is ignored; and
+/// the pin event, on the chips with one, for the edges watched.
 /// </summary>
 public sealed class PinConformanceTests : ConformanceTests
 {
@@ -60,6 +61,72 @@ public sealed class PinConformanceTests : ConformanceTests
             {
                 Inputs = [new(chip.Pins.Input, false), new(chip.Pins.Input, true, 10), new(chip.Pins.Input, false, 30)],
             });
+
+        Assert.True(run.Stop == ChipStop.Finished, run.ToString());
+        AssertChecks(chip, run, 3);
+    }
+
+    [ChipTheory("chip")]
+    public async Task A_pull_up_reads_high_with_nothing_attached_and_low_when_a_button_pulls_the_pin_to_ground(string target)
+    {
+        var chip = ChipSimulators.Get(target);
+
+        var run = await RunAsync(chip, "PinPullUp", """
+            Check.Start();
+            Pin.Input(Input, Pull.Up);
+            Timing.DelayMilliseconds(5);
+            Check.That(Pin.Read(Input));
+            Timing.DelayMilliseconds(20);
+            Check.That(!Pin.Read(Input));
+            """, new ChipStimulus(100) { Inputs = [new(chip.Pins.Input, false, 10)] });
+
+        Assert.True(run.Stop == ChipStop.Finished, run.ToString());
+        AssertChecks(chip, run, 2);
+    }
+
+    [ChipTheory("chip")]
+    public async Task Input_without_a_pull_takes_a_pull_off_and_Pull_None_is_the_same(string target)
+    {
+        var chip = ChipSimulators.Get(target);
+
+        var run = await RunAsync(chip, "PinNoPull", """
+            Check.Start();
+            Pin.Input(Input, Pull.Up);
+            Timing.DelayMilliseconds(2);
+            Check.That(Pin.Read(Input));
+            Pin.Input(Input);
+            Timing.DelayMilliseconds(2);
+            Check.That(!Pin.Read(Input));
+            Pin.Input(Input, Pull.Up);
+            Timing.DelayMilliseconds(2);
+            Check.That(Pin.Read(Input));
+            Pin.Input(Input, Pull.None);
+            Timing.DelayMilliseconds(2);
+            Check.That(!Pin.Read(Input));
+            """, new ChipStimulus(100));
+
+        Assert.True(run.Stop == ChipStop.Finished, run.ToString());
+        AssertChecks(chip, run, 4);
+    }
+
+    [ChipTheory("pullDown")]
+    public async Task A_pull_down_reads_low_with_nothing_attached_and_high_when_a_button_pulls_the_pin_to_the_supply(
+        string target)
+    {
+        var chip = ChipSimulators.Get(target);
+
+        // the pull-up first, so that a low is the pull-down's and not what the chip's reset left
+        var run = await RunAsync(chip, "PinPullDown", """
+            Check.Start();
+            Pin.Input(Input, Pull.Up);
+            Timing.DelayMilliseconds(2);
+            Check.That(Pin.Read(Input));
+            Pin.Input(Input, Pull.Down);
+            Timing.DelayMilliseconds(2);
+            Check.That(!Pin.Read(Input));
+            Timing.DelayMilliseconds(20);
+            Check.That(Pin.Read(Input));
+            """, new ChipStimulus(100) { Inputs = [new(chip.Pins.Input, true, 15)] });
 
         Assert.True(run.Stop == ChipStop.Finished, run.ToString());
         AssertChecks(chip, run, 3);

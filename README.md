@@ -189,6 +189,7 @@ The `"capabilities"` decide what a program may use on the chip:
 | `stackCheck` | The functions that can recurse check the stack, so a stack overflow says `Stack overflow.` instead of locking the core up | yes | not yet | yes | yes | (Windows' guard page) | yes |
 | `narrowing` | Arithmetic in 8 or 16 bits where the values provably fit and the result is C#'s (see [Narrowing](#narrowing)); when not given, on for a chip with 2-byte pointers (the AVR) only | no | yes | yes | yes | no | no |
 | `i2c`, `spi` | Whether `I2c` and `Spi` have buses (see [Hardware](#hardware)); the file's `"i2c"` and `"spi"` give each bus's pins and clocks | 2 each | 1 each | none | 1 each | none | none |
+| `pullDown` | Whether the chip has pull-down resistors: `Pin.Input(pin, Pull.Down)` (see [Pins](#pins)); every chip has pull-ups, and `chipsharp check` refuses a constant `Pull.Down` where this is false | yes | no | no | no | no | no |
 | `double64` | Whether the C a code generator writes has a 64-bit `double`; `false` where it is SDCC's (see [Limits of the two chips](#limits-of-the-two-chips)). Not given: true | yes | yes | no | no | yes | yes |
 | `hwMultiply`, `hwDivide`, `fpu`, `atomics`, `romFloat` | Describe the chip; the code itself follows the file's `triple`, `cpu` and `clang` flags (soft float on `armv6m` and `avr`; the AVR's `mul` is 8 x 8 bits, so `hwMultiply` is false) | | | | | | |
 
@@ -285,17 +286,15 @@ the Uno does not have: `pin 4 (D4) cannot be UART0's TX on the target 'uno' ... 
 | 14 to 17 | A0 to A3 | Analog inputs (`Adc`) |
 | 18, 19 | A4, A5 | Analog inputs; the I2C bus, SDA and SCL (bus 0) |
 
-`Pin.Input` leaves a pin high impedance, as on the Pico, without the AVR's pull-up. A button between a pin and GND,
-the usual Arduino wiring (`INPUT_PULLUP`), needs it: after `Pin.Input`, set the pin's bit of its port's PORT register,
-PORTB (D8 to D13), PORTC (A0 to A5) or PORTD (D0 to D7), at the data addresses 0x25, 0x28 and 0x2B (`Registers` reads
-and writes the Uno's registers a byte at a time), as `examples/uno-button` does. A button to 5 V needs a resistor to
-GND instead: the ATmega328P's pins have no pull-down.
+`Pin.Input(pin)` leaves a pin high impedance, with no pull-up, as on every chip. A button between a pin and GND, the
+usual Arduino wiring (`INPUT_PULLUP`), asks for the pull-up: `Pin.Input(pin, Pull.Up)` sets the pin's bit of its port's
+PORT register (PORTB for D8 to D13, PORTC for A0 to A5, PORTD for D0 to D7), as `examples/uno-button` does. A button to
+5 V needs a resistor to GND instead: the ATmega328P's pins have no pull-down, so `Pull.Down` is refused (`"pullDown":
+false`).
 
 ```csharp
-const uint PortD = 0x2B;
-Pin.Input(2);
-Registers.Write(PortD, Registers.Read(PortD) | 1u << 2);   // D2's pull-up on: high until the button takes it to GND
-Pin.WatchFalling(2);                                        // the [Interrupt(Event.Pin)] method runs at each press
+Pin.Input(2, Pull.Up);     // D2's pull-up on: high until the button takes it to GND
+Pin.WatchFalling(2);       // the [Interrupt(Event.Pin)] method runs at each press
 ```
 
 ### The chip's timers, clock and buses
@@ -394,7 +393,6 @@ What things take of the 31.5 KB of flash and the 2 KB of RAM:
 - **PWM** on five pins only: D5 and D6 share Timer0's frequency, D3 and D11 Timer2's, both a few frequencies only; D9
   is exact, 1 Hz to 10 kHz; D10 is no PWM output. `Pin 6 shares Timer0 with pin 5, which runs at 1000 Hz, ...`
 - **The ADC** reads 0 to 1023 against 5 V (`Adc.Volts` gives the volts as on the Pico).
-- **No pull-up** in `Pin.Input`: set it with `Registers.Write` ([above](#the-unos-pins)).
 - **One** serial port, one I2C bus and one SPI bus; the console's port is D0 and D1.
 - **No stack check yet**: a recursion with no end grows the stack into the static fields and the program goes wrong,
   where the Pico says `Stack overflow.` and stops.
@@ -437,7 +435,7 @@ Built with `chipsharp build bin\Release\net10.0\<Name>.dll -t uno` in their fold
 |---|---|---|
 | `uno-blink` | Blinks the LED "L" (D13) with a delay loop; in Wokwi, an LED on D13 and the GND beside it blinks with it | 1.2 KB, 15 bytes of RAM |
 | `uno-timer-blink` | Blinks the LED "L" from the timer event (Timer1), while `Main` does nothing; the same circuit | 1.6 KB, 24 bytes of RAM |
-| `uno-button` | A button between D2 and GND toggles the LED "L" through the pin event (INT0, falling edges); the program turns D2's pull-up on with `Registers.Write` of PORTD, so the button needs no resistor | 1.4 KB, 24 bytes of RAM |
+| `uno-button` | A button between D2 and GND toggles the LED "L" through the pin event (INT0, falling edges); `Pin.Input(2, Pull.Up)` turns D2's pull-up on, so the button needs no resistor | 2.5 KB, 27 bytes of RAM |
 | `uno-serial` | A count on the console (USART0, 115200 baud) every second, and what is typed into it sent straight back (`Uart.Available`, `ReadByte`, `WriteByte`); in Wokwi, the serial monitor under the Uno | 5.4 KB, 132 bytes of RAM |
 | `uno-traffic-light` | The Pico traffic light with an LCD brought to the Uno, with no heap: one signal (A0, A1, A2) for two lanes, the turn's countdown on a 7-segment display (D3, D4, D7 to D11, `SevenSegment`), a 16x2 LCD on I2C (`Road 1   turn 8s`, `green         4s`), a button on D2 that cuts a green short, the LED "L" blinking from the timer event; over the serial port exactly what the Pico's traffic lights print, line for line | 13.4 KB, 136 bytes of RAM |
 | `uno-lcd-clock` | The date and the time on a 16x2 LCD, once a second, from a DS1307 read at start-up (`Clock.Start(Ds1307.Read())`) or a date it sets a halted one to; `TryFormat` into a span for `Lcd.Line`; both on I2C (A4, A5) | 26.0 KB, 96 bytes of RAM |
@@ -584,7 +582,7 @@ and 9 bytes of RAM; the runtime's own RAM is a few bytes for each part a program
 
 | What | On the PFS154 |
 |---|---|
-| Pins | PA0, PA3-PA7, PB0-PB7 as numbers 0, 3-7, 8-15 (port * 8 + bit); a number no pin has is ignored. `Pin.Input` leaves the pull-up off, as after reset: `Registers.Write(0x12, ...)` (PAPH; PBPH is 0x16) turns it on |
+| Pins | PA0, PA3-PA7, PB0-PB7 as numbers 0, 3-7, 8-15 (port * 8 + bit); a number no pin has is ignored. `Pin.Input` has no pull; `Pin.Input(pin, Pull.Up)` turns the pin's pull-high on (PAPH, PBPH), in a file of its own that a program without it does not link; the chip has no pull-low (`"pullDown": false`) |
 | Delays, clock | T16 counts microseconds (the IHRC / 16, whatever the system clock), and its interrupt its rounds: 48 bits of microseconds for the delays, `Stopwatch`, `Environment.TickCount64`, `DateTime.UtcNow` and `Clock.Start` (`"clock": true`) |
 | Timer event | `Timing.Every...` and `After...` on the clock's time; TM2 wakes the handler up when it has come, to the microsecond (`interrupts.timer`: TM2's request bit 6) |
 | Pin event | PA0 and PB0, the two pins with an interrupt (`interrupts.pin`); `chipsharp check` refuses another pin given as a constant (`"pinFunctions": { "pinEvent": [0, 8] }`), the runtime stops at one that is not |
@@ -625,7 +623,7 @@ exceptions, which compile with SDCC too): a program has only what it uses.
 
 | What | On the STM8S103 board |
 |---|---|
-| Pins | Port * 8 + bit: PA1-PA3 are 1-3, PB4 and PB5 12 and 13 (the LED, on when low: PB4 and PB5 are true open-drain), PC3-PC7 19-23, PD1-PD6 25-30 (PD1 is SWIM); a number no pin has is ignored. `Pin.Input` leaves the pull-up as after reset (off, but PD1's): `Registers.Write` of the port's CR1 turns it on (PA_CR1 0x5003, PB_CR1 0x5008, PC_CR1 0x500d, PD_CR1 0x5012) |
+| Pins | Port * 8 + bit: PA1-PA3 are 1-3, PB4 and PB5 12 and 13 (the LED, on when low: PB4 and PB5 are true open-drain), PC3-PC7 19-23, PD1-PD6 25-30 (PD1 is SWIM); a number no pin has is ignored. `Pin.Input` has no pull (CR1 clear, PD1 too); `Pin.Input(pin, Pull.Up)` sets the port's CR1 bit, in a module of its own that a program without it does not link; the chip has no pull-down (`"pullDown": false`) |
 | Delays, clock | TIM1 counts microseconds (16 MHz / 16), its update interrupt its rounds: 48 bits for the delays, `Stopwatch`, `Environment.TickCount64`, `DateTime.UtcNow` and `Clock.Start`. TIM4 is the program's |
 | Timer event | `Timing.Every...` and `After...` on TIM1's compare 1, at the clock's microsecond (`interrupts.timer`: 31) |
 | Pin event | Every pin: EXTI of its port, both edges, the handler running the method for the edges watched (`interrupts.pin`: 30) |
@@ -708,7 +706,7 @@ C# builds for the Pico or the Uno with other pin numbers.
 |---|---|---|
 | `pfs154-blink` | Blinks an LED on PA4 with a delay loop | 276 words, 9 bytes of RAM |
 | `pfs154-timer-blink` | Blinks the LED on PA4 from the timer event (TM2), while `Main` does nothing | 612 words, 23 bytes of RAM |
-| `pfs154-button` | A button between PA0 and GND toggles the LED on PA4 through the pin event (falling edges); `Pin.Input` leaves the pin's pull-up off, so a 10 kOhm resistor to VDD holds it high | 384 words, 12 bytes of RAM |
+| `pfs154-button` | A button between PA0 and GND toggles the LED on PA4 through the pin event (falling edges); `Pin.Input(PA0, Pull.Up)` holds it high, so the button needs no resistor | 435 words, 12 bytes of RAM |
 | `pfs154-pwm-fade` | Fades an LED on PB5 (TM3's PWM, 1008 Hz) up and down with `Pwm.PulseMicroseconds`, 20 us more or less every 20 ms | 872 words, 53 bytes of RAM |
 | `pfs154-traffic-light` | The Uno's traffic light with what the chip has: red PA3, yellow PA6, green PA7, the turn's countdown on a 7-segment display (PB1 to PB7), a pedestrian button on PA0 that cuts a green short, a heartbeat LED on PA4 from the timer event; no console, no LCD, the steps a method's parameters (a table of record structs does not fit beside the stack) | 1381 words, 72 bytes of RAM |
 
@@ -718,8 +716,8 @@ calls of `Main`, the pin write's, then the interrupt, its handler and the calls 
 leaves. A program whose variables take more than 80 bytes does not link for the target: the memory report and the
 error say so (see [Limits of the two chips](#limits-of-the-two-chips)). chipsim stops a run whose stack
 grows past the end of RAM. The tests (`Pfs154ExampleTests`) build each example as above and run it in chipsim: the
-button with `--input PA0=high` (the resistor) and presses, the traffic light with
-`--input PA0=high --input PA0=low@2500ms --input PA0=high@2700ms`, as each `Program.cs` says.
+button with presses (`--input PA0=low@200ms`; the pull-up holds PA0 high) and the traffic light with
+`--input PA0=low@2500ms --input PA0=high@2700ms`, as each `Program.cs` says.
 
 ### Examples for the STM8S103 board
 
@@ -733,7 +731,7 @@ labels on the board, and a `chipsim` command to run it without a board. They use
 |---|---|---|
 | `stm8-blink` | Blinks the board's LED (PB5, lit while low) with a delay loop | 762 bytes, 16 bytes of RAM |
 | `stm8-serial` | `pico-uart-echo` with no heap: a prompt on UART1 (PD5, PD6; 115200 baud) whose `on`, `off` and `status` switch the LED and say what it is; the line read char by char into a `stackalloc` span, each char sent back as it comes, a `switch` on the span | 6.7 KB, 64 bytes of RAM |
-| `stm8-traffic-light` | The Uno's traffic light without its LCD: red PA1, yellow PA2, green PA3, the turn's countdown on a 7-segment display (PC3 to PC7, PD2, PD3), a pedestrian button on PD4 (to 3V3, a 10 kOhm resistor to GND) that cuts a green short, the board's LED blinking from the timer event; over UART1 exactly what the Pico's and the Uno's traffic lights print, line for line | 6.4 KB, 54 bytes of RAM |
+| `stm8-traffic-light` | The Uno's traffic light without its LCD: red PA1, yellow PA2, green PA3, the turn's countdown on a 7-segment display (PC3 to PC7, PD2, PD3), a pedestrian button on PD4 (to GND, with `Pull.Up`) that cuts a green short, the board's LED blinking from the timer event; over UART1 exactly what the Pico's and the Uno's traffic lights print, line for line | 6.6 KB, 54 bytes of RAM |
 | `stm8-lcd` | A potentiometer on PD3 (AIN4) as its reading and voltage on a 16x2 LCD at 0x27 on I2C (SDA PB5, SCL PB4): `0512 = 1.650 V`, the digits written as chars | 7.5 KB, 45 bytes of RAM |
 | `stm8-pwm-fade` | `pfs154-pwm-fade` on PD4: TIM2's PWM at 1000 Hz, its pulse 20 us longer or shorter every 20 ms (`Pwm.PulseMicroseconds`) | 3.3 KB, 23 bytes of RAM |
 
@@ -742,10 +740,10 @@ and display passed from call to call and `Timing.Delay` of a `TimeSpan`, takes 1
 the `TimeSpan`, whose code is 64-bit arithmetic): the STM8's is written as the heap-free Pico one is, the steps a
 method's parameters and the parts static, so that no table is built and no struct copied from call to call. `Lcd` and the I2C bus take some 7 KB, and `Lcd.Write` of a
 number beside the ADC goes just past the 8 KB: `stm8-lcd` writes its digits a char at a time, in fixed places. The
-board's LED is PB5, which is also I2C's SDA: with the LCD on the bus it shows the bus's traffic. `Pin.Input` leaves
-the pull-up off (as on the Pico and the Uno) and the STM8 has no pull-down, so the traffic light's button has a
-resistor. The tests (`Stm8ExampleTests`) build each example as above and run it in chipsim as each README says: the
-prompt with commands sent to PD6, the traffic light with `--input PD4=high@2500ms --input PD4=low@2700ms`, the LCD
+board's LED is PB5, which is also I2C's SDA: with the LCD on the bus it shows the bus's traffic. The traffic light's
+button is to GND with `Pull.Up` (the STM8 has no pull-down). The tests (`Stm8ExampleTests`) build each example as above
+and run it in chipsim as each README says: the prompt with commands sent to PD6, the traffic light with
+`--input PD4=low@2500ms --input PD4=high@2700ms`, the LCD
 with `--i2c 0:0x27=lcd1602 --adc PD3=...`.
 
 ## ESP32-C5 (in progress)
@@ -965,7 +963,7 @@ pins) are found the same way, before SDCC runs: see [Limits of the two chips](#l
 | The last bit of `Sin`, `Exp`, `Pow`, ... | Calls the C runtime: on Windows the UCRT, whose x64 functions are AMD's math library (some in C, some in assembly that uses the fused multiply-add of processors with FMA3), on Linux glibc; not always correctly rounded, so the last bit depends on the PC | One implementation for every target, the same bits on the PC and the Pico: .NET's result for 88 to 100 % of values (above 97 % for most functions), 1 ulp away for the rest (see [Math](#math)); `Cbrt`: 70 %, up to 2 ulps | Compare transcendental results with a tolerance (as with .NET on two operating systems), or round them for display |
 | `MathF.ReciprocalEstimate`, `MathF.ReciprocalSqrtEstimate` | On x64, the processor's estimate instructions (`rcpss`, `rsqrtss`: about 12 bits, different on Intel and AMD) | `1f / x` and `1f / MathF.Sqrt(x)`, what .NET computes without them (and for doubles everywhere) | |
 | `nint` and `nuint` | 64 bits on a 64-bit PC | The chip's address size: 32 bits on the Pico, 16 on the Uno, where -123456 does not fit in an `nint` | `int` or `long` for numbers |
-| `Pin.Input` | .NET IoT opens an input as `PinMode.Input`, `InputPullUp` or `InputPullDown`: the pull is what you ask | `Pin.Input` leaves the pin as the chip is after reset, so the pull differs: a pull-down on the Pico, none on the Uno, the PFS154 and the STM8S103. There is no portable call for a pull-up yet (planned) | A resistor to the supply (the examples' buttons have one), or `Registers.Write` of the chip's pull-up register (see [the PFS154's runtime](#the-pfs154s-runtime) and [the STM8S103 board](#the-stm8s103-board)) |
+| `Pin.Input` | .NET IoT opens an input as `PinMode.Input`, `InputPullUp` or `InputPullDown`: the pull is what you ask | `Pin.Input(pin)` is no pull, `Pin.Input(pin, Pull.Up)` and `Pull.Down` are the same three modes. Every chip has the pull-up, but only the Pico and the ESP32-C5 have a pull-down: `chipsharp check` refuses `Pull.Down` for the others | A resistor to GND, for a button to the supply on a chip without a pull-down |
 | An LED's polarity | The program's own | Only the board's file knows it (`LED` in `pins`), not `Pin`: `Pin.Write` takes a level. The STM8 board's LED is lit while PB5 is low | Write the level the board needs; each example says which |
 | `Adc.Read` | (.NET IoT's ADC readings are the converter's own) | The chip's own range: 0 to 4095 (3.3 V) on the Pico, 0 to 1023 (5 V) on the Uno | `Adc.Volts`, the same on both |
 | A value's bytes on the STM8 (`MemoryMarshal`, `BitConverter`) | The PC is little-endian: an `int`'s low byte first, `BitConverter.IsLittleEndian` true | The STM8 is big-endian: its high byte first, `IsLittleEndian` false, as .NET on a big-endian processor (`BinaryPrimitives` of either order give the same numbers on every chip) | `BinaryPrimitives.ReadInt32LittleEndian` and the like, or check `BitConverter.IsLittleEndian` |
@@ -1211,6 +1209,23 @@ GPIO 6 cannot be UART1's TX on the target 'pico': 1 place in the top-level state
 A target without the capability (`"uart"`, `"adc"`, `"pwm"`, `"consoleInput"`, `"i2c"`, `"spi"`; the PC has none of
 them) refuses the class altogether: `ChipSharp.Hardware.Adc needs analog inputs (an ADC), and the target 'host' has
 none`.
+
+### Pins
+
+`Pin.Output(pin)` drives the pin (low until written; `Write`, `Toggle`), `Pin.Read(pin)` reads it. `Pin.Input` takes a
+pull, the chip's own resistor, the same on every chip:
+
+```csharp
+Pin.Input(15);              // no pull: the pin floats until something drives it, the same on every chip
+Pin.Input(15, Pull.Up);     // pull-up: reads high until something (a button to GND) pulls it low; every chip has one
+Pin.Input(15, Pull.Down);   // pull-down: reads low until a button to the supply pulls it high; only some chips have one
+```
+
+`Pull.None` is the one-argument form. The pull-downs are the Raspberry Pi Pico's and the ESP32-C5's; the ATmega328P, the
+PFS154 and the STM8S103F3 have pull-ups only, and `chipsharp check` refuses a constant `Pull.Down` for them (the
+capability `"pullDown"`: `Pin.Input(pin, Pull.Down) needs a pull-down, and the target 'uno' has none`). A program that
+never asks for a pull links no code for one.
+
 
 ### Serial ports (UART)
 
@@ -1866,4 +1881,4 @@ of its own (`src/ChipSharp.Backend.Llvm/LlvmStackChecks.cs`).
 | M7 (done) | Arduino Uno: the ATmega328P, an 8-bit AVR with 2 KB of RAM and no heap, through the LLVM in Zig; constants in flash, 8- and 16-bit arithmetic, its pins, timers, clock, serial port, I2C, SPI, ADC and PWM, `chipsharp flash` with avrdude, Wokwi circuits and examples (see [Arduino Uno](#arduino-uno)) |
 | M4 (in progress) | ESP32-C5 (RISC-V): its target files, the llvm code generator for riscv32, the start-up, a linked `.elf`, its simulator (`chipsim esp32c5`), its ESP image and the esptool flasher so far; next its runtime (see [ESP32-C5](#esp32-c5-in-progress)) |
 | M5 | CH32V003, C# on a 10-cent chip with 2 KB of RAM: M2-style code and the M3 pieces that need no heap (generics over values, spans, fixed and printed text, record structs) |
-| Later | Catching exceptions (`try`/`catch`); a portable pull-up for `Pin.Input`; more chips, and an interpreter mode for the smallest |
+| Later | Catching exceptions (`try`/`catch`); more chips, and an interpreter mode for the smallest |

@@ -41,6 +41,11 @@ internal sealed partial record Unsupported
         "has 32 bits (\"double64\": false)",
         "Use float and MathF instead; a program with double would compute with less precision than .NET does.");
 
+    /// <summary>Pin.Input(pin, Pull.Down) on a target whose chip has no pull-down resistors ("pullDown": false).</summary>
+    public static Unsupported NoPullDown(string target) => Rule(
+        $"Pin.Input(pin, Pull.Down) needs a pull-down, and the target '{target}' has none (\"pullDown\": false)",
+        "Use Pull.Up with a button to ground (every chip has a pull-up), or wire a resistor from the pin to ground.");
+
     /// <summary>A UART the target does not have, given as a constant: "the target 'pico' has no UART2".</summary>
     public static Unsupported NoSuchPort(int port, int ports, string target) => Rule(
         $"the target '{target}' has no UART{port}",

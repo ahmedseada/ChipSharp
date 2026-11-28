@@ -18,7 +18,8 @@
 // --input drives a pin from outside, as a button or another chip would; the program reads it with Pin.Read, and
 // Pin.Watch... sees it change. Without a time it is the level from the start; with one, e.g. --input 15=high@100ms,
 // the pin changes then (as a button pressed after 100 ms), and the change is printed. Give a pin several times to
-// change it several times. (rp2040js reads only these outside levels: a pin the program drives itself reads as low.)
+// change it several times. A pin no --input drives follows its pad: it reads high with its pull-up on, else low. (rp2040js
+// reads only outside levels: a pin the program drives itself reads as low.)
 //
 // --send sends text to UART0's or UART1's RX pin, as a terminal or another chip would, e.g. --send "0=led on\r@100ms":
 // from that time (or the start), byte after byte at the port's speed (10 bits a byte, 8N1), its UTF-8 bytes; \r, \n,
@@ -428,8 +429,16 @@ if (actual !== expected) {
 console.log(`booting ${options.image} (${blocks} UF2 blocks), running ${options.ms} ms of simulated time`);
 
 const { clock, core } = mcu;
+// the pins an --input drives (from its time on): the others follow their pad's pull, as the chip's pads do (a pin with
+// a pull-up and nothing attached reads high, with a pull-down or none low; rp2040js leaves an undriven input low)
+const driven = new Set();
 mcu.gpio.forEach((pin, index) => {
   pin.addListener((state) => {
+    if (!driven.has(index) && (state === GPIOPinState.Input || state === GPIOPinState.InputPullUp
+      || state === GPIOPinState.InputPullDown)) {
+      pin.setInputValue(state === GPIOPinState.InputPullUp);
+    }
+
     if (pwmEdge(index, state)) {
       return; // a PWM output: measured below, not printed edge by edge
     }
@@ -459,10 +468,12 @@ const finishBuses = attachBuses(mcu, options.buses, (text) => console.log(`${mil
 // one of them wakes up for it, as the chip would
 for (const { pin, high, at } of options.inputs) {
   if (at === null) {
+    driven.add(pin);
     mcu.gpio[pin].setInputValue(high);
   } else {
     clock.createAlarm(() => {
       console.log(`${milliseconds(clock.nanos)} input: GPIO${pin} ${high ? 'high' : 'low'}`);
+      driven.add(pin);
       mcu.gpio[pin].setInputValue(high);
     }).schedule(at * 1e6);
   }

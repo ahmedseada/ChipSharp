@@ -70,6 +70,7 @@
   },
   "capabilities": {
     "heap": false,                // 128 bytes of RAM: static fields and stack variables, no objects
+    "pullDown": false,            // pull-highs only (PAPH, PBPH): chipsharp check refuses Pull.Down
     "console": false,             // no UART, and no software one: the failure messages go nowhere
     "uart": 0,
     "adc": 0,                     // no ADC: the comparator against its internal reference (GPCC) is the nearest thing
