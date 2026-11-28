@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+using ChipSharp.Simulators.Ch32v003;
 using ChipSharp.Simulators.Devices;
 using ChipSharp.Simulators.Esp32c5;
 using ChipSharp.Simulators.Pdk14;
@@ -23,16 +24,19 @@ public sealed record SerialSend(byte[] Bytes, double? AtMilliseconds, string? Po
 /// <summary>What to simulate: the chip, the image, for how long, and what comes from outside.</summary>
 public sealed partial class SimulationOptions
 {
-    /// <summary>The chip, as <see cref="Simulation.Chips"/> names it: "pfs154", "stm8s103", "esp32c5".</summary>
+    /// <summary>The chip, as <see cref="Simulation.Chips"/> names it: "pfs154", "stm8s103", "esp32c5", "ch32v003".</summary>
     public required string Chip { get; init; }
 
-    /// <summary>The image: an Intel HEX file (the PFS154, the STM8S103), an ELF file or an ESP image (the ESP32-C5).</summary>
+    /// <summary>
+    /// The image: an Intel HEX file (the PFS154, the STM8S103), an ELF file or an ESP image (the ESP32-C5), an Intel HEX
+    /// file, a .bin or an ELF file (the CH32V003).
+    /// </summary>
     public required string Image { get; init; }
 
     /// <summary>How long to run, in simulated milliseconds.</summary>
     public double Milliseconds { get; init; } = 1000;
 
-    /// <summary>Files to write every byte a serial port sent to, by the port's name ("UART1": --uart1).</summary>
+    /// <summary>Files to write every byte a serial port sent to, by the port's name ("UART1": --uart1, "USART1": --usart1).</summary>
     public IReadOnlyDictionary<string, string> SerialFiles { get; init; } = new Dictionary<string, string>();
 
     public IReadOnlyList<PinInput> Inputs { get; init; } = [];
@@ -55,8 +59,8 @@ public sealed partial class SimulationOptions
     public bool IdfBootloader { get; init; }
 
     /// <summary>
-    /// The options of the command line after the chip: the image, --ms, --uart0, --uart1, --usb, --input, --send, --i2c,
-    /// --spi and --adc
+    /// The options of the command line after the chip: the image, --ms, --uart0, --uart1, --usart1, --usb, --input,
+    /// --send, --i2c, --spi and --adc
     /// (see <see cref="Simulation.Usage"/>). Throws <see cref="UsageException"/> when they are wrong.
     /// </summary>
     public static SimulationOptions Parse(string chip, IReadOnlyList<string> arguments)
@@ -85,8 +89,8 @@ public sealed partial class SimulationOptions
                 continue;
             }
 
-            if (argument is not ("--ms" or "--uart0" or "--uart1" or "--usb" or "--input" or "--send" or "--i2c" or "--spi"
-                or "--adc" or "--pll-running" or "--idf-bootloader"))
+            if (argument is not ("--ms" or "--uart0" or "--uart1" or "--usart1" or "--usb" or "--input" or "--send" or "--i2c"
+                or "--spi" or "--adc" or "--pll-running" or "--idf-bootloader"))
             {
                 throw new UsageException($"unknown option '{argument}'.");
             }
@@ -119,7 +123,7 @@ public sealed partial class SimulationOptions
                     }
 
                     break;
-                case "--uart0" or "--uart1" or "--usb":
+                case "--uart0" or "--uart1" or "--usart1" or "--usb":
                     serialFiles[argument[2..].ToUpperInvariant()] = value;
                     break;
                 case "--i2c":
@@ -153,9 +157,12 @@ public sealed partial class SimulationOptions
         return new SimulationOptions
         {
             Chip = chip,
-            Image = image ?? throw new UsageException(chip.Equals("esp32c5", StringComparison.OrdinalIgnoreCase)
-                ? "which image (.elf, or an ESP image)?"
-                : "which .ihx image?"),
+            Image = image ?? throw new UsageException(chip.ToLowerInvariant() switch
+            {
+                "esp32c5" => "which image (.elf, or an ESP image)?",
+                "ch32v003" => "which image (.hex, .bin or .elf)?",
+                _ => "which .ihx image?",
+            }),
             Milliseconds = milliseconds,
             SerialFiles = serialFiles,
             Inputs = inputs,
@@ -224,7 +231,7 @@ public sealed partial class SimulationOptions
     [GeneratedRegex(@"^(P[A-Fa-f][0-7]|GPIO\d{1,2})=(high|low)(?:@(\d+(?:\.\d+)?)ms)?$", RegexOptions.IgnoreCase)]
     private static partial Regex InputPattern();
 
-    [GeneratedRegex(@"^(?:(UART\d|USB)=)?(.*?)(?:@(\d+(?:\.\d+)?)ms)?$", RegexOptions.Singleline | RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(?:(US?ART\d|USB)=)?(.*?)(?:@(\d+(?:\.\d+)?)ms)?$", RegexOptions.Singleline | RegexOptions.IgnoreCase)]
     private static partial Regex SendPattern();
 }
 
@@ -286,7 +293,7 @@ public sealed partial class SimulationResult(int exitCode, IReadOnlyList<string>
     [GeneratedRegex(@"^\[\s*([0-9.]+) ms\] (P[A-F][0-7]|GPIO\d+) (?!PWM )(.+)$")]
     private static partial Regex PinLine();
 
-    [GeneratedRegex(@"^\[\s*[0-9.]+ ms\] (?:UART\d|USB): (.*)$")]
+    [GeneratedRegex(@"^\[\s*[0-9.]+ ms\] (?:US?ART\d|USB): (.*)$")]
     private static partial Regex SerialLine();
 }
 
@@ -307,12 +314,13 @@ public static partial class Simulation
             ["pfs154"] = Pfs154.Load,
             ["stm8s103"] = Stm8s103.Load,
             ["esp32c5"] = Esp32c5Chip.Load,
+            ["ch32v003"] = Ch32v003Chip.Load,
         };
 
     /// <summary>What the command line takes, and what it prints.</summary>
     public const string Usage = """
-        Usage: chipsim <pfs154|stm8s103|esp32c5> <image> [--ms <simulated milliseconds, default 1000>]
-                                                     [--uart0|--uart1|--usb <file to write that port's bytes to>]
+        Usage: chipsim <pfs154|stm8s103|esp32c5|ch32v003> <image> [--ms <simulated milliseconds, default 1000>]
+                                                     [--uart0|--uart1|--usart1|--usb <file to write that port's bytes to>]
                                                      [--input <pin>=<high|low>[@<simulated milliseconds>ms]]...
                                                      [--send [<port>=]<text>[@<simulated milliseconds>ms]]...
                                                      [--i2c 0:<address>=<device>]... [--spi 0=<device>[@<pin>]]...
@@ -322,14 +330,16 @@ public static partial class Simulation
         Runs an image on a simulated chip and prints what the program does, each with the simulated time: an Intel HEX
         image (as SDCC writes it: sdcc -mpdk14, sdcc -mstm8) on a Padauk PFS154 or an STM8S103, an ELF file (as ld.lld
         writes it for riscv32) or an ESP image on an Espressif ESP32-C5, started as its ROM's loader leaves it (its pins
-        GPIO0-GPIO28; UART0, the default serial port, and USB, the USB Serial/JTAG console).
+        GPIO0-GPIO28; UART0, the default serial port, and USB, the USB Serial/JTAG console), an Intel HEX file, a .bin
+        (at 0x08000000) or an ELF file in the flash of a WCH CH32V003, started at 0 as reset leaves it (its pins PA1,
+        PA2, PC0-PC7 and PD0-PD7; USART1 on PD5 and PD6, or where AFIO's remap puts it).
 
         --input drives a pin from outside, as a button or another chip would, e.g. --input PA3=high, or
         --input PA3=low@100ms (the pin changes then, and the change is printed). Give a pin several times to change it
         several times. A pin no --input drives reads high when the program turns its pull-up on, else low.
 
         --send sends text to a serial port's RX (the STM8S103's UART1 on PD6, the ESP32-C5's UART0, or USB=... its USB
-        Serial/JTAG port), byte after byte at the port's speed (10 bits a byte), from that time (or the start), e.g.
+        Serial/JTAG port, the CH32V003's USART1), byte after byte at the port's speed (10 bits a byte), from that time (or the start), e.g.
         --send "on\n@100ms" or --send "USB=on\n": its UTF-8 bytes, \r, \n, \t, \\ and \xHH standing for those bytes.
         Sends to a port follow each other. A byte that arrives while a UART's receiver is off, or its FIFO full, is lost,
         as on the chip; the USB host holds its bytes until the chip has room.
@@ -353,8 +363,8 @@ public static partial class Simulation
             [    0.123 ms] PA3 high                  a pin changed: low or high when driven, else input or input pull-up
             [    0.200 ms] UART1 baud 9600           the program set UART1's speed
             [    1.234 ms] UART1: Hello              a line written to UART1 (without its line ending); USB: the same
-                                                     for the ESP32-C5's USB Serial/JTAG port
-            [    0.050 ms] CPU clock 240 MHz         the program changed the CPU's clock (the ESP32-C5)
+                                                     for the ESP32-C5's USB Serial/JTAG port, USART1 the CH32V003's
+            [    0.050 ms] CPU clock 240 MHz         the program changed the CPU's clock (the ESP32-C5, the CH32V003)
             [  100.000 ms] input: PA3 low            an --input with a time changed the pin from outside
             [  100.000 ms] input: UART1 "on\n"       a --send starts sending
             [   10.000 ms] input: PD3 1.650 V (512)  an --adc with a time changed an analog input
@@ -374,11 +384,13 @@ public static partial class Simulation
 
         The run stops after the simulated time, or earlier: when the program has finished (it sleeps with nothing left
         to wake it: stopsys or stopexe on the PFS154, halt or wfi on the STM8S103, wfi on the ESP32-C5 with no interrupt
-        enabled above the threshold to come), or went wrong (the PFS154's reset instruction or its watchdog, the
-        STM8S103's break or its IWDG, the ESP32-C5's ebreak, an exception without a trap handler, a ROM function the
-        simulator does not have or a watchdog's reset (the ROM leaves MWDT0, RWDT and the super watchdog running), an
-        instruction or an address the chip does not have, memory the image does not fill, an interrupt with no handler,
-        a pop past the top of the stack).
+        enabled above the threshold to come, wfi on the CH32V003 with interrupts off or none the PFIC would take to
+        come), or went wrong (the PFS154's reset instruction or its watchdog, the STM8S103's break or its IWDG, the
+        ESP32-C5's ebreak, an exception without a trap handler, a ROM function the simulator does not have or a
+        watchdog's reset (the ROM leaves MWDT0, RWDT and the super watchdog running), the CH32V003's ebreak, a trap with
+        no handler, its IWDG or WWDG, a software reset, a peripheral used with its clock off or not simulated yet, 48 MHz
+        without a flash wait state, an instruction or an address the chip does not have, memory the image does not
+        fill, an interrupt with no handler, a pop past the top of the stack).
 
         Exit code: 0 when the program ran (to its end or for the whole time), 1 when the image is not valid, 2 for wrong
         arguments, 3 when the program went wrong.
