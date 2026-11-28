@@ -3,6 +3,7 @@ using ChipSharp.Abstractions;
 using ChipSharp.Build;
 using ChipSharp.Runtime.ArmV6M;
 using ChipSharp.Runtime.Avr;
+using ChipSharp.Tests.Contract;
 using ChipSharp.Toolchain.Clang;
 
 namespace ChipSharp.Tests.Avr;
@@ -28,14 +29,15 @@ public sealed class AvrRuntimeTests
 
         var softFloat = CompilerRt.Sources().Select(file => file.FileName).ToList();
         Assert.Equal(
-            ["avr_startup.S", "avr_runtime.c", "avr_multiply.S", "avr_divide.S", "avr_memory.S", .. softFloat,
+            [HardwareContract.HeaderFileName, "avr_startup.S", "avr_runtime.c", "avr_multiply.S", "avr_divide.S", "avr_memory.S", .. softFloat,
                 AvrRuntime.FloatMathFileName, "chipsharp_math.c", "chipsharp_math_musl.c", "chipsharp_math_amd.c",
                 "chipsharp_string.c", "chipsharp_exceptions.c", "avr_failures.c"],
             files.Select(file => file.FileName));
         Assert.Equal([AvrRuntime.VectorsFileName], runtime.InterruptEntry(AvrCoreProgram.Target).Files.Select(file => file.FileName));
         Assert.Empty(runtime.Atomics(AvrCoreProgram.Target).Files);
 
-        // the very compiler-rt files and float math the armv6m runtime has; ChipSharp's own files include nothing
+        // the very compiler-rt files and float math the armv6m runtime has; ChipSharp's own files include nothing but the
+        // hardware contract
         Assert.Equal(CompilerRt.Sources().Select(file => file.Content), files.Where(file => softFloat.Contains(file.FileName))
             .Select(file => file.Content));
         foreach (var shared in (string[])[AvrRuntime.FloatMathFileName, .. AvrRuntime.MathFileNames, AvrRuntime.StringFileName,
@@ -44,7 +46,7 @@ public sealed class AvrRuntimeTests
             Assert.Equal(ArmV6MRuntime.Source(shared).Content, files.Single(file => file.FileName == shared).Content);
         }
         Assert.All(files.Where(file => !softFloat.Contains(file.FileName)),
-            file => Assert.DoesNotContain("#include", file.Content));
+            file => Assert.DoesNotContain("#include", HardwareHeader.WithoutInclude(file.Content)));
     }
 
     /// <summary>C# double is 64 bits; AVR's clang makes it 32 unless told -mdouble=64, so the runtime refuses to build without.</summary>

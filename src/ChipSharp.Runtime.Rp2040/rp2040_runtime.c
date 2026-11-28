@@ -1,7 +1,8 @@
 // ChipSharp runtime for the Raspberry Pi RP2040: what this chip needs on top of the ARMv6-M runtime.
 //
-// Freestanding: no headers, no C library, no pico-sdk. Register addresses and bits are from the RP2040 datasheet;
-// the clock set-up follows pico-sdk's clocks_init.
+// Freestanding: no C library, no pico-sdk, and no header but ChipSharp's hardware contract (chipsharp_hardware.h),
+// which this file and the others of the rp2040 runtime implement. Register addresses and bits are from the RP2040
+// datasheet; the clock set-up follows pico-sdk's clocks_init.
 //
 //   chipsharp_chip_init                start-up (called by chipsharp_reset before the program): the crystal, the
 //                                      system PLL (clk_sys = clk_peri = 125 MHz, clk_ref = 12 MHz), the
@@ -17,6 +18,11 @@
 //                                      (RX), 115200 baud, 8N1, set up on the first write (the text they write, with
 //                                      lines that end with "\r\n" like .NET's on Windows, comes from
 //                                      chipsharp_console.c)
+//   chipsharp_failure_write            the contract's failure output, for code shared with the other chips: UART0 too
+//                                      (rp2040_failures.c writes there itself; UART0 sends what its FIFO holds on its
+//                                      own, so the ARMv6-M runtime's empty chipsharp_before_halt does)
+
+#include "chipsharp_hardware.h"
 
 #define REG(address) (*(volatile unsigned int *)(address))
 
@@ -471,4 +477,10 @@ void chipsharp_console_write(const char *bytes, unsigned int count)
 void chipsharp_uart0_write(const char *bytes, unsigned int count)
 {
     write_bytes(bytes, count);
+}
+
+// The hardware contract's failure output: UART0, where rp2040_failures.c's messages go.
+void chipsharp_failure_write(const char *text, unsigned int count)
+{
+    write_bytes(text, count);
 }

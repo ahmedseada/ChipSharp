@@ -9,6 +9,8 @@ namespace ChipSharp.Runtime.Avr;
 /// The runtime parts every AVR chip (ATmega328P, ATmega32U4, ATmega2560, ATtiny85, AVR Dx, ...) shares, as
 /// freestanding C and assembly that the toolchain compiles with the program:
 /// <list type="bullet">
+/// <item><see cref="HardwareContract.HeaderFileName"/>: the hardware contract (src/ChipSharp.Runtime.Shared), the
+/// functions every chip's runtime provides, which every chip runtime's C file includes.</item>
 /// <item><see cref="StartupFileName"/>: the reset handler <c>chipsharp_reset</c>, which clears r1 (the zero register
 /// compiled code counts on), puts the stack at the end of RAM, copies .data (with .rodata) from flash, zeroes .bss and
 /// jumps to <c>chipsharp_start</c>.</item>
@@ -93,6 +95,7 @@ public sealed class AvrRuntime : IArchRuntime
         ArgumentNullException.ThrowIfNull(target);
         return new RuntimeSources(
         [
+            Source(HardwareContract.HeaderFileName),
             Source(StartupFileName), Source(RuntimeFileName), Source(MultiplyFileName), Source(DivideFileName),
             Source(MemoryFileName), .. CompilerRt.Sources(), Source(FloatMathFileName), .. MathFileNames.Select(Source),
             Source(StringFileName), Source(ExceptionsFileName), Source(FailuresFileName),

@@ -9,6 +9,8 @@
 //   chipsharp_hardware_failure   "Unhandled exception. " and the text, with the numbers n0 to n3 in place of its {0}
 //                                to {3}, as .NET writes them; then the stop (chipsharp_halt_failure, avr_runtime.c)
 
+#include "chipsharp_hardware.h"
+
 typedef long i32;
 typedef unsigned long u32;
 typedef unsigned char u8;

@@ -21,6 +21,8 @@
 // Times are microseconds, the clock's low 32 bits (chipsharp_clock_microseconds), compared by the sign of their
 // difference: the longest time of the timer event is 2147483 ms, about 35 minutes, as on the Pico.
 
+#include "chipsharp_hardware.h"
+
 typedef unsigned char u8;
 typedef unsigned int u16;
 typedef long i32;

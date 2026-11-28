@@ -17,6 +17,8 @@
 // A pin that is not an analog input, or one read before Adc.Input, stops the program (chipsharp_hardware_failure,
 // rp2040_failures.c) with a message that says what to do.
 
+#include "chipsharp_hardware.h"
+
 #define REG(address) (*(volatile unsigned int *)(address))
 
 #define ALIAS_SET 0x2000u

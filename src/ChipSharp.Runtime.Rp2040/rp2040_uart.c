@@ -26,6 +26,8 @@
 // A port that does not exist, a pin it cannot use, a speed it cannot run at, or a port used before Open stop the
 // program (chipsharp_hardware_failure, rp2040_failures.c) with a message that says what to do.
 
+#include "chipsharp_hardware.h"
+
 #define REG(address) (*(volatile unsigned int *)(address))
 
 // Every peripheral register has aliases that change only some bits in one write (datasheet 2.1.2).

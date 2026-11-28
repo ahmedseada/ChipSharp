@@ -13,6 +13,8 @@
 //
 // Every interrupt has the same priority, so one handler never interrupts another: each runs to its end first.
 
+#include "chipsharp_hardware.h"
+
 #define REG(address) (*(volatile unsigned int *)(address))
 
 // Every peripheral register has aliases that change only some bits in one write (datasheet 2.1.2).
