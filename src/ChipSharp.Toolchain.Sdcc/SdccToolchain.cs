@@ -14,7 +14,8 @@ namespace ChipSharp.Toolchain.Sdcc;
 /// <code>
 /// sdcc -mstm8 --opt-code-size -c Blink.c -o Blink.c.rel           (each .c on its own: SDCC compiles one file a run)
 /// sdasstm8 -plosgffw runtime.s.rel runtime.s                       (each .s and .asm, with the port's assembler)
-/// sdcc -mstm8 --opt-code-size --code-loc 0x8000 --out-fmt-ihx Blink.c.rel runtime.s.rel -o Blink.ihx
+/// sdar -rcs Blink.lib stm8_pins.c.rel runtime.s.rel                (the other objects: a library, see below)
+/// sdcc -mstm8 --opt-code-size --code-loc 0x8000 --out-fmt-ihx stm8_startup.c.rel Blink.c.rel Blink.lib -o Blink.ihx
 /// </code>
 /// The link writes the program as Intel HEX (&lt;name&gt;.ihx; a Padauk chip's 14-bit word n in bytes 2n and 2n + 1,
 /// little endian, as its programmer reads it) and a map of its areas (&lt;name&gt;.map), from which the memory report
@@ -22,16 +23,34 @@ namespace ChipSharp.Toolchain.Sdcc;
 /// fails with how much it needs and how much the target has.
 /// </summary>
 /// <remarks>
+/// <para>
 /// The .c file that defines main() is linked first, whatever the order of the files: SDCC puts the start-up code (the
 /// vectors, clearing and setting the variables) in its file, and the areas of the first file come first, so the
 /// starting values another file sets before it would be skipped. What sdcc and the assembler make is kept in the build
 /// cache, the clang toolchain's (<see cref="SdccToolchainOptions.UseCache"/>). Every SDCC program runs with SDCC's
 /// folder first on the PATH: SDCC's preprocessor finds its cc1 there when SDCC is not installed where it was built for.
+/// </para>
+/// <para>
+/// SDCC's linker keeps every object it is given whole, every function in it, used or not (it has no sections to drop),
+/// but takes a module (an object) from a library only when something it links uses a symbol the module defines. So
+/// main()'s object and the program's (the C file that defines the program's entry, <see cref="EntrySymbol"/>, which the
+/// code generator writes with only what the program uses) are linked as they are, and every other object, the
+/// runtime's, goes into a library (&lt;name&gt;.lib, made with SDCC's sdar): the program gets only the runtime's modules
+/// it uses, on chips of 8 KB of flash and less. A module of the library may also stand in for a function the program
+/// may define, an interrupt handler's default: the linker reads the objects first, so it takes the module only when
+/// they do not define the function. No two modules of the library may define the same symbol.
+/// </para>
 /// </remarks>
 public sealed partial class SdccToolchain : IToolchain
 {
     /// <summary>The environment variable that points at SDCC: sdcc.exe, or the folder it is in.</summary>
     public const string SdccVariable = "CHIPSHARP_SDCC";
+
+    /// <summary>
+    /// The function a ChipSharp program's C file defines, its entry (the code generator "c"'s, which the runtime's
+    /// start-up calls): that file is linked as it is, as main()'s is, and the others' objects go into a library.
+    /// </summary>
+    public const string EntrySymbol = "chipsharp_entry";
 
     private static readonly HashSet<string> CSources = new(StringComparer.OrdinalIgnoreCase) { ".c" };
     private static readonly HashSet<string> AssemblySources = new(StringComparer.OrdinalIgnoreCase) { ".s", ".asm" };
@@ -78,16 +97,24 @@ public sealed partial class SdccToolchain : IToolchain
         WriteFiles(code.Files, folder);
 
         var flags = CompileFlags(settings, Options.ExtraFlags);
-        var objects = MainFirst(Compile(sdcc, settings.Port, flags, code, sources, folder), folder);
+        var (linked, library) = Linked(MainFirst(Compile(sdcc, settings.Port, flags, code, sources, folder), folder), folder);
         var program = name + ".ihx";
-        var arguments = LinkArguments(settings, Options.ExtraFlags, objects, program);
+        var libraryFile = name + ".lib";
+        var arguments = LinkArguments(settings, Options.ExtraFlags, library.Count > 0 ? [.. linked, libraryFile] : linked,
+            program);
         var path = Path.Combine(folder, program);
         var map = Path.Combine(folder, name + ".map");
         try
         {
-            // a program and map of an earlier build in the same folder would pass for this one's
+            // a program, map and library of an earlier build in the same folder would pass for this one's
             File.Delete(path);
             File.Delete(map);
+            File.Delete(Path.Combine(folder, libraryFile));
+            if (library.Count > 0)
+            {
+                Run(SdccTools.Archiver(sdcc), ["-rcs", libraryFile, .. library], folder);
+            }
+
             Run(sdcc, arguments, folder);
         }
         catch (ChipSharpException e) when (File.Exists(map)
@@ -278,6 +305,22 @@ public sealed partial class SdccToolchain : IToolchain
         };
     }
 
+    /// <summary>
+    /// The objects linked as they are, main()'s first and the program's (the one that defines <see cref="EntrySymbol"/>),
+    /// and the others, in their order, for the library (see the remarks above).
+    /// </summary>
+    private static (List<string> Linked, List<string> Library) Linked(IReadOnlyList<string> objects, string folder)
+    {
+        var linked = new List<string> { objects[0] };
+        var library = new List<string>();
+        foreach (var rel in objects.Skip(1))
+        {
+            (DefinesEntry().IsMatch(File.ReadAllText(Path.Combine(folder, rel))) ? linked : library).Add(rel);
+        }
+
+        return (linked, library);
+    }
+
     /// <summary>Runs a tool in <paramref name="folder"/>; a failure reports the command and the tool's output.</summary>
     private static void Run(string tool, IReadOnlyList<string> arguments, string folder) =>
         Task.Run(() => RunAsync(tool, arguments, folder)).GetAwaiter().GetResult();
@@ -336,4 +379,7 @@ public sealed partial class SdccToolchain : IToolchain
 
     [GeneratedRegex(@"^S _main Def[0-9A-Fa-f]+\s*$", RegexOptions.Multiline)]
     private static partial Regex DefinesMain();
+
+    [GeneratedRegex(@"^S _" + EntrySymbol + @" Def[0-9A-Fa-f]+\s*$", RegexOptions.Multiline)]
+    private static partial Regex DefinesEntry();
 }

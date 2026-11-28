@@ -66,6 +66,16 @@ internal sealed class SdccTools(SdccToolchainOptions options, Func<string, strin
                 "missing. Install SDCC again, with that port.");
     }
 
+    /// <summary>SDCC's archiver next to <paramref name="sdcc"/>: sdar, which makes the libraries its linker reads.</summary>
+    public static string Archiver(string sdcc)
+    {
+        var path = Path.Combine(Path.GetDirectoryName(sdcc)!, $"sdar{ExeSuffix}");
+        return File.Exists(path)
+            ? path
+            : throw new ChipSharpException($"SDCC's archiver is not next to sdcc: '{path}' is missing. Install SDCC " +
+                "again.");
+    }
+
     /// <summary>What to do when SDCC is missing.</summary>
     private static string Advice =>
         "The Padauk and STM8 chips (e.g. the targets pfs154-bare and stm8s103-board) are built through C with SDCC. " +
