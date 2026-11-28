@@ -342,17 +342,33 @@ public sealed class Esp32c5Chip : SimulatedChip, IRiscVBus
         AddCycles(_cpu.TakeInterrupt(best.Id, best.Level, vectored));
     }
 
-    /// <summary>wfi: wakes when an interrupt could be taken (whatever mstatus.MIE), else lets time pass to the next event.</summary>
+    /// <summary>
+    /// wfi. With interrupts off (mstatus.MIE 0, machine mode), ChipSharp's halt: once UART0 and the USB port have sent
+    /// what they hold, the program has finished. With interrupts on, the CPU wakes when an interrupt could be taken, else
+    /// time passes to the next event; with none to come, the program has finished too.
+    /// </summary>
     private void Sleep(long limit)
     {
-        if (_clic.Best(_cpu.Threshold) is not null)
+        long next;
+        if (!_cpu.InterruptsEnabled)
+        {
+            next = Math.Min(_uart.NextEvent, _usb.NextEvent);
+            if (next == long.MaxValue)
+            {
+                Finish("the program has finished: the CPU waits for an interrupt (wfi) with interrupts off (mstatus.MIE 0)");
+                return;
+            }
+        }
+        else if (_clic.Best(_cpu.Threshold) is not null)
         {
             _cpu.Waiting = false;
             _checkInterrupts = true;
             return;
         }
-
-        var next = NextWakeEvent();
+        else
+        {
+            next = NextWakeEvent();
+        }
         if (next == long.MaxValue && !(InputsAhead && InputsCouldWake()))
         {
             Finish("the program has finished: the CPU waits for an interrupt (wfi) that nothing can raise any more");

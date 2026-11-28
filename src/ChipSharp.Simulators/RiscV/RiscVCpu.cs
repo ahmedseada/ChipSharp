@@ -1128,7 +1128,7 @@ public sealed class RiscVCpu
         return cycles;
     }
 
-    /// <summary>c.srli, c.srai, c.andi, c.sub, c.xor, c.or, c.and; Zcb's c.mul, c.zext.b, c.sext.b, c.zext.h, c.sext.h, c.not.</summary>
+    /// <summary>c.srli, c.srai, c.andi, c.sub, c.xor, c.or, c.and; Zcb's c.mul, c.zext.b and c.not.</summary>
     private void CompressedArithmetic(uint i, int rd, int rs2)
     {
         switch ((i >> 10) & 3)
@@ -1167,12 +1167,10 @@ public sealed class RiscVCpu
                 X[rd] *= X[rs2];
                 return;
             case 3:
+                // c.sext.b, c.zext.h and c.sext.h need Zbb, which the C5 does not have; c.zext.w is RV64's
                 X[rd] = ((i >> 2) & 7) switch
                 {
                     0 => X[rd] & 0xFF,
-                    1 => (uint)(sbyte)X[rd],
-                    2 => X[rd] & 0xFFFF,
-                    3 => (uint)(short)X[rd],
                     5 => ~X[rd],
                     _ => throw Illegal(i),
                 };
@@ -1237,7 +1235,7 @@ public sealed class RiscVCpu
                     return 1;
                 }
 
-            case 6:
+            case 6 or 7:
                 return PushPop(pc, i);
             default:
                 throw Illegal(i);
