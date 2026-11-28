@@ -40,6 +40,7 @@ public sealed class WlinkFlasher : IFlasher
     private readonly Func<string, string?> _environment;
     private readonly Func<IReadOnlyList<UsbDeviceInfo>?> _devices;
     private readonly Func<IReadOnlyList<SerialPortInfo>> _ports;
+    private readonly string _toolsFolder;
 
     public WlinkFlasher()
         : this(Environment.GetEnvironmentVariable, () => UsbDevices.List(WchLinks.VendorId), SerialPorts.List)
@@ -49,14 +50,16 @@ public sealed class WlinkFlasher : IFlasher
     /// <summary>
     /// For tests: reads environment variables (CHIPSHARP_WLINK, PATH, CARGO_HOME, USERPROFILE, HOME) through
     /// <paramref name="environment"/>, lists WCH's USB devices plugged in with <paramref name="devices"/> (null: this
-    /// computer cannot say) and the serial ports with <paramref name="ports"/>.
+    /// computer cannot say) and the serial ports with <paramref name="ports"/>; and looks in <paramref name="toolsFolder"/>
+    /// instead of <see cref="ToolsFolder"/>, so that what is installed on the computer running the tests does not decide them.
     /// </summary>
     internal WlinkFlasher(Func<string, string?> environment, Func<IReadOnlyList<UsbDeviceInfo>?> devices,
-        Func<IReadOnlyList<SerialPortInfo>> ports)
+        Func<IReadOnlyList<SerialPortInfo>> ports, string? toolsFolder = null)
     {
         _environment = environment;
         _devices = devices;
         _ports = ports;
+        _toolsFolder = toolsFolder ?? ToolsFolder;
     }
 
     public string Name => "wlink";
@@ -243,7 +246,7 @@ public sealed class WlinkFlasher : IFlasher
     /// </summary>
     private List<string> Folders()
     {
-        var folders = OperatingSystem.IsWindows() ? new List<string> { ToolsFolder } : [];
+        var folders = OperatingSystem.IsWindows() ? new List<string> { _toolsFolder } : [];
         var cargo = _environment("CARGO_HOME") is { Length: > 0 } home
             ? Path.Combine(home.Trim('"'), "bin")
             : _environment(OperatingSystem.IsWindows() ? "USERPROFILE" : "HOME") is { Length: > 0 } user

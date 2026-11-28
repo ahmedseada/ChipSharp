@@ -16,6 +16,10 @@ public sealed class MinichlinkFlasherTests : IDisposable
 {
     private readonly string _scratch = Path.Combine(Path.GetTempPath(), "chipsharp-tests", Guid.NewGuid().ToString("N"));
 
+    /// <summary>The tools folder the flasher looks in instead of D:\Tools\..., which holds nothing: what is installed on
+    /// this computer must not decide the tests.</summary>
+    private string Tools => Path.Combine(_scratch, "tools");
+
     public void Dispose()
     {
         Scratch.Delete(_scratch);
@@ -37,7 +41,7 @@ public sealed class MinichlinkFlasherTests : IDisposable
         var onPath = File(Path.Combine(_scratch, "path", "minichlink.exe"));
         var own = File(Path.Combine(_scratch, "own", "minichlink.exe"));
         string Find(params (string Name, string Value)[] variables) =>
-            new MinichlinkFlasher(name => variables.FirstOrDefault(v => v.Name == name).Value, () => [], () => []).FindMinichlink();
+            new MinichlinkFlasher(name => variables.FirstOrDefault(v => v.Name == name).Value, () => [], () => [], Tools).FindMinichlink();
 
         Assert.Equal(own, Find(("CHIPSHARP_MINICHLINK", own), ("PATH", Path.GetDirectoryName(onPath)!)));
         Assert.Equal(own, Find(("CHIPSHARP_MINICHLINK", Path.GetDirectoryName(own)!)));
@@ -49,11 +53,11 @@ public sealed class MinichlinkFlasherTests : IDisposable
     {
         var flasher = new MinichlinkFlasher(name => name == "PATH" ? Path.Combine(_scratch, "empty") : null,
             () => throw new InvalidOperationException("The USB devices are not listed before minichlink is found."),
-            () => []);
+            () => [], Tools);
 
         var error = Assert.Throws<ChipSharpException>(flasher.FindMinichlink);
 
-        var looked = OperatingSystem.IsWindows() ? $" and in '{MinichlinkFlasher.ToolsFolder}'" : "";
+        var looked = OperatingSystem.IsWindows() ? $" and in '{Tools}'" : "";
         Assert.StartsWith($"minichlink was not found (looked on the PATH{looked}). minichlink writes a raw .bin into a WCH " +
             "RISC-V chip (the CH32V003) through a WCH-LinkE wired to its SWIO pin. Take minichlink.exe (with its " +
             "libusb-1.0.dll) from https://github.com/cnlohr/ch32v003fun/tree/master/minichlink", error.Message);
