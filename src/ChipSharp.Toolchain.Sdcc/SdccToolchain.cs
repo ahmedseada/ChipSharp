@@ -81,9 +81,13 @@ public sealed partial class SdccToolchain : IToolchain
         var objects = MainFirst(Compile(sdcc, settings.Port, flags, code, sources, folder), folder);
         var program = name + ".ihx";
         var arguments = LinkArguments(settings, Options.ExtraFlags, objects, program);
+        var path = Path.Combine(folder, program);
         var map = Path.Combine(folder, name + ".map");
         try
         {
+            // a program and map of an earlier build in the same folder would pass for this one's
+            File.Delete(path);
+            File.Delete(map);
             Run(sdcc, arguments, folder);
         }
         catch (ChipSharpException e) when (File.Exists(map)
@@ -92,8 +96,11 @@ public sealed partial class SdccToolchain : IToolchain
             // sdldpdk fails a program too big for its port's largest chip; the target's own sizes say more
             throw new ChipSharpException(message, e);
         }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            throw new ChipSharpException($"Cannot replace the program of an earlier build in '{folder}': {e.Message}", e);
+        }
 
-        var path = Path.Combine(folder, program);
         if (!File.Exists(path) || !File.Exists(map))
         {
             throw new ChipSharpException($"sdcc reported success but wrote no '{(File.Exists(path) ? map : path)}':\n" +

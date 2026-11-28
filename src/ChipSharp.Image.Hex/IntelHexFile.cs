@@ -108,8 +108,12 @@ public sealed record IntelHexFile(IReadOnlyList<(uint Address, byte[] Data)> Blo
                 case IntelHexImageFormat.StartLinearAddressRecord when data.Length == 4:
                     entry = (uint)(data[0] << 24 | data[1] << 16 | data[2] << 8 | data[3]);
                     break;
+                case <= IntelHexImageFormat.StartLinearAddressRecord:
+                    var size = type is IntelHexImageFormat.ExtendedSegmentAddressRecord
+                        or IntelHexImageFormat.ExtendedLinearAddressRecord ? 2 : 4;
+                    throw Error($"is a record of type {type:X2} with {data.Length} bytes of data, not {size}.");
                 default:
-                    throw Error($"is a record of type {type:X2} with {data.Length} bytes of data, which Intel HEX does not have.");
+                    throw Error($"is a record of type {type:X2}, which Intel HEX does not have.");
             }
         }
 

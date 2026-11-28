@@ -6,8 +6,9 @@ namespace ChipSharp.Toolchain.Clang;
 
 /// <summary>
 /// The build cache: what clang and llvm-dlltool made before (an object file for each source, an import library for each
-/// DLL), kept by a key made of everything that goes into it: the tool itself (where it is, its size and its date, so a
-/// new LLVM makes new files), the arguments (target, cpu, flags), the file's name and text, and the headers it can
+/// DLL), and SDCC (a .rel for each source, for the toolchain "sdcc"), kept by a key made of everything that goes into
+/// it: the tool itself (where it is, its size and its date, so a new LLVM or SDCC makes new files), the arguments
+/// (target, cpu, port, flags), the file's name and text, and the headers it can
 /// include. The runtime's C is the same in every build for a target, so a build compiles it once and later builds only
 /// link it again.
 /// </summary>

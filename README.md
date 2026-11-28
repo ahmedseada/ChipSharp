@@ -460,10 +460,11 @@ the runtimes are still to come.
   finds `cc1`.
 - Each `.c` file is compiled on its own (`sdcc -mstm8 --opt-code-size -c`), each `.s` assembled (`sdasstm8`), into a
   `.rel` kept in the build cache; the file with `main()` is linked first (SDCC puts the start-up code there).
-- The memory report comes from SDCC's map: `flash 175 bytes of 8 KB (2.1%), RAM 10 bytes of 1 KB (stack 256 bytes
-  reserved)`, and on a Padauk chip in words, two bytes of the `.ihx` each: `program 89 words of 2048 words (4.3%), RAM
-  14 bytes of 128 bytes (stack 16 bytes reserved)`. A program too big for the target's memory fails with how much it
-  needs, as on the other chips.
+- The memory report comes from SDCC's map: `flash 238 bytes of 8 KB (2.9%), RAM 12 bytes of 1 KB (stack 256 bytes
+  reserved)` for the tests' blink in C, and on a Padauk chip in words, two bytes of the `.ihx` each: `program 174 words
+  of 2048 words (8.5%), RAM 27 bytes of 128 bytes (stack 16 bytes reserved)`. A program too big for the target's memory
+  fails with how much it needs, as on the other chips. The `.hex` is SDCC's `.ihx` in address order (byte addresses:
+  a Padauk chip's word n at bytes 2n and 2n + 1, as the Easy PDK programmer reads it).
 
 ## What C# compiles today
 
@@ -1161,7 +1162,7 @@ dotnet build -c Release
 dotnet test -c Release --no-build
 ```
 
-The 2,565 tests (about 3 minutes once the build cache is warm) check each stage on its own (reading IL, the
+The 2,612 tests (about 4 minutes once the build cache is warm) check each stage on its own (reading IL, the
 whole-program pass, TIR, the LLVM code, linking, the `.uf2` and the `.hex`), then compile C# programs and run them: on
 the PC, on the simulated Pico and on the simulated Uno, comparing what they print, byte for byte, with what .NET prints
 for the same program; the library code (collections, `StringBuilder`, sorting, `TimeSpan`, `DateTime` and its formats)
@@ -1173,6 +1174,8 @@ what their circuits would give them: the traffic lights with the button pressed,
 DS1307, the servo with a knob turned; and their Wokwi circuits are checked, wire by wire.
 `chipsharp flash` runs no real tool in the tests: avrdude is a batch file that keeps the command line it was given, and
 the Pico's drive a folder.
+The SDCC chips' tests build hand-written C and assembly for the PFS154 and the STM8S103 with SDCC (skipped without it)
+and compare the `.hex` and the memory report with SDCC's own map.
 
 The simulator, rp2040js 1.4.1, has one known fault: it sets the overflow flag of `SBCS` wrong when the borrow takes the
 subtrahend to 0x80000000, so a comparison of extreme `long` values, such as `long.MaxValue` with `long.MinValue`, gives
