@@ -112,6 +112,9 @@
   // the I2C and SPI controllers: the clocks they make, lowest and highest, in hertz (with the 48 MHz crystal, from which
   // both take their clock), and the pins each (bus 0) can use: any of GPIO0-GPIO28 through the GPIO matrix, so the board's
   // table narrows them to the pins it leaves a program; chipsharp check holds the constants of I2c.Open and Spi.Open to them
+  // the PWM frequencies the LEDC's timers make (esp32c5_pwm.c: FREQUENCY_MIN to FREQUENCY_MAX, Hz); chipsharp check refuses
+  // a constant frequency outside them
+  "pwm": { "frequency": [1, 1000000] },
   "i2c": {
     "frequency": [200, 1000000],
     "buses": [
