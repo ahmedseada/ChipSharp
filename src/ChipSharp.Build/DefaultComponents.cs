@@ -6,6 +6,7 @@ using ChipSharp.Flasher.EasyPdkProg;
 using ChipSharp.Flasher.Esptool;
 using ChipSharp.Flasher.Stm8Flash;
 using ChipSharp.Flasher.Uf2Copy;
+using ChipSharp.Flasher.WchLink;
 using ChipSharp.Image.Bin;
 using ChipSharp.Image.Esp;
 using ChipSharp.Image.Hex;
@@ -99,5 +100,7 @@ public static class DefaultComponents
         .Register(new AvrdudeFlasher())             // flasher "avrdude": the .hex through an Arduino's USB port
         .Register(new EasyPdkProgFlasher())         // flasher "easypdkprog": the .hex into a PFS154 in the Easy PDK programmer
         .Register(new Stm8FlashFlasher())           // flasher "stm8flash": the .hex into an STM8 through an ST-LINK's SWIM
-        .Register(new EsptoolFlasher());            // flasher "esptool": the .bin into an ESP32 board through its USB port
+        .Register(new EsptoolFlasher())             // flasher "esptool": the .bin into an ESP32 board through its USB port
+        .Register(new WlinkFlasher())               // flasher "wlink": the .bin into a CH32V003 through a WCH-LinkE's SWIO
+        .Register(new MinichlinkFlasher());         // flasher "minichlink": the same, with ch32v003fun's minichlink
 }
