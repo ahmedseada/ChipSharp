@@ -57,7 +57,7 @@ chipsharp build bin\Release\net10.0\Stm8TrafficLight.dll -t stm8s103-board
 chipsharp flash bin\Release\net10.0\Stm8TrafficLight.dll -t stm8s103-board
 ```
 
-It takes **6.6 KB** of the 8 KB of flash and **54 bytes** of the 1 KB of RAM; `flash` writes it through an ST-LINK V2,
+It takes **6.4 KB** of the 8 KB of flash and **54 bytes** of the 1 KB of RAM; `flash` writes it through an ST-LINK V2,
 as `stm8-blink`'s README says.
 
 Without a board (`chipsim` is `src\ChipSharp.Simulators\bin\Release\net10.0\chipsim.exe`), the button pressed at 2.5 s,

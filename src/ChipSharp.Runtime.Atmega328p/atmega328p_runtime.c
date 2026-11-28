@@ -239,22 +239,12 @@ void ChipSharp_Runtime_PinInput(i32 pin)
     change(port + PORT_REGISTER, mask, 0);
 }
 
-typedef const __flash char flash_char;
-__attribute__((noreturn)) void chipsharp_hardware_failure(flash_char *text, i32 n0, i32 n1, i32 n2, i32 n3);
-
-// Pin.Input(pin, pull): 0 none, 1 the pull-up (PORTx high on an input); the chip has no pull-down.
+// Pin.Input(pin, pull): 0 none, 1 the pull-up (PORTx high on an input). The chip has no pull-down: any other pull leaves
+// the pin with none, as Pin ignores a pin the chip does not have (chipsharp check refuses a constant Pull.Down).
 void ChipSharp_Runtime_PinInputPull(i32 pin, i32 pull)
 {
-    static const __flash char message[] __attribute__((section(".progmem.data.chipsharp_pull"))) =
-        "System.ArgumentOutOfRangeException: The ATmega328P has no pull-down: the pull ({0}) is not Pull.None or "
-        "Pull.Up. (Parameter 'pull')";
-    if ((u32)pull > 1u)
-    {
-        chipsharp_hardware_failure(message, pull, 0, 0, 0);
-    }
-
     ChipSharp_Runtime_PinInput(pin);
-    if (pull != 0)
+    if (pull == 1)
     {
         u8 mask;
         u8 port = pin_port(pin, &mask);

@@ -37,7 +37,7 @@ chipsharp build bin\Release\net10.0\Pfs154TrafficLight.dll -t pfs154-bare
 chipsharp flash bin\Release\net10.0\Pfs154TrafficLight.dll -t pfs154-bare
 ```
 
-It takes **1381 words** of the 2048 words of program memory and **72 bytes** of the 128 bytes of RAM, which leaves 56
+It takes **1432 words** of the 2048 words of program memory and **72 bytes** of the 128 bytes of RAM, which leaves 56
 for the stack. `flash` writes it with the Easy PDK programmer (`easypdkprog`), as `pfs154-blink`'s README says.
 
 Without a chip (`chipsim` is `src\ChipSharp.Simulators\bin\Release\net10.0\chipsim.exe`), the button pressed at 2.5 s,

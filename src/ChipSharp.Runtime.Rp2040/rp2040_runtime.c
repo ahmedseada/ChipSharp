@@ -252,17 +252,12 @@ void ChipSharp_Runtime_PinInput(int pin)
 
 __attribute__((noreturn)) void chipsharp_hardware_failure(const char *text, int n0, int n1, int n2, int n3);
 
-// Pin.Input(pin, pull): 0 none, 1 the pad's pull-up, 2 its pull-down.
+// Pin.Input(pin, pull): 0 none, 1 the pad's pull-up, 2 its pull-down; any other number leaves the pin with none, as Pin
+// ignores a pin the chip does not have.
 void ChipSharp_Runtime_PinInputPull(int pin, int pull)
 {
-    if ((unsigned int)pull > 2u)
-    {
-        chipsharp_hardware_failure("System.ArgumentOutOfRangeException: The pull ({0}) is not Pull.None, Pull.Up or Pull.Down. "
-            "(Parameter 'pull')", pull, 0, 0, 0);
-    }
-
     ChipSharp_Runtime_PinInput(pin);
-    if (pull != 0 && is_pin(pin))
+    if ((pull == 1 || pull == 2) && is_pin(pin))
     {
         REG(PADS_BANK0_GPIO(pin)) |= pull == 1 ? PAD_PULL_UP : PAD_PULL_DOWN;
     }

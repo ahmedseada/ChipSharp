@@ -18,7 +18,8 @@
 // capability ("clock": true, "uart": a number of ports above 0, ...) or an event of the "interrupts" table. chipsharp
 // check refuses a program that calls a function its target does not have, so a runtime defines only what its target
 // says; and every function it defines checks its numbers itself (a pin, port, bus, frequency or mode the chip does not
-// have stops the program with a message, chipsharp_hardware_failure; a pin number no pin has is ignored by Pin).
+// have stops the program with a message, chipsharp_hardware_failure; Pin ignores a pin number no pin has, and a pull the
+// chip does not have).
 //
 // Interrupt handlers. A function marked CHIPSHARP_REENTRANT may be called from a program's [Interrupt] method while
 // the program's Main is inside it too: on SDCC's Padauk ports, whose functions keep their parameters at fixed
@@ -100,7 +101,7 @@ void ChipSharp_Runtime_PinInput(chipsharp_i32 pin) CHIPSHARP_REENTRANT;
 // Pin.Input(pin, pull): as PinInput, then the pull: 0 none (PinInput itself), 1 up, 2 down. A function of its own, so that
 // a program that never asks for a pull links no code for one. Every chip has the pull-up; the pull-down is the target's
 // "pullDown": true, which chipsharp check checks for a constant Pull.Down; a pull the chip does not have, or a number
-// above 2, stops the program (chipsharp_hardware_failure).
+// above 2, leaves the pin with no pull, as Pin ignores a pin number no pin has (so Pin never links the failure text).
 void ChipSharp_Runtime_PinInputPull(chipsharp_i32 pin, chipsharp_i32 pull) CHIPSHARP_REENTRANT;
 
 // Pin.Write: drives an output high (any high but 0) or low.

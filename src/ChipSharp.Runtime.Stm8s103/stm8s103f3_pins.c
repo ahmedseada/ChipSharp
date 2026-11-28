@@ -81,22 +81,17 @@ void ChipSharp_Runtime_PinInput(chipsharp_i32 pin)
 }
 
 //@module inputpull
-// 0 none, 1 the pull-up (CR1's bit of an input); the chip has no pull-down.
+// 0 none, 1 the pull-up (CR1's bit of an input). The chip has no pull-down: any other pull leaves the pin with none, as
+// Pin ignores a pin the chip does not have (chipsharp check refuses a constant Pull.Down).
 void ChipSharp_Runtime_PinInputPull(chipsharp_i32 pin, chipsharp_i32 pull)
 {
     u8 mask;
     volatile u8 *port = chipsharp_pin_port(pin, &mask);
-    if ((u32)pull > 1u)
-    {
-        chipsharp_hardware_failure("System.ArgumentOutOfRangeException: The STM8S103F3 has no pull-down: the pull ({0}) is "
-            "not Pull.None or Pull.Up. (Parameter 'pull')", pull, 0, 0, 0);
-    }
-
     if (port != 0)
     {
         chipsharp_pin_change(port + PORT_CR1, mask, 0);
         chipsharp_pin_change(port + PORT_DDR, mask, 0);
-        chipsharp_pin_change(port + PORT_CR1, mask, (u8)pull);
+        chipsharp_pin_change(port + PORT_CR1, mask, (u8)(pull == 1));
     }
 }
 
