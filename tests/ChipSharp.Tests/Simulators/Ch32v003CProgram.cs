@@ -330,12 +330,15 @@ internal sealed class Ch32v003CProgram
         return new Ch32v003CProgram(elf, Ch32v003Image.Load(elf).Symbols);
     }
 
-    /// <summary>The program as Intel HEX (<paramref name="flashAddresses"/>: at 0x0800_0000, else at 0) or a .bin, by llvm-objcopy.</summary>
+    /// <summary>
+    /// The program as Intel HEX (<paramref name="flashAddresses"/>: at 0x0800_0000, else at 0) or a .bin (the gaps 0xFF,
+    /// as the image format "bin" writes it), by llvm-objcopy.
+    /// </summary>
     public async Task<string> ConvertAsync(string format, bool flashAddresses = false)
     {
         var folder = Path.GetDirectoryName(Elf)!;
         var output = Path.Combine(folder, (flashAddresses ? "flash." : "program.") + (format == "ihex" ? "hex" : "bin"));
-        List<string> arguments = ["-O", format];
+        List<string> arguments = ["-O", format, .. format == "binary" ? (string[])["--gap-fill", "0xff"] : []];
         if (flashAddresses)
         {
             arguments.AddRange(["--change-section-lma", "*+0x08000000"]);
