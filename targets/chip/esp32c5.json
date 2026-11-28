@@ -85,5 +85,12 @@
     "heap": false,        // the runtime's heap comes later: no objects yet
     "console": false,     // UART0 (GPIO 11 TX, GPIO 12 RX): the runtime of wave 1
     "clock": false        // SYSTIMER's 64-bit count: the runtime of wave 1
-  }
+  },
+  // the image ("esp": src/ChipSharp.Image.Esp, esptool's esp32c5 target and bin_image.py): chipId is IMAGE_CHIP_ID, the
+  // revisions are esptool's elf2image defaults (--min-rev-full 0, --max-rev-full 65535: any), the SPI flash settings the
+  // header's bytes 2 and 3 (mode dio; frequency 40m, which esptool's write-flash keeps); the board gives the flash size
+  "esp": { "chipId": 23, "minRevFull": 0, "maxRevFull": 65535, "flashMode": "dio", "flashFreq": "40m", "flashSize": "2MB" },
+  // the flasher ("esptool": src/ChipSharp.Flasher.Esptool): esptool --chip esp32c5 -b 460800 write-flash 0x2000 <image>;
+  // 0x2000 is BOOTLOADER_FLASH_OFFSET, where the ROM looks for the image
+  "esptool": { "chip": "esp32c5", "offset": "0x2000", "baud": 460800 }
 }

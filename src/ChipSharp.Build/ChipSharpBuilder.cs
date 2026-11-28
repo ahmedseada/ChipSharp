@@ -97,7 +97,7 @@ public static class ChipSharpBuilder
                 kept.Add(CopyInto(outputFolder, binary.Path));
             }
 
-            output = Package(parts.Image, binary, target, Path.Combine(outputFolder, $"{programName}.{parts.Image.Name}"));
+            output = Package(parts.Image, binary, target, Path.Combine(outputFolder, $"{programName}.{parts.Image.Extension}"));
         }
 
         DeleteFolder(workFolder);

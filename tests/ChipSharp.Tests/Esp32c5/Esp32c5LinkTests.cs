@@ -72,7 +72,7 @@ public sealed class Esp32c5LinkTests : IDisposable
         Assert.Equal("17", board.Setting("interrupts.timer.irq"));
         Assert.False(board.HasHeap);
         Assert.False(board.HasConsole);
-        Assert.Null(board.Image); // the ESP image comes with M4's wave 1
+        Assert.Equal(("esp", "esptool"), (board.Image, board.Flasher)); // the ESP image, flashed with esptool
         // from the board
         Assert.Equal("27", board.Pins["RGB_LED"]);
         Assert.True(board.IsComplete);
@@ -145,7 +145,7 @@ public sealed class Esp32c5LinkTests : IDisposable
     }
 
     [PicoFact]
-    public void Chipsharp_build_makes_the_elf_with_the_registered_runtimes_and_no_image_yet()
+    public void Chipsharp_build_makes_the_elf_with_the_registered_runtimes_and_the_esp_image()
     {
         var dll = Path.Combine(_scratch, "Computes.dll");
         Directory.CreateDirectory(_scratch);
@@ -156,10 +156,13 @@ public sealed class Esp32c5LinkTests : IDisposable
             Target = "esp32c5-devkitc",
             TargetsFolder = Path.Combine(AppContext.BaseDirectory, "targets"),
             OutputFolder = Path.Combine(_scratch, "out"),
+            KeepIntermediates = true,
         });
 
-        Assert.Equal(Path.Combine(_scratch, "out", "Computes.elf"), result.OutputPath);
-        Assert.Equal(243, ElfFile.Read(result.OutputPath).Machine);
+        Assert.Equal(Path.Combine(_scratch, "out", "Computes.bin"), result.OutputPath);
+        var elf = ElfFile.Read(Path.Combine(_scratch, "out", "Computes.elf"));
+        Assert.Equal(243, elf.Machine);
+        Assert.Equal(elf.Entry, ChipSharp.Image.Esp.EspImage.Read(File.ReadAllBytes(result.OutputPath)).Entry);
     }
 
     [PicoFact]

@@ -154,7 +154,7 @@ new board is a few lines of JSON:
 | `uno` | Arduino Uno: ATmega328P at 16 MHz, 32 KB flash, 2 KB RAM, LED on D13 (see [Arduino Uno](#arduino-uno); inherits `atmega328p`, which inherits `avr`) |
 | `stm8s103-board` | The blue STM8S103F3P6 board: STM8 at 16 MHz, 8 KB flash, 1 KB RAM, LED on PB5, through C and SDCC (see [The STM8S103 board](#the-stm8s103-board); inherits `stm8s103f3`, which inherits `stm8`) |
 | `pfs154-bare` | A Padauk PFS154 on its own at 2 MHz (IHRC / 8), through C and SDCC: 2K words of program memory, 128 bytes of RAM, LED on PA4 (see [The PFS154's runtime](#the-pfs154s-runtime); inherits `pfs154`, which inherits `pdk14`) |
-| `esp32c5-devkitc` | Espressif ESP32-C5-DevKitC-1: ESP32-C5 (RISC-V, RV32IMAC, up to 240 MHz), 384 KB of SRAM, an RGB LED on GPIO 27; builds to a linked `.elf` so far (see [ESP32-C5](#esp32-c5-in-progress); inherits `esp32c5`, which inherits `riscv32`) |
+| `esp32c5-devkitc` | Espressif ESP32-C5-DevKitC-1: ESP32-C5 (RISC-V, RV32IMAC, up to 240 MHz), 384 KB of SRAM, an RGB LED on GPIO 27; builds to a flashable `.bin` (see [ESP32-C5](#esp32-c5-in-progress); inherits `esp32c5`, which inherits `riscv32`) |
 | `rp2040`, `atmega328p`, `pfs154`, `stm8s103f3`, `esp32c5`, `armv6m`, `avr`, `pdk14`, `stm8`, `riscv32`, `x86_64` | Chips and architectures, for target files to inherit; not built for directly |
 
 ```
@@ -754,9 +754,9 @@ Milestone M4 brings Espressif's ESP32-C5 (`esp32c5-devkitc`, the ESP32-C5-DevKit
 Zicsr and Zifencei (no float hardware), up to 240 MHz, 384 KB of SRAM, flash and PSRAM in the module. It is built the
 way the Pico is, through the `llvm` code generator, whose `riscv32` output (triple `riscv32-unknown-elf`, the ilp32 ABI,
 4-byte pointers) clang compiles with the chip's `"march"` and `"mabi"` (`-march=rv32imac_zicsr_zifencei -mabi=ilp32`,
-ESP-IDF's own: the core's Zcmp is faulty and not used), and ld.lld links. So far it builds to a linked `.elf`, which
-`chipsim esp32c5` runs; the image, the flasher and the runtime's hardware contract (pins, clock, console, events) come
-next.
+ESP-IDF's own: the core's Zcmp is faulty and not used), and ld.lld links. It builds to a linked `.elf`, which
+`chipsim esp32c5` runs, and to the ESP image, which esptool flashes; the runtime's hardware contract (pins, clock,
+console, events) comes next.
 
 - **Facts as data.** `targets/chip/esp32c5.json` says what the chip is, each fact with its source (the datasheet and
   TRM, ESP-IDF's sources, esptool's): the memory map, the CLIC (48 interrupt ids, 16-47 the CPU's 32 lines, to which
@@ -768,6 +768,23 @@ next.
   every segment in SRAM (no flash cache or MMU to set up), up to `0x4085c5a0`, where the ROM keeps its stack and data
   while it boots. The linker script has code and variables in one region (`"link.code"` and `"link.data"` both
   `sram`), so `.data` is loaded where it runs, then `.bss` and the stack (16 KB) up to `0x4085c5a0`.
+- **The image `esp`** (`src/ChipSharp.Image.Esp`): `chipsharp build -t esp32c5-devkitc` writes `Name.bin`, the ESP
+  application image the ROM loads, as esptool's `elf2image` writes it: the 8-byte header (`0xE9`, the segment count,
+  SPI flash mode `dio`, the flash size (8 MB, the module's) and frequency (40 MHz) in byte 3, the entry point,
+  `chipsharp_reset`); the 16-byte extended header (WP pin `0xEE`, drive strengths 0, **chip id 23**, minimum revision 0,
+  maximum 65535, hash appended); each segment (load address, length, bytes, padded to 4); zeros up to byte 15 of a
+  16-byte block, the checksum (`0xEF` xor every segment byte); the SHA-256 of all before it. A segment outside
+  `0x40800000-0x4085c59f` is a build error. The values are the target's `"esp"` settings; `EspImage.Read` parses and
+  verifies an image. The memory report reads `SRAM 5.2 KB of 369.4 KB (1.4%) (stack 16 KB reserved)`.
+- **Flashing.** `chipsharp flash Name.dll -t esp32c5-devkitc` (or the `.bin`) runs
+  `esptool --chip esp32c5 -p <port> -b 460800 write-flash 0x2000 Name.bin` (`write_flash` for esptool 4: `esptool
+  version` says which). esptool is found through `CHIPSHARP_ESPTOOL` (the file or its folder), the PATH (`esptool`,
+  `esptool.py`), `D:ToolsesptoolScripts`, then Python's module (`py -m esptool`); install it with `py -m pip install esptool`. Plug in either
+  USB-C port of the board: the one marked **USB** (the chip's own USB Serial/JTAG, `303A:1001`, which `chipsharp
+  flash` takes first) or the one marked **UART** (the CP2102N bridge, `10C4:EA60`; CH343 `1A86:55D3` and CH340
+  `1A86:7523` too); say which with `--port COM6` when both are plugged in. esptool puts the chip into the ROM's
+  download mode itself; if it cannot connect, hold **BOOT**, press and release **RESET**, release **BOOT**, and flash
+  again. The chip then runs the program from reset.
 - **The runtime `riscv32`** (`src/ChipSharp.Runtime.Riscv32`), every RV32 chip's: `chipsharp_reset` (gp, the stack,
   interrupts off, mtvec at the trap entry, the chip's first steps, `chipsharp_chip_boot`, then .data, .bss,
   `chipsharp_chip_init` and the program); the trap entry (`.vectors`, 64-byte aligned) and its dispatch by interrupt id
@@ -776,7 +793,9 @@ next.
   `ebreak`, and the end, `wfi`; the heap's needs (the callee-saved registers and the stack to `__chipsharp_stack_top`)
   for a chip that gets a heap. The runtime `esp32c5` adds the chip's first steps: the RTC watchdog, both timer groups'
   and the super watchdog stopped (ESP-IDF's sequence, with their write keys), mtvec in CLIC mode.
-- **Tests.** The target files, the flags and the linker script; the `.elf` of a program (every loaded segment in SRAM
+- **Tests.** The image of a known `.elf` byte by byte (headers, chip id, segment table, checksum, SHA-256 worked out
+  again), the reader, the SRAM-range error; esptool's command lines (4 and 5), its discovery order, the port by USB
+  ids, a flash with a stand-in esptool; the target files, the flags and the linker script; the `.elf` of a program (every loaded segment in SRAM
   below the ROM's data, the trap entry at `0x40800000`, the entry point `chipsharp_reset`; `llvm-objdump` and
   `llvm-readobj` find RV32IMAC code, the start-up's gp, sp and mtvec, no float or Zcmp instruction); every program of
   the corpora without objects compiles and links for the board, each with objects is refused for the heap; the C5's
@@ -1641,6 +1660,7 @@ allow for both. Its TWI takes no time on the bus: the I2C transfers' timing is t
 | `src/ChipSharp.Toolchain.Sdcc` | The `sdcc` toolchain: C in, SDCC's Intel HEX (`.ihx`) and map out, for the Padauk and STM8 chips |
 | `src/ChipSharp.Simulators` | `chipsim`: the PFS154 (PDK14) and STM8S103 simulators, their peripherals, the devices of their buses (`Devices`: the LCDs, the DS1307, the MPU-6050, the BMP280, the 74HC595, a loopback; the Pico's and the Uno's, in C#), and the command |
 | `src/ChipSharp.Chips`, `chips` | Chips as data: the model of a chip's registers, interrupts, pins and memory, its readers (ChipSharp's JSON, CMSIS-SVD, both together), the C headers it writes, and in `Generated` the SDCC chips' and the ESP32-C5's headers; `chips` holds the descriptions (see [A new chip](#a-new-chip-one-contract-one-suite-chips-as-data)) |
+| `src/ChipSharp.Image.Esp`, `src/ChipSharp.Flasher.Esptool` | The ESP image (`.bin`: headers, segments, checksum, SHA-256; and its reader) and the flasher that runs esptool on it, with its port detection by USB ids |
 | `src/ChipSharp.Runtime.*` | The runtimes, in C: `Shared` (console, text, floats, heap and collector, and `chipsharp_hardware.h`, the hardware contract every chip runtime implements), `Windows` (the PC), `ArmV6M` and `Rp2040` (start-up, UART0, timers, pins, interrupts), `Avr` (any AVR chip's start-up, multiply and divide helpers, soft float), `Atmega328p` (the Uno's pins, Timer1's clock and delays, the pin and timer events, USART0, the TWI, SPI, the ADC and PWM), `Pdk14` (any Padauk PDK14 chip's start-up, interrupt handler and stops, for SDCC), `Pfs154` (its pins, T16's delays and clock, the timer and pin events, PWM; mostly assembly), `Stm8` (any STM8 chip's start-up, stops, failures and 64-bit multiply, for SDCC, and the modules a file is cut into), `Stm8s103` (its pins, TIM1's clock, delays and timer event, the pin event, UART1's console and serial port, I2C, SPI, the ADC and TIM2's PWM), `Riscv32` (any 32-bit RISC-V chip's start-up, trap entry and dispatch, 64-bit division, memory functions, soft float, stops) and `Esp32c5` (its first steps: the watchdogs, the CLIC's trap mode) |
 | `src/ChipSharp.Image.Uf2`, `src/ChipSharp.Image.Hex`, `src/ChipSharp.Build`, `src/ChipSharp.Cli` | The `.uf2` and `.hex` images, the build pipeline, and the `chipsharp` command |
 | `src/ChipSharp.Flasher.*` | The flashers: `Avrdude` (the Uno), `Uf2Copy` (the Pico), `EasyPdkProg` (the PFS154), `Stm8Flash` (the STM8S103), and `Shared`, what those that run a programmer's tool share (finding and running it, the serial ports and USB devices plugged in) |
@@ -1844,6 +1864,6 @@ of its own (`src/ChipSharp.Backend.Llvm/LlvmStackChecks.cs`).
 | M3 (done) | The heap: classes, garbage collector, strings, interfaces, generics, `Span<T>`, delegates, boxing, records, exceptions you throw, collections |
 | M6 (done) | C backend through SDCC: the Padauk PFS154 (2K words, 128 bytes of RAM) and the STM8S103 (8 KB, 1 KB), no heap, 32-bit `double` refused; the chips as data, a hardware contract with a conformance suite, the runtimes, `chipsim`, the flashers (`easypdkprog`, `stm8flash`) and examples (see [PFS154 and STM8S103](#pfs154-and-stm8s103-through-c-and-sdcc)) |
 | M7 (done) | Arduino Uno: the ATmega328P, an 8-bit AVR with 2 KB of RAM and no heap, through the LLVM in Zig; constants in flash, 8- and 16-bit arithmetic, its pins, timers, clock, serial port, I2C, SPI, ADC and PWM, `chipsharp flash` with avrdude, Wokwi circuits and examples (see [Arduino Uno](#arduino-uno)) |
-| M4 (in progress) | ESP32-C5 (RISC-V): its target files, the llvm code generator for riscv32, the start-up, a linked `.elf` and its simulator (`chipsim esp32c5`) so far; next its image, flasher and runtime (see [ESP32-C5](#esp32-c5-in-progress)) |
+| M4 (in progress) | ESP32-C5 (RISC-V): its target files, the llvm code generator for riscv32, the start-up, a linked `.elf`, its simulator (`chipsim esp32c5`), its ESP image and the esptool flasher so far; next its runtime (see [ESP32-C5](#esp32-c5-in-progress)) |
 | M5 | CH32V003, C# on a 10-cent chip with 2 KB of RAM: M2-style code and the M3 pieces that need no heap (generics over values, spans, fixed and printed text, record structs) |
 | Later | Catching exceptions (`try`/`catch`); a portable pull-up for `Pin.Input`; more chips, and an interpreter mode for the smallest |
