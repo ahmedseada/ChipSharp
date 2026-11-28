@@ -2,18 +2,18 @@
 
 C# for microcontrollers. You write an ordinary C# program and build it with `dotnet build` as usual; ChipSharp then
 compiles it ahead of time, through LLVM, into native code: a small `.exe` for your PC, a `.uf2` file for a Raspberry
-Pi Pico, or a `.hex` file for an Arduino Uno, a Padauk PFS154 or an STM8S103 (these two through C and SDCC). On the chip there is no operating system, no .NET runtime and no
+Pi Pico or an ESP32-C5 (a `.bin`), or a `.hex` file for an Arduino Uno, a Padauk PFS154 or an STM8S103 (these two through C and SDCC). On the chip there is no operating system, no .NET runtime and no
 interpreter: only your program, a small runtime written in C, and, when the program needs one, a heap with a garbage
 collector.
 
 ```
-C# --Roslyn--> IL --ChipSharp--> TIR --LLVM--> .exe (PC)   or   .elf --> .uf2 (Pico), .hex (Arduino Uno)
+C# --Roslyn--> IL --ChipSharp--> TIR --LLVM--> .exe (PC)   or   .elf --> .uf2 (Pico), .bin (ESP32-C5), .hex (Arduino Uno)
                                      \--C--SDCC--> .hex (Padauk PFS154, STM8S103)
 ```
 
-Where it stands: milestones M0 to M3, M6 (the Padauk PFS154 and the STM8S103, through C and SDCC) and M7 (the Arduino Uno) are done. Numbers, structs, arrays, spans, generics,
+Where it stands: milestones M0 to M3, M4 (the ESP32-C5, simulated: not yet tried on a board), M6 (the Padauk PFS154 and the STM8S103, through C and SDCC) and M7 (the Arduino Uno) are done. Numbers, structs, arrays, spans, generics,
 text, interrupts, `Math`, `TimeSpan` and `DateTime` (with its text and a clock) work on every chip, even one without a
-heap, such as the Uno with its 2 KB of RAM; on a chip with a heap (the Pico, the PC) so do classes, records, strings,
+heap, such as the Uno with its 2 KB of RAM; on a chip with a heap (the Pico, the ESP32-C5, the PC) so do classes, records, strings,
 interfaces, delegates and lambdas, boxing, exceptions you throw (not yet catch) and the collections (`List<T>`,
 `Dictionary<TKey, TValue>`, ...). Every sample prints exactly what .NET prints, on the PC and on a simulated Pico (and,
 when it makes no object, on a simulated Uno), and the tests compare programs, and thousands of library calls, with
@@ -154,7 +154,7 @@ new board is a few lines of JSON:
 | `uno` | Arduino Uno: ATmega328P at 16 MHz, 32 KB flash, 2 KB RAM, LED on D13 (see [Arduino Uno](#arduino-uno); inherits `atmega328p`, which inherits `avr`) |
 | `stm8s103-board` | The blue STM8S103F3P6 board: STM8 at 16 MHz, 8 KB flash, 1 KB RAM, LED on PB5, through C and SDCC (see [The STM8S103 board](#the-stm8s103-board); inherits `stm8s103f3`, which inherits `stm8`) |
 | `pfs154-bare` | A Padauk PFS154 on its own at 2 MHz (IHRC / 8), through C and SDCC: 2K words of program memory, 128 bytes of RAM, LED on PA4 (see [The PFS154's runtime](#the-pfs154s-runtime); inherits `pfs154`, which inherits `pdk14`) |
-| `esp32c5-devkitc` | Espressif ESP32-C5-DevKitC-1: ESP32-C5 (RISC-V, RV32IMAC, up to 240 MHz), 384 KB of SRAM, an RGB LED on GPIO 27; builds to a flashable `.bin` (see [ESP32-C5](#esp32-c5-in-progress); inherits `esp32c5`, which inherits `riscv32`) |
+| `esp32c5-devkitc` | Espressif ESP32-C5-DevKitC-1: ESP32-C5 (RISC-V, RV32IMAC, up to 240 MHz), 384 KB of SRAM, an RGB LED on GPIO 27; builds to a flashable `.bin` (see [ESP32-C5](#esp32-c5); inherits `esp32c5`, which inherits `riscv32`) |
 | `rp2040`, `atmega328p`, `pfs154`, `stm8s103f3`, `esp32c5`, `armv6m`, `avr`, `pdk14`, `stm8`, `riscv32`, `x86_64` | Chips and architectures, for target files to inherit; not built for directly |
 
 ```
@@ -171,27 +171,27 @@ Target pico   (pico -> rp2040 -> armv6m)
   memory
     flash      0x10000000  2 MB
     ram        0x20000000  264 KB
-  capabilities hwMultiply=true, hwDivide=false, fpu=false, atomics=none, unalignedAccess=false, stackCheck=true, heap=224K, console=true, clock=true, romFloat=true, consoleInput=true, uart=2, adc=4, pwm=16, i2c=true, spi=true
+  capabilities hwMultiply=true, hwDivide=false, fpu=false, atomics=none, unalignedAccess=false, stackCheck=true, heap=224K, console=true, clock=true, romFloat=true, pullDown=true, consoleInput=true, uart=2, adc=4, pwm=16, i2c=true, spi=true
   pins         LED=25
   interrupts   timer=IRQ 1, pin=IRQ 13, uart=IRQ 26
 ```
 
 The `"capabilities"` decide what a program may use on the chip:
 
-| Capability | Meaning | `pico` | `uno` | `pfs154-bare` | `stm8s103-board` | `host` | `armv6m` (a new chip, until its file says) |
-|---|---|---|---|---|---|---|---|
-| `heap` | The most RAM the heap may take, or `false` for none. Objects, kept strings, boxes, delegates and collections need one (see [Memory](#memory)) | 224 KB | none | none | none | 256 MB | none |
-| `console` | Whether `Console.Write` has somewhere to go | UART0 | USART0 | none | UART1 | standard output | none |
-| `consoleInput` | Whether `Console.Read` and `Console.ReadLine` have something to read | UART0 | USART0 | none | UART1 | not yet | none |
-| `clock` | Whether a timer counts time for `DateTime.Now`, `Stopwatch`, `Environment.TickCount` and `Clock.Start` (see [Date and time](#date-and-time)) | the timer's microseconds | Timer1's half microseconds | T16's microseconds | TIM1's microseconds | Windows' clock | none |
-| `uart`, `adc`, `pwm` | How many serial ports, analog inputs and PWM outputs `ChipSharp.Hardware` can use (see [Hardware](#hardware)); `"pinFunctions"` lists their pins (and `"pinNames"`, the Uno's, the names check's messages give them) | 2, 4, 16 | 1, 6, 5 | 0, 0, 2 | 1, 5, 3 | none | none |
-| `unalignedAccess` | Whether a word may be read at any address; without it `MemoryMarshal.Read` reads byte by byte and `MemoryMarshal.Cast` checks alignment | no | yes | yes | yes | yes | no |
-| `stackCheck` | The functions that can recurse check the stack, so a stack overflow says `Stack overflow.` instead of locking the core up | yes | not yet | yes | yes | (Windows' guard page) | yes |
-| `narrowing` | Arithmetic in 8 or 16 bits where the values provably fit and the result is C#'s (see [Narrowing](#narrowing)); when not given, on for a chip with 2-byte pointers (the AVR) only | no | yes | yes | yes | no | no |
-| `i2c`, `spi` | Whether `I2c` and `Spi` have buses (see [Hardware](#hardware)); the file's `"i2c"` and `"spi"` give each bus's pins and clocks | 2 each | 1 each | none | 1 each | none | none |
-| `pullDown` | Whether the chip has pull-down resistors: `Pin.Input(pin, Pull.Down)` (see [Pins](#pins)); every chip has pull-ups, and `chipsharp check` refuses a constant `Pull.Down` where this is false | yes | no | no | no | no | no |
-| `double64` | Whether the C a code generator writes has a 64-bit `double`; `false` where it is SDCC's (see [Limits of the two chips](#limits-of-the-two-chips)). Not given: true | yes | yes | no | no | yes | yes |
-| `hwMultiply`, `hwDivide`, `fpu`, `atomics`, `romFloat` | Describe the chip; the code itself follows the file's `triple`, `cpu` and `clang` flags (soft float on `armv6m` and `avr`; the AVR's `mul` is 8 x 8 bits, so `hwMultiply` is false) | | | | | | |
+| Capability | Meaning | `pico` | `esp32c5-devkitc` | `uno` | `pfs154-bare` | `stm8s103-board` | `host` | `armv6m` (a new chip, until its file says) |
+|---|---|---|---|---|---|---|---|---|
+| `heap` | The most RAM the heap may take, or `false` for none. Objects, kept strings, boxes, delegates and collections need one (see [Memory](#memory)) | 224 KB | 224 KB | none | none | none | 256 MB | none |
+| `console` | Whether `Console.Write` has somewhere to go | UART0 | USB Serial/JTAG | USART0 | none | UART1 | standard output | none |
+| `consoleInput` | Whether `Console.Read` and `Console.ReadLine` have something to read | UART0 | USB Serial/JTAG | USART0 | none | UART1 | not yet | none |
+| `clock` | Whether a timer counts time for `DateTime.Now`, `Stopwatch`, `Environment.TickCount` and `Clock.Start` (see [Date and time](#date-and-time)) | the timer's microseconds | SYSTIMER's microseconds | Timer1's half microseconds | T16's microseconds | TIM1's microseconds | Windows' clock | none |
+| `uart`, `adc`, `pwm` | How many serial ports, analog inputs and PWM outputs `ChipSharp.Hardware` can use (see [Hardware](#hardware)); `"pinFunctions"` lists their pins (and `"pinNames"`, the Uno's, the names check's messages give them) | 2, 4, 16 | 1, 6, 6 | 1, 6, 5 | 0, 0, 2 | 1, 5, 3 | none | none |
+| `unalignedAccess` | Whether a word may be read at any address; without it `MemoryMarshal.Read` reads byte by byte and `MemoryMarshal.Cast` checks alignment | no | no | yes | yes | yes | yes | no |
+| `stackCheck` | The functions that can recurse check the stack, so a stack overflow says `Stack overflow.` instead of locking the core up | yes | yes | not yet | yes | yes | (Windows' guard page) | yes |
+| `narrowing` | Arithmetic in 8 or 16 bits where the values provably fit and the result is C#'s (see [Narrowing](#narrowing)); when not given, on for a chip with 2-byte pointers (the AVR) only | no | no | yes | yes | yes | no | no |
+| `i2c`, `spi` | Whether `I2c` and `Spi` have buses (see [Hardware](#hardware)); the file's `"i2c"` and `"spi"` give each bus's pins and clocks | 2 each | 1 each | 1 each | none | 1 each | none | none |
+| `pullDown` | Whether the chip has pull-down resistors: `Pin.Input(pin, Pull.Down)` (see [Pins](#pins)); every chip has pull-ups, and `chipsharp check` refuses a constant `Pull.Down` where this is false | yes | yes | no | no | no | no | no |
+| `double64` | Whether the C a code generator writes has a 64-bit `double`; `false` where it is SDCC's (see [Limits of the two chips](#limits-of-the-two-chips)). Not given: true | yes | yes | yes | no | no | yes | yes |
+| `hwMultiply`, `hwDivide`, `fpu`, `atomics`, `romFloat` | Describe the chip; the code itself follows the file's `triple`, `cpu` and `clang` flags (soft float on `armv6m` and `avr`; the AVR's `mul` is 8 x 8 bits, so `hwMultiply` is false) | | |  | | | | |
 
 The file also gives the memory regions, the link layout (`"link.stack"`: 8 KB on the Pico) and the interrupts each
 event uses (`"interrupts"` in `rp2040.json`). `chipsharp check -t <target>` and `chipsharp build -t <target>` judge the
@@ -553,7 +553,7 @@ The toolchain `sdcc`:
   fails with how much it needs, as on the other chips. The `.hex` is SDCC's `.ihx` in address order (byte addresses:
   a Padauk chip's word n at bytes 2n and 2n + 1, as the Easy PDK programmer reads it).
 - **The simulator, `chipsim`** (`src/ChipSharp.Simulators`, ChipSharp's own instruction-set simulators, in C#): `chipsim
-  pfs154 Blink.ihx --ms 1000` (or `stm8s103`; `esp32c5` runs an `.elf`, see [ESP32-C5](#esp32-c5-in-progress); without
+  pfs154 Blink.ihx --ms 1000` (or `stm8s103`; `esp32c5` runs an `.elf` or an image, see [ESP32-C5](#esp32-c5); without
   installing, `src\ChipSharp.Simulators\bin\Release\net10.0\chipsim.exe`)
   runs a `.ihx` and prints what the Uno's simulator prints: every pin change (`[   12.000 ms] PA4 high`), UART1's lines
   (`UART1: Hello`) and baud rate, a timer's pin as PWM periods, what the buses do, and `stopped: <why>`.
@@ -747,16 +747,52 @@ and run it in chipsim as each README says: the prompt with commands sent to PD6,
 `--input PD4=low@2500ms --input PD4=high@2700ms`, the LCD
 with `--i2c 0:0x27=lcd1602 --adc PD3=...`.
 
-## ESP32-C5 (in progress)
+## ESP32-C5
 
-Milestone M4 brings Espressif's ESP32-C5 (`esp32c5-devkitc`, the ESP32-C5-DevKitC-1): one RISC-V core, RV32IMAC with
+Milestone M4 (done) is Espressif's ESP32-C5 (`esp32c5-devkitc`, the ESP32-C5-DevKitC-1): one RISC-V core, RV32IMAC with
 Zicsr and Zifencei (no float hardware), up to 240 MHz, 384 KB of SRAM, flash and PSRAM in the module. It is built the
 way the Pico is, through the `llvm` code generator, whose `riscv32` output (triple `riscv32-unknown-elf`, the ilp32 ABI,
 4-byte pointers) clang compiles with the chip's `"march"` and `"mabi"` (`-march=rv32imac_zicsr_zifencei -mabi=ilp32`,
 ESP-IDF's own: the core's Zcmp is faulty and not used), and ld.lld links. It builds to a linked `.elf`, which
-`chipsim esp32c5` runs, and to the ESP image, which esptool flashes; the runtime's hardware contract (pins, clock,
-console, events) comes next.
+`chipsim esp32c5` runs, and to the ESP image (`.bin`), which esptool flashes. On it run the whole language, the heap and
+the garbage collector, and `ChipSharp.Hardware`'s pins with pulls, events, timers, the clock, the console, a serial
+port, I2C, SPI, the ADC and PWM; every program of the backend conformance suite prints what .NET prints on the simulated
+chip. What is not there, and what has not been tried on a real board, is listed in [The ESP32-C5 limits](#the-esp32-c5-limits).
 
+```powershell
+cd examples\esp32c5-blink
+dotnet build -c Release
+chipsharp build bin\Release\net10.0\Esp32c5Blink.dll -t esp32c5-devkitc      # chipsharp-output\esp32c5-devkitc\Esp32c5Blink.bin
+chipsharp flash bin\Release\net10.0\Esp32c5Blink.dll -t esp32c5-devkitc      # builds, then esptool writes it
+chipsim esp32c5 chipsharp-output\esp32c5-devkitc\Esp32c5Blink.bin --ms 1600  # or run it in the simulator
+```
+
+- **The board's ports.** Two USB-C ports. The one marked **USB** is the chip's own USB Serial/JTAG (`303A:1001`) and
+  is the **console**: `Console.Write` goes to it, `Console.Read` and `Console.ReadLine` read it (USB has no baud rate, so
+  any terminal setting works). The one marked **UART** is a bridge (CP2102N) on UART0, GPIO 11 (TX) and GPIO 12 (RX),
+  which is `Uart.Open(0, 11, 12, baud)` (the only port, 100 to 3,000,000 baud, from the crystal). Either port flashes the
+  board; plug in **USB** to see the program's text and **UART** for a serial device on `Uart`. The program has both. If
+  esptool cannot connect, hold **BOOT**, press and release **RESET**, release **BOOT**.
+- **The clock.** The CPU runs at the crystal's **48 MHz**, as the ROM leaves it (`"clockHz": 48000000` in the board
+  file). `160000000` is an opt-in for an image that a bootloader started with the PLL already running (the CPU then moves
+  to PLL_F160M); when the CPU is not on a PLL at start-up the program says so and stops, because ChipSharp does not turn the
+  480 MHz PLL on by itself (see [the limits](#the-esp32-c5-limits)) and the chip has no register that says whether it
+  runs. Any other `clockHz` is refused by the build. Delays, `DateTime.Now` and `Stopwatch` follow SYSTIMER (16 MHz), so
+  they are the same at either clock.
+- **The pins.** `Pin`, `Pwm` and the buses take **GPIO 0-12 and 23-28** (the board file's `"pin"`); GPIO 13 and 14 are
+  the USB port's D- and D+, and GPIO 15-22 the module's flash and PSRAM, so `chipsharp check` refuses them. It refuses
+  too an analog input outside **GPIO 1-6** (ADC1) and UART0 pins other than 11 and 12. Caveats, all in the file: GPIO
+  2, 3, 7 and 25-28 are strapping pins, read at reset, so what is wired to them must not hold a level that picks another
+  boot mode (GPIO 28 low is the download mode, and the Boot button is on it); GPIO 2-5 are the JTAG pins (JTAG is on the
+  USB port by default, so they are free); GPIO 0 and 1 are the 32 kHz crystal's pins, free on the devkit; GPIO 7 has no
+  internal pull resistors; GPIO 11 and 12 are UART0's, which the bridge uses; GPIO 27 is also the RGB LED's data pin (see
+  the limits). Inputs have `Pull.Up` and `Pull.Down` (the chip has both, so `check` allows both), and every allowed pin
+  has pin events (`Pin.Watch`, `[Interrupt(Event.Pin)]`).
+- **The heap.** 224 KB (`"heap": "224K"`) and a stack of 16 KB, in the one SRAM region of 369.4 KB (`0x40800000` to
+  `0x4085c5a0`) that holds the program too. A program that makes no object gets no heap: its code, constants and
+  variables may take up to 353.4 KB; with the heap, up to 129.4 KB. A larger program stops the build and says by how
+  much: `Big does not fit in target 'esp32c5-devkitc': its code, constants and variables (431.7 KB) and the stack (16 KB,
+  link.stack) need 447.7 KB of SRAM, 78.3 KB more than the target's 369.4 KB.`
 - **Facts as data.** `targets/chip/esp32c5.json` says what the chip is, each fact with its source (the datasheet and
   TRM, ESP-IDF's sources, esptool's): the memory map, the CLIC (48 interrupt ids, 16-47 the CPU's 32 lines, to which
   the interrupt matrix routes the 84 peripheral sources), the watchdogs the ROM leaves running, the boot flow. Its
@@ -778,7 +814,7 @@ console, events) comes next.
 - **Flashing.** `chipsharp flash Name.dll -t esp32c5-devkitc` (or the `.bin`) runs
   `esptool --chip esp32c5 -p <port> -b 460800 write-flash 0x2000 Name.bin` (`write_flash` for esptool 4: `esptool
   version` says which). esptool is found through `CHIPSHARP_ESPTOOL` (the file or its folder), the PATH (`esptool`,
-  `esptool.py`), `D:ToolsesptoolScripts`, then Python's module (`py -m esptool`); install it with `py -m pip install esptool`. Plug in either
+  `esptool.py`), `D:\Tools\esptool\Scripts`, then Python's module (`py -m esptool`); install it with `py -m pip install esptool`. Plug in either
   USB-C port of the board: the one marked **USB** (the chip's own USB Serial/JTAG, `303A:1001`, which `chipsharp
   flash` takes first) or the one marked **UART** (the CP2102N bridge, `10C4:EA60`; CH343 `1A86:55D3` and CH340
   `1A86:7523` too); say which with `--port COM6` when both are plugged in. esptool puts the chip into the ROM's
@@ -819,7 +855,7 @@ console, events) comes next.
   million instructions a second. Its tests run every instruction form clang assembles, every compressed one against
   its expansion, 2,688 results of C's arithmetic, and C programs for each peripheral.
 
-- **I2C, SPI, ADC and PWM** (wave 2), the same `ChipSharp.Hardware` API and contract functions as on the other chips,
+- **I2C, SPI, ADC and PWM**, the same `ChipSharp.Hardware` API and contract functions as on the other chips,
   all clocked from the crystal (read at run time, 48 MHz on the devkit) and reaching any pin through the GPIO matrix
   (`esp32c5_i2c.c`, `esp32c5_spi.c`, `esp32c5_adc.c`, `esp32c5_pwm.c`; they poll, no interrupt id is used):
   - **I2C**: bus 0, the one HP controller (`I2C0`), as a controller, 200 Hz to 1 MHz (the divider of ESP-IDF's
@@ -835,14 +871,12 @@ console, events) comes next.
   `chipsim esp32c5` models them with the shared devices: `--i2c 0:0x27=lcd1602`, `--spi 0=74hc595@GPIO23`,
   `--adc GPIO5=1.65V@10ms`, and a PWM output is measured on its pin (`GPIO4 PWM 1000.00 Hz, duty 25.00% ...`); the
   conformance suite's I2C, SPI, ADC and PWM cases run on `esp32c5-devkitc` (SDA GPIO4, SCL GPIO5; SCK GPIO0, MOSI GPIO1,
-  MISO GPIO24; ADC GPIO3; PWM GPIO7), and `Lcd`, `Ds1307` and `SevenSegment` run unchanged. Not tried on hardware: the
-  ADC's power-up (the modem front end and PWDET registers ESP-IDF sets) and the temperature sensor's range are as
-  ESP-IDF's sources say, with no calibration.
+  MISO GPIO24; ADC GPIO3; PWM GPIO7), and `Lcd`, `Ds1307` and `SevenSegment` run unchanged. `chipsharp check` refuses
+  a constant frequency outside these ranges (PWM 1 to 1,000,000 Hz, I2C 200 to 1,000,000, SPI 46,875 to 26,000,000).
 
 ### Examples for the ESP32-C5
 
-Built with `chipsharp build bin\Release
-et10.0\<Name>.dll -t esp32c5-devkitc` in their folders, or flashed with
+Built with `chipsharp build bin\Release\net10.0\<Name>.dll -t esp32c5-devkitc` in their folders, or flashed with
 `chipsharp flash ... -t esp32c5-devkitc` (through the USB-C port marked **USB** or **UART**, BOOT and RESET if esptool
 cannot connect); each has a README with its wiring and a `chipsim esp32c5` command. They use the portable API alone
 (`Pin`, `Timing`, `[Interrupt]`, `Console`), so the same C# builds for the Pico by changing the pin numbers and `-t`, on
@@ -861,6 +895,26 @@ pins the board leaves a program (the board's own LED is a WS2812, not a pin to s
 
 Wokwi has a part for the board (`board-esp32-c5-devkitc-1`, beta), so each example has a `diagram.json`, wired directly;
 they have not been tried in Wokwi.
+
+### The ESP32-C5 limits
+
+What the ESP32-C5 does not do, and what has not been tried on a board. A limit a program can reach is refused by
+`chipsharp check` or the build before the program runs, unless the row says otherwise.
+
+| What | Where it stands |
+|---|---|
+| Wi-Fi 6, Bluetooth LE, Thread and Zigbee | Out of scope: Espressif's radio drivers are closed binaries, and there is no API for them |
+| The CPU's speed | 48 MHz (the crystal) until the BBPLL bring-up (ESP-IDF's `rtc_clk_bbpll_enable` and `rtc_clk_bbpll_configure`) can be tried on a board; `"clockHz": 160000000` is only for an image started with the PLL running, and the build refuses any other value |
+| The RGB LED (a WS2812 on GPIO 27) | No API yet: it is not a pin to switch, and the examples use an external LED on GPIO 4 |
+| The 8 MB of PSRAM, and flash execute-in-place | Unused: the program and the heap live in the SRAM (369.4 KB usable; the largest image is 353.4 KB without a heap, 129.4 KB with the 224 KB heap) |
+| The LP core and deep sleep | Not used |
+| The ADC | Readings are uncalibrated (12 bits, 12 dB attenuation, `Adc.Reference` 3.3 V); the temperature sensor's accuracy (`Adc.Temperature`) is the sensor's own, uncalibrated |
+| `Console.ReadLine` | Does not echo what is typed: turn on the terminal's local echo |
+| `float` and `double` | In software, bit for bit like .NET, and slower than on a chip with an FPU |
+| Pins | GPIO 13-22 are not available (USB and the module's flash and PSRAM); the strapping pins are read at reset (see above); UART0 only on GPIO 11 and 12 |
+| Frequencies | PWM 1 Hz to 1 MHz (6 outputs on up to 4 different frequencies), I2C 200 Hz to 1 MHz, SPI 46,875 Hz to 26 MHz, UART0 100 to 3,000,000 baud. A constant outside is refused by `check`; one that only the running program knows stops it with a message |
+| Memory | A program that does not fit the SRAM stops the build, saying how much it needs; it does not name the biggest functions, as the SDCC chips' message does |
+| **Not yet tried on a real board** | The start-up on silicon (the ROM loading the image, the watchdog stops, the CLIC), flashing (tested against a stand-in esptool; `write-flash` never run), the ADC's power-up (the modem front end and PWDET registers, as ESP-IDF's sources say), the I2C recovery after a NACK, and the Wokwi diagrams |
 
 ## A new chip: one contract, one suite, chips as data
 
@@ -1074,6 +1128,21 @@ The PFS154 has 2K words and 128 bytes of RAM, 48 of them the stack's; the STM8S1
   peephole optimizer, a struct returned or passed, a local that copies a parameter, a large STM8 frame returning 3 or 4
   bytes). One problem is not worked around: SDCC's STM8 port stops with an internal error, "Unbalanced stack", on a
   function that is long and heavy in `long` arithmetic. The build fails with SDCC's message; split the function.
+
+### On the ESP32-C5
+
+The full list, with the pins and ranges, is [The ESP32-C5 limits](#the-esp32-c5-limits). In short:
+
+- **Out of scope:** Wi-Fi, Bluetooth LE, Thread and Zigbee (Espressif's radio drivers are closed binaries).
+- **The CPU runs at 48 MHz** until the BBPLL bring-up (ESP-IDF's `rtc_clk_bbpll_enable` and `rtc_clk_bbpll_configure`) can be
+  tried on a board; `"clockHz": 160000000` works only for an image started with the PLL running.
+- **No API yet** for the RGB LED (a WS2812 on GPIO 27), the LP core, deep sleep; the 8 MB of PSRAM and flash
+  execute-in-place are unused: the program and the heap live in the SRAM (369.4 KB; the largest image is 353.4 KB without a
+  heap, 129.4 KB with the 224 KB heap).
+- **The ADC is uncalibrated**, and so is the temperature sensor.
+- **`Console.ReadLine` does not echo**: turn on the terminal's local echo.
+- **Not yet tried on a real board:** the start-up on silicon, flashing, the ADC's power-up, the I2C recovery after a NACK,
+  the Wokwi diagrams.
 
 ## Memory
 
@@ -1617,9 +1686,9 @@ the Pico:
 | `GenericClasses`, `Delegates`, `ArrayMethods`, `Collections` | Generic classes; callbacks, closures and events; `Array.Copy`, `Sort`, `Resize`; `List`, `Dictionary`, `Queue`, `Stack` | 13.8 to 36.6 KB + heap |
 
 **`examples/`** holds projects for the Pico (`pico-*`), the Arduino Uno (`uno-*`), the Padauk PFS154 (`pfs154-*`) and
-the STM8S103 board (`stm8-*`), each a `.csproj` that references `ChipSharp.Hardware`, built with
+the STM8S103 board (`stm8-*`) and the ESP32-C5 (`esp32c5-*`), each a `.csproj` that references `ChipSharp.Hardware`, built with
 `dotnet build -c Release` and then `chipsharp build bin\Release\net10.0\<Name>.dll -t pico` (or `-t uno`,
-`-t pfs154-bare`, `-t stm8s103-board`) in its folder. The Pico's:
+`-t pfs154-bare`, `-t stm8s103-board`, `-t esp32c5-devkitc`) in its folder. The Pico's:
 
 | Example | What it does | Pico |
 |---|---|---|
@@ -1641,7 +1710,9 @@ The Arduino Uno's examples (the blink, the button, the serial port, a traffic li
 in [Examples for the Uno](#examples-for-the-uno), the Padauk PFS154's (`pfs154-*`: the blinks, the button, a PWM
 fade, a traffic light) in [Examples for the PFS154](#examples-for-the-pfs154), the STM8S103 board's (`stm8-*`: the
 blink, a serial prompt, a traffic light, an LCD, a PWM fade) in
-[Examples for the STM8S103 board](#examples-for-the-stm8s103-board).
+[Examples for the STM8S103 board](#examples-for-the-stm8s103-board). The ESP32-C5's eight (`esp32c5-*`: the blink, a button on the
+pin event, a serial prompt, a timer blink, a traffic light with classes, the Pico's LCD traffic light unchanged, a
+servo and a DS1307 and LCD clock) are in [Examples for the ESP32-C5](#examples-for-the-esp32-c5).
 
 The samples that need neither a heap nor a `double` also build for the PFS154 and the STM8S103 when they fit, and
 `chipsim` runs them (the backend conformance suite checks each against .NET's output).
@@ -1673,7 +1744,7 @@ dotnet build -c Release
 dotnet test -c Release --no-build
 ```
 
-The 3,715 tests (about 7 minutes once the build cache is warm) check each stage on its own (reading IL, the
+The 4,252 tests (about 7 minutes once the build cache is warm) check each stage on its own (reading IL, the
 whole-program pass, TIR, the LLVM code, linking, the `.uf2` and the `.hex`), then compile C# programs and run them: on
 the PC, on the simulated Pico and on the simulated Uno, comparing what they print, byte for byte, with what .NET prints
 for the same program; the library code (collections, `StringBuilder`, sorting, `TimeSpan`, `DateTime` and its formats)
@@ -1929,6 +2000,6 @@ of its own (`src/ChipSharp.Backend.Llvm/LlvmStackChecks.cs`).
 | M3 (done) | The heap: classes, garbage collector, strings, interfaces, generics, `Span<T>`, delegates, boxing, records, exceptions you throw, collections |
 | M6 (done) | C backend through SDCC: the Padauk PFS154 (2K words, 128 bytes of RAM) and the STM8S103 (8 KB, 1 KB), no heap, 32-bit `double` refused; the chips as data, a hardware contract with a conformance suite, the runtimes, `chipsim`, the flashers (`easypdkprog`, `stm8flash`) and examples (see [PFS154 and STM8S103](#pfs154-and-stm8s103-through-c-and-sdcc)) |
 | M7 (done) | Arduino Uno: the ATmega328P, an 8-bit AVR with 2 KB of RAM and no heap, through the LLVM in Zig; constants in flash, 8- and 16-bit arithmetic, its pins, timers, clock, serial port, I2C, SPI, ADC and PWM, `chipsharp flash` with avrdude, Wokwi circuits and examples (see [Arduino Uno](#arduino-uno)) |
-| M4 (in progress) | ESP32-C5 (RISC-V): its target files, the llvm code generator for riscv32, the start-up, a linked `.elf`, its simulator (`chipsim esp32c5`), its ESP image and the esptool flasher so far; next its runtime (see [ESP32-C5](#esp32-c5-in-progress)) |
+| M4 (done) | ESP32-C5 (RISC-V): its target files, the llvm code generator for riscv32, the start-up, Espressif's SVD through the shared generator, `chipsim esp32c5`, the ESP image (byte for byte esptool's) and the esptool flasher, the runtime (pins with pulls, events, the SYSTIMER clock, the USB Serial/JTAG console, UART0, a 224 KB heap with the collector, I2C, SPI, the ADC and PWM), the whole corpus on the simulated chip and 8 examples; not yet tried on a board (see [ESP32-C5](#esp32-c5)) |
 | M5 | CH32V003, C# on a 10-cent chip with 2 KB of RAM: M2-style code and the M3 pieces that need no heap (generics over values, spans, fixed and printed text, record structs) |
 | Later | Catching exceptions (`try`/`catch`); more chips, and an interpreter mode for the smallest |
