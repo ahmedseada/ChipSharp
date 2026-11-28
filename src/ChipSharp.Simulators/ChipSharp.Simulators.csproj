@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- The chipsim command: ChipSharp's own instruction-set simulators of chips the Node.js simulators do not have
-       (the Padauk PFS154, the STM8S103), for the test suite (in process) and on the command line -->
+       (the Padauk PFS154, the STM8S103, the Espressif ESP32-C5), for the test suite (in process) and on the command line -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <AssemblyName>chipsim</AssemblyName>

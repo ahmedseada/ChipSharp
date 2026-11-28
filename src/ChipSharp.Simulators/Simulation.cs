@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using ChipSharp.Simulators.Devices;
+using ChipSharp.Simulators.Esp32c5;
 using ChipSharp.Simulators.Pdk14;
 using ChipSharp.Simulators.Stm8;
 
@@ -13,23 +14,26 @@ public sealed class UsageException(string message) : Exception(message);
 /// <summary>An --input: a pin driven from outside, high or low, from the start or from a time on.</summary>
 public sealed record PinInput(string Pin, bool High, double? AtMilliseconds);
 
-/// <summary>A --send: bytes sent to the chip's serial port, from the start or from a time on.</summary>
-public sealed record SerialSend(byte[] Bytes, double? AtMilliseconds);
+/// <summary>
+/// A --send: bytes sent to a serial port of the chip (<paramref name="Port"/>, by its name: "UART0", "USB"; null for its
+/// first), from the start or from a time on.
+/// </summary>
+public sealed record SerialSend(byte[] Bytes, double? AtMilliseconds, string? Port = null);
 
 /// <summary>What to simulate: the chip, the image, for how long, and what comes from outside.</summary>
 public sealed partial class SimulationOptions
 {
-    /// <summary>The chip, as <see cref="Simulation.Chips"/> names it: "pfs154", "stm8s103".</summary>
+    /// <summary>The chip, as <see cref="Simulation.Chips"/> names it: "pfs154", "stm8s103", "esp32c5".</summary>
     public required string Chip { get; init; }
 
-    /// <summary>The Intel HEX file.</summary>
+    /// <summary>The image: an Intel HEX file (the PFS154, the STM8S103), an ELF file or an ESP image (the ESP32-C5).</summary>
     public required string Image { get; init; }
 
     /// <summary>How long to run, in simulated milliseconds.</summary>
     public double Milliseconds { get; init; } = 1000;
 
-    /// <summary>A file to write every byte the serial port sent to, or null.</summary>
-    public string? SerialFile { get; init; }
+    /// <summary>Files to write every byte a serial port sent to, by the port's name ("UART1": --uart1).</summary>
+    public IReadOnlyDictionary<string, string> SerialFiles { get; init; } = new Dictionary<string, string>();
 
     public IReadOnlyList<PinInput> Inputs { get; init; } = [];
 
@@ -42,14 +46,15 @@ public sealed partial class SimulationOptions
     public IReadOnlyList<AnalogInput> Analog { get; init; } = [];
 
     /// <summary>
-    /// The options of the command line after the chip: the image, --ms, --uart1, --input, --send, --i2c, --spi and --adc
+    /// The options of the command line after the chip: the image, --ms, --uart0, --uart1, --usb, --input, --send, --i2c,
+    /// --spi and --adc
     /// (see <see cref="Simulation.Usage"/>). Throws <see cref="UsageException"/> when they are wrong.
     /// </summary>
     public static SimulationOptions Parse(string chip, IReadOnlyList<string> arguments)
     {
         ArgumentNullException.ThrowIfNull(arguments);
         string? image = null;
-        string? serial = null;
+        var serialFiles = new Dictionary<string, string>(StringComparer.Ordinal);
         var milliseconds = 1000.0;
         var inputs = new List<PinInput>();
         var sends = new List<SerialSend>();
@@ -69,7 +74,8 @@ public sealed partial class SimulationOptions
                 continue;
             }
 
-            if (argument is not ("--ms" or "--uart1" or "--input" or "--send" or "--i2c" or "--spi" or "--adc"))
+            if (argument is not ("--ms" or "--uart0" or "--uart1" or "--usb" or "--input" or "--send" or "--i2c" or "--spi"
+                or "--adc"))
             {
                 throw new UsageException($"unknown option '{argument}'.");
             }
@@ -90,8 +96,8 @@ public sealed partial class SimulationOptions
                     }
 
                     break;
-                case "--uart1":
-                    serial = value;
+                case "--uart0" or "--uart1" or "--usb":
+                    serialFiles[argument[2..].ToUpperInvariant()] = value;
                     break;
                 case "--i2c":
                     devices.Add(DeviceCatalog.ParseI2c(value));
@@ -106,8 +112,8 @@ public sealed partial class SimulationOptions
                     var input = InputPattern().Match(value);
                     if (!input.Success)
                     {
-                        throw new UsageException("--input takes a pin, a level and maybe a time, e.g. PA3=high or " +
-                            $"PA3=low@100ms, not '{value}'.");
+                        throw new UsageException("--input takes a pin, a level and maybe a time, e.g. PA3=high, " +
+                            $"PA3=low@100ms or GPIO9=low, not '{value}'.");
                     }
 
                     inputs.Add(new PinInput(input.Groups[1].Value.ToUpperInvariant(),
@@ -115,7 +121,8 @@ public sealed partial class SimulationOptions
                     break;
                 default:
                     var send = SendPattern().Match(value);
-                    sends.Add(new SerialSend(Unescape(send.Groups[1].Value), Time(send.Groups[2])));
+                    sends.Add(new SerialSend(Unescape(send.Groups[2].Value), Time(send.Groups[3]),
+                        send.Groups[1].Success ? send.Groups[1].Value.ToUpperInvariant() : null));
                     break;
             }
         }
@@ -123,9 +130,11 @@ public sealed partial class SimulationOptions
         return new SimulationOptions
         {
             Chip = chip,
-            Image = image ?? throw new UsageException("which .ihx image?"),
+            Image = image ?? throw new UsageException(chip.Equals("esp32c5", StringComparison.OrdinalIgnoreCase)
+                ? "which image (.elf, or an ESP image)?"
+                : "which .ihx image?"),
             Milliseconds = milliseconds,
-            SerialFile = serial,
+            SerialFiles = serialFiles,
             Inputs = inputs,
             Sends = sends,
             Devices = devices,
@@ -187,15 +196,16 @@ public sealed partial class SimulationOptions
         _ => $"\\x{b:x2}",
     }));
 
-    [GeneratedRegex(@"^(P[A-Fa-f][0-7])=(high|low)(?:@(\d+(?:\.\d+)?)ms)?$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(P[A-Fa-f][0-7]|GPIO\d{1,2})=(high|low)(?:@(\d+(?:\.\d+)?)ms)?$", RegexOptions.IgnoreCase)]
     private static partial Regex InputPattern();
 
-    [GeneratedRegex(@"^(.*?)(?:@(\d+(?:\.\d+)?)ms)?$", RegexOptions.Singleline)]
+    [GeneratedRegex(@"^(?:(UART\d|USB)=)?(.*?)(?:@(\d+(?:\.\d+)?)ms)?$", RegexOptions.Singleline | RegexOptions.IgnoreCase)]
     private static partial Regex SendPattern();
 }
 
 /// <summary>What a run printed, how it ended, and the chip as it was at the end.</summary>
-public sealed partial class SimulationResult(int exitCode, IReadOnlyList<string> lines, byte[] serial, SimulatedChip chip)
+public sealed partial class SimulationResult(int exitCode, IReadOnlyList<string> lines, IReadOnlyDictionary<string, byte[]> serial,
+    SimulatedChip chip)
 {
     /// <summary>0: the program ran (to its end, or for the whole time); 3: it went wrong.</summary>
     public int ExitCode { get; } = exitCode;
@@ -203,8 +213,14 @@ public sealed partial class SimulationResult(int exitCode, IReadOnlyList<string>
     /// <summary>Every line printed, the "booting" line first and the "stopped" line last.</summary>
     public IReadOnlyList<string> Lines { get; } = lines;
 
-    /// <summary>The bytes the serial port sent.</summary>
-    public byte[] Serial { get; } = serial;
+    /// <summary>The bytes the chip's first serial port sent (UART1 on the STM8S103, UART0 on the ESP32-C5).</summary>
+    public byte[] Serial { get; } = chip.SerialOutputs.Count > 0 ? serial[chip.SerialOutputs[0].Name] : [];
+
+    /// <summary>The bytes every serial port sent, by its name ("UART0", "USB").</summary>
+    public IReadOnlyDictionary<string, byte[]> SerialPorts { get; } = serial;
+
+    /// <summary>The bytes the serial port <paramref name="port"/> sent; none for a port the chip does not have.</summary>
+    public byte[] SerialOf(string port) => SerialPorts.TryGetValue(port, out var bytes) ? bytes : [];
 
     /// <summary>The chip, after the run: its memories and registers.</summary>
     public SimulatedChip Chip { get; } = chip;
@@ -242,10 +258,10 @@ public sealed partial class SimulationResult(int exitCode, IReadOnlyList<string>
 
     public override string ToString() => $"exit code {ExitCode}\n{Output}";
 
-    [GeneratedRegex(@"^\[\s*([0-9.]+) ms\] (P[A-F][0-7]) (?!PWM )(.+)$")]
+    [GeneratedRegex(@"^\[\s*([0-9.]+) ms\] (P[A-F][0-7]|GPIO\d+) (?!PWM )(.+)$")]
     private static partial Regex PinLine();
 
-    [GeneratedRegex(@"^\[\s*[0-9.]+ ms\] UART\d: (.*)$")]
+    [GeneratedRegex(@"^\[\s*[0-9.]+ ms\] (?:UART\d|USB): (.*)$")]
     private static partial Regex SerialLine();
 }
 
@@ -265,27 +281,32 @@ public static partial class Simulation
         {
             ["pfs154"] = Pfs154.Load,
             ["stm8s103"] = Stm8s103.Load,
+            ["esp32c5"] = Esp32c5Chip.Load,
         };
 
     /// <summary>What the command line takes, and what it prints.</summary>
     public const string Usage = """
-        Usage: chipsim <pfs154|stm8s103> <image.ihx> [--ms <simulated milliseconds, default 1000>]
-                                                     [--uart1 <file to write UART1's bytes to>]
+        Usage: chipsim <pfs154|stm8s103|esp32c5> <image> [--ms <simulated milliseconds, default 1000>]
+                                                     [--uart0|--uart1|--usb <file to write that port's bytes to>]
                                                      [--input <pin>=<high|low>[@<simulated milliseconds>ms]]...
-                                                     [--send <text>[@<simulated milliseconds>ms]]...
+                                                     [--send [<port>=]<text>[@<simulated milliseconds>ms]]...
                                                      [--i2c 0:<address>=<device>]... [--spi 0=<device>[@<pin>]]...
                                                      [--adc <pin>=<volts>V|<reading>[@<simulated milliseconds>ms]]...
 
-        Runs an Intel HEX image (as SDCC writes it: sdcc -mpdk14, sdcc -mstm8) on a simulated Padauk PFS154 or STM8S103
-        and prints what the program does, each with the simulated time.
+        Runs an image on a simulated chip and prints what the program does, each with the simulated time: an Intel HEX
+        image (as SDCC writes it: sdcc -mpdk14, sdcc -mstm8) on a Padauk PFS154 or an STM8S103, an ELF file (as ld.lld
+        writes it for riscv32) or an ESP image on an Espressif ESP32-C5, started as its ROM's loader leaves it (its pins
+        GPIO0-GPIO28; UART0, the default serial port, and USB, the USB Serial/JTAG console).
 
         --input drives a pin from outside, as a button or another chip would, e.g. --input PA3=high, or
         --input PA3=low@100ms (the pin changes then, and the change is printed). Give a pin several times to change it
         several times. A pin no --input drives reads high when the program turns its pull-up on, else low.
 
-        --send sends text to UART1's RX (the STM8S103's PD6), byte after byte at the port's speed (10 bits a byte), from
-        that time (or the start), e.g. --send "on\n@100ms": its UTF-8 bytes, \r, \n, \t, \\ and \xHH standing for those
-        bytes. Sends follow each other. A byte that arrives while the receiver is off is lost, as on the chip.
+        --send sends text to a serial port's RX (the STM8S103's UART1 on PD6, the ESP32-C5's UART0, or USB=... its USB
+        Serial/JTAG port), byte after byte at the port's speed (10 bits a byte), from that time (or the start), e.g.
+        --send "on\n@100ms" or --send "USB=on\n": its UTF-8 bytes, \r, \n, \t, \\ and \xHH standing for those bytes.
+        Sends to a port follow each other. A byte that arrives while a UART's receiver is off, or its FIFO full, is lost,
+        as on the chip; the USB host holds its bytes until the chip has room.
 
         --i2c and --spi put the Pico and Uno simulators' devices (tools/rp2040-sim/devices, in C#) on the STM8S103's
         buses, I2C0 (PB5, PB4) and SPI0 (PC5, PC6, PC7): --i2c 0:0x27=lcd1602 a 16x2 LCD on a PCF8574 backpack at 0x27
@@ -301,7 +322,9 @@ public static partial class Simulation
 
             [    0.123 ms] PA3 high                  a pin changed: low or high when driven, else input or input pull-up
             [    0.200 ms] UART1 baud 9600           the program set UART1's speed
-            [    1.234 ms] UART1: Hello              a line written to UART1 (without its line ending)
+            [    1.234 ms] UART1: Hello              a line written to UART1 (without its line ending); USB: the same
+                                                     for the ESP32-C5's USB Serial/JTAG port
+            [    0.050 ms] CPU clock 240 MHz         the program changed the CPU's clock (the ESP32-C5)
             [  100.000 ms] input: PA3 low            an --input with a time changed the pin from outside
             [  100.000 ms] input: UART1 "on\n"       a --send starts sending
             [   10.000 ms] input: PD3 1.650 V (512)  an --adc with a time changed an analog input
@@ -320,9 +343,12 @@ public static partial class Simulation
             [ 1000.000 ms] stopped: <why>            the last line
 
         The run stops after the simulated time, or earlier: when the program has finished (it sleeps with nothing left
-        to wake it: stopsys or stopexe on the PFS154, halt or wfi on the STM8S103), or went wrong (the PFS154's reset
-        instruction or its watchdog, the STM8S103's break or its IWDG, an instruction or an address the chip does not
-        have, memory the image does not fill, an interrupt with no handler, a pop past the top of the stack).
+        to wake it: stopsys or stopexe on the PFS154, halt or wfi on the STM8S103, wfi on the ESP32-C5 with no interrupt
+        enabled above the threshold to come), or went wrong (the PFS154's reset instruction or its watchdog, the
+        STM8S103's break or its IWDG, the ESP32-C5's ebreak, an exception without a trap handler, a ROM function the
+        simulator does not have or a watchdog's reset (the ROM leaves MWDT0, RWDT and the super watchdog running), an
+        instruction or an address the chip does not have, memory the image does not fill, an interrupt with no handler,
+        a pop past the top of the stack).
 
         Exit code: 0 when the program ran (to its end or for the whole time), 1 when the image is not valid, 2 for wrong
         arguments, 3 when the program went wrong.
@@ -350,9 +376,18 @@ public static partial class Simulation
         }
 
         var pins = options.Inputs.Select(input => (input, Pin(chip, input.Pin))).ToList();
-        if ((options.Sends.Count > 0 || options.SerialFile is not null) && chip.SerialInput is null)
+        if ((options.Sends.Count > 0 || options.SerialFiles.Count > 0) && chip.SerialInputs.Count == 0)
         {
             throw new UsageException($"the {chip.Name} has no UART for --send or --uart1.");
+        }
+
+        var ports = chip.SerialInputs.ToDictionary(input => input.Name, StringComparer.OrdinalIgnoreCase);
+        foreach (var port in options.Sends.Select(send => send.Port).OfType<string>().Concat(options.SerialFiles.Keys))
+        {
+            if (!ports.ContainsKey(port))
+            {
+                throw new UsageException($"the {chip.Name} has no {port}; its serial ports: {string.Join(", ", ports.Keys)}.");
+            }
         }
 
         chip.Log = Log;
@@ -376,9 +411,9 @@ public static partial class Simulation
             }, external: true);
         }
 
-        if (options.Sends.Count > 0 && chip.SerialInput is { } serial)
+        foreach (var group in options.Sends.GroupBy(send => send.Port ?? chip.SerialInputs[0].Name, StringComparer.OrdinalIgnoreCase))
         {
-            ScheduleSends(chip, serial, options.Sends);
+            ScheduleSends(chip, ports[group.Key], [.. group]);
         }
 
         DeviceCatalog.Attach(chip, options.Devices, options.Analog, name => Pin(chip, name));
@@ -388,11 +423,16 @@ public static partial class Simulation
             bus.Finish();
         }
 
-        chip.SerialOutput?.Finish();
-        var sent = chip.SerialOutput?.Bytes.ToArray() ?? [];
-        if (options.SerialFile is not null)
+        foreach (var output in chip.SerialOutputs)
         {
-            File.WriteAllBytes(options.SerialFile, sent);
+            output.Finish();
+        }
+
+        var sent = chip.SerialOutputs.ToDictionary(output => output.Name, output => output.Bytes.ToArray(),
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var (port, file) in options.SerialFiles)
+        {
+            File.WriteAllBytes(file, sent[port]);
         }
 
         chip.Print($"stopped: {chip.StopReason ?? string.Create(CultureInfo.InvariantCulture, $"{options.Milliseconds} ms of simulated time have passed")}");
@@ -434,15 +474,13 @@ public static partial class Simulation
 
     private static (GpioPort Port, int Bit) Pin(SimulatedChip chip, string name)
     {
-        var port = chip.Port(name[1]);
-        var bit = name[2] - '0';
-        if (port is null || (port.Pins & (1 << bit)) == 0)
+        if (chip.FindPin(name) is { } pin)
         {
-            var all = chip.Ports.SelectMany(p => Enumerable.Range(0, 8).Where(b => (p.Pins & (1 << b)) != 0).Select(p.PinName));
-            throw new UsageException($"the {chip.Name} has no pin {name}; it has {string.Join(", ", all)}.");
+            return pin;
         }
 
-        return (port, bit);
+        var all = chip.Ports.SelectMany(p => Enumerable.Range(0, 8).Where(b => (p.Pins & (1 << b)) != 0).Select(p.PinName));
+        throw new UsageException($"the {chip.Name} has no pin {name}; it has {string.Join(", ", all)}.");
     }
 
     /// <summary>One send after the other, in the order given, each from its time (or once the one before is done).</summary>

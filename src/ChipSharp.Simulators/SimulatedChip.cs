@@ -54,6 +54,12 @@ public abstract class SimulatedChip
     /// <summary>What the chip's serial port has written, or null when it has none.</summary>
     public virtual SerialMonitor? SerialOutput => null;
 
+    /// <summary>Every serial port --send can send to (by its name: --send UART0=...), the default one (<see cref="SerialInput"/>) first.</summary>
+    public virtual IReadOnlyList<ISerialInput> SerialInputs => SerialInput is { } input ? [input] : [];
+
+    /// <summary>What every serial port has written, the default one (<see cref="SerialOutput"/>) first.</summary>
+    public virtual IReadOnlyList<SerialMonitor> SerialOutputs => SerialOutput is { } output ? [output] : [];
+
     /// <summary>How many bytes of program memory the image filled.</summary>
     public abstract int ImageBytes { get; }
 
@@ -146,6 +152,19 @@ public abstract class SimulatedChip
 
     /// <summary>The port named <paramref name="letter"/> ('A', 'B', ...), or null.</summary>
     public GpioPort? Port(char letter) => Ports.FirstOrDefault(port => port.Letter == char.ToUpperInvariant(letter));
+
+    /// <summary>The pin named <paramref name="name"/> ("PA3"; "GPIO11" on a chip that numbers its pins), or null.</summary>
+    public virtual (GpioPort Port, int Bit)? FindPin(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        if (name.Length != 3 || char.ToUpperInvariant(name[0]) != 'P' || Port(name[1]) is not { } port || name[2] is < '0' or > '7')
+        {
+            return null;
+        }
+
+        var bit = name[2] - '0';
+        return (port.Pins & (1 << bit)) != 0 ? (port, bit) : null;
+    }
 
     /// <summary>Stops the run: the program has finished.</summary>
     protected void Finish(string why) => StopReason ??= why;

@@ -24,12 +24,16 @@ public sealed class GpioPort
     private readonly PinState[] _states = new PinState[8];
     private readonly PwmMeter?[] _meters = new PwmMeter?[8];
 
-    /// <summary>A port named <paramref name="letter"/>, with the pins of <paramref name="pins"/> (a bit each).</summary>
-    public GpioPort(SimulatedChip chip, char letter, byte pins)
+    /// <summary>
+    /// A port named <paramref name="letter"/>, with the pins of <paramref name="pins"/> (a bit each); on a chip that
+    /// numbers its pins instead (GPIO0, GPIO1, ...), <paramref name="firstGpio"/> is the number of the port's bit 0.
+    /// </summary>
+    public GpioPort(SimulatedChip chip, char letter, byte pins, int? firstGpio = null)
     {
         _chip = chip;
         Letter = letter;
         Pins = pins;
+        FirstGpio = firstGpio;
     }
 
     /// <summary>The port's letter: 'A' for PA0-PA7.</summary>
@@ -68,8 +72,13 @@ public sealed class GpioPort
     /// <summary>Called when a pin's level changes (the bit, whether it is high now), after the change is printed.</summary>
     public Action<int, bool>? LevelChanged { get; set; }
 
-    /// <summary>A pin's name: "PA3".</summary>
-    public string PinName(int bit) => $"P{Letter}{bit.ToString(CultureInfo.InvariantCulture)}";
+    /// <summary>The GPIO number of bit 0, on a chip that numbers its pins; null on one that names them by port (PA3).</summary>
+    public int? FirstGpio { get; }
+
+    /// <summary>A pin's name: "PA3", or "GPIO11" on a chip that numbers its pins.</summary>
+    public string PinName(int bit) => FirstGpio is { } first
+        ? $"GPIO{(first + bit).ToString(CultureInfo.InvariantCulture)}"
+        : $"P{Letter}{bit.ToString(CultureInfo.InvariantCulture)}";
 
     /// <summary>What a pin does now.</summary>
     public PinState State(int bit) => _states[bit];
