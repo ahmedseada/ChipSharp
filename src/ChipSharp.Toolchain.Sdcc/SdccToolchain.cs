@@ -52,6 +52,9 @@ public sealed partial class SdccToolchain : IToolchain
     /// </summary>
     public const string ConstantPropagationCrash = "SDCCgenconstprop.cc";
 
+    /// <summary>How long the compile again without constant propagation may take.</summary>
+    private static readonly TimeSpan RetryTime = TimeSpan.FromMinutes(2);
+
     private readonly SdccTools _tools;
     private readonly ObjectCache? _cache;
 
@@ -279,8 +282,12 @@ public sealed partial class SdccToolchain : IToolchain
                     catch (ChipSharpException e) when (isC && e.Message.Contains(ConstantPropagationCrash, StringComparison.Ordinal))
                     {
                         // SDCC 4.6's generalized constant propagation crashes on some functions ("FATAL Compiler Internal
-                        // Error in file '.../src/SDCCgenconstprop.cc' line number '1402'"): the file again without it
-                        await RunAsync(tool, [.. arguments, "--nogenconstprop"], folder).ConfigureAwait(false);
+                        // Error in file '.../src/SDCCgenconstprop.cc' line number '1402'"): the file again without it,
+                        // which for some files takes SDCC for ever: then the crash is the error
+                        if (!await RunAsync(tool, [.. arguments, "--nogenconstprop"], folder, RetryTime).ConfigureAwait(false))
+                        {
+                            throw;
+                        }
                     }
                 }
                 finally
@@ -342,7 +349,14 @@ public sealed partial class SdccToolchain : IToolchain
     /// Runs a tool of SDCC's in <paramref name="folder"/>, with SDCC's folder first on the PATH; a failure reports the
     /// command and the tool's output.
     /// </summary>
-    private static async Task RunAsync(string tool, IReadOnlyList<string> arguments, string folder)
+    private static async Task RunAsync(string tool, IReadOnlyList<string> arguments, string folder) =>
+        await RunAsync(tool, arguments, folder, null).ConfigureAwait(false);
+
+    /// <summary>
+    /// Runs a tool as <see cref="RunAsync(string, IReadOnlyList{string}, string)"/> does; false when it ran longer than
+    /// <paramref name="timeout"/>, and was stopped.
+    /// </summary>
+    private static async Task<bool> RunAsync(string tool, IReadOnlyList<string> arguments, string folder, TimeSpan? timeout)
     {
         var start = new ProcessStartInfo(tool)
         {
@@ -376,7 +390,18 @@ public sealed partial class SdccToolchain : IToolchain
 
         var errors = process.StandardError.ReadToEndAsync();
         var output = process.StandardOutput.ReadToEndAsync();
-        await process.WaitForExitAsync().ConfigureAwait(false);
+        using var limit = timeout is { } time ? new CancellationTokenSource(time) : new CancellationTokenSource();
+        try
+        {
+            await process.WaitForExitAsync(limit.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync().ConfigureAwait(false);
+            return false;
+        }
+
         var messages = (await output.ConfigureAwait(false) + await errors.ConfigureAwait(false)).Trim();
 
         if (process.ExitCode != 0)
@@ -385,6 +410,8 @@ public sealed partial class SdccToolchain : IToolchain
                 $"{toolName} failed (exit code {process.ExitCode}) in '{folder}':\n" +
                 $"  {CommandLine(tool, arguments)}\n{messages}");
         }
+
+        return true;
     }
 
     private static string CommandLine(string tool, IEnumerable<string> arguments) =>

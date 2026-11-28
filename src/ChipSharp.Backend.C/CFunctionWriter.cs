@@ -9,7 +9,8 @@ namespace ChipSharp.Backend.C;
 /// Writes one defined function as C. Parameters are <c>p_name</c>, slots <c>s_name</c> (locals declared first, each
 /// starting at zero), temporaries <c>tN</c>, numbered as <see cref="TirPrinter"/> numbers them (<c>t3</c> is the TIR's
 /// <c>%3</c>), each declared where it is made, with its type, in the block (a C compound statement) that makes it.
-/// Blocks follow one another in reverse postorder (see <see cref="ReversePostorder"/>: a loop starts with its test); a jump or branch to a block other than the next is a <c>goto</c> to its
+/// Blocks follow one another in TIR's order, or in reverse postorder (<see cref="LoopsTestFirst"/>: a loop starts with
+/// its test); a jump or branch to a block other than the next is a <c>goto</c> to its
 /// label (its TIR name), one to the next falls through.
 /// <para>
 /// <b>Arithmetic</b> is C#'s whatever the compiler's int: integers are unsigned, so add, sub and mul wrap around, and
@@ -64,7 +65,7 @@ internal sealed class CFunctionWriter
     /// <summary>How many written instructions use each instruction's value.</summary>
     private readonly Dictionary<TirInstruction, int> _uses = [];
 
-    /// <summary>The blocks the function reaches (see <see cref="CLiveness.Blocks"/>), in the order they are written (<see cref="ReversePostorder"/>).</summary>
+    /// <summary>The blocks the function reaches (see <see cref="CLiveness.Blocks"/>), in the order they are written.</summary>
     private List<TirBlock> _blocks = [];
     private List<string> _lines = [];
     private bool _declares;
@@ -106,6 +107,12 @@ internal sealed class CFunctionWriter
     /// through an address calls one.
     /// </summary>
     public bool StructReturnPointer { get; init; }
+
+    /// <summary>
+    /// Whether the blocks are written in reverse postorder, each loop starting with its test ("c.loops": "testFirst",
+    /// see <see cref="ReversePostorder"/>); else in TIR's order.
+    /// </summary>
+    public bool LoopsTestFirst { get; init; }
 
     /// <summary>The stores a call wrote its result to itself, through the pointer: they are not written again.</summary>
     private readonly HashSet<TirInstruction> _done = [];
@@ -171,7 +178,7 @@ internal sealed class CFunctionWriter
             _uses[instruction] = count;
         }
 
-        _blocks = ReversePostorder(liveness.Blocks);
+        _blocks = LoopsTestFirst ? ReversePostorder(liveness.Blocks) : [.. _function.Blocks.Where(liveness.Blocks.Contains)];
 
         var gotos = Gotos();
         foreach (var block in _blocks.Where(gotos.Contains))

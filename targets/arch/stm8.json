@@ -44,7 +44,10 @@
     "largeFrame": 255,
     // SDCC gets the address of a struct parameter wrong in a function that returns a struct (it forgets the hidden
     // pointer it passes the result's place in): a function gives a struct it returns through a pointer of its own
-    "structReturn": "pointer"
+    "structReturn": "pointer",
+    // SDCC gives a value a loop entered by a jump down to its test (IL's layout) still needs the stack place of one the
+    // loop sets (nested loops counted forever): the blocks in reverse postorder, each loop starting with its test
+    "loops": "testFirst"
   },
   "sdcc": {
     "port": "stm8",               // sdcc -mstm8; its assembler is sdasstm8, its linker sdldstm8
