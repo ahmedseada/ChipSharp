@@ -20,6 +20,7 @@
 //   chipsharp_before_halt     what the program's stop does first: no pin's change wakes the chip any more (PADIER,
 //                             PBDIER off), so that stopsys stops it for good
 
+#include "chipsharp_hardware.h"
 #include "pfs154_runtime.h"
 
 unsigned char __sdcc_external_startup(void)

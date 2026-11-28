@@ -105,6 +105,9 @@ public sealed class SdccToolchainTests : IDisposable
             SdccToolchain.LinkArguments(pfs, [], objects, "Blink.ihx"));
         Assert.Equal(["-mstm8", "--opt-code-size", "--code-loc", "0x8000", "--out-fmt-ihx", .. objects, "-o", "Blink.ihx"],
             SdccToolchain.LinkArguments(stm, [], objects, "Blink.ihx"));
+        // the library of the runtime's files the program may use nothing of, in the build's folder
+        Assert.Equal(["-mpdk14", "--opt-code-size", "--out-fmt-ihx", .. objects, "-L", ".", "-l", "Blink.lib", "-o", "Blink.ihx"],
+            SdccToolchain.LinkArguments(pfs, [], objects, "Blink.ihx", "Blink.lib"));
     }
 
     [Fact]

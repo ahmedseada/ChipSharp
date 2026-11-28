@@ -49,7 +49,7 @@ public sealed class ChipTheoryDiscoverer(IMessageSink diagnosticMessageSink) : T
         {
             object[] row = [chip.Target];
             var method = OwnCollection.For(testMethod, OwnCollection.Key(row));
-            if (chip.MissingFor(needs) is { } reason)
+            if (chip.MissingFor(testMethod.Method.Name, needs) is { } reason)
             {
                 foreach (var skipped in base.CreateTestCasesForSkippedDataRow(discoveryOptions, method, theoryAttribute, row,
                     reason))

@@ -7,6 +7,7 @@ using ChipSharp.Frontend;
 using ChipSharp.Frontend.Il;
 using ChipSharp.Image.Uf2;
 using ChipSharp.Runtime.Atmega328p;
+using ChipSharp.Runtime.Pfs154;
 using ChipSharp.Runtime.Rp2040;
 using ChipSharp.Targets;
 using ChipSharp.Tests.Avr;
@@ -135,9 +136,16 @@ public sealed partial class HardwareContractTests : IDisposable
             Sections(Targets.Load("pico")));
         Assert.Equal(Sections(Targets.Load("pico")), Sections(Targets.Load("uno")));
 
-        // the SDCC chips, as their files say today: the PFS154 has neither events nor a clock yet, the STM8S103 its
-        // buses, serial port, ADC and PWM; neither has a 64-bit double
-        Assert.Equal(every, Sections(Targets.Load("pfs154-bare")));
+        // the SDCC chips, as their files say today: the PFS154 its events, its clock and PWM, the STM8S103 its buses,
+        // serial port, ADC and PWM; neither has a 64-bit double
+        Assert.Equal(
+            [
+                "Start-up and the program", "Pins", "Delays", "Registers", "The timer event", "The pin event", "The clock",
+                "Time zones", "PWM outputs", "Failure output and the stops",
+            ],
+            Sections(Targets.Load("pfs154-bare")));
+        Assert.DoesNotContain(HardwareContract.For(Targets.Load("pfs154-bare")), f => f.NeedsDouble64);
+        Assert.All(every, section => Assert.Contains(section, Sections(Targets.Load("pfs154-bare"))));
         var stm8 = HardwareContract.For(Targets.Load("stm8s103-board"));
         Assert.Equal(
             [
@@ -153,6 +161,7 @@ public sealed partial class HardwareContractTests : IDisposable
     [Theory]
     [InlineData("pico")]
     [InlineData("uno")]
+    [InlineData("pfs154-bare")]
     public void A_chip_runtime_ships_the_header_and_each_C_file_that_defines_a_function_of_the_contract_includes_it(
         string name)
     {
@@ -197,6 +206,41 @@ public sealed partial class HardwareContractTests : IDisposable
 
         var symbols = ElfFile.Read(elf).Symbols;
         Assert.All(Referenced(uno), name => Assert.True(symbols.ContainsKey(name), $"{name} is not in the program"));
+    }
+
+    [SdccFact]
+    public void The_PFS154s_runtime_defines_every_function_its_target_has()
+    {
+        var target = Targets.Load("pfs154-bare");
+        var names = Referenced(target);
+
+        // all of them take more than its 2K words of program memory: half a program
+        List<List<string>> halves = [[.. names.Take(names.Count / 2)], [.. names.Skip(names.Count / 2)]];
+        for (var i = 0; i < halves.Count; i++)
+        {
+            var folder = Path.Combine(_scratch, $"pfs154-{i}");
+            // the events' handlers, which the runtime's files of the events call
+            var program = new StringBuilder()
+                .Append("#include \"").Append(HardwareContract.HeaderFileName).Append("\"\n\n")
+                .Append(string.Concat(Interrupts.ForTarget(target).Values.Select(e => $"void {e.Symbol}(void)\n{{\n}}\n\n")))
+                .Append("chipsharp_i32 chipsharp_entry(void)\n{\n    return 0;\n}\n")
+                .ToString();
+            // and a goto to each function (SDCC's pdk14 port takes no table of their addresses in C), never run
+            var references = new StringBuilder("    .module contract_references\n    .area CODE\n_contract_references::\n")
+                .Append(string.Concat(halves[i].Select(name => $"    goto _{name}\n")))
+                .ToString();
+
+            new SdccToolchain(new SdccToolchainOptions { OutputFolder = folder, ProgramName = "Contract", UseCache = false })
+                .Build(new GeneratedCode(
+                [
+                    .. RuntimeFiles(target), new GeneratedFile("contract.c", program),
+                    new GeneratedFile("contract_references.s", references),
+                ]), target);
+
+            // the linker fails a program whose symbol nothing defines; and each is in the program
+            var map = File.ReadAllText(Path.Combine(folder, "Contract.map"));
+            Assert.All(halves[i], name => Assert.Contains("_" + name[..Math.Min(name.Length, 31)], map));
+        }
     }
 
     [SdccFact]
@@ -337,6 +381,7 @@ public sealed partial class HardwareContractTests : IDisposable
         {
             "rp2040" => (IArchRuntime)new Rp2040Runtime(),
             "atmega328p" => new Atmega328pRuntime(),
+            "pfs154" => new Pfs154Runtime(),
             _ => throw new InvalidOperationException(target.Runtime),
         };
         return [.. runtime.Startup(target).Files, .. runtime.InterruptEntry(target).Files, .. runtime.Atomics(target).Files];
