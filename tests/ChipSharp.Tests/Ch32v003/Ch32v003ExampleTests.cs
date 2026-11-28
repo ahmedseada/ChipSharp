@@ -5,6 +5,7 @@ using ChipSharp.Simulators;
 using ChipSharp.Tests.Pico;
 using ChipSharp.Tests.Support;
 using Xunit.Abstractions;
+using PinChange = ChipSharp.Simulators.PinChange;
 
 namespace ChipSharp.Tests.Ch32v003;
 
@@ -13,10 +14,17 @@ namespace ChipSharp.Tests.Ch32v003;
 /// (dotnet build of the project, then <c>chipsharp build -t ch32v003-evt</c> of its .dll) and run in chipsim's ch32v003
 /// with what their circuit gives them (a button pressed, commands typed): each pin's timeline, what each sends over
 /// USART1, and what each takes of the chip's 16 KB and 2 KB, in the test's output and its messages. They use the
-/// portable API alone (Pin, Timing, [Interrupt], Console, Clock, Stopwatch): no Registers, nothing of the CH32V003's own.
+/// portable API alone (Pin, Timing, [Interrupt], Console, Clock, Stopwatch and ChipSharp.Components' SevenSegment): no
+/// Registers, nothing of the CH32V003's own.
 /// </summary>
 public sealed partial class Ch32v003ExampleTests(ITestOutputHelper output) : IDisposable
 {
+    /// <summary>The segments each digit lights, bit 0 = A.</summary>
+    private static readonly byte[] Digits = [0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07, 0x7F, 0x6F];
+
+    /// <summary>The traffic light's display: the pins of its segments A to G (the STM8's: the two chips share a pinout).</summary>
+    private static readonly string[] Segments = ["PC3", "PC4", "PC5", "PC6", "PC7", "PD2", "PD3"];
+
     private readonly string _scratch = Path.Combine(Path.GetTempPath(), "chipsharp-tests", Guid.NewGuid().ToString("N"));
 
     public void Dispose()
@@ -122,6 +130,55 @@ public sealed partial class Ch32v003ExampleTests(ITestOutputHelper output) : IDi
         Assert.True(example.Flash <= 6 * 1024 && example.Ram <= 128, $"{example}");
     }
 
+    /// <summary>
+    /// The traffic light, its button pressed at 2.5 s (PD4 to GND, held high by its pull-up), during lane 1's green, for
+    /// 16 s: over USART1 exactly what the Pico's, the Uno's and the STM8's traffic lights print; which light is on and
+    /// what the turn display shows at the times the STM8's test looks; the green the press ends; the heartbeat on PD0
+    /// from the timer event; and what it takes of the chip's 16 KB and 2 KB.
+    /// </summary>
+    [PicoFact]
+    [RunsLong]
+    public async Task The_traffic_light_prints_what_the_other_chips_print_and_its_lights_display_button_and_heartbeat_work()
+    {
+        var example = await BuildAsync("ch32v003-traffic-light");
+
+        var run = Run(example, 16_000, "--input", "PD4=low@2500ms", "--input", "PD4=high@2700ms");
+        var pins = run.Pins;
+
+        Assert.Equal(TrafficLightExampleTests.Expected, Encoding.ASCII.GetString(run.SerialOf("USART1")));
+        Assert.Equal(["USART1 baud 115108"], run.After("USART1 baud"));
+
+        // which light is on (red PC0, yellow PC1, green PC2) and what the display shows: the STM8's turn, its seconds
+        // counted with 10 ms delays, a few ms later each second
+        (double At, string Light, int Turn)[] expected =
+        [
+            (500, "PC2", 8), (2400, "PC2", 6), (2600, "PC1", 4), (4000, "PC0", 3), (6000, "PC0", 1),
+            (7000, "PC2", 8), (11000, "PC1", 4), (13000, "PC0", 2), (15000, "PC2", 8),
+        ];
+        foreach (var (at, light, turn) in expected)
+        {
+            var on = string.Join(' ', new[] { "PC0", "PC1", "PC2" }.Where(pin => IsHigh(pins, pin, at)));
+            Assert.Equal((at, light, turn), (at, on, Shown(pins, at)));
+        }
+
+        // the press ends the green within one 10 ms wait; each second a few ms long
+        var greenOff = pins.First(p => p.Pin == "PC2" && p.State == "low" && p.Milliseconds > 1000).Milliseconds;
+        Assert.InRange(greenOff, 2500, 2512);
+        var greenAgain = pins.First(p => p.Pin == "PC2" && p.State == "high" && p.Milliseconds > 3000).Milliseconds;
+        Assert.InRange(greenAgain, 6500, 6560);
+
+        // the button's pin with its pull-up on (Pull.Up: no resistor); PD0 changes every 500 ms
+        Assert.Contains(pins, p => p.Pin == "PD4" && p.State == "input pull-up");
+        var heartbeat = pins.Where(p => p.Pin == "PD0").Skip(1).ToList();
+        Assert.InRange(heartbeat.Count, 30, 32);
+        for (var i = 1; i < heartbeat.Count; i++)
+        {
+            Assert.InRange(heartbeat[i].Milliseconds - heartbeat[i - 1].Milliseconds, 499.95, 500.05);
+        }
+
+        Assert.True(example.Flash <= 8 * 1024 && example.Ram <= 128, $"{example}");
+    }
+
     /// <summary>The clock from Clock.Start: a line a second, the seconds counting, each as the second changes.</summary>
     [PicoFact]
     [RunsLong]
@@ -141,7 +198,11 @@ public sealed partial class Ch32v003ExampleTests(ITestOutputHelper output) : IDi
     [Fact]
     public void There_are_examples_for_the_CH32V003_board_each_with_a_README_and_the_portable_API_alone()
     {
-        Assert.Equal(["ch32v003-blink", "ch32v003-button", "ch32v003-clock", "ch32v003-serial", "ch32v003-timer-blink"],
+        Assert.Equal(
+            [
+                "ch32v003-blink", "ch32v003-button", "ch32v003-clock", "ch32v003-serial", "ch32v003-timer-blink",
+                "ch32v003-traffic-light",
+            ],
             Examples());
         foreach (var example in Examples())
         {
@@ -205,6 +266,16 @@ public sealed partial class Ch32v003ExampleTests(ITestOutputHelper output) : IDi
         Assert.True(run.Stopped.EndsWith(" ms of simulated time have passed", StringComparison.Ordinal),
             $"{example}\n{run}");
         return run;
+    }
+
+    private static bool IsHigh(IReadOnlyList<PinChange> pins, string pin, double at) =>
+        pins.LastOrDefault(p => p.Pin == pin && p.Milliseconds <= at && p.State is "low" or "high")?.State == "high";
+
+    /// <summary>The digit the traffic light's display shows at <paramref name="at"/> ms, or -1.</summary>
+    private static int Shown(IReadOnlyList<PinChange> pins, double at)
+    {
+        var segments = Enumerable.Range(0, 7).Select(i => IsHigh(pins, Segments[i], at) ? 1 << i : 0).Sum();
+        return Array.IndexOf(Digits, (byte)segments);
     }
 
     private static string[] Examples() =>
