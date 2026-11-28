@@ -137,6 +137,35 @@ internal sealed class Pfs154ChipSimulator() : SdccChipSimulator("pfs154-bare", "
 
     public override ChipPins Pins { get; } = new(Output: 4, Second: 3, Pass: 9, Fail: 10, Input: 0) { Pwm = 13 };
 
+    /// <summary>
+    /// The shipped target files with the PDK14's RAM for the stack ("link.stack") at 16 bytes, not the 48 that a timer event
+    /// arriving while a pin is written takes: the cases are shallow, and some (a failure's) have 100 bytes of variables.
+    /// </summary>
+    protected override string TargetsFolderFor(string folder)
+    {
+        var targets = Path.Combine(folder, "targets");
+        if (!Directory.Exists(targets))
+        {
+            foreach (var file in Directory.GetFiles(base.TargetsFolderFor(folder), "*", SearchOption.AllDirectories))
+            {
+                var copy = Path.Combine(targets, Path.GetRelativePath(base.TargetsFolderFor(folder), file));
+                Directory.CreateDirectory(Path.GetDirectoryName(copy)!);
+                File.Copy(file, copy);
+            }
+
+            var pdk14 = Path.Combine(targets, "arch", "pdk14.json");
+            var text = File.ReadAllText(pdk14);
+            if (!text.Contains("\"stack\": \"48\"", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException("pdk14.json has no \"stack\": \"48\" to lower");
+            }
+
+            File.WriteAllText(pdk14, text.Replace("\"stack\": \"48\"", "\"stack\": \"16\"", StringComparison.Ordinal));
+        }
+
+        return targets;
+    }
+
     // 2 MHz, an instruction a cycle (mostly), and 32-bit arithmetic in software: a delay's loop and an event's entry
     // take tens of microseconds
     public override ChipTolerances Tolerances { get; } = new(DelaySlackMilliseconds: 0.300, LatencyMilliseconds: 0.150,

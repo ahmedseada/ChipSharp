@@ -118,7 +118,7 @@ public sealed partial class SdccToolchain : IToolchain
             Run(sdcc, arguments, folder);
         }
         catch (ChipSharpException e) when (File.Exists(map)
-            && SdccMemoryOverflow.Message(SdccMap.Read(map).Use(settings), name, target) is { } message)
+            && Overflow(map, settings, name, target) is { } message)
         {
             // sdldpdk fails a program too big for its port's largest chip; the target's own sizes say more
             throw new ChipSharpException(message, e);
@@ -134,12 +134,19 @@ public sealed partial class SdccToolchain : IToolchain
                 $"  {CommandLine(sdcc, arguments)}");
         }
 
-        if (SdccMemoryOverflow.Message(SdccMap.Read(map).Use(settings), name, target) is { } overflow)
+        if (Overflow(map, settings, name, target) is { } overflow)
         {
             throw new ChipSharpException(overflow);
         }
 
         return new LinkedBinary(path);
+    }
+
+    /// <summary>The program's overflow of the target's memory, from its map, with the biggest functions; null when it fits.</summary>
+    private static string? Overflow(string map, SdccSettings settings, string name, TargetDescription target)
+    {
+        var read = SdccMap.Read(map);
+        return SdccMemoryOverflow.Message(read.Use(settings), name, target, read.Functions);
     }
 
     /// <summary>What every sdcc run gets, compiling and linking: -m&lt;port&gt;, the target's flags, then the extra ones.</summary>

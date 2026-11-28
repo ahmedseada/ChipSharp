@@ -15,9 +15,13 @@ internal sealed record BackendTarget(string Name, string Backend, string? Chip)
 
     /// <summary>
     /// The shipped target; a chip's with a console, which the tests' startup has (<see cref="ChipConsole"/>) and its
-    /// runtime is to have.
+    /// runtime is to have. The PFS154 keeps 16 of its 128 bytes of RAM for the stack, not the 48 the target reserves for a
+    /// timer event that arrives while a pin is written: the programs are shallow, and the tests' own startup and console
+    /// take RAM.
     /// </summary>
-    public TargetDescription Load() => Chip is null ? Shipped.Load(Name) : CSdcc.With(Shipped.Load(Name), "console", "true");
+    public TargetDescription Load() => Chip is null ? Shipped.Load(Name) : Chip == "pfs154"
+        ? CSdcc.WithStack(CSdcc.With(Shipped.Load(Name), "console", "true"), "16")
+        : CSdcc.With(Shipped.Load(Name), "console", "true");
 
     public override string ToString() => Name;
 }
