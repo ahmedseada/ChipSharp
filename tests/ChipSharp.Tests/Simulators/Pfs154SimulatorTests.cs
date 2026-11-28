@@ -1,4 +1,5 @@
 using ChipSharp.Simulators;
+using ChipSharp.Simulators.Pdk14;
 using ChipSharp.Tests.Sdcc;
 
 namespace ChipSharp.Tests.Simulators;
@@ -221,6 +222,7 @@ public sealed class Pfs154SimulatorTests : IDisposable
               report();
               out = strlen(text); report();
               out = text[2]; report();
+              out = ((uint8_t (*)(void))0x07ed)(); report(); /* the factory's IHRC trim: a ret k at word 0x7ed */
               __asm__("stopsys");
             }
             """, _scratch);
@@ -232,6 +234,6 @@ public sealed class Pfs154SimulatorTests : IDisposable
         ulong[] classes = [10, 20, 30, 45, 50, 61, 77, 99, 99];
         var operations = Enumerable.Range(0, 8).Select(i => (ulong)(i % 2 == 1 ? i + 3 : i * 2));
         var weighted = (ulong)Enumerable.Range(0, 8).Sum(i => (i * i + i) * (8 - i));
-        Assert.Equal([.. fib, .. classes, .. operations, weighted, 6, 'd'], values);
+        Assert.Equal([.. fib, .. classes, .. operations, weighted, 6, 'd', Pfs154.FactoryTrim], values);
     }
 }

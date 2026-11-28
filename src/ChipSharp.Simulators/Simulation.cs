@@ -280,8 +280,8 @@ public static partial class Simulation
 
         The run stops after the simulated time, or earlier: when the program has finished (it sleeps with nothing left
         to wake it: stopsys or stopexe on the PFS154, halt or wfi on the STM8S103), or went wrong (the PFS154's reset
-        instruction or its watchdog, the STM8S103's break, an instruction or an address the chip does not have, flash
-        the image does not fill).
+        instruction or its watchdog, the STM8S103's break or its IWDG, an instruction or an address the chip does not
+        have, memory the image does not fill, an interrupt with no handler, a pop past the top of the stack).
 
         Exit code: 0 when the program ran (to its end or for the whole time), 1 when the image is not valid, 2 for wrong
         arguments, 3 when the program went wrong.

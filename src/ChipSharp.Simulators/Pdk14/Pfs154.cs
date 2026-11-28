@@ -10,7 +10,8 @@ namespace ChipSharp.Simulators.Pdk14;
 /// <para>
 /// The image is SDCC's Intel HEX (sdcc -mpdk14): byte address 2w holds the low byte of the word at word address w, 2w + 1
 /// its high byte (6 bits). What it does not fill reads 0x3FFF, as blank program memory, and running into it stops the
-/// run as a failure. The CPU starts at word 0 with interrupts off.
+/// run as a failure, but the factory's trim values: words 0x7ED (IHRCR) and 0x7EE (BGTR) are <c>ret k</c> instructions
+/// (of <see cref="FactoryTrim"/>), which a program calls to read them. The CPU starts at word 0 with interrupts off.
 /// </para>
 /// <para>
 /// Clocks: the IHRC is exactly 16 MHz (IHRCR, its calibration, changes nothing) and the ILRC 16 MHz / 291 (54.98 kHz;
@@ -34,8 +35,9 @@ namespace ChipSharp.Simulators.Pdk14;
 /// wdreset: the chip resets, and the run stops there as a failure. So does the instruction reset, which a runtime runs on
 /// a fatal error (the PDK14 has no breakpoint). stopsys stops the clocks until a pin changes, stopexe the CPU until an
 /// interrupt request (whose INTEN bit is on) or a pin change; when nothing is left that could wake it (no input to come,
-/// no timer whose interrupt is enabled), the program has finished. PADIER and PBDIER are kept but change nothing: every
-/// pin reads its level and every pin change wakes the chip. The comparator, PWMG, RFC and LCD driver are registers only.
+/// no timer whose interrupt is enabled or that drives a pin), the program has finished. PADIER and PBDIER are kept but
+/// change nothing: every pin reads its level, and every input that changes from outside wakes the chip (a pin a timer
+/// drives does not). The comparator, PWMG, RFC and LCD driver are registers only.
 /// </para>
 /// </summary>
 public sealed class Pfs154 : SimulatedChip, IPdk14Io
@@ -51,6 +53,12 @@ public sealed class Pfs154 : SimulatedChip, IPdk14Io
 
     /// <summary>CLKMD after reset: the ILRC is the system clock, IHRC and ILRC on, the watchdog on.</summary>
     public const byte ClkmdAtReset = 0xF6;
+
+    /// <summary>The word addresses of the factory's trim values (IHRCR's, BGTR's), each a <c>ret k</c> of this value.</summary>
+    public const int IhrcTrimWord = 0x7ED, BandgapTrimWord = 0x7EE;
+
+    /// <summary>The value the factory's trim words return: any will do, the simulated IHRC being exactly 16 MHz.</summary>
+    public const byte FactoryTrim = 0x80;
 
     private const int Clkmd = 0x03, Inten = 0x04, Intrq = 0x05, T16m = 0x06, Misc = 0x08, Tm2b = 0x09, Integs = 0x0C,
         Pa = 0x10, Pac = 0x11, Paph = 0x12, Pb = 0x14, Pbc = 0x15, Pbph = 0x16, Tm2s = 0x17, Tm2c = 0x1C, Tm2ct = 0x1D,
@@ -98,6 +106,15 @@ public sealed class Pfs154 : SimulatedChip, IPdk14Io
         {
             rom[word] = (ushort)((image.Bytes[2 * word] | (image.Bytes[2 * word + 1] << 8)) & 0x3FFF);
             _loaded[word] = image.Loaded[2 * word] || image.Loaded[2 * word + 1];
+        }
+
+        foreach (var word in new[] { IhrcTrimWord, BandgapTrimWord })
+        {
+            if (!_loaded[word])
+            {
+                rom[word] = 0x0200 | FactoryTrim; // ret #k
+                _loaded[word] = true;
+            }
         }
 
         _imageBytes = image.Count;

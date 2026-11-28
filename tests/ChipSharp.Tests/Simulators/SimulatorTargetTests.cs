@@ -47,6 +47,10 @@ public sealed class SimulatorTargetTests
         }
 
         Assert.Equal(Pdk14Cpu.InterruptVector, Number(target.Settings["vectorAddresses"]!["interrupt"]!));
+        var reserved = target.Settings["programReserved"]!.AsObject().Select(word => Number(JsonValue.Create(word.Key)!)).ToList();
+        Assert.Contains(Pfs154.IhrcTrimWord, reserved);
+        Assert.Contains(Pfs154.BandgapTrimWord, reserved);
+        Assert.Equal(0x0200 | Pfs154.FactoryTrim, chip.Cpu.Rom[Pfs154.IhrcTrimWord]); // ret k: a program calls it to read the trim
         var pinNames = target.Settings["pinNames"]!.AsArray().Select(name => (string)name!).ToList();
         foreach (var port in chip.Ports)
         {
