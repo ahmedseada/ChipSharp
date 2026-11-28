@@ -3,6 +3,7 @@ using System.Text;
 using ChipSharp.Abstractions;
 using ChipSharp.Build;
 using ChipSharp.Image.Hex;
+using ChipSharp.Tests.Simulators;
 using ChipSharp.Tests.Support;
 using ChipSharp.Toolchain.Sdcc;
 
@@ -43,6 +44,24 @@ public sealed class SdccBuildTests : IDisposable
         Assert.Equal(0UL, hex.Entry);
     }
 
+    [SdccTheory]
+    [InlineData("pfs154-bare")]
+    [InlineData("stm8s103-board")]
+    public void The_maps_functions_are_the_C_symbols_of_the_code_with_the_bytes_up_to_the_next_one(string name)
+    {
+        var target = SdccPrograms.Shipped.Load(name);
+        var binary = SdccPrograms.Build(target, _scratch);
+
+        var map = SdccMap.Read(Path.ChangeExtension(binary.Path, ".map"));
+
+        Assert.Contains(map.Functions, function => function.Name == "main" && function.Area == "CODE");
+        Assert.Contains(map.Functions, function => function.Name == "next_step");
+        Assert.Equal(map.Functions.OrderByDescending(function => function.Size), map.Functions);
+        Assert.DoesNotContain(map.Functions, function => function.Name.StartsWith("s_", StringComparison.Ordinal));
+        // the functions are part of the code: they cannot take more than it does
+        Assert.True(map.Functions.Sum(function => (long)function.Size) <= (long)map.Use(SdccSettings.Read(target)).CodeUsed);
+    }
+
     [SdccFact]
     public void The_PFS154_memory_report_counts_words_of_program_memory_and_bytes_of_RAM_as_SDCCs_map_has_them()
     {
@@ -57,9 +76,9 @@ public sealed class SdccBuildTests : IDisposable
         Assert.Equal(code, IntelHexFile.Read(binary.Path).Blocks.Max(block => block.Address + (ulong)block.Data.Length));
         Assert.Equal(("program", code, 4096UL, 2UL), (report.Code!.Region, report.Code.Used, report.Code.Size, report.Code.WordSize));
         Assert.Equal(("ram", symbols["s_SSEG"], 128UL), (report.Data!.Region, report.Data.Used, report.Data.Size));
-        Assert.Equal(16UL, report.Stack);
+        Assert.Equal(48UL, report.Stack);
         Assert.Equal($"program {code / 2} words of 2048 words ({Percent(code, 4096)}), RAM {symbols["s_SSEG"]} bytes " +
-            "of 128 bytes (stack 16 bytes reserved)", report.Text);
+            "of 128 bytes (stack 48 bytes reserved)", report.Text);
     }
 
     [SdccFact]
@@ -196,8 +215,8 @@ public sealed class SdccBuildTests : IDisposable
             """)));
 
         Assert.Matches(@"^Blink does not fit in target 'stm8s103-board': its code, constants and the starting values of " +
-            @"its variables need 9\.\d KB of flash, 1\.\d KB more than the target's 8 KB\. Make the program smaller, or " +
-            @"build it for a chip with more memory\.$", error.Message);
+            @"its variables need 9\.\d KB of flash, 1\.\d KB more than the target's 8 KB\. (The biggest functions: .*\. )?" +
+            @"Make the program smaller, or build it for a chip with more memory\.$", error.Message);
     }
 
     [SdccFact]
@@ -228,8 +247,8 @@ public sealed class SdccBuildTests : IDisposable
 
         // each constant byte is a word (ret k)
         Assert.Matches(@"^Blink does not fit in target 'pfs154-bare': its code, constants and the starting values of " +
-            @"its variables need 2\d{3} words of program memory, \d+ words more than the target's 2048 words\. Make the " +
-            @"program smaller, or build it for a chip with more memory\.$", error.Message);
+            @"its variables need 2\d{3} words of program memory, \d+ words more than the target's 2048 words\. " +
+            @"(The biggest functions: .*\. )?Make the program smaller, or build it for a chip with more memory\.$", error.Message);
     }
 
     [SdccFact]
@@ -244,7 +263,7 @@ public sealed class SdccBuildTests : IDisposable
 
         // past the 128 bytes the PDK14 has at most, SDCC's linker fails first ("RAM value 137 too large (128B max)")
         Assert.Matches(@"^Blink does not fit in target 'pfs154-bare': its variables \(1\d\d bytes\) and the stack " +
-            @"\(16 bytes, link\.stack\) need 1\d\d bytes of RAM, \d+ bytes more than the target's 128 bytes\. ", error.Message);
+            @"\(48 bytes, link\.stack\) need 1\d\d bytes of RAM, \d+ bytes more than the target's 128 bytes\. ", error.Message);
         Assert.Contains("too large (128B max)", error.InnerException!.Message);
     }
 

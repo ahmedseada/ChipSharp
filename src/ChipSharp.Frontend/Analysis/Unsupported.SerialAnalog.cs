@@ -35,6 +35,12 @@ internal sealed partial record Unsupported
         $"Pwm.Duty takes a double, and the target '{target}' has no 64-bit double (\"double64\": false)",
         "Give the time high instead: Pwm.PulseMicroseconds(pin, microseconds), from the start of each period.");
 
+    /// <summary>The program's own use of double on a target whose C has no 64-bit double (SDCC's chips).</summary>
+    public static Unsupported DoubleWithoutDouble64(string target) => Rule(
+        $"double (C#'s 64-bit floating point) is not available, and the target '{target}' compiles C whose double " +
+        "has 32 bits (\"double64\": false)",
+        "Use float and MathF instead; a program with double would compute with less precision than .NET does.");
+
     /// <summary>A UART the target does not have, given as a constant: "the target 'pico' has no UART2".</summary>
     public static Unsupported NoSuchPort(int port, int ports, string target) => Rule(
         $"the target '{target}' has no UART{port}",

@@ -31,7 +31,26 @@ internal static class CSdcc
     /// <paramref name="target"/> with its capability <paramref name="name"/> set to <paramref name="value"/>, e.g. a
     /// console, so that the samples that print compile for a chip whose runtime has none yet.
     /// </summary>
-    public static TargetDescription With(TargetDescription target, string name, string value) => new()
+    public static TargetDescription With(TargetDescription target, string name, string value) =>
+        Copy(target, target.Settings, new Dictionary<string, string>(target.Capabilities, StringComparer.OrdinalIgnoreCase)
+        {
+            [name] = value,
+        });
+
+    /// <summary>
+    /// <paramref name="target"/> with the RAM its link leaves for the stack ("link.stack") set to <paramref name="bytes"/>:
+    /// the conformance suite's programs are shallow, and the tests' startup and console need RAM of their own.
+    /// </summary>
+    public static TargetDescription WithStack(TargetDescription target, string bytes)
+    {
+        var settings = target.Settings.DeepClone().AsObject();
+        settings["link"] ??= new System.Text.Json.Nodes.JsonObject();
+        settings["link"]!["stack"] = bytes;
+        return Copy(target, settings, new Dictionary<string, string>(target.Capabilities, StringComparer.OrdinalIgnoreCase));
+    }
+
+    private static TargetDescription Copy(TargetDescription target, System.Text.Json.Nodes.JsonObject settings,
+        Dictionary<string, string> capabilities) => new()
     {
         Name = target.Name,
         InheritanceChain = target.InheritanceChain,
@@ -46,12 +65,9 @@ internal static class CSdcc
         Flasher = target.Flasher,
         Memory = target.Memory,
         Pins = target.Pins,
-        Capabilities = new Dictionary<string, string>(target.Capabilities, StringComparer.OrdinalIgnoreCase)
-        {
-            [name] = value,
-        },
+        Capabilities = capabilities,
         HeapSize = target.HeapSize,
-        Settings = target.Settings,
+        Settings = settings,
         MissingValues = target.MissingValues,
     };
 

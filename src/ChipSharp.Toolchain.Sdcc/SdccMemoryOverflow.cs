@@ -12,9 +12,12 @@ internal static class SdccMemoryOverflow
     /// <summary>
     /// "Blink does not fit in target 'pfs154-bare': its code, constants and the starting values of its variables need
     /// 3057 words of program memory, 1009 words more than the target's 2048 words. Make the program smaller, or build
-    /// it for a chip with more memory."; null when it fits.
+    /// it for a chip with more memory."; null when it fits. When the program's code is too big and the map's
+    /// <paramref name="functions"/> are known, the message names the biggest ones ("The biggest functions: Main (812
+    /// words), ...").
     /// </summary>
-    public static string? Message(SdccMemoryUse use, string program, TargetDescription target)
+    public static string? Message(SdccMemoryUse use, string program, TargetDescription target,
+        IReadOnlyList<SdccFunction>? functions = null)
     {
         var needs = new List<string>();
         var (code, data) = (use.Code, use.Data);
@@ -36,9 +39,19 @@ internal static class SdccMemoryOverflow
 
         return needs.Count == 0
             ? null
-            : $"{program} does not fit in target '{target.Name}': {string.Join("; ", needs)}. Make the program " +
-              "smaller, or build it for a chip with more memory.";
+            : $"{program} does not fit in target '{target.Name}': {string.Join("; ", needs)}. " +
+              (use.CodeUsed > code.Region.Size ? Biggest(functions, use.CodeWordSize, use.CodeUsed) : "") +
+              "Make the program smaller, or build it for a chip with more memory.";
     }
+
+    /// <summary>
+    /// "The biggest functions: Program_Main (812 words), Foo (300 words). "; empty without functions, and when they are
+    /// less than half of the code (the constants are what makes the program big, not the functions).
+    /// </summary>
+    private static string Biggest(IReadOnlyList<SdccFunction>? functions, ulong wordSize, ulong codeUsed) =>
+        functions is not { Count: > 0 } || (ulong)functions.Sum(function => (long)function.Size) * 2 < codeUsed ? ""
+        : "The biggest functions: " + string.Join(", ",
+            functions.Take(3).Select(function => $"{function.Name} ({MemorySize.Text(function.Size, wordSize)})")) + ". ";
 
     /// <summary>"RAM", "flash", "program memory".</summary>
     public static string RegionName(string name) =>
