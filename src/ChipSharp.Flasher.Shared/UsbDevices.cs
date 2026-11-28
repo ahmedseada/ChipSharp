@@ -121,10 +121,8 @@ public static partial class UsbDevices
 
             foreach (var (name, driver) in Present(deviceName))
             {
-                devices.Add(new UsbDeviceInfo(ids.Vendor, ids.Product, name, driver)
-                {
-                    InterfaceDrivers = interfaces.TryGetValue(ids, out var drivers) ? drivers : new Dictionary<int, string?>(),
-                });
+                var device = new UsbDeviceInfo(ids.Vendor, ids.Product, name, driver);
+                devices.Add(interfaces.TryGetValue(ids, out var drivers) ? device with { InterfaceDrivers = drivers } : device);
             }
         }
 
