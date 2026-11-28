@@ -26,6 +26,8 @@ internal sealed class Esp32c5Gpio
     private uint _enable;
     private uint _status;
     private uint _levels;
+    private readonly bool[] _driven = new bool[Esp32c5Map.GpioCount];
+    private readonly bool[] _drivenHigh = new bool[Esp32c5Map.GpioCount];
 
     public Esp32c5Gpio(SimulatedChip chip)
     {
@@ -52,6 +54,47 @@ internal sealed class Esp32c5Gpio
     }
 
     public IReadOnlyList<GpioPort> Ports => _ports;
+
+    /// <summary>
+    /// The LEDC, whose channel n's signal (output signal n, 0 to 5) a pin carries when its OUT_SEL selects it and its IO MUX
+    /// function is GPIO (1): the pin is then driven by the channel (and its edges measured as PWM).
+    /// </summary>
+    public Esp32c5Ledc? Ledc { get; set; }
+
+    /// <summary>Whether the input signal <paramref name="signal"/> reads a pin through the matrix (its IN_SEL's SIG_IN_SEL bit).</summary>
+    public bool InputRouted(int signal) => (_other.GetValueOrDefault((uint)(0x2D4 + 4 * signal), 0x60u) & 0x100u) != 0;
+
+    /// <summary>The LEDC channel's signal changed: the pins that carry it follow.</summary>
+    public void SignalChanged(int channel)
+    {
+        for (var n = 0; n < Esp32c5Map.GpioCount; n++)
+        {
+            if (CarriesLedc(n, out var signal) && signal == channel)
+            {
+                DriveFromLedc(n, signal);
+            }
+        }
+
+        Changed?.Invoke();
+    }
+
+    private bool CarriesLedc(int n, out int signal)
+    {
+        signal = (int)(_outSel[n] & 0x1FF);
+        return Ledc is not null && ((_ioMux[n] >> 12) & 7) == 1 && signal < 6;
+    }
+
+    /// <summary>The pin is driven by (or let go of) an LEDC channel's signal, at its level now.</summary>
+    private void DriveFromLedc(int n, int signal)
+    {
+        var high = Ledc!.Level(signal);
+        if (!_driven[n] || _drivenHigh[n] != high)
+        {
+            _driven[n] = true;
+            _drivenHigh[n] = high;
+            _ports[n / 8].DriveFromPeripheral(n % 8, true, high, Ledc.PeriodTicks(signal));
+        }
+    }
 
     /// <summary>Called when GPIO_STATUS or what lets it in may have changed.</summary>
     public Action? Changed { get; set; }
@@ -254,6 +297,20 @@ internal sealed class Esp32c5Gpio
             port.PushPull = pushPull;
             port.PullUp = pullUp;
             port.PullDown = pullDown;
+            for (var bit = 0; bit < 8 && p * 8 + bit < Esp32c5Map.GpioCount; bit++)
+            {
+                var n = p * 8 + bit;
+                if (CarriesLedc(n, out var signal))
+                {
+                    DriveFromLedc(n, signal);
+                }
+                else if (_driven[n])
+                {
+                    _driven[n] = false;
+                    port.DriveFromPeripheral(bit, false, false, 1);
+                }
+            }
+
             port.Update();
         }
 

@@ -330,6 +330,10 @@ public static partial class Simulation
         --adc sets the voltage on an analog input of the STM8S103 (AIN2-AIN6: PC4, PD2, PD3, PD5, PD6; 0 to 3.3 V against
         VDD, 1.65V reads 512 of 1023; or 512, a reading), from the start or from a time on, e.g. --adc PD3=1.65V@10ms.
 
+        On the ESP32-C5 the same options reach I2C0 and SPI0 (GP-SPI2) on whatever pins the program gives them, a latch or
+        chip select as GPIOn (--spi 0=74hc595@GPIO23), and the analog inputs GPIO1-GPIO6 (0 to 3.3 V, 12 bits: 1.65V reads
+        2048); its PWM outputs (the LEDC) are measured on their pins like the STM8S103's and the PFS154's.
+
         Output lines:
 
             [    0.123 ms] PA3 high                  a pin changed: low or high when driven, else input or input pull-up

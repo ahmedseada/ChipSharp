@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using ChipSharp.Abstractions;
 using ChipSharp.Build;
 using ChipSharp.Simulators;
+using ChipSharp.Simulators.Devices;
 using ChipSharp.Tests.Pico;
 
 namespace ChipSharp.Tests.Conformance;
@@ -14,20 +15,12 @@ namespace ChipSharp.Tests.Conformance;
 /// module's flash and PSRAM on 15-22, USB on 13 and 14, the RGB LED on 27); UART0 (GPIO 11 TX, 12 RX) is serial port 0
 /// and the USB Serial/JTAG port, the console, is port 1 here (<see cref="ConsolePort"/>). Its cases are skipped, saying
 /// why, while the chip's runtime does not implement the hardware contract (it does: pins, the clock and the delays, the
-/// console on USB, UART0, the events); chipsim does not simulate its ADC, PWM, I2C and SPI yet (<see cref="Unsimulated"/>),
-/// which the target does not have either.
+/// console on USB, UART0, the events, I2C, SPI, the ADC and PWM). The buses are I2C0 (SDA GPIO4, SCL GPIO5) and SPI0
+/// (SCK GPIO0, MOSI GPIO1, MISO GPIO24), the analog input GPIO3 (ADC1's channel 2, 12 bits against 3.3 V) and the PWM
+/// output GPIO7 (a LEDC channel); chipsim puts the shared devices on the buses and the voltages on the input.
 /// </summary>
 internal sealed partial class Esp32c5ChipSimulator() : ChipSimulator("esp32c5-devkitc")
 {
-    /// <summary>The guards of the hardware chipsim does not simulate on the ESP32-C5 yet, with why.</summary>
-    private static readonly Dictionary<string, string> Unsimulated = new()
-    {
-        ["adc"] = "chipsim does not simulate the ESP32-C5's ADC yet.",
-        ["pwm"] = "chipsim does not simulate the ESP32-C5's LEDC (PWM) yet.",
-        ["i2c"] = "chipsim does not simulate the ESP32-C5's I2C controller yet.",
-        ["spi"] = "chipsim does not simulate the ESP32-C5's SPI controller yet.",
-    };
-
     private string? _missing;
     private bool _checked;
 
@@ -69,20 +62,27 @@ internal sealed partial class Esp32c5ChipSimulator() : ChipSimulator("esp32c5-de
                 "chipsim's esp32c5 once it does.";
     }
 
-    public override string? MissingFor(IReadOnlyList<string> needs) =>
-        needs.Select(need => Unsimulated.GetValueOrDefault(need)).FirstOrDefault(reason => reason is not null) ?? Missing;
-
     /// <summary>The console is the USB Serial/JTAG port: serial port 1 of this adapter (0 is UART0).</summary>
     public override int ConsolePort => 1;
 
     public override ChipPins Pins { get; } = new(Output: 6, Second: 8, Pass: 9, Fail: 10, Input: 23)
     {
         Uart0 = (11, 12),
+        I2c0 = (4, 5),
+        Spi0 = (0, 1, 24),
+        Adc = 3,
+        Pwm = 7,
     };
+
+    // ADC1 in 12 bits, 12 dB attenuation: 4096 counts for 3.3 V
+    public override ChipAdc Adc { get; } = new(4096, 3.3);
 
     // up to 240 MHz, a peripheral access a few cycles more; the delays and the clock on SYSTIMER's 16 MHz count
     public override ChipTolerances Tolerances { get; } = new(DelaySlackMilliseconds: 0.020, LatencyMilliseconds: 0.010,
-        ClockMilliseconds: 0.010);
+        ClockMilliseconds: 0.010)
+    {
+        PwmMicroseconds = 2,
+    };
 
     public override Task<ChipRun> RunAsync(string image, ChipStimulus stimulus)
     {
@@ -100,8 +100,11 @@ internal sealed partial class Esp32c5ChipSimulator() : ChipSimulator("esp32c5-de
                     1 => new SerialSend(send.Bytes, send.AtMilliseconds, "USB"),
                     _ => throw new NotSupportedException("the ESP32-C5's adapter has two serial ports, 0 (UART0) and 1 (USB)."),
                 })],
-                Devices = stimulus.Devices.Count == 0 ? [] : throw new NotSupportedException("chipsim has no ESP32-C5 buses yet."),
-                Analog = stimulus.Analog.Count == 0 ? [] : throw new NotSupportedException("chipsim has no ESP32-C5 ADC yet."),
+                Devices = [.. stimulus.Devices.Select(device => device.Bus == "i2c"
+                    ? new BusDevice("i2c", device.Number, device.Device, device.Address)
+                    : new BusDevice("spi", device.Number, device.Device, Pin: device.Pin is { } pin ? Name(pin) : null))],
+                Analog = [.. stimulus.Analog.Select(input => new AnalogInput(Name(input.Pin), input.Volts, null,
+                    input.AtMilliseconds))],
             });
             return new ChipRun
             {
@@ -116,14 +119,24 @@ internal sealed partial class Esp32c5ChipSimulator() : ChipSimulator("esp32c5-de
                     [0] = [.. result.After("UART0 baud ").Select(line => int.Parse(line["UART0 baud ".Length..],
                         CultureInfo.InvariantCulture))],
                 },
-                Bus = [],
-                Pwm = [],
+                Bus = [.. result.Lines.Select(line => BusLine().Match(line)).Where(m => m.Success).Select(m => m.Groups[1].Value)],
+                Pwm = [.. result.Lines.Select(line => PwmLine().Match(line)).Where(m => m.Success)
+                    .Select(m => new ChipPwmPeriod(double.Parse(m.Groups["ms"].Value, CultureInfo.InvariantCulture),
+                        int.Parse(m.Groups["pin"].Value, CultureInfo.InvariantCulture),
+                        m.Groups["hz"].Success ? double.Parse(m.Groups["hz"].Value, CultureInfo.InvariantCulture) : 0,
+                        m.Groups["high"].Success ? double.Parse(m.Groups["high"].Value, CultureInfo.InvariantCulture) : 0))],
                 Output = result.ToString(),
             };
         });
     }
 
     private static string Name(int pin) => "GPIO" + pin.ToString(CultureInfo.InvariantCulture);
+
+    [GeneratedRegex(@"^\[\s*[0-9.]+ ms\] ((?:I2C|SPI)\d .+)$")]
+    private static partial Regex BusLine();
+
+    [GeneratedRegex(@"^\[\s*(?<ms>[0-9.]+) ms\] GPIO(?<pin>\d+) PWM (?:(?<hz>[0-9.]+) Hz, duty [0-9.]+% \((?<high>[0-9.]+) us high\)|steady \w+)$")]
+    private static partial Regex PwmLine();
 
     [GeneratedRegex(@"\bChipSharp_Runtime_PinOutput\s*\([^;{]*\)\s*\{")]
     private static partial Regex PinOutputDefinition();

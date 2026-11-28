@@ -171,7 +171,7 @@ public sealed class Esp32c5RuntimeTests : ConformanceTests
     }
 
     [Fact]
-    public void Check_refuses_the_pins_the_board_keeps_and_the_hardware_the_runtime_does_not_have_yet()
+    public void Check_refuses_the_pins_the_board_keeps_and_the_pins_its_buses_and_analog_inputs_do_not_have()
     {
         static string Problems(string source)
         {
@@ -197,11 +197,11 @@ public sealed class Esp32c5RuntimeTests : ConformanceTests
         var buses = Problems("""
             using ChipSharp.Hardware;
 
-            I2c.Open(0, 1, 4, 100000);
-            Adc.Input(1);
+            I2c.Open(0, 16, 4, 100000);
+            Adc.Input(8);
             """);
-        Assert.Contains("I2c", buses);
-        Assert.Contains("Adc", buses);
+        Assert.Contains("GPIO 16 is not an SDA pin", buses);
+        Assert.Contains("GPIO 8 cannot be an analog input", buses);
     }
 
     /// <summary>The program built for the board with its "clockHz" 160000000, and run with <paramref name="setUp"/> first.</summary>

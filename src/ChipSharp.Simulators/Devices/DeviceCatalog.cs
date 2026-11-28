@@ -206,9 +206,9 @@ public static partial class DeviceCatalog
     [GeneratedRegex(@"^(\d+):(0x[0-9a-fA-F]+|\d+)=([a-z0-9]+)(?:@([0-9a-zA-Z:-]+))?$")]
     private static partial Regex I2cPattern();
 
-    [GeneratedRegex(@"^(\d+)=(74hc595|loopback)(?:@(P[A-Fa-f][0-7]))?$")]
+    [GeneratedRegex(@"^(\d+)=(74hc595|loopback)(?:@(P[A-Fa-f][0-7]|GPIO\d{1,2}))?$")]
     private static partial Regex SpiPattern();
 
-    [GeneratedRegex(@"^(P[A-Fa-f][0-7])=(\d+(?:\.\d+)?)(V)?(?:@(\d+(?:\.\d+)?)ms)?$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(P[A-Fa-f][0-7]|GPIO\d{1,2})=(\d+(?:\.\d+)?)(V)?(?:@(\d+(?:\.\d+)?)ms)?$", RegexOptions.IgnoreCase)]
     private static partial Regex AnalogPattern();
 }

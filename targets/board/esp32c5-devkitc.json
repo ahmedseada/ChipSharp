@@ -48,7 +48,21 @@
     //                    that picks the download mode (the user guide does not number it; the earlier board notes say GPIO28):
     //                    read it freely, but an output would fight the button
     "pin": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 23, 24, 25, 26, 27, 28],
-    "pinEvent": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 23, 24, 25, 26, 27, 28]
+    "pinEvent": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 23, 24, 25, 26, 27, 28],
+    // the analog inputs the board leaves a program: ADC1's channels, GPIO1-GPIO6 (GPIO2 and GPIO3 are strapping pins; see above),
+    // and the PWM outputs: the same pins as plain pins, since the LEDC and the buses reach any pin through the GPIO matrix
+    "adc": [1, 2, 3, 4, 5, 6],
+    "pwm": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 23, 24, 25, 26, 27, 28]
+  },
+  // the buses on the pins the board leaves a program (bus 0 each, as the chip's table says)
+  "i2c": {
+    "buses": [ { "sda": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 23, 24, 25, 26, 27, 28],
+                 "scl": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 23, 24, 25, 26, 27, 28] } ]
+  },
+  "spi": {
+    "buses": [ { "sck": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 23, 24, 25, 26, 27, 28],
+                 "tx": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 23, 24, 25, 26, 27, 28],
+                 "rx": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 23, 24, 25, 26, 27, 28] } ]
   },
   "pins": {
     // the board's one LED is an addressable RGB LED (a WS2812-like chain of one, "driven by GPIO27"), not a pin an output

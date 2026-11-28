@@ -819,6 +819,26 @@ console, events) comes next.
   million instructions a second. Its tests run every instruction form clang assembles, every compressed one against
   its expansion, 2,688 results of C's arithmetic, and C programs for each peripheral.
 
+- **I2C, SPI, ADC and PWM** (wave 2), the same `ChipSharp.Hardware` API and contract functions as on the other chips,
+  all clocked from the crystal (read at run time, 48 MHz on the devkit) and reaching any pin through the GPIO matrix
+  (`esp32c5_i2c.c`, `esp32c5_spi.c`, `esp32c5_adc.c`, `esp32c5_pwm.c`; they poll, no interrupt id is used):
+  - **I2C**: bus 0, the one HP controller (`I2C0`), as a controller, 200 Hz to 1 MHz (the divider of ESP-IDF's
+    `i2c_ll_master_cal_bus_clk`, so 100 and 400 kHz are exact), SDA and SCL any of the board's pins, open-drain with
+    their pull-ups on, up to 32 bytes a command list (longer transfers are several lists joined by END), a refused
+    address or byte or a held clock gives `false` after the controller is reset and a STOP sent.
+  - **SPI**: bus 0, GP-SPI2, modes 0-3, 46875 Hz to 26 MHz (the highest at or below the one asked for), SCK, TX and RX
+    (or -1) any of the board's pins, 64 bytes a transaction.
+  - **ADC**: ADC1 one-shot on GPIO1-GPIO6 (12 bits, 0 to 4095, 12 dB attenuation, `Adc.Reference` 3.3 V, uncalibrated),
+    and `Adc.Temperature` from the chip's sensor; the board leaves GPIO1-GPIO6 (GPIO2 and GPIO3 are strapping pins).
+  - **PWM**: the LEDC's 6 channels on up to 4 frequencies (1 Hz to 1 MHz, the finest duty resolution that fits), on any
+    pin the board leaves; `Pwm.Duty`, `Pwm.PulseMicroseconds`, `Pwm.Stop` gives the pin back as an input.
+  `chipsim esp32c5` models them with the shared devices: `--i2c 0:0x27=lcd1602`, `--spi 0=74hc595@GPIO23`,
+  `--adc GPIO5=1.65V@10ms`, and a PWM output is measured on its pin (`GPIO4 PWM 1000.00 Hz, duty 25.00% ...`); the
+  conformance suite's I2C, SPI, ADC and PWM cases run on `esp32c5-devkitc` (SDA GPIO4, SCL GPIO5; SCK GPIO0, MOSI GPIO1,
+  MISO GPIO24; ADC GPIO3; PWM GPIO7), and `Lcd`, `Ds1307` and `SevenSegment` run unchanged. Not tried on hardware: the
+  ADC's power-up (the modem front end and PWDET registers ESP-IDF sets) and the temperature sensor's range are as
+  ESP-IDF's sources say, with no calibration.
+
 ### Examples for the ESP32-C5
 
 Built with `chipsharp build bin\Release

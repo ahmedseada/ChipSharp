@@ -54,8 +54,8 @@
   //
   // What the runtime has (src/ChipSharp.Runtime.Esp32c5, M4's wave 1): the CPU on the crystal (160 MHz on the PLL as an opt-in), pins (GPIO0-GPIO28), the delays,
   // the clock and the timer event on SYSTIMER, the pin event on GPIO's edge interrupts, the console on the USB Serial/JTAG
-  // port, UART0, the heap and garbage collector of the RISC-V runtime. I2C, SPI, the ADC and PWM come with wave 2: the
-  // capabilities below say what is there, and chipsharp check refuses the rest.
+  // port, UART0, the heap and garbage collector of the RISC-V runtime. I2C (bus 0), SPI (GP-SPI2), the ADC (ADC1, one-shot, and
+  // the temperature sensor) and PWM (the LEDC) through the GPIO matrix: the capabilities below say what is there.
   "name": "esp32c5",
   "inherits": "riscv32",
   "runtime": "esp32c5",
@@ -94,17 +94,38 @@
     "consoleInput": true, // Console.Read and Console.ReadLine read it
     "uart": 1,            // serial ports for Uart: UART0, on GPIO11 TX and GPIO12 RX, the devkit's "UART" port (the bridge)
     "clock": true,        // a clock for DateTime.Now and Stopwatch: SYSTIMER's 64-bit count, 16 ticks a microsecond
-    // wave 2: not in the runtime yet, so a program that uses them does not build
-    "adc": false,
-    "pwm": false,
-    "i2c": false,
-    "spi": false
+    "adc": 6,             // analog inputs for Adc: ADC1's channels 0-5 on GPIO1-GPIO6, 12 bits, and the temperature sensor
+    "pwm": 6,             // PWM outputs: the LEDC's 6 channels on any pin, on up to 4 frequencies (its 4 timers)
+    "i2c": true,          // ChipSharp.Hardware.I2c: the one I2C controller, bus 0 ("i2c" below)
+    "spi": true           // ChipSharp.Hardware.Spi: the general-purpose SPI controller, GP-SPI2, bus 0 ("spi" below)
   },
   "pinFunctions": {
     // the pins each peripheral can use: chipsharp check holds the pins a program gives as constants to these, and the
     // runtime every pin. UART0's are the pins of its IO MUX function 0 (the board file has the pins a program may use
     // as plain pins and watch)
-    "uart0.tx": [11], "uart0.rx": [12]
+    "uart0.tx": [11], "uart0.rx": [12],
+    // ADC1's channels 0 to 5 (ESP-IDF's adc_channel.h); GPIO2 and GPIO3 are strapping pins, which the board leaves out. The
+    // LEDC puts a PWM output on any pin through the GPIO matrix
+    "adc": [1, 2, 3, 4, 5, 6],
+    "pwm": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28]
+  },
+  // the I2C and SPI controllers: the clocks they make, lowest and highest, in hertz (with the 48 MHz crystal, from which
+  // both take their clock), and the pins each (bus 0) can use: any of GPIO0-GPIO28 through the GPIO matrix, so the board's
+  // table narrows them to the pins it leaves a program; chipsharp check holds the constants of I2c.Open and Spi.Open to them
+  "i2c": {
+    "frequency": [200, 1000000],
+    "buses": [
+      { "sda": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28],
+        "scl": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28] }
+    ]
+  },
+  "spi": {
+    "frequency": [46875, 26000000],
+    "buses": [
+      { "sck": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28],
+        "tx": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28],
+        "rx": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28] }
+    ]
   },
   // the image ("esp": src/ChipSharp.Image.Esp, esptool's esp32c5 target and bin_image.py): chipId is IMAGE_CHIP_ID, the
   // revisions are esptool's elf2image defaults (--min-rev-full 0, --max-rev-full 65535: any), the SPI flash settings the
