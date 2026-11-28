@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The runtime parts every STM8 chip (STM8S, STM8L, STM8AF) shares, built with SDCC: the start-up, how a program
+       stops, the interrupts' helpers, the failures' messages, strings; in modules, of which a program links only those
+       it uses -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+    <!-- EmbeddedText, which the ARMv6-M runtime ships and the others share -->
+    <ProjectReference Include="..\ChipSharp.Runtime.ArmV6M\ChipSharp.Runtime.ArmV6M.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- the hardware contract, which every chip runtime's C includes (src/ChipSharp.Runtime.Shared) -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_hardware.h" LogicalName="chipsharp_hardware.h" />
+    <EmbeddedResource Include="stm8_runtime.h" LogicalName="stm8_runtime.h" />
+    <EmbeddedResource Include="stm8_startup.c" LogicalName="stm8_startup.c" />
+    <EmbeddedResource Include="stm8_vectors.h" LogicalName="stm8_vectors.h" />
+    <EmbeddedResource Include="stm8_halt.c" LogicalName="stm8_halt.c" />
+    <EmbeddedResource Include="stm8_interrupts.c" LogicalName="stm8_interrupts.c" />
+    <EmbeddedResource Include="stm8_multiply.c" LogicalName="stm8_multiply.c" />
+    <EmbeddedResource Include="stm8_failures.c" LogicalName="stm8_failures.c" />
+    <EmbeddedResource Include="stm8_defaults.c" LogicalName="stm8_defaults.c" />
+    <!-- strings and chars, and the text of a substitute's exceptions, shared with the other runtimes -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_string.c" LogicalName="chipsharp_string.c" />
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_exceptions.c" LogicalName="chipsharp_exceptions.c" />
+  </ItemGroup>
+</Project>

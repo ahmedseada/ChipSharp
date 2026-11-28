@@ -15,6 +15,8 @@
     <ProjectReference Include="..\ChipSharp.Runtime.Atmega328p\ChipSharp.Runtime.Atmega328p.csproj" />
     <ProjectReference Include="..\ChipSharp.Runtime.Avr\ChipSharp.Runtime.Avr.csproj" />
     <ProjectReference Include="..\ChipSharp.Runtime.Rp2040\ChipSharp.Runtime.Rp2040.csproj" />
+    <ProjectReference Include="..\ChipSharp.Runtime.Stm8\ChipSharp.Runtime.Stm8.csproj" />
+    <ProjectReference Include="..\ChipSharp.Runtime.Stm8s103\ChipSharp.Runtime.Stm8s103.csproj" />
     <ProjectReference Include="..\ChipSharp.Runtime.Windows\ChipSharp.Runtime.Windows.csproj" />
     <ProjectReference Include="..\ChipSharp.Targets\ChipSharp.Targets.csproj" />
     <ProjectReference Include="..\ChipSharp.Toolchain.Clang\ChipSharp.Toolchain.Clang.csproj" />

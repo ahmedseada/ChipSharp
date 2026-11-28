@@ -76,7 +76,7 @@ public sealed class SdccTargetTests
 
         Assert.Equal(["stm8s103-board", "stm8s103f3", "stm8"], board.InheritanceChain);
         Assert.True(board.IsComplete);
-        Assert.Equal(("c", "sdcc", "stm8", "hex"), (board.Backend, board.Toolchain, board.Runtime, board.Image));
+        Assert.Equal(("c", "sdcc", "stm8s103f3", "hex"), (board.Backend, board.Toolchain, board.Runtime, board.Image));
         Assert.Equal((2, Endianness.Big), (board.PointerSize, board.Endian));
         Assert.Equal(new MemoryRegion(0x8000, 8 << 10), board.Memory["flash"]);
         Assert.Equal(new MemoryRegion(0, 1 << 10), board.Memory["ram"]);
@@ -93,11 +93,16 @@ public sealed class SdccTargetTests
         var board = SdccPrograms.Stm8s103;
 
         Assert.False(board.HasHeap);
-        Assert.False(board.HasConsole);
+        Assert.True(board.HasConsole);
+        Assert.True(board.HasCapability("consoleInput") && board.HasCapability("clock"));
         Assert.False(board.HasCapability("double64"));
         Assert.True(board.HasCapability("recursion"));
-        Assert.Equal(("1", "5", "5"), (board.Capabilities["uart"], board.Capabilities["adc"], board.Capabilities["pwm"]));
+        Assert.Equal(("1", "5", "3"), (board.Capabilities["uart"], board.Capabilities["adc"], board.Capabilities["pwm"]));
         Assert.True(board.HasCapability("i2c") && board.HasCapability("spi"));
+        // the events, past the vector table's 30 interrupts, as the Uno's
+        Assert.Equal(("30", "31", "32"), (board.Setting("interrupts.pin.irq"), board.Setting("interrupts.timer.irq"),
+            board.Setting("interrupts.uart.irq")));
+        Assert.Equal([3, 27, 28], Numbers(board.Settings["pinFunctions"]!["pwm"]));
         Assert.Equal(("32", "18", "23"), (board.Setting("vectors"), board.Setting("irqs.uart1Rx"), board.Setting("irqs.tim4Update")));
         Assert.Equal(("0x5230", "0x5340", "0x50c0"), (board.Setting("peripherals.uart1"), board.Setting("peripherals.tim4"),
             board.Setting("peripherals.clk")));

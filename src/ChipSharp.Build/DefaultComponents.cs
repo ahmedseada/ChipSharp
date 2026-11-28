@@ -11,6 +11,8 @@ using ChipSharp.Runtime.ArmV6M;
 using ChipSharp.Runtime.Atmega328p;
 using ChipSharp.Runtime.Avr;
 using ChipSharp.Runtime.Rp2040;
+using ChipSharp.Runtime.Stm8;
+using ChipSharp.Runtime.Stm8s103;
 using ChipSharp.Runtime.Windows;
 using ChipSharp.Toolchain.Clang;
 using ChipSharp.Toolchain.Sdcc;
@@ -62,6 +64,8 @@ public static class DefaultComponents
             .Register(new Rp2040Runtime())          // runtime "rp2040": Raspberry Pi Pico
             .Register(new AvrRuntime())             // runtime "avr": any AVR chip (ATmega328P: Arduino Uno)
             .Register(new Atmega328pRuntime())      // runtime "atmega328p": Arduino Uno, on the runtime "avr"
+            .Register(new Stm8Runtime())            // runtime "stm8": any STM8 chip, through SDCC
+            .Register(new Stm8s103Runtime())        // runtime "stm8s103f3": the blue STM8S103 board, on the runtime "stm8"
             .Register(new Uf2ImageFormat())         // image "uf2"
             .Register(new IntelHexImageFormat()));  // image "hex": Intel HEX (an AVR's flash; SDCC's .ihx)
     }

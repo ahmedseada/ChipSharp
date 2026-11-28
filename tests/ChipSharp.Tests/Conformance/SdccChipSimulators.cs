@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using ChipSharp.Abstractions;
 using ChipSharp.Build;
 using ChipSharp.Simulators;
+using ChipSharp.Simulators.Devices;
 using ChipSharp.Tests.Sdcc;
 
 namespace ChipSharp.Tests.Conformance;
@@ -11,15 +12,12 @@ namespace ChipSharp.Tests.Conformance;
 /// A chip built through C with SDCC (milestone M6), in ChipSharp's own simulators (src/ChipSharp.Simulators, chipsim),
 /// in process: pins by the target's "pinNames" (PA0, PB5, ...), UART1 as port 0. Its cases run once the build pipeline has
 /// its parts (the code generator "c", the chip's runtime, which implements the hardware contract), and are skipped,
-/// saying which is missing, until then; chipsim has no devices on the buses and no analog inputs yet, so the cases that
-/// need those are skipped too (<see cref="Unsimulated"/>).
+/// saying which is missing, until then. chipsim puts the simulators' shared devices on a chip's buses (--i2c, --spi) and
+/// voltages on its analog inputs (--adc).
 /// </summary>
 internal abstract partial class SdccChipSimulator(string target, string chip) : ChipSimulator(target)
 {
     private List<string>? _names;
-
-    /// <summary>The guards of the hardware whose outside chipsim does not simulate yet, with why.</summary>
-    protected virtual IReadOnlyDictionary<string, string> Unsimulated { get; } = new Dictionary<string, string>();
 
     public override string? Missing
     {
@@ -45,20 +43,12 @@ internal abstract partial class SdccChipSimulator(string target, string chip) : 
         }
     }
 
-    public override string? MissingFor(IReadOnlyList<string> needs) =>
-        needs.Select(need => Unsimulated.GetValueOrDefault(need)).FirstOrDefault(reason => reason is not null) ?? Missing;
-
     /// <summary>The chip's pin names by number, as chipsim names them.</summary>
     private List<string> Names =>
         _names ??= [.. Description.Settings["pinNames"]!.AsArray().Select(name => name!.GetValue<string>())];
 
     public override Task<ChipRun> RunAsync(string image, ChipStimulus stimulus)
     {
-        if (stimulus.Analog.Count > 0 || stimulus.Devices.Count > 0)
-        {
-            throw new NotSupportedException($"chipsim's {chip} has no analog inputs or devices on its buses yet.");
-        }
-
         return Task.Run(() =>
         {
             var result = Simulation.Run(new SimulationOptions
@@ -70,6 +60,11 @@ internal abstract partial class SdccChipSimulator(string target, string chip) : 
                 Sends = [.. stimulus.Sends.Select(send => send.Port == 0
                     ? new SerialSend(send.Bytes, send.AtMilliseconds)
                     : throw new NotSupportedException($"the {chip} has one serial port, 0 (UART1)."))],
+                Devices = [.. stimulus.Devices.Select(device => device.Bus == "i2c"
+                    ? new BusDevice("i2c", device.Number, device.Device, device.Address)
+                    : new BusDevice("spi", device.Number, device.Device, Pin: device.Pin is { } pin ? Names[pin] : null))],
+                Analog = [.. stimulus.Analog.Select(input => new AnalogInput(Names[input.Pin], input.Volts, null,
+                    input.AtMilliseconds))],
             });
             int? Number(string name) => Names.IndexOf(name) is >= 0 and var pin ? pin : null;
             return new ChipRun
@@ -85,7 +80,8 @@ internal abstract partial class SdccChipSimulator(string target, string chip) : 
                     [0] = [.. result.After("UART1 baud ").Select(line => int.Parse(line["UART1 baud ".Length..],
                         CultureInfo.InvariantCulture))],
                 },
-                Bus = [],
+                Bus = [.. result.Lines.Select(line => BusLine().Match(line)).Where(m => m.Success)
+                    .Select(m => m.Groups[1].Value)],
                 Pwm = [.. result.Lines.Select(line => PwmLine().Match(line)).Where(m => m.Success && Number(m.Groups["pin"].Value) is not null)
                     .Select(m => new ChipPwmPeriod(Parse(m.Groups["ms"].Value), Number(m.Groups["pin"].Value)!.Value,
                         m.Groups["hz"].Success ? Parse(m.Groups["hz"].Value) : 0,
@@ -96,6 +92,9 @@ internal abstract partial class SdccChipSimulator(string target, string chip) : 
     }
 
     private static double Parse(string text) => double.Parse(text, CultureInfo.InvariantCulture);
+
+    [GeneratedRegex(@"^\[\s*[0-9.]+ ms\] ((?:I2C|SPI)\d .+)$")]
+    private static partial Regex BusLine();
 
     [GeneratedRegex(@"^\[\s*(?<ms>[0-9.]+) ms\] (?<pin>P[A-F][0-7]) PWM (?:(?<hz>[0-9.]+) Hz, duty [0-9.]+% \((?<high>[0-9.]+) us high\)|steady \w+)$")]
     private static partial Regex PwmLine();
@@ -120,13 +119,11 @@ internal sealed class Pfs154ChipSimulator() : SdccChipSimulator("pfs154-bare", "
 
 /// <summary>
 /// The STM8S103F3 at 16 MHz (stm8s103-board), in chipsim's "stm8s103": pins are port * 8 + bit (PA1 1, PB5 13, PC3 19,
-/// PD6 30); UART1 (PD5, PD6) is port 0, I2C on PB5 and PB4, SPI on PC5-PC7, AIN3 on PD2, TIM2's channel 1 on PD4.
+/// PD6 30); UART1 (PD5, PD6) is port 0, I2C on PB5 and PB4, SPI on PC5-PC7 (their devices chipsim's), AIN3 on PD2 (its
+/// voltages chipsim's), TIM2's channel 1 on PD4.
 /// </summary>
 internal sealed class Stm8ChipSimulator() : SdccChipSimulator("stm8s103-board", "stm8s103")
 {
-    private const string Registers = "chipsim's STM8S103 has its {0}'s registers but nothing outside it yet ({1}): the " +
-        "case runs once it has.";
-
     public override ChipPins Pins { get; } = new(Output: 1, Second: 2, Pass: 3, Fail: 19, Input: 20)
     {
         Adc = 26,
@@ -136,19 +133,14 @@ internal sealed class Stm8ChipSimulator() : SdccChipSimulator("stm8s103-board", 
         Spi0 = (21, 22, 23),
     };
 
-    public override ChipTolerances Tolerances { get; } = new(DelaySlackMilliseconds: 0.060, LatencyMilliseconds: 0.040,
+    // 16 MHz, and 32-bit arithmetic in SDCC's helpers (TimeSpan's 64-bit divisions in them take a few hundred
+    // microseconds): the delays and the clock watch TIM1's microseconds, an event's entry is the runtime's handler
+    public override ChipTolerances Tolerances { get; } = new(DelaySlackMilliseconds: 0.150, LatencyMilliseconds: 0.040,
         ClockMilliseconds: 0.040)
     {
         PwmMicroseconds = 1,
     };
 
-    // AIN0-AIN6 in 10 bits against VDD, the board's 3.3 V
+    // AIN2-AIN6 in 10 bits against VDD, the board's 3.3 V
     public override ChipAdc Adc { get; } = new(1024, 3.3);
-
-    protected override IReadOnlyDictionary<string, string> Unsimulated { get; } = new Dictionary<string, string>
-    {
-        ["i2c"] = string.Format(CultureInfo.InvariantCulture, Registers, "I2C controller", "no device answers on the bus"),
-        ["spi"] = string.Format(CultureInfo.InvariantCulture, Registers, "SPI controller", "no device on the bus"),
-        ["adc"] = string.Format(CultureInfo.InvariantCulture, Registers, "ADC", "no voltage on its inputs"),
-    };
 }

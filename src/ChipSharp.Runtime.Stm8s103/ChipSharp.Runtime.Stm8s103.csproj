@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The runtime of STM8S103F3 programs (the blue STM8S103F3P6 board): the pins, TIM1's clock, delays and timer event,
+       the pin interrupts, UART1's console and serial port, the I2C and SPI buses, the analog inputs and the PWM outputs
+       (TIM2); on top of the STM8 runtime -->
+  <ItemGroup>
+    <ProjectReference Include="..\ChipSharp.Abstractions\ChipSharp.Abstractions.csproj" />
+    <ProjectReference Include="..\ChipSharp.Runtime.Stm8\ChipSharp.Runtime.Stm8.csproj" />
+    <!-- EmbeddedText, which the ARMv6-M runtime ships and the others share -->
+    <ProjectReference Include="..\ChipSharp.Runtime.ArmV6M\ChipSharp.Runtime.ArmV6M.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="stm8_vectors.h" LogicalName="stm8_vectors.h" />
+    <EmbeddedResource Include="stm8s103f3_runtime.h" LogicalName="stm8s103f3_runtime.h" />
+    <EmbeddedResource Include="stm8s103f3_runtime.c" LogicalName="stm8s103f3_runtime.c" />
+    <EmbeddedResource Include="stm8s103f3_pins.c" LogicalName="stm8s103f3_pins.c" />
+    <EmbeddedResource Include="stm8s103f3_delays.c" LogicalName="stm8s103f3_delays.c" />
+    <EmbeddedResource Include="stm8s103f3_registers.c" LogicalName="stm8s103f3_registers.c" />
+    <EmbeddedResource Include="stm8s103f3_clock.c" LogicalName="stm8s103f3_clock.c" />
+    <EmbeddedResource Include="stm8s103f3_timer.c" LogicalName="stm8s103f3_timer.c" />
+    <EmbeddedResource Include="stm8s103f3_pin_events.c" LogicalName="stm8s103f3_pin_events.c" />
+    <EmbeddedResource Include="stm8s103f3_console.c" LogicalName="stm8s103f3_console.c" />
+    <EmbeddedResource Include="stm8s103f3_uart.c" LogicalName="stm8s103f3_uart.c" />
+    <EmbeddedResource Include="stm8s103f3_i2c.c" LogicalName="stm8s103f3_i2c.c" />
+    <EmbeddedResource Include="stm8s103f3_spi.c" LogicalName="stm8s103f3_spi.c" />
+    <EmbeddedResource Include="stm8s103f3_adc.c" LogicalName="stm8s103f3_adc.c" />
+    <EmbeddedResource Include="stm8s103f3_pwm.c" LogicalName="stm8s103f3_pwm.c" />
+    <!-- the chip's registers, interrupts and pins, as ChipSharp.Chips writes them from chips/stm8s103f3.json -->
+    <EmbeddedResource Include="..\ChipSharp.Chips\Generated\stm8s103f3_registers.h" LogicalName="stm8s103f3_registers.h" />
+    <EmbeddedResource Include="..\ChipSharp.Chips\Generated\stm8s103f3_interrupts.h" LogicalName="stm8s103f3_interrupts.h" />
+    <EmbeddedResource Include="..\ChipSharp.Chips\Generated\stm8s103f3_pins.h" LogicalName="stm8s103f3_pins.h" />
+    <!-- Console.Write and Console.WriteLine, and floats as text, shared with the other runtimes -->
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_console.c" LogicalName="chipsharp_console.c" />
+    <EmbeddedResource Include="..\ChipSharp.Runtime.Shared\chipsharp_float_text.c" LogicalName="chipsharp_float_text.c" />
+  </ItemGroup>
+</Project>
