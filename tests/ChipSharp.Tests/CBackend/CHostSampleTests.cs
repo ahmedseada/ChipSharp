@@ -60,6 +60,31 @@ public sealed class CHostSampleTests : IDisposable
         Assert.True(failures.All(failure => failure is null), string.Join("\n\n", failures.OfType<string>()));
     }
 
+    /// <summary>
+    /// The C of every sample is strict C99 that clang takes without a warning (-Wall -Wextra -pedantic), but for two
+    /// that the C means: parameters a function does not use (a method that ignores one), and the fields after the first of
+    /// a zero initializer, which C sets to zero.
+    /// </summary>
+    [HostFact]
+    public async Task The_C_of_every_sample_is_strict_C99_without_a_warning()
+    {
+        var failures = await Concurrently.SelectAsync(Samples.Names, async name =>
+        {
+            var dll = Samples.Compile(name, Path.Combine(_scratch, "dll"));
+            var target = CTargets.HostC;
+            var module = IlToTir.Lower(WholeProgramPass.Analyze(IlAssembly.Load(dll), target));
+            var file = Assert.Single(new Backend.C.CCodeGenerator().Generate(module, module.UsesHeap ? target : target.WithoutHeap()).Files);
+            var folder = Directory.CreateDirectory(Path.Combine(_scratch, "strict", name)).FullName;
+            await File.WriteAllTextAsync(Path.Combine(folder, file.FileName), file.Content);
+            var result = await Llvm.LlvmTools.RunAsync(Llvm.LlvmTools.Clang,
+                ["--target=x86_64-pc-windows-msvc", "-std=c99", "-pedantic-errors", "-Wall", "-Wextra", "-Werror",
+                    "-Wno-unused-parameter", "-Wno-missing-field-initializers", "-fsyntax-only", file.FileName], folder);
+            return result.ExitCode == 0 && result.Errors.Length == 0 ? null : $"{name}: {result}";
+        });
+
+        Assert.True(failures.All(failure => failure is null), string.Join("\n\n", failures.OfType<string>()));
+    }
+
     [HostFact]
     [RunsLong]
     public async Task Every_sample_with_its_arithmetic_narrowed_prints_through_C_what_dotnet_prints()

@@ -29,6 +29,9 @@ internal sealed class CNeeds(CTypes types, ISet<string> names, bool reentrant)
         ["fmodf"] = "float fmodf(float x, float y);",
     };
 
+    /// <summary>True when a call through an address cast to a function pointer typedef.</summary>
+    public bool HasFunctionTypes => _functionTypes.Count > 0;
+
     /// <summary>Declares the C library's function <paramref name="name"/> (one of memset, memcpy, memmove, fmod, fmodf).</summary>
     public string Library(string name)
     {

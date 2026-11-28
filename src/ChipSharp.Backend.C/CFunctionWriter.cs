@@ -130,7 +130,14 @@ internal sealed class CFunctionWriter
             }
         }
 
-        FindLive();
+        var liveness = CLiveness.Find(_function);
+        _live.UnionWith(liveness.Live);
+        _used.UnionWith(liveness.Used);
+        foreach (var (instruction, count) in liveness.Uses)
+        {
+            _uses[instruction] = count;
+        }
+
         var gotos = Gotos();
         foreach (var block in _function.Blocks.Where(gotos.Contains))
         {
@@ -290,6 +297,9 @@ internal sealed class CFunctionWriter
             case TirLoad load:
                 Define(load, _slots[load.Slot]);
                 break;
+
+            case TirStore store when !_live.Contains(store):
+                break; // to a slot nothing reads
 
             case TirStore store:
                 Line($"{_slots[store.Slot]} = {Value(store.Value).Text};");
@@ -490,35 +500,6 @@ internal sealed class CFunctionWriter
         return targets;
     }
 
-    /// <summary>
-    /// The instructions whose code is written: those that do something (store, call, make an object, check, end the
-    /// block, read volatile memory), and those whose value one of them uses, through others. A value nothing uses is not
-    /// computed (C would warn of a variable never read).
-    /// </summary>
-    private void FindLive()
-    {
-        foreach (var block in _function.Blocks)
-        {
-            for (var i = block.Instructions.Count - 1; i >= 0; i--)
-            {
-                var instruction = block.Instructions[i];
-                var acts = instruction is TirStore or TirPointerStore or TirCall or TirCallIndirect or TirNewObject
-                    or TirNewArray or TirNullCheck or TirTerminator or TirPointerLoad { IsVolatile: true };
-                if (!acts && !_live.Contains(instruction))
-                {
-                    continue;
-                }
-
-                _live.Add(instruction);
-                foreach (var operand in instruction.Operands.OfType<TirInstruction>())
-                {
-                    _live.Add(operand);
-                    _used.Add(operand);
-                    _uses[operand] = _uses.GetValueOrDefault(operand) + 1;
-                }
-            }
-        }
-    }
 
     /// <summary>
     /// True for a struct or array value (a slot's, memory's, a call's) that only the instruction right after it uses, to

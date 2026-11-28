@@ -58,6 +58,7 @@ public sealed class CCodeGenerator : ICodeGenerator
         ArgumentNullException.ThrowIfNull(module);
         ArgumentNullException.ThrowIfNull(target);
         TirVerifier.Verify(module);
+        var reachable = CReachable.Find(module);
         CHeap.CheckTarget(module, target);
         var settings = CSettings.Read(target);
         if (target.HasCapability("stackCheck"))
@@ -72,7 +73,7 @@ public sealed class CCodeGenerator : ICodeGenerator
         symbols.Taken.Add(ReentrantMacro);
         var tags = new HashSet<string>(StringComparer.Ordinal);
         types.Name(module, tags);
-        var usesDouble = CheckDouble(module, types, settings, target);
+        var usesDouble = CheckDouble(module, reachable, settings, target);
         var reentrant = settings.Reentrant is null ? [] : CCallGraph.Reentrant(module);
         var needs = new CNeeds(types, symbols.Taken, settings.Reentrant is not null);
 
@@ -80,23 +81,23 @@ public sealed class CCodeGenerator : ICodeGenerator
         // functions (which add declarations and helpers); then the file in the order C needs them
         var structs = new StringBuilder();
         types.WriteDefinitions(structs);
-        var descriptorTypes = CHeap.WriteDescriptorTypes(structs, module, tags);
+        var descriptorTypes = CHeap.WriteDescriptorTypes(structs, reachable, tags);
         var checks = new List<string>();
         checks.AddRange(types.Checks(symbols.Taken));
         checks.AddRange(CHeap.DescriptorChecks(descriptorTypes, types.Layout, symbols.Taken));
 
         var data = new StringBuilder();
-        CHeap.WriteDescriptors(data, module, types, symbols, descriptorTypes, settings.ConstQualifier);
-        WriteGlobals(data, structs, checks, module, types, symbols, tags, settings.ConstQualifier,
+        CHeap.WriteDescriptors(data, module, reachable, types, symbols, descriptorTypes, settings.ConstQualifier);
+        WriteGlobals(data, structs, checks, module, reachable, types, symbols, tags, settings.ConstQualifier,
             target.Endian == Endianness.Big);
         var usesHeap = CHeap.FirstAllocation(module) is not null;
         var (roots, rootCount) = usesHeap
-            ? CHeap.WriteRoots(data, module, types, symbols, tags, settings.ConstQualifier)
+            ? CHeap.WriteRoots(data, module, reachable, types, symbols, tags, settings.ConstQualifier)
             : (null, 0);
 
         var functions = new StringBuilder();
         var forget = ForgetRegisters(target);
-        foreach (var function in module.Functions.Where(f => f.Kind == TirFunctionKind.Defined))
+        foreach (var function in module.Functions.Where(f => f.Kind == TirFunctionKind.Defined && reachable.Functions.Contains(f)))
         {
             if (functions.Length > 0)
             {
@@ -119,7 +120,7 @@ public sealed class CCodeGenerator : ICodeGenerator
 
         var text = new StringBuilder();
         WriteHead(text, module, target, types, settings, usesDouble, symbols.Taken);
-        if (settings.Reentrant is { } keyword)
+        if (settings.Reentrant is { } keyword && (needs.HasFunctionTypes || reentrant.Any(reachable.Functions.Contains)))
         {
             text.Append("/* the target's compiler keeps the parameters and locals of a function at fixed addresses in RAM unless it\n" +
                 $"   is {keyword}: what a function needs that may run again while it runs (it calls itself, maybe through\n" +
@@ -139,7 +140,8 @@ public sealed class CCodeGenerator : ICodeGenerator
             text.Append('\n');
         }
 
-        var externals = module.Functions.Where(f => f.Kind == TirFunctionKind.External).ToList();
+        var externals = module.Functions.Where(f => f.Kind == TirFunctionKind.External && reachable.Functions.Contains(f))
+            .ToList();
         var declaredByModule = externals.Select(f => symbols.Functions[f]).ToHashSet(StringComparer.Ordinal);
         needs.WriteDeclarations(text, declaredByModule);
         var runtime = externals.Where(f => !CNeeds.IsLibrary(symbols.Functions[f])).ToList();
@@ -156,7 +158,7 @@ public sealed class CCodeGenerator : ICodeGenerator
             text.Append('\n');
         }
 
-        var defined = module.Functions.Where(f => f.Kind == TirFunctionKind.Defined).ToList();
+        var defined = module.Functions.Where(f => f.Kind == TirFunctionKind.Defined && reachable.Functions.Contains(f)).ToList();
         if (defined.Count > 0)
         {
             text.Append("/* the program's */\n");
@@ -284,6 +286,7 @@ public sealed class CCodeGenerator : ICodeGenerator
     /// <see cref="CHeap.Constant"/>), its bytes with the text they spell, when they do, in a comment.
     /// </summary>
     private static void WriteGlobals(StringBuilder data, StringBuilder structs, List<string> checks, TirModule module,
+        CReachable reachable,
         CTypes types, CSymbols symbols, ISet<string> tags, string? qualifier, bool bigEndian)
     {
         var objectTypes = new Dictionary<int, string>();
@@ -340,7 +343,7 @@ public sealed class CCodeGenerator : ICodeGenerator
             data.Append(definition).Append(value is null ? "" : " = " + value).Append(";\n\n");
         }
 
-        foreach (var global in module.Globals)
+        foreach (var global in module.Globals.Where(reachable.Globals.Contains))
         {
             Write(global);
         }
@@ -372,15 +375,15 @@ public sealed class CCodeGenerator : ICodeGenerator
     /// Throws when the program uses C#'s double on a target whose C double has 32 bits; returns whether it uses one (the
     /// file then checks the double's size).
     /// </summary>
-    private static bool CheckDouble(TirModule module, CTypes types, CSettings settings, TargetDescription target)
+    private static bool CheckDouble(TirModule module, CReachable reachable, CSettings settings, TargetDescription target)
     {
         string? where = null;
-        foreach (var global in module.Globals.Where(global => HoldsDouble(global.Type)))
+        foreach (var global in module.Globals.Where(global => reachable.Globals.Contains(global) && HoldsDouble(global.Type)))
         {
             where ??= $"The global {global.Name}";
         }
 
-        foreach (var function in module.Functions)
+        foreach (var function in module.Functions.Where(reachable.Functions.Contains))
         {
             if (where is not null)
             {

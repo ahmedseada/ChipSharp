@@ -127,10 +127,10 @@ internal static class CHeap
     /// Writes the struct types of the descriptors, <c>struct cs_type_N</c> for each length N of a virtual method table
     /// the module has, and returns their tags by N.
     /// </summary>
-    public static Dictionary<int, string> WriteDescriptorTypes(StringBuilder text, TirModule module, ISet<string> tags)
+    public static Dictionary<int, string> WriteDescriptorTypes(StringBuilder text, CReachable reachable, ISet<string> tags)
     {
         var structs = new Dictionary<int, string>();
-        foreach (var count in module.TypeDescriptors.Where(type => type.ExternalSymbol is null)
+        foreach (var count in reachable.Types.Where(type => type.ExternalSymbol is null)
                      .Select(type => type.VirtualMethods.Count).Distinct().Order())
         {
             var tag = CTypes.Unique(tags, "cs_type_" + count.ToString(CultureInfo.InvariantCulture));
@@ -170,14 +170,14 @@ internal static class CHeap
     /// its references, its name (UTF-8 ending with a 0 byte), its interfaces' method tables and its interface map, then
     /// the descriptor. A descriptor the runtime defines is declared, <c>extern const</c>.
     /// </summary>
-    public static void WriteDescriptors(StringBuilder text, TirModule module, CTypes types, CSymbols symbols,
+    public static void WriteDescriptors(StringBuilder text, TirModule module, CReachable reachable, CTypes types, CSymbols symbols,
         IReadOnlyDictionary<int, string> structs, string? qualifier)
     {
         var layout = types.Layout;
         string Function(TirFunction? function) => function is null ? "0" : $"(uint8_t *)&{symbols.Functions[function]}";
         string Descriptor(TirTypeDescriptor type) => $"(uint8_t *)&{symbols.Types[type]}";
 
-        foreach (var type in InOrder(module))
+        foreach (var type in InOrder(module).Where(reachable.Types.Contains))
         {
             var symbol = symbols.Types[type];
             if (type.ExternalSymbol is not null)
@@ -347,12 +347,12 @@ internal static class CHeap
     /// <c>{ address, count }</c> per run of refs one after another in a global (a struct of its own, <c>cs_root</c>, laid
     /// out as the runtime's <c>chipsharp_root</c>); returns its name and how many entries it has (null and 0 for none).
     /// </summary>
-    public static (string? Name, int Count) WriteRoots(StringBuilder text, TirModule module, CTypes types,
+    public static (string? Name, int Count) WriteRoots(StringBuilder text, TirModule module, CReachable reachable, CTypes types,
         CSymbols symbols, ISet<string> tags, string? qualifier)
     {
         var word = types.Layout.PointerSize;
         var entries = new List<string>();
-        foreach (var global in module.Globals.Where(global => !global.IsConstant))
+        foreach (var global in module.Globals.Where(global => !global.IsConstant && reachable.Globals.Contains(global)))
         {
             var offsets = types.Layout.ReferenceOffsets(global.Type);
             for (var i = 0; i < offsets.Count;)
