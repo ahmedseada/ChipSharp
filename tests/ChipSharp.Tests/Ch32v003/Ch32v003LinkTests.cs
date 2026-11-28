@@ -83,11 +83,17 @@ public sealed partial class Ch32v003LinkTests : IDisposable
         Assert.Equal(("flash", "sram", "512", "4"),
             (board.Setting("link.code"), board.Setting("link.data"), board.Setting("link.stack"), board.Setting("link.vectorAlign")));
         Assert.Equal("39", board.Setting("vectors"));
-        Assert.Equal(("12", "20", "32"),
+        // the pin event on EXTI7_0; the timer's and the uart's past the PFIC's 39, called by the runtime's handlers
+        Assert.Equal(("39", "20", "40"),
             (board.Setting("interrupts.timer.irq"), board.Setting("interrupts.pin.irq"), board.Setting("interrupts.uart.irq")));
+        Assert.Equal("chipsharp_clear_pin_event", board.Setting("interrupts.pin.clear"));
         Assert.False(board.HasHeap);
-        Assert.False(board.HasConsole);
-        Assert.False(board.HasCapability("clock"));
+        Assert.True(board.HasConsole);
+        Assert.True(board.HasCapability("consoleInput"));
+        Assert.True(board.HasCapability("clock"));
+        Assert.True(board.HasCapability("pullDown"));
+        Assert.Equal("1", board.Capabilities["uart"]);
+        Assert.All((string[])["i2c", "spi", "adc", "pwm"], name => Assert.False(board.HasCapability(name)));
         // from the board: the raw flash, which wlink writes through a WCH-LinkE
         Assert.Equal(("bin", "wlink", "CH32V003"), (board.Image, board.Flasher, board.Setting("wlink.chip")));
         // from the board
@@ -271,7 +277,7 @@ public sealed partial class Ch32v003LinkTests : IDisposable
         Assert.DoesNotContain("chipsharp_isr_irq39", dispatch);
         Assert.Contains("static void (*const chipsharp_isr_handlers[39])(void) =", dispatch);
         Assert.Contains("if (id < 39u)", dispatch);
-        Assert.Equal(Frontend.TargetInterrupt.HandlerSymbol(12), Riscv32Runtime.Handler(12)); // SysTick, the timer event's
+        Assert.Equal(Frontend.TargetInterrupt.HandlerSymbol(12), Riscv32Runtime.Handler(12)); // SysTick, the runtime's
 
         // the runtime's files: riscv32e's (with the multiplication and division RV32EC lacks) and the chip's
         var files = new Ch32v003Runtime().Startup(target).Files.Select(f => f.FileName).ToList();
@@ -342,7 +348,7 @@ public sealed partial class Ch32v003LinkTests : IDisposable
             """;
 
         // the shipped board has no heap; this one gives it 1 KB, to link riscv32e's heap files (s0 and s1 scanned)
-        var program = Ch32v003Build.Build(source, "Objects", _scratch, Ch32v003Build.WithConsole("1K"));
+        var program = Ch32v003Build.Build(source, "Objects", _scratch, Ch32v003Build.WithHeap("1K"));
 
         var elf = program.File;
         Assert.Equal(elf.Symbols["__chipsharp_stack_bottom"], elf.Symbols["__chipsharp_heap_end"]);

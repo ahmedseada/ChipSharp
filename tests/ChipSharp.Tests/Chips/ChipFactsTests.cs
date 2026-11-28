@@ -187,9 +187,10 @@ public sealed partial class ChipFactsTests
     /// <summary>
     /// The CH32V003's target file and its description agree: the flash and the SRAM are the chip's (the program linked
     /// at the flash, 0x08000000, the core starting at its alias, 0x00000000); the trap dispatch and the vector table at
-    /// the start of flash have the PFIC's 39 numbers, the highest interrupt's and one; each event is one of the chip's
-    /// interrupts; the pins are the F4P6's 18; the description is found from the target, and takes its registers from
-    /// WCH's SVD.
+    /// the start of flash have the PFIC's 39 numbers, the highest interrupt's and one; the pin event is the chip's
+    /// EXTI7_0, and the timer's and the uart's, which the runtime's handlers of SysTick and USART1 call, are past the
+    /// PFIC's numbers; the pins are the F4P6's 18, and those a program may use all but PD1 (SWIO) and PD7 (NRST); the
+    /// description is found from the target, and takes its registers from WCH's SVD.
     /// </summary>
     [Fact]
     public void The_CH32V003s_target_file_has_the_descriptions_memory_vector_numbers_events_and_pins()
@@ -211,16 +212,24 @@ public sealed partial class ChipFactsTests
         var head = Assert.Single(target.Settings["link"]!["head"]!.AsArray());
         Assert.Equal((".ch32v003_vectors", 4 * vectors), (head!["section"]!.GetValue<string>(), head["size"]!.GetValue<int>()));
         Assert.Equal(0UL, target.Memory["flash"].Origin % Constant("MTVEC_ALIGN"));
-        var sources = new Dictionary<string, string> { ["timer"] = "SysTick", ["pin"] = "EXTI7_0", ["uart"] = "USART1" };
-        foreach (var (name, node) in target.Settings["interrupts"]!.AsObject())
-        {
-            Assert.Equal(sources[name], chip.Interrupts.Single(i => i.Number == node!["irq"]!.GetValue<int>()).Name);
-        }
+        int Irq(string name) => target.Settings["interrupts"]![name]!["irq"]!.GetValue<int>();
+        Assert.Equal("EXTI7_0", chip.Interrupts.Single(i => i.Number == Irq("pin")).Name);
+        Assert.All((string[])["timer", "uart"], name => Assert.InRange(Irq(name), vectors, vectors + 7));
+        Assert.Equal((12, 32), (chip.Interrupts.Single(i => i.Name == "SysTick").Number,
+            chip.Interrupts.Single(i => i.Name == "USART1").Number));
 
         Assert.Equal([1, 2, .. Enumerable.Range(16, 16)], chip.Pins.Select(p => p.Number));
         Assert.Equal(["A", "C", "D"], chip.Ports.Select(p => p.Name));
         Assert.Equal("PD1", chip.Pins.Single(p => p.Functions.Contains("SWIO")).Name);
         Assert.Equal("PD7", chip.Pins.Single(p => p.Functions.Contains("NRST")).Name);
+        var usable = target.Settings["pinFunctions"]!["pin"]!.AsArray().Select(n => n!.GetValue<int>()).ToList();
+        Assert.Equal(chip.Pins.Select(p => p.Number).Where(n => n is not (1 or 2 or 25 or 31)), usable); // the board's
+        var chipFile = ChipFiles.Targets.Load("ch32v003");
+        Assert.Equal(chip.Pins.Select(p => p.Number).Where(n => n is not (25 or 31)),
+            chipFile.Settings["pinFunctions"]!["pin"]!.AsArray().Select(n => n!.GetValue<int>()));
+        Assert.Equal((chip.Pins.Single(p => p.Functions.Contains("USART1_TX")).Number,
+            chip.Pins.Single(p => p.Functions.Contains("USART1_RX")).Number),
+            (target.Settings["pinFunctions"]!["uart0.tx"]![0]!.GetValue<int>(), target.Settings["pinFunctions"]!["uart0.rx"]![0]!.GetValue<int>()));
         Assert.Equal(("rv32ec", "rv32ec_zicsr"), (chip.Cpu, target.Setting("march")));
         Assert.Equal((Constant("PLL_HZ"), 2 * Constant("HSI_HZ")),
             (ulong.Parse(target.Setting("clockHz")!, CultureInfo.InvariantCulture), Constant("PLL_HZ")));
