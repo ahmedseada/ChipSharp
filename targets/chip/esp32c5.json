@@ -1,0 +1,78 @@
+{
+  // Espressif ESP32-C5: one RISC-V core (the HP CPU, up to 240 MHz), 384 KB of SRAM, 2.4 and 5 GHz Wi-Fi 6, Bluetooth LE,
+  // 802.15.4; flash (and PSRAM) external, in the module. Milestone M4. The facts below come from Espressif's documents,
+  // named where each is used: the ESP32-C5 datasheet (DS, documentation.espressif.com/esp32-c5_datasheet_en.html), the
+  // Technical Reference Manual (TRM), ESP-IDF's sources (release/v5.5 and master: components/soc/esp32c5, the
+  // bootloader's linker files and start-up, the watchdogs' HAL) and esptool's (esptool/targets/esp32c5.py). Its
+  // registers are Espressif's SVD (chips/svd/esp32c5.svd), its pins and the rest ChipSharp's description of the chip
+  // (chips/esp32c5.json), from which src/ChipSharp.Chips makes the runtime's headers (esp32c5_registers.h, ...).
+  //
+  // The processor: RV32IMAC with Zicsr and Zifencei (DS: "RV32IMAC ISA", and Zcb, Zcmp, Zcmt and Espressif's hardware
+  // loops, which ChipSharp does not use: ESP-IDF's soc_caps.h marks Zcmp's push and popret faulty on this core,
+  // SOC_CPU_ZCMP_PUSH_REVERSED, SOC_CPU_ZCMP_POPRET_ISSUE); no F, D or B. clang's -march is ESP-IDF's own
+  // (tools/cmake/toolchain-clang-esp32c5.cmake: -march=rv32imac_zicsr_zifencei -mabi=ilp32). Machine mode only.
+  //
+  // Interrupts: a CLIC (soc_caps.h SOC_INT_CLIC_SUPPORTED; soc/clic_reg.h): its registers at 0x20800000, one word per
+  // interrupt at 0x20801000 + 4 * id (IP bit 0, IE bit 8, SHV bit 16, TRIG bits 18-17, MODE bits 23-22, CTL bits 31-24);
+  // 48 interrupt ids, 0-15 the core's own and 16-47 the 32 CPU interrupt lines (SOC_CPU_INTR_NUM 32,
+  // CLIC_EXT_INTR_NUM_OFFSET 16), to which the interrupt matrix (INTERRUPT_CORE0, 0x60010000) routes the 84 peripheral
+  // sources (soc/interrupts.h, 0 to 83: each source's <SOURCE>_INTR_MAP register, base + 4 * source, names a line).
+  // mtvec = the trap entry | 3 (CLIC mode, ESP-IDF's rv_utils.h: MTVEC_MODE_CSR 3), the entry 64-byte aligned (its
+  // bits 5-0 are the mode): every exception and every interrupt that is not vectored (SHV 0) goes there, mcause's
+  // bits 11-0 the interrupt's id; mtvt (CSR 0x307) is the table of the vectored ones, which ChipSharp does not use.
+  //
+  // Boot (the boot decision, for the image and flasher of M4's wave 1): the ROM boots from flash, reads the image at
+  // flash offset 0x2000 (esptool's BOOTLOADER_FLASH_OFFSET for the ESP32-C5; ESP-IDF's second-stage bootloader is
+  // there), checks its header (magic 0xE9, chip id 23: esptool's IMAGE_CHIP_ID), loads its segments into SRAM and jumps
+  // to its entry point. ESP-IDF's bootloader is not here, so ChipSharp's program is that image itself: every segment in
+  // SRAM (code, constants and .data's values; no flash cache or MMU to set up), the entry chipsharp_reset. The ROM's own
+  // stack, .bss and .data are SRAM's last 0x3a60 bytes, 0x4085c5a0 to 0x4085ffff, while it loads the image (ESP-IDF's
+  // bootloader.memory.ld.in: "The 2nd stage bootloader can take space up to the end of ROM shared buffers area
+  // (0x4085c5a0)"): the program has the 0x5c5a0 bytes before them ("sram" below), its loaded segments first, then .bss
+  // and the stack. The start-up calls no ROM function, and takes over everything once the ROM has jumped to it.
+  //
+  // What the ROM leaves running: the watchdogs of a boot from flash (ESP-IDF's bootloader_config_wdt: "the flashboot
+  // protection of RWDT and MWDT0 will have been automatically enabled") and the super watchdog. The runtime's
+  // chipsharp_chip_boot stops them first thing (esp32c5_boot.c, ESP-IDF's sequence): the RTC watchdog (LP_WDT,
+  // 0x600B1C00) and both timer groups' (TIMG0 0x60008000, TIMG1 0x60009000): write 0x50D83AA1 to the WPROTECT register,
+  // clear WDT_EN and WDT_FLASHBOOT_MOD_EN (a timer group's then WDT_CONF_UPDATE_EN, its config is copied over
+  // asynchronously), write 0 to WPROTECT; the super watchdog: 0x50D83AA1 to LP_WDT_SWD_WPROTECT, SWD_AUTO_FEED_EN (bit
+  // 18 of LP_WDT_SWD_CONFIG) set, 0 to SWD_WPROTECT (bootloader_super_wdt_auto_feed). The CPU clock the ROM leaves is
+  // not in the documents read (it runs from the crystal, 40 or 48 MHz, PCR_CLK_XTAL_FREQ says which): the chip's
+  // runtime sets its clocks itself.
+  //
+  // What the chip has so far, M4's wave 0: the target, the start-up and a linked .elf. The image (the ESP image the ROM
+  // loads), its flasher (esptool's protocol), the simulator and the runtime (pins, the clock and delays, the console on
+  // UART0, the events) come with wave 1, and with them the capabilities ("console", "clock", ...).
+  "name": "esp32c5",
+  "inherits": "riscv32",
+  "runtime": "esp32c5",
+  "march": "rv32imac_zicsr_zifencei",
+  "memory": {
+    // HP SRAM is 384 KB, 0x40800000-0x4085ffff, on the instruction and the data bus at the same addresses (soc.h:
+    // SOC_IRAM_LOW/SOC_DRAM_LOW 0x40800000, SOC_IRAM_HIGH/SOC_DRAM_HIGH 0x40860000): code and variables in one region.
+    // The program has its first 0x5c5a0 bytes (369.4 KB), up to the ROM's stack and data (above). Not used: ROM
+    // 0x40000000, LP SRAM (16 KB at 0x50000000), the flash and PSRAM the cache maps at 0x42000000
+    "sram": { "origin": "0x40800000", "size": "0x5c5a0" }
+  },
+  "link": {
+    "code": "sram",
+    "data": "sram",
+    "stack": "16K"
+  },
+  // the entries of the trap entry's table (riscv32 runtime): the CLIC's 48 interrupt ids, chipsharp_isr_irq0 to 47
+  "vectors": 48,
+  "interrupts": {
+    // the events an [Interrupt] method can handle: the CLIC id of the CPU interrupt line the runtime routes the event's
+    // source to through the interrupt matrix (line n is id 16 + n), and the runtime function that runs first, which
+    // clears the event (and arms a repeating timer's next time)
+    "timer": { "irq": 17, "clear": "chipsharp_clear_timer_event" },   // line 1: SYSTIMER's alarm (SYSTIMER_TARGET1)
+    "pin": { "irq": 18, "clear": "chipsharp_clear_pin_event" },       // line 2: GPIO's edges
+    "uart": { "irq": 19 }                                             // line 3: bytes arrived on a watched UART
+  },
+  "capabilities": {
+    "heap": false,        // the runtime's heap comes later: no objects yet
+    "console": false,     // UART0 (GPIO 11 TX, GPIO 12 RX): the runtime of wave 1
+    "clock": false        // SYSTIMER's 64-bit count: the runtime of wave 1
+  }
+}

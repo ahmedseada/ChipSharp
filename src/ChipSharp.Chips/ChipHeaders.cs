@@ -73,7 +73,7 @@ public static class ChipHeaders
             if (written.Add(name.Split('(')[0]))
             {
                 text.Append("#define ").Append(name).Append(' ').Append(value)
-                    .Append(comment is null ? "" : "   // " + comment).Append('\n');
+                    .Append(comment is null ? "" : "   // " + Comment(comment)).Append('\n');
             }
         }
 
@@ -152,12 +152,15 @@ public static class ChipHeaders
         text.Append(shared
             ? $"// One vector, {chip.Interrupts[0].Number}, for every interrupt: the handler finds out which source asked (its\n" +
               "// request bit), each enabled by its enable bit.\n\n"
+            : chip.InterruptMatrix
+            ? "// The interrupt sources by number: the interrupt matrix routes each to one of the processor's interrupts (the\n" +
+              "// source's map register names which), whose handler finds out which source asked.\n\n"
             : "// The interrupts by number (IRQ): the vector table's entry after the processor's own.\n\n");
         foreach (var interrupt in chip.Interrupts)
         {
             var name = $"{prefix}_IRQ_{Identifier(interrupt.Name)}";
             text.Append("#define ").Append(name).Append(' ').Append(interrupt.Number.ToString(CultureInfo.InvariantCulture))
-                .Append(interrupt.Description is { } d ? "   // " + d : "").Append('\n');
+                .Append(interrupt.Description is { } d ? "   // " + Comment(d) : "").Append('\n');
             if (interrupt.Request is { } request)
             {
                 var source2 = $"{prefix}_INTERRUPT_{Identifier(interrupt.Name)}";
@@ -340,6 +343,9 @@ public static class ChipHeaders
     private static string End(StringBuilder text, string guard) => text.Append("\n#endif // ").Append(guard).Append('\n').ToString();
 
     private static string Shorten(string text) => text.Length <= 100 ? text : text[..97] + "...";
+
+    /// <summary>The text of a // comment: no backslash at its end, which would make the next line of C part of it.</summary>
+    private static string Comment(string text) => text.TrimEnd().TrimEnd('\\');
 
     private static string Access(RegisterAccess access) => access switch
     {
