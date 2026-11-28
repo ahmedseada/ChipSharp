@@ -435,7 +435,7 @@ Built with `chipsharp build bin\Release\net10.0\<Name>.dll -t uno` in their fold
 |---|---|---|
 | `uno-blink` | Blinks the LED "L" (D13) with a delay loop; in Wokwi, an LED on D13 and the GND beside it blinks with it | 1.2 KB, 15 bytes of RAM |
 | `uno-timer-blink` | Blinks the LED "L" from the timer event (Timer1), while `Main` does nothing; the same circuit | 1.6 KB, 24 bytes of RAM |
-| `uno-button` | A button between D2 and GND toggles the LED "L" through the pin event (INT0, falling edges); `Pin.Input(2, Pull.Up)` turns D2's pull-up on, so the button needs no resistor | 1.4 KB, 24 bytes of RAM |
+| `uno-button` | A button between D2 and GND toggles the LED "L" through the pin event (INT0, falling edges); `Pin.Input(2, Pull.Up)` turns D2's pull-up on, so the button needs no resistor | 2.5 KB, 27 bytes of RAM |
 | `uno-serial` | A count on the console (USART0, 115200 baud) every second, and what is typed into it sent straight back (`Uart.Available`, `ReadByte`, `WriteByte`); in Wokwi, the serial monitor under the Uno | 5.4 KB, 132 bytes of RAM |
 | `uno-traffic-light` | The Pico traffic light with an LCD brought to the Uno, with no heap: one signal (A0, A1, A2) for two lanes, the turn's countdown on a 7-segment display (D3, D4, D7 to D11, `SevenSegment`), a 16x2 LCD on I2C (`Road 1   turn 8s`, `green         4s`), a button on D2 that cuts a green short, the LED "L" blinking from the timer event; over the serial port exactly what the Pico's traffic lights print, line for line | 13.4 KB, 136 bytes of RAM |
 | `uno-lcd-clock` | The date and the time on a 16x2 LCD, once a second, from a DS1307 read at start-up (`Clock.Start(Ds1307.Read())`) or a date it sets a halted one to; `TryFormat` into a span for `Lcd.Line`; both on I2C (A4, A5) | 26.0 KB, 96 bytes of RAM |
@@ -706,7 +706,7 @@ C# builds for the Pico or the Uno with other pin numbers.
 |---|---|---|
 | `pfs154-blink` | Blinks an LED on PA4 with a delay loop | 276 words, 9 bytes of RAM |
 | `pfs154-timer-blink` | Blinks the LED on PA4 from the timer event (TM2), while `Main` does nothing | 612 words, 23 bytes of RAM |
-| `pfs154-button` | A button between PA0 and GND toggles the LED on PA4 through the pin event (falling edges); `Pin.Input(PA0, Pull.Up)` holds it high, so the button needs no resistor | 384 words, 12 bytes of RAM |
+| `pfs154-button` | A button between PA0 and GND toggles the LED on PA4 through the pin event (falling edges); `Pin.Input(PA0, Pull.Up)` holds it high, so the button needs no resistor | 435 words, 12 bytes of RAM |
 | `pfs154-pwm-fade` | Fades an LED on PB5 (TM3's PWM, 1008 Hz) up and down with `Pwm.PulseMicroseconds`, 20 us more or less every 20 ms | 872 words, 53 bytes of RAM |
 | `pfs154-traffic-light` | The Uno's traffic light with what the chip has: red PA3, yellow PA6, green PA7, the turn's countdown on a 7-segment display (PB1 to PB7), a pedestrian button on PA0 that cuts a green short, a heartbeat LED on PA4 from the timer event; no console, no LCD, the steps a method's parameters (a table of record structs does not fit beside the stack) | 1381 words, 72 bytes of RAM |
 
@@ -731,7 +731,7 @@ labels on the board, and a `chipsim` command to run it without a board. They use
 |---|---|---|
 | `stm8-blink` | Blinks the board's LED (PB5, lit while low) with a delay loop | 762 bytes, 16 bytes of RAM |
 | `stm8-serial` | `pico-uart-echo` with no heap: a prompt on UART1 (PD5, PD6; 115200 baud) whose `on`, `off` and `status` switch the LED and say what it is; the line read char by char into a `stackalloc` span, each char sent back as it comes, a `switch` on the span | 6.7 KB, 64 bytes of RAM |
-| `stm8-traffic-light` | The Uno's traffic light without its LCD: red PA1, yellow PA2, green PA3, the turn's countdown on a 7-segment display (PC3 to PC7, PD2, PD3), a pedestrian button on PD4 (to GND, with `Pull.Up`) that cuts a green short, the board's LED blinking from the timer event; over UART1 exactly what the Pico's and the Uno's traffic lights print, line for line | 6.4 KB, 54 bytes of RAM |
+| `stm8-traffic-light` | The Uno's traffic light without its LCD: red PA1, yellow PA2, green PA3, the turn's countdown on a 7-segment display (PC3 to PC7, PD2, PD3), a pedestrian button on PD4 (to GND, with `Pull.Up`) that cuts a green short, the board's LED blinking from the timer event; over UART1 exactly what the Pico's and the Uno's traffic lights print, line for line | 6.6 KB, 54 bytes of RAM |
 | `stm8-lcd` | A potentiometer on PD3 (AIN4) as its reading and voltage on a 16x2 LCD at 0x27 on I2C (SDA PB5, SCL PB4): `0512 = 1.650 V`, the digits written as chars | 7.5 KB, 45 bytes of RAM |
 | `stm8-pwm-fade` | `pfs154-pwm-fade` on PD4: TIM2's PWM at 1000 Hz, its pulse 20 us longer or shorter every 20 ms (`Pwm.PulseMicroseconds`) | 3.3 KB, 23 bytes of RAM |
 
